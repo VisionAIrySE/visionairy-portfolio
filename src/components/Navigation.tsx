@@ -22,12 +22,12 @@ export function Navigation() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md transition-all ${
-        scrolled ? "border-b border-border" : "border-b border-transparent"
+      className={`fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md transition-all ${
+        scrolled ? "border-b border-black/10" : "border-b border-transparent"
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-foreground">
+        <Link to="/" className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-[#0D1117]">
           <span>Visionairy</span>
           <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
         </Link>
@@ -37,7 +37,7 @@ export function Navigation() {
             <li key={l.href}>
               <a
                 href={l.href}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="text-sm text-[#0D1117]/70 transition-colors hover:text-[#0D1117]"
               >
                 {l.label}
               </a>
@@ -50,21 +50,21 @@ export function Navigation() {
           aria-label="Toggle menu"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground md:hidden"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#0D1117] md:hidden"
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </nav>
 
       {open && (
-        <div className="border-t border-border bg-background md:hidden">
+        <div className="border-t border-black/10 bg-white md:hidden">
           <ul className="mx-auto flex max-w-7xl flex-col px-6 py-4">
             {links.map((l) => (
               <li key={l.href}>
                 <a
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="block py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="block py-3 text-sm text-[#0D1117]/70 transition-colors hover:text-[#0D1117]"
                 >
                   {l.label}
                 </a>
