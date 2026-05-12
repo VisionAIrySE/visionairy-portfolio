@@ -29,7 +29,7 @@ export function Hero() {
         </h1>
 
         <p className="mt-6 max-w-[600px] text-lg leading-relaxed text-[#94A3B8] md:text-xl">
-          Visionairy designs and builds multi-tool, AI-integrated SaaS platforms
+          VisionAIry designs and builds multi-tool, AI-integrated SaaS platforms
           and productivity tools for organizations across multiple industries —
           powered by the proprietary Xpansion Framework.
         </p>
