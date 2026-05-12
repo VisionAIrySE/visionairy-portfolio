@@ -27,9 +27,8 @@ export function Navigation() {
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-[#0D1117]">
-          <span>Visionairy</span>
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+        <Link to="/" className="flex items-center">
+          <img src="/assets/visionairy-logo.png" alt="Visionairy" style={{ height: "32px" }} />
         </Link>
 
         <ul className="hidden items-center gap-8 md:flex">
