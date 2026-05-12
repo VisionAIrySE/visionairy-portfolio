@@ -24,14 +24,14 @@ const products: Product[] = [
     highlight: true,
   },
   {
-    name: "Koinonos",
-    industry: "Spiritual Tech",
+    name: "Vib8",
+    industry: "AI Tooling",
     description:
-      "Greek NT companion with fresh, direct translations and cultural context.",
-    stack: ["Next.js", "Supabase", "OpenRouter", "ElevenLabs"],
+      "Universal AI prompt translator — your intent, perfectly formatted for any platform.",
+    stack: ["Claude API", "Supabase", "Python", "Google Cloud"],
     status: "Live",
-    url: "https://koinonos.app",
-    image: "/assets/product-koinonos.png",
+    url: "https://vib8ai.com",
+    image: "/assets/product-vib8.png",
   },
   {
     name: "Ask the Record",
@@ -44,32 +44,31 @@ const products: Product[] = [
     image: "/assets/product-atr.png",
   },
   {
-    name: "Stocker AI",
-    industry: "Logistics",
+    name: "Koinonos",
+    industry: "Spiritual Tech",
     description:
-      "Voice-guided picking for vending route operators. Enterprise speed, zero hardware.",
-    stack: ["React", "Supabase", "Deepgram", "n8n"],
+      "Greek NT companion with fresh, direct translations and cultural context.",
+    stack: ["Next.js", "Supabase", "OpenRouter", "ElevenLabs"],
     status: "Live",
-    url: "https://my-stocker-ai.com",
-    image: "/assets/product-stocker.png",
+    url: "https://koinonos.app",
+    image: "/assets/product-koinonos.png",
   },
   {
-    name: "Vib8",
-    industry: "AI Tooling",
-    description:
-      "Universal AI prompt translator — your intent, perfectly formatted for any platform.",
-    stack: ["Claude API", "Supabase", "Python", "Google Cloud"],
-    status: "Live",
-    url: "https://vib8ai.com",
-    image: "/assets/product-vib8.png",
-  },
-  {
-    name: "Builder-Path",
+    name: "Builder Path",
     industry: "FinTech / Construction",
     description:
       "AI-driven builder prospecting for spec construction lenders.",
     stack: ["Next.js", "PostgreSQL", "Claude API", "Tavily"],
     status: "Coming Soon",
+  },
+  {
+    name: "Stocker AI",
+    industry: "Logistics",
+    description:
+      "Voice-guided picking for vending route operators. Enterprise speed, zero hardware.",
+    stack: ["React", "Supabase", "Deepgram", "n8n"],
+    status: "Coming Soon",
+    image: "/assets/product-stocker.png",
   },
   {
     name: "LC Access",
