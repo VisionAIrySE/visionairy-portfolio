@@ -29,7 +29,7 @@ export function Contact() {
             Explore Xpansion.dev →
           </a>
           <a
-            href="https://www.linkedin.com/in/russ-wright-b504823/"
+            href="https://www.linkedin.com/company/visionairy-success-engineering"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block border border-[#60A5FA] text-[#60A5FA] px-6 py-3 rounded-md font-medium hover:bg-[#60A5FA]/10 transition-colors"
