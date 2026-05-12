@@ -1,7 +1,7 @@
 export function Framework() {
   const stats = [
     { title: "Patent Pending", desc: "USPTO provisional filed" },
-    { title: "5+ Industries", desc: "One methodology, every domain" },
+    { title: "Any Industry", desc: "One methodology, every domain" },
     { title: "Days", desc: "From defined intent to working platform" },
   ];
 
