@@ -1,11 +1,11 @@
 export function Contact() {
   return (
-    <section id="contact" className="w-full bg-[#0D1117] py-24 px-6">
+    <section id="contact" className="w-full bg-[#0D1117] py-24 md:py-32 px-6">
       <div className="mx-auto max-w-[800px] text-center">
         <p className="text-[#60A5FA] uppercase text-sm font-semibold tracking-wider mb-4">
           Get in touch
         </p>
-        <h2 className="text-white font-bold text-4xl md:text-5xl mb-6">
+        <h2 className="text-white font-bold text-3xl sm:text-4xl md:text-5xl mb-6 break-words">
           Ready to build something that works?
         </h2>
         <p className="text-[#94A3B8] text-lg mb-10">
@@ -30,7 +30,7 @@ export function Contact() {
           </a>
         </div>
 
-        <div className="border-t border-white/10 pt-6 flex items-center justify-between text-xs text-[#94A3B8]">
+        <div className="border-t border-white/10 pt-6 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left text-xs text-[#94A3B8]">
           <span>© 2025 Visionairy. Built on the Xpansion Framework.</span>
           <img src="/assets/xf-logo-white.svg" alt="XF" className="h-4" />
         </div>

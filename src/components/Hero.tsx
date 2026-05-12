@@ -34,11 +34,11 @@ export function Hero() {
           powered by the proprietary Xpansion Framework.
         </p>
 
-        <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
+        <div className="mt-10 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
           <a
             href="#work"
             onClick={handlePortfolio}
-            className="inline-flex h-11 items-center justify-center rounded-md bg-[#60A5FA] px-6 text-sm font-semibold text-[#0D1117] transition-colors hover:bg-[#7DB6FB]"
+            className="inline-flex h-11 w-full items-center justify-center rounded-md bg-[#60A5FA] px-6 text-sm font-semibold text-[#0D1117] transition-colors hover:bg-[#7DB6FB] sm:w-auto"
           >
             See Our Work
           </a>
@@ -46,7 +46,7 @@ export function Hero() {
             href="https://xpansion.dev"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 items-center justify-center rounded-md border border-white/80 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            className="inline-flex h-11 w-full items-center justify-center rounded-md border border-white/80 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
           >
             The Xpansion Framework
           </a>
