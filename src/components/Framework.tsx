@@ -66,13 +66,16 @@ export function Framework() {
             <div className="relative rounded-2xl bg-[#161B27] border border-white/10 aspect-square flex items-center justify-center overflow-hidden">
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
-                  className="w-2/3 h-2/3 rounded-full blur-3xl opacity-40"
-                  style={{ background: "radial-gradient(circle, #60A5FA 0%, transparent 70%)" }}
+                  className="w-2/3 h-2/3 rounded-full blur-3xl"
+                  style={{ background: "radial-gradient(circle, rgba(96,165,250,0.2) 0%, transparent 70%)" }}
                 />
               </div>
-              <div className="relative text-[#94A3B8] text-2xl font-mono tracking-widest">
-                [XF Logo]
-              </div>
+              <img
+                src="/assets/xf-logo.svg"
+                alt="Xpansion Framework logo"
+                className="relative"
+                style={{ width: "200px" }}
+              />
             </div>
           </div>
         </div>
