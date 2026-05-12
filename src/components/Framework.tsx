@@ -63,9 +63,9 @@ export function Framework() {
 
           {/* Right column */}
           <div className="relative">
-            <div className="relative rounded-2xl bg-white border border-white/10 aspect-square flex items-center justify-center overflow-hidden">
+            <div className="relative rounded-2xl bg-[#161B27] border border-white/10 aspect-square flex items-center justify-center overflow-hidden">
               <img
-                src="/assets/xf-logo.svg"
+                src="/assets/xf-logo-white.svg"
                 alt="Xpansion Framework logo"
                 className="relative"
                 style={{ width: "200px" }}
