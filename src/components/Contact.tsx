@@ -28,6 +28,14 @@ export function Contact() {
           >
             Explore Xpansion.dev →
           </a>
+          <a
+            href="https://www.linkedin.com/in/russ-wright-b504823/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block border border-[#60A5FA] text-[#60A5FA] px-6 py-3 rounded-md font-medium hover:bg-[#60A5FA]/10 transition-colors"
+          >
+            LinkedIn →
+          </a>
         </div>
 
         <div className="border-t border-white/10 pt-6 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left text-xs text-[#94A3B8]">
