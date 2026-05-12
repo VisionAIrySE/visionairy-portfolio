@@ -177,7 +177,7 @@ export function Portfolio() {
               style={{ height: "24px" }}
             />
           </div>
-          <h2 className="mt-4 text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
+          <h2 className="mt-4 text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
             One framework.
             <br />
             Seven platforms.

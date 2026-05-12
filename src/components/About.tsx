@@ -1,11 +1,11 @@
 export function About() {
   return (
-    <section id="about" className="w-full bg-[#0D1117] py-24 px-6">
+    <section id="about" className="w-full bg-[#0D1117] py-24 md:py-32 px-6">
       <div className="mx-auto max-w-[900px] text-center">
         <p className="text-[#A3E635] uppercase text-sm font-semibold tracking-wider mb-4">
           About the Founder
         </p>
-        <h2 className="text-white font-bold text-4xl md:text-5xl mb-8">
+        <h2 className="text-white font-bold text-3xl sm:text-4xl md:text-5xl mb-8 break-words">
           Russ Wright — Founder, Visionairy
         </h2>
         <p className="text-[#94A3B8] text-lg leading-relaxed mb-12">
@@ -17,7 +17,7 @@ export function About() {
           One methodology.
         </p>
 
-        <div className="grid grid-cols-3 divide-x divide-white/10 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-3 sm:divide-x divide-white/10 gap-8 sm:gap-0 mb-12">
           {[
             { n: "7", l: "Platforms shipped" },
             { n: "6", l: "Industries" },

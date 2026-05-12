@@ -14,7 +14,7 @@ export function Framework() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#60A5FA]">
               Our Methodology
             </p>
-            <h2 className="mt-4 text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
+            <h2 className="mt-4 text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
               The engine behind
               <br />
               everything we build.
