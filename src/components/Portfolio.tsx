@@ -172,7 +172,7 @@ export function Portfolio() {
               Powered by
             </p>
             <img
-              src="/assets/xf-logo.svg"
+              src="/assets/xf-logo-white.svg"
               alt="Xpansion Framework"
               style={{ height: "24px" }}
             />
