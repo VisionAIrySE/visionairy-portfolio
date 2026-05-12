@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gray diamond (bottom / down arrow) — drawn first so green overlaps -->
+  <polygon points="50,38 82,65 50,95 18,65" fill="#9B9B9B"/>
+  <!-- Green diamond (top / up arrow) — slightly darker than logo original -->
+  <polygon points="50,5 82,35 50,65 18,35" fill="#6EA820"/>
+</svg>

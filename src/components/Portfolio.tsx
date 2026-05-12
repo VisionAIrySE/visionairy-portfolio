@@ -74,7 +74,7 @@ const products: Product[] = [
   {
     name: "LC Access",
     industry: "Security",
-    description: "AI-driven access control and perimeter management.",
+    description: "Android inspection app for commercial insurance loss control — field photo documentation with AI-powered requirement extraction.",
     status: "Coming Soon",
   },
 ];

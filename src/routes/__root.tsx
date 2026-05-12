@@ -72,16 +72,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Visionairy — Success Engineering" },
+      { name: "description", content: "AI-integrated platforms built on the Xpansion Framework" },
+      { name: "author", content: "Russ Wright" },
+      { property: "og:title", content: "Visionairy — Success Engineering" },
+      { property: "og:description", content: "AI-integrated platforms built on the Xpansion Framework" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@VisionAIrySE" },
     ],
     links: [
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       {
         rel: "stylesheet",
         href: appCss,
