@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FlipIndexRouteImport } from './routes/flip.index'
+import { Route as FlipLenderRouteImport } from './routes/flip.$lender'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FlipIndexRoute = FlipIndexRouteImport.update({
+  id: '/flip/',
+  path: '/flip/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlipLenderRoute = FlipLenderRouteImport.update({
+  id: '/flip/$lender',
+  path: '/flip/$lender',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/flip/$lender': typeof FlipLenderRoute
+  '/flip/': typeof FlipIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/flip/$lender': typeof FlipLenderRoute
+  '/flip': typeof FlipIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/flip/$lender': typeof FlipLenderRoute
+  '/flip/': typeof FlipIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/flip/$lender' | '/flip/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/flip/$lender' | '/flip'
+  id: '__root__' | '/' | '/flip/$lender' | '/flip/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FlipLenderRoute: typeof FlipLenderRoute
+  FlipIndexRoute: typeof FlipIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,12 +68,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/flip/': {
+      id: '/flip/'
+      path: '/flip'
+      fullPath: '/flip/'
+      preLoaderRoute: typeof FlipIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flip/$lender': {
+      id: '/flip/$lender'
+      path: '/flip/$lender'
+      fullPath: '/flip/$lender'
+      preLoaderRoute: typeof FlipLenderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FlipLenderRoute: FlipLenderRoute,
+  FlipIndexRoute: FlipIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
