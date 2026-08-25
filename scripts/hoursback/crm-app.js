@@ -8,10 +8,15 @@
 const http = require('http');
 const fs = require('fs');
 process.chdir(require('path').resolve(__dirname, '../..'));
-for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
-  const m = line.match(/^([A-Z_]+)="?([^"]*)"?$/);
-  if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
-}
+// Local convenience only: read .env when it exists. On a host there is no
+// .env — the settings arrive as real environment variables — and a missing
+// file must never crash the app. (It did: first deploy died here.)
+try {
+  for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z_]+)="?([^"]*)"?$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+} catch { /* no .env on the host — expected */ }
 const { PrismaClient } = require('@prisma/client');
 const { callQueue, followUpQueue, callToPaidReadout } = require('../../src/hoursback/crm/queues.js');
 const { logCall, leakReport } = require('../../src/hoursback/crm/nextAction.js');
