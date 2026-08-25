@@ -13,7 +13,7 @@ function Admin() {
       <div className="max-w-md w-full space-y-6">
         <h1 className="text-2xl font-bold">Visionairy Admin</h1>
         <a
-          href="https://app.visionairy.biz"
+          href="https://crm.visionairy.biz"
           className="block border border-border rounded-xl p-5 hover:bg-muted transition-colors"
         >
           <div className="text-lg font-semibold">Hours Back CRM</div>
