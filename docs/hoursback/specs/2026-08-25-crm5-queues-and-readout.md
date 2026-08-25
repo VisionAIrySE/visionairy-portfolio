@@ -15,7 +15,7 @@ Intent: Hand Russ a list of who to call today and who to follow up with, in the 
 Build
 
   daily-call-queue
-  - [ ] The queues module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/queues.js |  -->
+  - [x] The queues module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/queues.js |  -->
   - [ ] The call queue size is read from configuration and defaults within 20 to 30. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=call_queue_size_configured_20_to_30 | 0 -->
   - [ ] The call queue never returns more records than its configured size. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=call_queue_respects_size | 0 -->
   - [ ] A callback promised for today sorts above every cold prospect regardless of score. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=callbacks_sort_first | 0 -->
@@ -50,5 +50,5 @@ Specify
 
 Operate
 
-- [ ] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
+- [x] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
 - [ ] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->

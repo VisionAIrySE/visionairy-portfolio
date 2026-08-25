@@ -15,7 +15,7 @@ Intent: Make sure no live prospect is ever sitting with nothing scheduled, and m
 Build
 
   next-action-invariant
-  - [ ] The next-action module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/nextAction.js |  -->
+  - [x] The next-action module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/nextAction.js |  -->
   - [ ] Every prospect between INITIAL_CONTACT and CUSTOMER carries a non-null next action and next-action date. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=live_records_have_next_action | 0 -->
   - [ ] A live prospect missing either one appears in the leak report, named. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=leak_report_names_offenders | 0 -->
   - [ ] The leak report is empty for a fixture set where every live prospect has both. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=leak_report_empty_when_clean | 0 -->
@@ -30,7 +30,7 @@ Build
   - [ ] Running logCall twice on the same call identifier writes one call log row, not two. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=log_call_is_idempotent | 0 -->
 
   one-way-callback-calendar
-  - [ ] The calendar module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/calendar.js |  -->
+  - [x] The calendar module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/calendar.js |  -->
   - [ ] A promised date and time creates exactly one calendar entry. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=callback_creates_one_entry | 0 -->
   - [ ] Replaying the same promised callback creates no duplicate entry. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=callback_replay_no_duplicate | 0 -->
   - [ ] A next action with no promised time creates no calendar entry at all. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_time_no_calendar_entry | 0 -->
@@ -50,5 +50,5 @@ Specify
 
 Operate
 
-- [ ] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
+- [x] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
 - [ ] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->

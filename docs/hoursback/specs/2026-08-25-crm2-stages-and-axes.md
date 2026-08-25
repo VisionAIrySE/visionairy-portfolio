@@ -15,7 +15,7 @@ Intent: Give every prospect one position on a six-step ladder, and keep everythi
 Build
 
   six-step-ladder
-  - [ ] The stages module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/stages.js |  -->
+  - [x] The stages module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/crm/stages.js |  -->
   - [ ] The ladder declares exactly six values in order: NO_CONTACT, INITIAL_CONTACT, ACTIVE, IN_PROCESS, CUSTOMER, EXPANDED_CUSTOMER, and no seventh. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=ladder_has_exactly_six_values | 0 -->
   - [ ] A new prospect written by the list builder starts at NO_CONTACT. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=new_prospect_starts_no_contact | 0 -->
   - [ ] A prospect reaches CUSTOMER only through ACTIVE and IN_PROCESS, never by skipping either. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=ladder_no_skipping | 0 -->
@@ -48,10 +48,10 @@ Understand
 
 Specify
 
-- [ ] The schema validates with the ladder and every axis declared. <!-- type:Specify --> <!-- check: exit_code | npx prisma validate | 0 -->
+- [x] The schema validates with the ladder and every axis declared. <!-- type:Specify --> <!-- check: exit_code | npx prisma validate | 0 -->
 - [ ] Prospects already written by the list builder are backfilled to NO_CONTACT with a zero attempt count. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=backfill_existing_prospects | 0 -->
 
 Operate
 
-- [ ] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
-- [ ] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->
+- [x] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
+- [x] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->
