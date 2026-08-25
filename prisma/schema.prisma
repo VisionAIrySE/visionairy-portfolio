@@ -1,0 +1,113 @@
+// Hours Back — prospect store. Conventions (cuid ids, @unique, @default,
+// explicit @relation) copied from BuilderPath's proven schema at
+// Veristone/builderflow/prisma/schema.prisma, per the lb2 record-shape spec.
+//
+// SQLite for now (single operator, zero setup); Prisma enums are not
+// supported on SQLite, so stage carries the six ladder values as strings —
+// the value vocabulary is enforced by scripts/hoursback/run-spec-checks.js,
+// matching builderflow's ProspectStage equivalents.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// One Central Oregon business. The generated id is the record's identity —
+/// placeId is unique but MAY change if Google re-lists the business, and the
+/// record must survive that (round-trip check: id unchanged on placeId edit).
+///
+/// Every machine-written (fetched) field has a paired hand-entered column
+/// beside it (...ManualValue): the fetched value and the typed value occupy
+/// separate columns, a correction never overwritten by a later sweep. The
+/// resolved value is ManualValue when present, fetched otherwise.
+model Prospect {
+  id     String  @id @default(cuid())
+  placeId String @unique
+
+  // --- capture fields (machine-written) + their hand-entered pairs --------
+  name              String
+  nameManualValue   String?
+  phone             String?
+  phoneManualValue  String?
+  website           String?
+  websiteManualValue String?
+  address           String?
+  addressManualValue String?
+  normalizedPhone   String?
+  normalizedDomain  String?
+
+  // --- enrichment fields (machine-written) + their hand-entered pairs -----
+  employeeCount            Int?
+  employeeCountManualValue Int?
+  headcountSourceUrl       String?
+  headcountStatus          String?
+  email                    String?
+  emailManualValue         String?
+  emailConfidence          Float?
+  emailStatus              String?
+
+  // --- derived from the RESOLVED employeeCount via the rules module -------
+  // (recomputed on an employeeCount correction; never a per-employee figure)
+  segment         String?
+  auditFee        Int?
+  guaranteedHours Int?
+
+  // --- provenance ---------------------------------------------------------
+  captureRunId String?
+  captureRun   CaptureRun? @relation(fields: [captureRunId], references: [id])
+  fieldSource  String?
+  fetchedAt    DateTime?
+
+  // --- working state (vocabulary enforced in code; sqlite has no enums) ---
+  stage        String  @default("NO_CONTACT")
+  doNotContact Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fieldEdits      ProspectFieldEdit[]
+  duplicatesKept  ProspectDuplicate[] @relation("keptProspect")
+}
+
+/// A business the sweep re-found. The kept prospect stays; the candidate is
+/// recorded here instead of inserted, with the signal that matched.
+model ProspectDuplicate {
+  id              String   @id @default(cuid())
+  keptProspectId  String
+  keptProspect    Prospect @relation("keptProspect", fields: [keptProspectId], references: [id])
+  candidatePlaceId String?
+  candidateName    String?
+  matchSignal      String   // "phone" | "domain" | "name_address"
+  createdAt        DateTime @default(now())
+}
+
+/// One sweep. mode separates the one-time regional capture from the monthly
+/// top-up; a resumed sweep re-requests no completed cell.
+model CaptureRun {
+  id             String    @id @default(cuid())
+  mode           String    // "regional" | "monthly_top_up"
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  cellsAttempted Int       @default(0)
+  cellsCompleted Int       @default(0)
+  placesSeen     Int       @default(0)
+  placesInserted Int       @default(0)
+  prospects      Prospect[]
+}
+
+/// Append-only history of hand corrections: which field, the value before,
+/// the value after, who corrected it and when.
+model ProspectFieldEdit {
+  id          String   @id @default(cuid())
+  prospectId  String
+  prospect    Prospect @relation(fields: [prospectId], references: [id])
+  fieldName   String
+  valueBefore String?
+  valueAfter  String?
+  correctedBy String
+  correctedAt DateTime @default(now())
+}

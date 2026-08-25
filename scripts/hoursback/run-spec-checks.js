@@ -329,13 +329,97 @@ def('checks_run_offline', () => {
   return { ok, detail: ok ? 'the runner performs no network I/O; only the http_status checks in the specs touch the network' : 'runner contains network calls' };
 });
 
-def('all_spec_checks_execute_and_pass', () => {
+// --- prospect round-trip suite (lb2) — a real database, written and read ----
+async function withDb(fn) {
+  const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
+  const db = new PrismaClient();
+  try { return await fn(db); } finally { await db.$disconnect(); }
+}
+
+// Every column on the Prospect model, populated. Read back must return each
+// value byte-for-byte; the schema and this fixture must agree or the check fails.
+function fullProspectFixture(tag) {
+  return {
+    placeId: `roundtrip-${tag}`,
+    name: 'Cascade Test Plumbing', nameManualValue: 'Cascade Plumbing LLC',
+    phone: '541-555-0100', phoneManualValue: '541-555-0199',
+    website: 'https://cascadetest.example', websiteManualValue: 'https://cascade.example',
+    address: '100 Test Ln, Bend OR', addressManualValue: '100 Test Lane, Bend OR',
+    normalizedPhone: '5415550100', normalizedDomain: 'cascadetest.example',
+    employeeCount: 12, employeeCountManualValue: 14,
+    headcountSourceUrl: 'https://linkedin.example/cascade', headcountStatus: 'resolved',
+    email: 'office@cascadetest.example', emailManualValue: 'owner@cascadetest.example',
+    emailConfidence: 0.92, emailStatus: 'found',
+    segment: '11-15', auditFee: 1500, guaranteedHours: 15,
+    fieldSource: 'google_places', fetchedAt: new Date('2026-08-25T12:00:00Z'),
+    stage: 'NO_CONTACT', doNotContact: false,
+  };
+}
+
+def('prospect_roundtrip_all_fields', () => withDb(async (db) => {
+  const fixture = fullProspectFixture(`fields-${Date.now()}`);
+  const created = await db.prospect.create({ data: fixture });
+  const read = await db.prospect.findUnique({ where: { id: created.id } });
+  for (const [k, v] of Object.entries(fixture)) {
+    const got = read[k] instanceof Date ? read[k].getTime() : read[k];
+    const want = v instanceof Date ? v.getTime() : v;
+    if (got !== want) return { ok: false, detail: `${k}: wrote ${want}, read ${got}` };
+  }
+  await db.prospect.delete({ where: { id: created.id } });
+  return { ok: true, detail: `${Object.keys(fixture).length} fields written and read back identical` };
+}));
+
+def('prospect_roundtrip_id_stable_on_placeid_change', () => withDb(async (db) => {
+  const created = await db.prospect.create({ data: fullProspectFixture(`stable-${Date.now()}`) });
+  const relisted = await db.prospect.update({
+    where: { id: created.id }, data: { placeId: `${created.placeId}-relisted` },
+  });
+  const ok = relisted.id === created.id;
+  await db.prospect.delete({ where: { id: created.id } });
+  return { ok, detail: ok ? 'the record kept its id when its listing changed' : 'id changed with placeId' };
+}));
+
+def('prospect_roundtrip_override_survives_capture', () => withDb(async (db) => {
+  const { resolveField } = require(path.join(ROOT, 'src/hoursback/overrides.js'));
+  const created = await db.prospect.create({ data: fullProspectFixture(`survive-${Date.now()}`) });
+  // a second CaptureRun rewrites machine fields — the typed columns stay put
+  const run2 = await db.captureRun.create({ data: { mode: 'monthly_top_up' } });
+  const after = await db.prospect.update({
+    where: { id: created.id },
+    data: { employeeCount: 30, phone: '541-555-0777', captureRunId: run2.id },
+  });
+  const ok = after.employeeCountManualValue === 14 && after.phoneManualValue === '541-555-0199'
+    && resolveField(after, 'employeeCount') === 14 && resolveField(after, 'phone') === '541-555-0199';
+  await db.prospect.delete({ where: { id: created.id } });
+  await db.captureRun.delete({ where: { id: run2.id } });
+  return { ok, detail: ok
+    ? 'machine rewrite landed in the fetched columns; hand-entered values untouched and still resolved'
+    : `manual pair lost: ${JSON.stringify({ ec: after.employeeCountManualValue, ph: after.phoneManualValue })}` };
+}));
+
+def('prospect_roundtrip_edit_history', () => withDb(async (db) => {
+  const { setOverride } = require(path.join(ROOT, 'src/hoursback/overrides.js'));
+  const created = await db.prospect.create({ data: fullProspectFixture(`edit-${Date.now()}`) });
+  const after = await setOverride(db, created.id, 'employeeCount', 22, 'russ');
+  const edits = await db.prospectFieldEdit.findMany({ where: { prospectId: created.id } });
+  const e = edits[0] || {};
+  const ok = edits.length === 1 && e.fieldName === 'employeeCount'
+    && e.valueBefore === '14' && e.valueAfter === '22' && e.correctedBy === 'russ'
+    && after.auditFee === 2500 && after.guaranteedHours === 25 && after.segment === '21-25';
+  await db.prospectFieldEdit.deleteMany({ where: { prospectId: created.id } });
+  await db.prospect.delete({ where: { id: created.id } });
+  return { ok, detail: ok
+    ? 'correction wrote one history row (field, before, after, who) and repriced 22 heads to the 21-25 band'
+    : `history/repricing wrong: ${JSON.stringify({ edits, fee: after.auditFee })}` };
+}));
+
+def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
   const failures = [];
   for (const [name, fn] of Object.entries(CHECKS)) {
     if (name === 'all_spec_checks_execute_and_pass') continue;
-    let r; try { r = fn(); } catch (e) { r = { ok: false, detail: e.message }; }
+    let r; try { r = await fn(); } catch (e) { r = { ok: false, detail: e.message }; }
     if (!r.ok) failures.push(`${name} (${r.detail})`);
   }
   return failures.length
@@ -344,25 +428,30 @@ def('all_spec_checks_execute_and_pass', () => {
 });
 
 // ---------------------------------------------------------------------------
-function run(name) {
+async function run(name) {
   const fn = CHECKS[name];
   if (!fn) { console.log(`? ${name} — unknown check (unimplemented checks fail, never pass)`); return 3; }
   let r;
-  try { r = fn(); } catch (e) { r = { ok: false, detail: `check raised: ${e.message}` }; }
+  try { r = await fn(); } catch (e) { r = { ok: false, detail: `check raised: ${e.message}` }; }
   console.log(`${r.ok ? '✓' : '✗'} ${name} — ${r.detail}`);
   return r.ok ? 0 : 1;
 }
 
-const args = process.argv.slice(2);
-const one = args.find((a) => a.startsWith('--check='));
-if (one) process.exit(run(one.replace('--check=', '')));
-// Bare invocation runs everything — the specs' Operate terminals call the
-// runner with no flag and judge its exit code.
-if (args.length === 0 || args.includes('--all')) {
+(async () => {
+  const args = process.argv.slice(2);
+  const one = args.find((a) => a.startsWith('--check='));
+  if (one) process.exit(await run(one.replace('--check=', '')));
+
+  // Bare invocation runs everything — the specs' Operate terminals call the
+  // runner with no flag and judge its exit code. A bare word filters by
+  // substring: `npm test -- prospect-roundtrip` runs just that suite.
+  const norm = (s) => s.replace(/-/g, '_');
+  const filters = args.filter((a) => !a.startsWith('--'));
+  let names = Object.keys(CHECKS);
+  if (filters.length) names = names.filter((n) => filters.some((f) => norm(n).includes(norm(f))));
+  if (!names.length) { console.log(`no checks match: ${filters.join(' ')}`); process.exit(2); }
   let fails = 0;
-  for (const name of Object.keys(CHECKS)) if (run(name) !== 0) fails++;
-  console.log(`\n${Object.keys(CHECKS).length - fails}/${Object.keys(CHECKS).length} checks pass`);
+  for (const name of names) if (await run(name) !== 0) fails++;
+  console.log(`\n${names.length - fails}/${names.length} checks pass`);
   process.exit(fails ? 1 : 0);
-}
-console.log('usage: run-spec-checks.js [--check=NAME | --all]');
-process.exit(2);
+})();
