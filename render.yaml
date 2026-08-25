@@ -1,21 +1,19 @@
-# Hours Back CRM — deploys as its own service so nothing here can ever take
-# the marketing site down. The site stays on Cloudflare; this runs the CRM
-# at app.visionairy.biz with the database on a persistent disk.
+# Hours Back CRM — free everywhere: the app on Render's free tier (naps when
+# idle, wakes in ~1 min), the data permanent in Russ's Supabase "VisionAIry
+# CRM" project. Nothing here costs money.
 services:
   - type: web
     name: hoursback-crm
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install --production=false && npx prisma generate
-    startCommand: npx prisma migrate deploy && node scripts/hoursback/crm-app.js
-    disk:
-      name: hoursback-data
-      mountPath: /data
-      sizeGB: 1
+    startCommand: npx prisma db push --skip-generate && node scripts/hoursback/crm-app.js
     envVars:
       - key: DATABASE_URL
-        value: "file:/data/hoursback.db"
+        sync: false   # the Supabase connection address - pasted in the dashboard
+      - key: DIRECT_URL
+        sync: false
       - key: CRM_PASSWORD
-        sync: false   # typed once in the Render dashboard, never in code
-      # The Google Places key is deliberately NOT deployed — standing order
+        sync: false   # the CRM's front-door password - typed in the dashboard
+      # The Google Places key is deliberately NOT deployed - standing order
       # 2026-08-25: no Places requests until Russ lifts it in writing.

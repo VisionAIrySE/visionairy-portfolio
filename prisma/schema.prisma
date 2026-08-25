@@ -12,8 +12,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  // Postgres on Supabase — Russ's existing "VisionAIry CRM" project. Chosen
+  // 2026-08-25 over a paid disk: data lives free and permanent in Supabase,
+  // so the app itself can run on a free tier that keeps nothing.
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /// One Central Oregon business. The generated id is the record's identity —
