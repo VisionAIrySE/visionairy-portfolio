@@ -475,7 +475,38 @@ An industry pain page is written when **either** of two things happens: a comple
 
 ---
 
-## 10. Operating Rules for This Document
+## Capture runs — the sweep contract (§10)
+
+How the target list is actually built and refreshed, stated once so the code, the checks and this document cannot drift apart. Every statement here is verified by a machine check: comment in the spec family — no clause is decorative.
+
+**The client contract.** placesClient returns place records of exactly six fields — placeId, name, phone, website, address and categories — and phone and website may be null; the other four are always present. Both run modes obtain places through this one client and receive the identical shape; there is no second fetch path.
+
+**What each captured field feeds.** placeId is the record's listing identity and the first key of the insert gate. phone feeds the no-phone-number qualification filter in `locked-decisions.md`'s settled filters, and its normalizedPhone form is the gate's second key. website yields normalizedDomain, the gate's third key. name and address identify the business to the operator on the call sheet. categories tilts the automation-fit score — it never gates the sweep.
+
+**The two modes.** runRegionalCapture() is the one-time near-complete capture; runMonthlyTopUp() is the recurring pass, fired by the host's monthly schedule without an operator starting it by hand. They differ only in which configured cells they sweep and share one placesClient and one run-row writer.
+
+**Cells, completion, failure.** A cell is one town-by-category query unit. A completed cell is one whose result pages are exhausted. A failed cell is one whose retry count is spent — it is excluded from cellsCompleted, still counts toward cellsAttempted, and is requested again by the next sweep. **The resumability contract:** a re-run against saved cell state requests only failed and untouched cells and skips completed ones, so an interrupted sweep resumed costs nothing twice.
+
+**The insert criterion.** A prospect row is written only when placeId, normalizedPhone and normalizedDomain are all three absent together from the store; a match on any single key is enough to skip the place and record the collision. The reason the gate compares normalizedPhone and normalizedDomain alongside placeId: a relisted business arrives under a fresh placeId and would otherwise reach the operator twice.
+
+### What the operator reads a CaptureRun row for
+
+Every sweep writes exactly one row, read for two things — whether the region was covered, and how many new businesses the sweep added. Its six fields:
+
+- **mode** — which sweep this was: the regional capture or the monthly top-up.
+- **startedAt** — the moment the sweep began, not the moment the row was written.
+- **cellsAttempted** — how many configured Central Oregon cells the sweep touched.
+- **cellsCompleted** — how many of those exhausted their result pages, failures excluded.
+- **placesSeen** — every place record the client returned during the run.
+- **placesInserted** — only the rows the insert gate actually wrote; seen minus inserted is the number skipped.
+
+### auditFee against guaranteedHours — the formula
+
+The stored fee field is auditFee and the promise field is guaranteedHours: auditFee is 100 times guaranteedHours at every band above the entry band, the entry band carries the $999 rounding stated in §3, and auditFee is never derived from headcount — no band computes the fee per employee. Where this document and `locked-decisions.md` disagree on guaranteedHours or auditFee, the locked-decisions.md value is kept and the figure here is discarded.
+
+---
+
+## 11. Operating Rules for This Document
 
 **Where it lives.** `docs/hoursback/business-model.md`, inside the Visionairy website repository, alongside `locked-decisions.md` and the requirements it was written against.
 

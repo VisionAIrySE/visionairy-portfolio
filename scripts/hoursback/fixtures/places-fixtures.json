@@ -1,0 +1,22 @@
+{
+  "comment": "Recorded Places pages. Cell A spans two pages (page-exhaustion exercised). fixture-b2 shares a phone with fixture-a1 under a different placeId (normalizedPhone branch). fixture-b3 shares a domain with fixture-a2, www-prefixed and differently formatted (normalizedDomain branch). fixture-a3 has no phone or website (null-field contract).",
+  "cells": {
+    "TestTown:plumbing": [
+      { "places": [
+        { "placeId": "fixture-a1", "name": "Cascade Plumbing", "phone": "(541) 555-0101", "website": "https://cascadeplumb.example", "address": "1 A St, Bend OR", "categories": ["plumber"] },
+        { "placeId": "fixture-a2", "name": "High Desert Dental", "phone": "541-555-0102", "website": "https://highdesertdental.example", "address": "2 B St, Bend OR", "categories": ["dentist"] },
+        { "placeId": "fixture-a3", "name": "Juniper Books", "phone": null, "website": null, "address": "3 C St, Bend OR", "categories": ["book_store"] }
+      ], "nextPageToken": "page2" },
+      { "places": [
+        { "placeId": "fixture-a4", "name": "Ochoco Insurance", "phone": "541.555.0104", "website": "https://ochocoins.example", "address": "4 D St, Prineville OR", "categories": ["insurance_agency"] }
+      ] }
+    ],
+    "TestTown:dental": [
+      { "places": [
+        { "placeId": "fixture-b1", "name": "Redmond Staffing", "phone": "541-555-0105", "website": "https://redmondstaffing.example", "address": "5 E St, Redmond OR", "categories": ["employment_agency"] },
+        { "placeId": "fixture-b2", "name": "Cascade Plumbing (relisted)", "phone": "+1 541 555 0101", "website": "https://cascadeplumbing-new.example", "address": "1 A St, Bend OR", "categories": ["plumber"] },
+        { "placeId": "fixture-b3", "name": "High Desert Dental Care", "phone": "541-555-0199", "website": "http://www.HighDesertDental.example/contact", "address": "2 B St, Bend OR", "categories": ["dentist"] }
+      ] }
+    ]
+  }
+}

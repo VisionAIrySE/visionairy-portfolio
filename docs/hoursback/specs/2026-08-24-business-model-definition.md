@@ -1,7 +1,7 @@
 # XFFI Spec — Hours Back business-model definition document
 Generated: 2026-08-24 · REWRITTEN so every terminal carries a runnable check
 Intent: Write one business-model definition document for the Central Oregon guarantee-led AI automation services practice.
-<!-- xfxa-status: verified: 2026-08-24 -->
+<!-- xfxa-status: verified: 2026-08-25 -->
 
 ## Roots
 

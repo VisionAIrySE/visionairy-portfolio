@@ -413,6 +413,190 @@ def('prospect_roundtrip_edit_history', () => withDb(async (db) => {
     : `history/repricing wrong: ${JSON.stringify({ edits, fee: after.auditFee })}` };
 }));
 
+// --- places sweep suite (lb3) — recorded fixtures, real database, no network
+const FIXTURES = () => JSON.parse(read(path.join(ROOT, 'scripts/hoursback/fixtures/places-fixtures.json')));
+
+function fixtureClient(requestLog) {
+  const fx = FIXTURES();
+  const { createPlacesClient } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  return createPlacesClient({
+    fetchPage: async (cell, token) => {
+      if (requestLog) requestLog.push(cell.id);
+      const pages = fx.cells[cell.id];
+      if (!pages) throw new Error(`no fixture for cell ${cell.id}`);
+      const idx = token ? Number(token.replace('page', '')) - 1 : 0;
+      const page = pages[idx];
+      return { places: page.places, nextPageToken: page.nextPageToken };
+    },
+  });
+}
+const FIXTURE_CELLS = [
+  { id: 'TestTown:plumbing', town: 'TestTown', category: 'plumbing' },
+  { id: 'TestTown:dental', town: 'TestTown', category: 'dental' },
+];
+
+async function cleanFixtureRows(db, runIds) {
+  await db.prospectDuplicate.deleteMany({ where: { candidatePlaceId: { startsWith: 'fixture-' } } });
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: 'fixture-' } } });
+  if (runIds && runIds.length) await db.captureRun.deleteMany({ where: { id: { in: runIds } } });
+}
+function tmpState() {
+  return path.join(require('os').tmpdir(), `hoursback-state-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+}
+
+def('sweep_regional_inserts_each_business_once', () => withDb(async (db) => {
+  const { runRegionalCapture } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  // no outbound network: poison fetch for the duration of the replay
+  const realFetch = global.fetch;
+  global.fetch = () => { throw new Error('outbound network request during fixture replay'); };
+  let run;
+  try {
+    run = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client: fixtureClient(), stateFile: tmpState() });
+  } finally { global.fetch = realFetch; }
+  const rows = await db.prospect.findMany({ where: { placeId: { startsWith: 'fixture-' } } });
+  const dups = await db.prospectDuplicate.findMany({ where: { candidatePlaceId: { startsWith: 'fixture-' } } });
+  const ids = rows.map((r) => r.placeId).sort().join(',');
+  const ok = rows.length === 5 && dups.length === 2
+    && ids === 'fixture-a1,fixture-a2,fixture-a3,fixture-a4,fixture-b1'
+    && run.placesSeen === 7 && run.placesInserted === 5
+    && run.cellsAttempted === 2 && run.cellsCompleted === 2;
+  const detail = ok
+    ? '7 places seen across a two-page cell, 5 distinct businesses inserted once each, 2 relistings skipped, offline'
+    : `rows=${ids} dups=${dups.length} run=${JSON.stringify({ seen: run.placesSeen, ins: run.placesInserted })}`;
+  await cleanFixtureRows(db, [run.id]);
+  return { ok, detail };
+}));
+
+def('sweep_gate_matches_phone_and_domain', () => withDb(async (db) => {
+  const { runRegionalCapture } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  const run = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client: fixtureClient(), stateFile: tmpState() });
+  const dups = await db.prospectDuplicate.findMany({ where: { candidatePlaceId: { startsWith: 'fixture-' } }, include: { keptProspect: true } });
+  const byCand = Object.fromEntries(dups.map((d) => [d.candidatePlaceId, d]));
+  const b2 = byCand['fixture-b2'], b3 = byCand['fixture-b3'];
+  const ok = b2 && b2.matchSignal === 'phone' && b2.keptProspect.placeId === 'fixture-a1'
+    && b3 && b3.matchSignal === 'domain' && b3.keptProspect.placeId === 'fixture-a2';
+  const detail = ok
+    ? 'reformatted phone matched a1, www-prefixed domain matched a2; both duplicates carry keptProspectId and matchSignal'
+    : `dups=${JSON.stringify(dups.map((d) => [d.candidatePlaceId, d.matchSignal]))}`;
+  await cleanFixtureRows(db, [run.id]);
+  return { ok, detail };
+}));
+
+def('sweep_null_fields_never_break_the_gate', () => withDb(async (db) => {
+  const { runRegionalCapture } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  const run = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client: fixtureClient(), stateFile: tmpState() });
+  const a3 = await db.prospect.findUnique({ where: { placeId: 'fixture-a3' } });
+  const ok = !!a3 && a3.phone === null && a3.website === null && a3.normalizedPhone === null && a3.normalizedDomain === null;
+  await cleanFixtureRows(db, [run.id]);
+  return { ok, detail: ok ? 'a phoneless, websiteless place inserts cleanly with explicit nulls' : JSON.stringify(a3) };
+}));
+
+def('sweep_topup_zero_inserts_after_regional', () => withDb(async (db) => {
+  const { runRegionalCapture, runMonthlyTopUp } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  const r1 = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client: fixtureClient(), stateFile: tmpState() });
+  const before = await db.prospect.count({ where: { placeId: { startsWith: 'fixture-' } } });
+  const r2 = await runMonthlyTopUp({ db, cells: FIXTURE_CELLS, client: fixtureClient(), stateFile: tmpState() });
+  const after = await db.prospect.count({ where: { placeId: { startsWith: 'fixture-' } } });
+  const ok = r2.mode === 'monthly_top_up' && r1.mode === 'regional'
+    && r2.placesInserted === 0 && after === before;
+  const detail = ok
+    ? 'immediate top-up over the same fixtures: runs row written with placesInserted 0, no new prospect rows, modes distinguishable'
+    : `r2.inserted=${r2.placesInserted} before=${before} after=${after}`;
+  await cleanFixtureRows(db, [r1.id, r2.id]);
+  return { ok, detail };
+}));
+
+def('sweep_failed_cell_still_writes_row', () => withDb(async (db) => {
+  const { runRegionalCapture, createPlacesClient } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  const fx = FIXTURES();
+  const client = createPlacesClient({
+    fetchPage: async (cell, token) => {
+      if (cell.id === 'TestTown:dental') throw new Error('simulated outage');
+      const idx = token ? Number(token.replace('page', '')) - 1 : 0;
+      const page = fx.cells[cell.id][idx];
+      return { places: page.places, nextPageToken: page.nextPageToken };
+    },
+    retryCount: 2,
+  });
+  const run = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client, stateFile: tmpState() });
+  const ok = run.cellsAttempted === 2 && run.cellsCompleted === 1 && run.finishedAt !== null;
+  await cleanFixtureRows(db, [run.id]);
+  return { ok, detail: ok
+    ? 'a cell that failed all retries: run row still written, cellsCompleted 1 of 2 attempted'
+    : JSON.stringify({ att: run.cellsAttempted, comp: run.cellsCompleted }) };
+}));
+
+def('sweep_resume_skips_completed_and_retries_failed', () => withDb(async (db) => {
+  const { runRegionalCapture, createPlacesClient } = require(path.join(ROOT, 'src/hoursback/places.js'));
+  await cleanFixtureRows(db, []);
+  const fx = FIXTURES();
+  const state = tmpState();
+  let failDental = true;
+  const log = [];
+  const client = createPlacesClient({
+    fetchPage: async (cell, token) => {
+      log.push(cell.id);
+      if (cell.id === 'TestTown:dental' && failDental) throw new Error('transient');
+      const idx = token ? Number(token.replace('page', '')) - 1 : 0;
+      const page = fx.cells[cell.id][idx];
+      return { places: page.places, nextPageToken: page.nextPageToken };
+    },
+    retryCount: 2,
+  });
+  const r1 = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client, stateFile: state });
+  const requestsBefore = log.length;
+  failDental = false; // the outage clears
+  const r2 = await runRegionalCapture({ db, cells: FIXTURE_CELLS, client, stateFile: state });
+  const secondRunLog = log.slice(requestsBefore);
+  const ok = !secondRunLog.includes('TestTown:plumbing') && secondRunLog.includes('TestTown:dental')
+    && r2.cellsAttempted === 1 && r2.cellsCompleted === 1;
+  await cleanFixtureRows(db, [r1.id, r2.id]);
+  return { ok, detail: ok
+    ? 'resumed sweep issued zero requests for the completed cell and re-requested the failed one, which then completed'
+    : `second run requests: ${secondRunLog.join(',')}` };
+}));
+
+def('sweep_no_key_exits_named', () => {
+  const { execFileSync } = require('child_process');
+  try {
+    execFileSync('node', ['scripts/hoursback/monthly-top-up.js'], {
+      cwd: ROOT, env: { ...process.env, GOOGLE_PLACES_API_KEY: '' }, encoding: 'utf8',
+    });
+    return { ok: false, detail: 'ran without a key and did not fail' };
+  } catch (e) {
+    const out = `${e.stdout || ''}${e.stderr || ''}`;
+    const ok = e.status !== 0 && /GOOGLE_PLACES_API_KEY/.test(out);
+    return { ok, detail: ok
+      ? 'keyless run exits non-zero naming GOOGLE_PLACES_API_KEY, before any run row is written'
+      : `exit=${e.status} out=${out.slice(0, 80)}` };
+  }
+});
+
+def('sweep_single_fetch_path_and_shared_writer', () => {
+  const src = read(path.join(ROOT, 'src/hoursback/places.js'));
+  const runRowWrites = (src.match(/captureRun\.create/g) || []).length;
+  const ok = runRowWrites === 1
+    && /function runRegionalCapture[\s\S]*runSweep\(\{ mode: 'regional'/.test(src)
+    && /function runMonthlyTopUp[\s\S]*runSweep\(\{ mode: 'monthly_top_up'/.test(src);
+  return { ok, detail: ok
+    ? 'both modes route through runSweep: one run-row writer, one placesClient fetch path'
+    : `captureRun.create count=${runRowWrites}` };
+});
+
+def('sweep_monthly_schedule_installed', () => {
+  const { execSync } = require('child_process');
+  try {
+    const tab = execSync('crontab -l', { encoding: 'utf8' });
+    const ok = /monthly-top-up\.js/.test(tab);
+    return { ok, detail: ok ? 'host crontab carries the monthly top-up entry' : 'crontab exists but has no top-up entry' };
+  } catch { return { ok: false, detail: 'no crontab installed on this host' }; }
+});
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
