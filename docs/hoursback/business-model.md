@@ -487,7 +487,15 @@ How the target list is actually built and refreshed, stated once so the code, th
 
 **Cells, completion, failure.** A cell is one town-by-category query unit. A completed cell is one whose result pages are exhausted. A failed cell is one whose retry count is spent — it is excluded from cellsCompleted, still counts toward cellsAttempted, and is requested again by the next sweep. **The resumability contract:** a re-run against saved cell state requests only failed and untouched cells and skips completed ones, so an interrupted sweep resumed costs nothing twice.
 
-**The insert criterion.** A prospect row is written only when placeId, normalizedPhone and normalizedDomain are all three absent together from the store; a match on any single key is enough to skip the place and record the collision. The reason the gate compares normalizedPhone and normalizedDomain alongside placeId: a relisted business arrives under a fresh placeId and would otherwise reach the operator twice.
+**The insert criterion.** A prospect row is written only when placeId, normalizedPhone and normalizedDomain are all three absent together from the store; a match on any single key is enough to skip the place and record the collision. The reason the gate compares normalizedPhone and normalizedDomain alongside placeId: a relisted business arrives under a fresh placeId and would otherwise reach the operator twice. A match writes a duplicates row — carrying the keptProspectId of the record that stays — instead of a prospect row, so the collision is recorded for the operator rather than dropped. findDuplicate(place) scans rows at every stage including worked rows and doNotContact rows, because a business already worked or already suppressed must never reappear as fresh.
+
+### Dedupe — what the operator sees when it works
+
+One row per business, ever. When the sweep re-finds a business, the operator sees no second row — a duplicates record names the collision instead, carrying keptProspectId (the record that stays) and matchSignal (which identity matched) on every row written.
+
+The match keys are normalized before comparing: a phone in any punctuation, spacing or country-code form reduces to its ten digits, or to null when it does not yield exactly ten; a website reduces to its lower-case registrable domain with scheme, subdomain, path and query removed, and a hostless value is null — so a malformed key never produces a false match.
+
+A place carrying neither phone nor website has no reliable key at all, so it falls back to a normalized name-plus-address comparison instead of being inserted or discarded on a guess. Either way it lands in needs-review — the NEEDS_REVIEW stage on the prospect record — as its terminal state until the operator confirms it: such a place is never inserted as a worked-ready prospect.
 
 ### What the operator reads a CaptureRun row for
 
@@ -502,7 +510,7 @@ Every sweep writes exactly one row, read for two things — whether the region w
 
 ### auditFee against guaranteedHours — the formula
 
-The stored fee field is auditFee and the promise field is guaranteedHours: auditFee is 100 times guaranteedHours at every band above the entry band, the entry band carries the $999 rounding stated in §3, and auditFee is never derived from headcount — no band computes the fee per employee. Where this document and `locked-decisions.md` disagree on guaranteedHours or auditFee, the locked-decisions.md value is kept and the figure here is discarded.
+The stored fee field is auditFee and the promise field is guaranteedHours: auditFee is 100 times guaranteedHours at every band above the entry band, the entry band carries the $999 rounding stated in §3, and auditFee is never derived from headcount — no band quotes a per-employee figure. Where this document and `locked-decisions.md` disagree on guaranteedHours or auditFee, the locked-decisions.md value is kept and the figure here is discarded.
 
 ---
 

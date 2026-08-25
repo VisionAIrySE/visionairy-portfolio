@@ -5,7 +5,7 @@ Captured 2026-08-24 through discovery. These are settled; the business-model doc
 NOT loss framing ("you're wasting hours"). GAIN framing: **you get 5–10 hours a week back — what would you do with them? Sell more, be with your family, work on the next thing. It's an investment in getting your life back.**
 
 ## Pricing (settled)
-- **$100 for every guaranteed hour a week.** Priced in bands, not per head — see the band table below. $999 entry, $15,000 cap.
+- **$100 for every guaranteed hour a week.** Priced in bands, not per head — see the band table below. $999 entry, $15,000 cap. The fee column of that table is the auditFee figure the engine stores, and this table is the governing source: wherever business-model.md restates it and differs, the restatement is discarded.
 - Stated this way deliberately: the small end gets a flat number, not a formula that happens to land near one. Nothing to compute on a phone call.
 - Headcount is public (website, LinkedIn), so every prospect carries its own price before contact.
 - Fee is credited against the implementation invoice.

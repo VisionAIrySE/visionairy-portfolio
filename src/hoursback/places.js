@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { normalizePhone, normalizeDomain, findDuplicate, recordDuplicate } = require('./dedupe.js');
+const { normalizePhone, normalizeDomain, gateForPlace } = require('./dedupe.js');
 
 // The configured Central Oregon cells: every chamber town crossed with the
 // category families the business model sweeps. Any business over the
@@ -112,11 +112,8 @@ async function googleFetchPage(cell, pageToken) {
 // normalizedPhone and normalizedDomain are ALL THREE absent from the store.
 // A match on any one records a ProspectDuplicate row and skips the place.
 async function gateAndInsert(db, place, runId) {
-  const dup = await findDuplicate(db, place);
-  if (dup) {
-    await recordDuplicate(db, dup.prospect.id, place, dup.matchSignal);
-    return false;
-  }
+  const verdict = await gateForPlace(db, place);
+  if (verdict.action === 'skip') return false;
   await db.prospect.create({
     data: {
       placeId: place.placeId, name: place.name || '(unnamed)',
@@ -124,6 +121,7 @@ async function gateAndInsert(db, place, runId) {
       normalizedPhone: normalizePhone(place.phone),
       normalizedDomain: normalizeDomain(place.website),
       captureRunId: runId, fieldSource: 'google_places', fetchedAt: new Date(),
+      stage: verdict.stage, // NEEDS_REVIEW when the place carried no match key
     },
   });
   return true;

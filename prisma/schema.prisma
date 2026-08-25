@@ -63,6 +63,9 @@ model Prospect {
   fetchedAt    DateTime?
 
   // --- working state (vocabulary enforced in code; sqlite has no enums) ---
+  // stage values: NO_CONTACT, NEEDS_REVIEW (no phone or website — the operator
+  // confirms before it is worked), then the CRM ladder INITIAL_CONTACT, ACTIVE,
+  // IN_PROCESS, CUSTOMER, EXPANDED_CUSTOMER, and DORMANT after the give-up rule.
   stage        String  @default("NO_CONTACT")
   doNotContact Boolean @default(false)
 

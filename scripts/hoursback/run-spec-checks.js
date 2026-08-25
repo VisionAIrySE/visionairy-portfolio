@@ -475,8 +475,8 @@ def('sweep_gate_matches_phone_and_domain', () => withDb(async (db) => {
   const dups = await db.prospectDuplicate.findMany({ where: { candidatePlaceId: { startsWith: 'fixture-' } }, include: { keptProspect: true } });
   const byCand = Object.fromEntries(dups.map((d) => [d.candidatePlaceId, d]));
   const b2 = byCand['fixture-b2'], b3 = byCand['fixture-b3'];
-  const ok = b2 && b2.matchSignal === 'phone' && b2.keptProspect.placeId === 'fixture-a1'
-    && b3 && b3.matchSignal === 'domain' && b3.keptProspect.placeId === 'fixture-a2';
+  const ok = b2 && b2.matchSignal === 'normalizedPhone' && b2.keptProspect.placeId === 'fixture-a1'
+    && b3 && b3.matchSignal === 'normalizedDomain' && b3.keptProspect.placeId === 'fixture-a2';
   const detail = ok
     ? 'reformatted phone matched a1, www-prefixed domain matched a2; both duplicates carry keptProspectId and matchSignal'
     : `dups=${JSON.stringify(dups.map((d) => [d.candidatePlaceId, d.matchSignal]))}`;
@@ -595,6 +595,105 @@ def('sweep_monthly_schedule_installed', () => {
     const ok = /monthly-top-up\.js/.test(tab);
     return { ok, detail: ok ? 'host crontab carries the monthly top-up entry' : 'crontab exists but has no top-up entry' };
   } catch { return { ok: false, detail: 'no crontab installed on this host' }; }
+});
+
+// --- dedupe suite (lb4) — seeded stages, reformatted variants, no network ---
+def('dedupe_normalize_contracts', () => {
+  const d = require(path.join(ROOT, 'src/hoursback/dedupe.js'));
+  const cases = [
+    [d.normalizePhone('(541) 555-0100'), '5415550100', 'punctuated phone'],
+    [d.normalizePhone('+1 541.555.0100'), '5415550100', 'country-coded phone'],
+    [d.normalizePhone('555-01'), null, 'too-short phone -> null'],
+    [d.normalizePhone('123456789012'), null, 'too-long phone -> null'],
+    [d.normalizeDomain('http://www.Cascade.Example/contact?x=1'), 'cascade.example', 'dressed URL'],
+    [d.normalizeDomain('cascade.example'), 'cascade.example', 'bare form equals www form'],
+    [d.normalizeDomain('https://'), null, 'hostless -> null'],
+  ];
+  for (const [got, want, label] of cases) {
+    if (got !== want) return { ok: false, detail: `${label}: got ${got}, wanted ${want}` };
+  }
+  return { ok: true, detail: 'phone reduces to ten digits or null; domain to registrable host or null; bare and www forms agree' };
+});
+
+async function seedStagedRows(db) {
+  const mk = (n, extra) => db.prospect.create({ data: {
+    placeId: `dedupe-seed-${n}-${Date.now()}`, name: `Seed ${n}`, address: `${n} Seed St, Bend OR`,
+    phone: `541-555-02${n}0`, website: `https://seed${n}.example`,
+    normalizedPhone: `54155502${n}0`, normalizedDomain: `seed${n}.example`,
+    fieldSource: 'seed', ...extra } });
+  return {
+    captured: await mk(1, { stage: 'NO_CONTACT' }),
+    worked: await mk(2, { stage: 'CUSTOMER' }),
+    suppressed: await mk(3, { stage: 'NO_CONTACT', doNotContact: true }),
+  };
+}
+async function cleanDedupe(db) {
+  await db.prospectDuplicate.deleteMany({ where: { candidatePlaceId: { startsWith: 'dedupe-' } } });
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: 'dedupe-' } } });
+}
+
+def('dedupe_replay_matches_all_seeded_stages', () => withDb(async (db) => {
+  const { gateForPlace } = require(path.join(ROOT, 'src/hoursback/dedupe.js'));
+  await cleanDedupe(db);
+  const seeds = await seedStagedRows(db);
+  const realFetch = global.fetch;
+  global.fetch = () => { throw new Error('outbound network during dedupe replay'); };
+  let results;
+  try {
+    // reformatted phone and URL variants of each seeded row, fresh placeIds
+    results = [
+      await gateForPlace(db, { placeId: 'dedupe-cand-1', name: 'x', phone: '(541) 555-0210', website: null }),
+      await gateForPlace(db, { placeId: 'dedupe-cand-2', name: 'x', phone: '+1 541 555 0220', website: null }),
+      await gateForPlace(db, { placeId: 'dedupe-cand-3', name: 'x', phone: null, website: 'http://www.Seed3.Example/about' }),
+    ];
+  } finally { global.fetch = realFetch; }
+  const rows = await db.prospect.count({ where: { placeId: { startsWith: 'dedupe-cand-' } } });
+  const dups = await db.prospectDuplicate.findMany({ where: { candidatePlaceId: { startsWith: 'dedupe-cand-' } } });
+  const kept = dups.map((d) => d.keptProspectId).sort();
+  const want = [seeds.captured.id, seeds.worked.id, seeds.suppressed.id].sort();
+  const ok = results.every((r) => r.action === 'skip') && rows === 0 && dups.length === 3
+    && JSON.stringify(kept) === JSON.stringify(want)
+    && results[0].matchSignal === 'normalizedPhone' && results[2].matchSignal === 'normalizedDomain';
+  const detail = ok
+    ? 'captured, worked and suppressed rows each matched their reformatted variant; zero inserts; every duplicates row names its kept prospect; offline'
+    : `rows=${rows} dups=${dups.length} signals=${results.map((r) => r.matchSignal)}`;
+  await cleanDedupe(db);
+  return { ok, detail };
+}));
+
+def('dedupe_new_business_passes_through', () => withDb(async (db) => {
+  const { gateForPlace } = require(path.join(ROOT, 'src/hoursback/dedupe.js'));
+  await cleanDedupe(db);
+  await seedStagedRows(db);
+  const v = await gateForPlace(db, { placeId: 'dedupe-cand-new', name: 'Fresh Co', phone: '541-555-0999', website: 'https://freshco.example' });
+  const dups = await db.prospectDuplicate.count({ where: { candidatePlaceId: 'dedupe-cand-new' } });
+  const ok = v.action === 'insert' && v.stage === 'NO_CONTACT' && dups === 0;
+  await cleanDedupe(db);
+  return { ok, detail: ok ? 'unmatched business routes to insert at NO_CONTACT with no duplicates row' : JSON.stringify(v) };
+}));
+
+def('dedupe_keyless_place_needs_review', () => withDb(async (db) => {
+  const { gateForPlace } = require(path.join(ROOT, 'src/hoursback/dedupe.js'));
+  await cleanDedupe(db);
+  const seeds = await seedStagedRows(db);
+  // same business, no phone, no website, name and address dressed differently
+  const collide = await gateForPlace(db, { placeId: 'dedupe-cand-na', name: 'SEED 1, LLC'.replace(' 1, LLC', ' 1'), phone: null, website: null, address: '1 Seed St., BEND or' });
+  const fresh = await gateForPlace(db, { placeId: 'dedupe-cand-na2', name: 'Totally New Shop', phone: null, website: null, address: '99 Nowhere Rd, Bend OR' });
+  const dups = await db.prospectDuplicate.findMany({ where: { candidatePlaceId: 'dedupe-cand-na' } });
+  const ok = collide.action === 'skip' && collide.matchSignal === 'name_address'
+    && dups.length === 1 && dups[0].keptProspectId === seeds.captured.id
+    && fresh.action === 'insert' && fresh.stage === 'NEEDS_REVIEW';
+  const detail = ok
+    ? 'no-key collision matched on squashed name+address and skipped; no-key newcomer inserts flagged NEEDS_REVIEW, never silently'
+    : `collide=${JSON.stringify(collide)} fresh=${JSON.stringify(fresh)} dups=${dups.length}`;
+  await cleanDedupe(db);
+  return { ok, detail };
+}));
+
+def('dedupe_schema_carries_needs_review_and_kept_id', () => {
+  const schema = read(path.join(ROOT, 'prisma/schema.prisma'));
+  const ok = /NEEDS_REVIEW/.test(schema) && /keptProspectId/.test(schema);
+  return { ok, detail: ok ? 'schema documents the NEEDS_REVIEW state and relates duplicates via keptProspectId' : 'missing from schema' };
 });
 
 def('all_spec_checks_execute_and_pass', async () => {
