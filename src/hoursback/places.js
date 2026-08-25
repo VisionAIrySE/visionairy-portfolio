@@ -47,6 +47,14 @@ function createPlacesClient({ fetchPage, retryCount = DEFAULT_RETRIES }) {
     const places = [];
     let token;
     let attemptsLeft = retryCount;
+    // Google text search returns at most 60 results (3 pages) — but it will
+    // happily keep issuing next-page tokens for EMPTY pages, and every ask is
+    // billed. Learned live 2026-08-25: one cell looped ~600 requests in two
+    // minutes at ~200ms each. Hard rules: an empty page ends the cell, a
+    // repeated token ends the cell, and no cell ever fetches more than
+    // MAX_PAGES pages, period.
+    const MAX_PAGES = 4;
+    let pagesFetched = 0;
     for (;;) {
       let page;
       try {
@@ -56,6 +64,8 @@ function createPlacesClient({ fetchPage, retryCount = DEFAULT_RETRIES }) {
         if (attemptsLeft <= 0) return { failed: true, places: [] };
         continue;
       }
+      pagesFetched += 1;
+      if (!(page.places || []).length) return { failed: false, places }; // empty page = done
       for (const p of page.places || []) {
         places.push({
           placeId: p.placeId, name: p.name || null,
@@ -63,8 +73,9 @@ function createPlacesClient({ fetchPage, retryCount = DEFAULT_RETRIES }) {
           address: p.address ?? null, categories: p.categories ?? [],
         });
       }
-      token = page.nextPageToken;
-      if (!token) return { failed: false, places };
+      const next = page.nextPageToken;
+      if (!next || next === token || pagesFetched >= MAX_PAGES) return { failed: false, places };
+      token = next;
     }
   };
 }
@@ -84,11 +95,17 @@ function requireApiKey() {
 
 async function googleFetchPage(cell, pageToken) {
   const key = requireApiKey();
-  const body = pageToken
-    ? { pageToken }
-    : { textQuery: `${cell.category} in ${cell.town}, Oregon` };
+  // Google's text search requires the ORIGINAL query to accompany the page
+  // token — a token alone is refused with a 400. Learned from the live API on
+  // 2026-08-25; the recorded fixtures were more forgiving than the real thing.
+  const body = { textQuery: `${cell.category} in ${cell.town}, Oregon` };
+  if (pageToken) body.pageToken = pageToken;
+  // A hung connection must fail fast and hit the retry path, never freeze the
+  // sweep: 15s patience per request. Learned live 2026-08-25 — a page request
+  // stalled indefinitely mid-sweep with no timeout.
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
+    signal: AbortSignal.timeout(15000),
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': key,
@@ -137,10 +154,22 @@ async function runSweep({ db, mode, cells, client, stateFile = DEFAULT_STATE_FIL
   let cellsAttempted = 0, cellsCompleted = 0, placesSeen = 0, placesInserted = 0;
 
   const run = await db.captureRun.create({ data: { mode, startedAt } });
+  // Dead-man's switch: no cell may hold the sweep hostage. A pass that
+  // exceeds its time budget is declared failed and the run moves on — a
+  // stall is a self-healing event, and the run ALWAYS ends. Added 2026-08-25
+  // after two silent multi-minute stalls that per-request timeouts missed.
+  const CELL_BUDGET_MS = Number(process.env.SWEEP_CELL_BUDGET_MS || 120000);
+  const withBudget = (promise) => Promise.race([
+    promise,
+    new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ failed: true, places: [], timedOut: true }), CELL_BUDGET_MS);
+      timer.unref(); // the safety timer must never hold the process open itself
+    }),
+  ]);
   for (const cell of cells) {
     if (state.completed[cell.id]) continue; // resumed sweep: zero requests here
     cellsAttempted += 1;
-    const result = await client(cell);
+    const result = await withBudget(client(cell));
     if (result.failed) continue; // failed: not completed, retried next sweep
     for (const place of result.places) {
       placesSeen += 1;

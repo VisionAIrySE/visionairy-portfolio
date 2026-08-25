@@ -69,11 +69,51 @@ model Prospect {
   stage        String  @default("NO_CONTACT")
   doNotContact Boolean @default(false)
 
+  // --- the frozen quote (crm1): written once, never recomputed, so a later
+  // headcount change can never alter a promise already made -----------------
+  quotedAt              DateTime?
+  quotedHeadcount       Int?
+  quotedBand            String?
+  quotedAuditFee        Int?
+  quotedGuaranteedHours Int?
+
+  // --- who was actually spoken to (crm1) ----------------------------------
+  contactName     String?
+  contactRole     String?
+  isDecisionMaker Boolean?   // null = unknown; distinguishable from "no"
+  ownerName       String?
+
+  // --- money, separate from stage (crm1): CUSTOMER can exist unpaid -------
+  paidAt DateTime?
+
+  // --- the calling day (crm2/crm3) ----------------------------------------
+  attemptCount    Int       @default(0)
+  nextAction      String?
+  nextActionDate  DateTime?
+  lostReason      String?
+  reactivateAfter DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   fieldEdits      ProspectFieldEdit[]
   duplicatesKept  ProspectDuplicate[] @relation("keptProspect")
+  callLogs        CallLog[]
+}
+
+/// One dial, appended forever — never overwritten. outcome is the per-dial
+/// axis (NO_ANSWER, VOICEMAIL, GATEKEEPER, WRONG_NUMBER, NOT_INTERESTED,
+/// INTERESTED) and never moves the stage by itself.
+model CallLog {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  callKey    String?  @unique // idempotency: the same call logged twice writes one row
+  outcome    String
+  wentHow    String?
+  nextWhat   String?
+  nextWhen   DateTime?
+  loggedAt   DateTime @default(now())
 }
 
 /// A business the sweep re-found. The kept prospect stays; the candidate is
