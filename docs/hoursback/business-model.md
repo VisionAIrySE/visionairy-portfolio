@@ -104,7 +104,7 @@ Observable signals that the owner is still in the machine: the owner's name is o
 | 76–100 | 100 | $10,000 |
 | 101–150 | 150 | $15,000 |
 
-**The price follows the hours, never the headcount.** Every band carries one fee and one guaranteed-hours figure, and the fee is exactly $100 per guaranteed hour at every band. Nobody pays more for the same promise, and more hours always cost more. The $999 entry price is $1,000 rounded down.
+**The price follows the hours, never the headcount.** Every band carries one fee and one guaranteed-hours figure, and the fee is exactly $100 per guaranteed hour at every band above the entry price. Nobody pays more for the same promise, and more hours always cost more. The $999 entry price is $1,000 rounded down — the single rounding in the table, and the only exception to the rule.
 
 Stated as a band deliberately — there is nothing to compute on a phone call, the two numbers that matter are said in one breath, and neither sounds like a quote.
 
