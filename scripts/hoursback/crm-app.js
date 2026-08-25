@@ -100,9 +100,56 @@ async function handleCall(id, form) {
   }
 }
 
+// --- the lock. When CRM_PASSWORD is set (it always is in production), every
+// page requires sign-in once per browser; the cookie is an HMAC so a guessed
+// cookie without the password is worthless. No password set = local-only dev.
+const crypto = require('crypto');
+const PASSWORD = process.env.CRM_PASSWORD || '';
+const token = () => crypto.createHmac('sha256', PASSWORD).update('hoursback-session').digest('hex');
+function signedIn(req) {
+  if (!PASSWORD) return true;
+  const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split('=')));
+  return cookies.hb === token();
+}
+function loginPage(wrong) {
+  return page(`<h1>Hours Back</h1><div class="card"><form method="POST" action="/login">
+    <label>Password</label><input type="password" name="pw" autofocus>
+    ${wrong ? '<p style="color:#b91c1c">Wrong password.</p>' : ''}
+    <p><button class="primary">Sign in</button></p></form></div>`);
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const [, route, id] = req.url.split('/');
+    if (route === 'login' && req.method === 'POST') {
+      let body = '';
+      for await (const c of req) body += c;
+      const form = Object.fromEntries(new URLSearchParams(body));
+      if (PASSWORD && form.pw === PASSWORD) {
+        res.writeHead(303, { 'Set-Cookie': `hb=${token()}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`, Location: '/' });
+        return res.end();
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(loginPage(true));
+    }
+    if (!signedIn(req)) { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(loginPage(false)); }
+    // One-time data door: receives the prospect store from the home machine
+    // after deploy. Password-gated like everything else; refuses overwrite of
+    // a store that already has rows unless ?force=1.
+    if (route === 'import' && req.method === 'POST') {
+      const existing = await db.prospect.count();
+      const force = req.url.includes('force=1');
+      if (existing > 0 && !force) { res.writeHead(409); return res.end(`refused: ${existing} rows already here`); }
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const rows = JSON.parse(Buffer.concat(chunks).toString());
+      let n = 0;
+      for (const r of rows) { await db.prospect.upsert({ where: { placeId: r.placeId }, update: r, create: r }); n += 1; }
+      res.writeHead(200); return res.end(`imported ${n}`);
+    }
+    if (route === 'export' && req.method === 'GET') {
+      const rows = await db.prospect.findMany();
+      res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(rows));
+    }
     if (req.method === 'POST') {
       let body = '';
       for await (const c of req) body += c;
@@ -117,4 +164,5 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end(`error: ${e.message}`);
   }
 });
-server.listen(4747, () => console.log('Hours Back CRM: http://localhost:4747'));
+const PORT = Number(process.env.PORT || 4747);
+server.listen(PORT, '0.0.0.0', () => console.log(`Hours Back CRM on port ${PORT}${PASSWORD ? ' (password-locked)' : ' (local, no password)'}`));
