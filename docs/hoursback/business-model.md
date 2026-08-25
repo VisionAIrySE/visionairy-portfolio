@@ -47,7 +47,7 @@ Every numeric claim below carries a named source.
 
 ### Why the guarantee is credible, in one line
 
-The research documents roughly **ten hours a week per worker** lost to repetitive tasks. This practice guarantees finding **one hour per employee per week** — approximately **one tenth of the waste the evidence already establishes**. The promise is deliberately set an order of magnitude below the documented problem. That is what makes it safe to guarantee, and it is the argument to make out loud when a skeptical owner asks how you can possibly promise that.
+The research documents roughly **ten hours a week per worker** lost to repetitive tasks. This practice guarantees finding the hours named for a company's band — which works out at roughly **one hour per employee per week**, and never more than about an hour and a half even at the tightest point of any band. That is approximately **one tenth of the waste the evidence already establishes**. The promise is deliberately set an order of magnitude below the documented problem. That is what makes it safe to guarantee, and it is the argument to make out loud when a skeptical owner asks how you can possibly promise that.
 
 **Verdict test for this section:** every numeric pain claim carries a named source. There are no uncited numeric claims.
 
@@ -80,7 +80,7 @@ Observable signals that the owner is still in the machine: the owner's name is o
 
 **The 50-employee threshold.** At or above **50 employees**, the dollar figure is shown alongside the hours figure in outreach and in the meeting. Below 50, only hours are shown. The reason is that "one hundred hours a week" reads as absurd out loud even though it is conservative, and above 50 the dollar translation is what makes the same promise sound sober rather than fantastic.
 
-**The guarantee is identical across both segments.** One hour per employee per week, with a five-hour floor. Only the *language* differs — hours for the small owner, hours plus dollars for the larger company. Marketing bifurcates; the promise does not.
+**The guarantee works identically across both segments.** The hours named for the band, every week. Only the *language* differs — hours for the small owner, hours plus dollars for the larger company. Marketing bifurcates; the promise does not.
 
 **Verdict test:** a reader can sort any prospect into exactly one segment, or disqualify it, using public headcount alone.
 
@@ -90,15 +90,29 @@ Observable signals that the owner is still in the machine: the owner's name is o
 
 ### The pricing rule
 
-> **$999 flat for teams of 10 or fewer. $100 per employee above 10. Capped at $15,000.**
+> **$100 for every hour a week you get back.**
 
-Stated as a flat number at the small end deliberately — there is nothing to compute on a phone call, and the number sounds like a decision rather than a quote.
+| Team size | Hours a week guaranteed | Fee |
+|---|---|---|
+| Up to 10 | 10 | $999 |
+| 11–15 | 15 | $1,500 |
+| 16–20 | 20 | $2,000 |
+| 21–25 | 25 | $2,500 |
+| 26–35 | 35 | $3,500 |
+| 36–50 | 50 | $5,000 |
+| 51–75 | 75 | $7,500 |
+| 76–100 | 100 | $10,000 |
+| 101–150 | 150 | $15,000 |
 
-**Headcount is public.** Company websites and LinkedIn company pages both publish it. Therefore **every prospect carries its own price before first contact** — the price can appear in the first email, and the sales conversation never begins with "let me put together a quote."
+**The price follows the hours, never the headcount.** Every band carries one fee and one guaranteed-hours figure, and the fee is exactly $100 per guaranteed hour at every band. Nobody pays more for the same promise, and more hours always cost more. The $999 entry price is $1,000 rounded down.
+
+Stated as a band deliberately — there is nothing to compute on a phone call, the two numbers that matter are said in one breath, and neither sounds like a quote.
+
+**Headcount is public.** Company websites and LinkedIn company pages both publish it, usually as a range rather than an exact number — which is why the bands are built to tolerate a range. Therefore **every prospect carries its own price and its own promised hours before first contact** — both can appear in the first email, and the sales conversation never begins with "let me put together a quote."
 
 ### The guarantee
 
-> **One hour per employee per week, or you pay nothing.** Floor of five hours for the smallest teams.
+> **The hours named for your band, every week, or you pay nothing.** Ten hours at the entry band, rising to 150 at the largest.
 
 **What is guaranteed is the FINDING, not the doing.** The audit finds the recoverable hours *and* names the specific tools that recover them. Whether Russ implements any of it is entirely the client's choice — they may hire him, hire someone else, or do it themselves. Custom builds are *suggested* after the audit and are **never part of the guarantee**.
 
@@ -121,15 +135,21 @@ The audit fee is **credited in full against the implementation invoice** if the 
 
 ### The numbers, at every size
 
-| Staff | Fee | Guaranteed hours/week | Annual value at $39.80/hr | Return |
+| Team size | Fee | Guaranteed hours/week | Annual value at $39.80/hr | Return |
 |---|---|---|---|---|
-| 5 | $999 (flat) | 5 (floor) | $10,348 | 10x |
-| 10 | $999 (flat) | 10 | $20,696 | 21x |
-| 25 | $2,500 | 25 | $51,740 | 21x |
-| 50 | $5,000 | 50 | $103,480 | 21x |
-| 100 | $10,000 | 100 | $206,959 | 21x |
+| Up to 10 | $999 | 10 | $20,696 | 21x |
+| 11–15 | $1,500 | 15 | $31,044 | 21x |
+| 16–20 | $2,000 | 20 | $41,392 | 21x |
+| 21–25 | $2,500 | 25 | $51,740 | 21x |
+| 26–35 | $3,500 | 35 | $72,436 | 21x |
+| 36–50 | $5,000 | 50 | $103,480 | 21x |
+| 51–75 | $7,500 | 75 | $155,220 | 21x |
+| 76–100 | $10,000 | 100 | $206,960 | 21x |
+| 101–150 | $15,000 | 150 | $310,440 | 21x |
 
-**Why the five-person row returns 10x while every other row returns 21x.** The flat $999 holds while headcount falls, so the smallest teams pay proportionally more per head. This is intended, not an inconsistency. A five-person audit still costs a full week of attention, and the flat price is what makes the small end quotable in one sentence. Ten-to-one is still an easy decision for the buyer.
+**The return is 21x at every band, without exception.** That falls straight out of the pricing rule: at $100 per guaranteed hour, the annual value of those hours divided by the fee is the same arithmetic every time. There is no size at which the buyer gets a worse deal, and no size at which the practice is underpaid relative to the promise.
+
+**Where the promise is tightest.** Each band guarantees the hours a company at the *top* of that band would expect, so the hardest case in every band is the company at the bottom of it — an eleven-person company promised fifteen hours is being promised roughly an hour and a half per person per week. The research documents ten hours per person per week lost to repetitive work. Even the tightest case sits at about a seventh of the documented waste.
 
 **Verdict test:** for any headcount, the fee, the guaranteed hours, and the refund test are each computable from this section with no further judgment call.
 
@@ -198,17 +218,17 @@ An ordered sequence, not a menu. Each rung requires the one before it.
 
 | Share of clients | Band | Fee used |
 |---|---|---|
-| 60% | 1–10 staff | $999 |
-| 30% | 11–30 staff (avg 18) | $1,800 |
-| 10% | 31–75 staff (avg 45) | $4,500 |
+| 60% | Up to 10 staff | $999 |
+| 30% | 11–30 staff (avg 18, so the 16–20 band) | $2,000 |
+| 10% | 31–75 staff (avg 45, so the 36–50 band) | $5,000 |
 
-**Weighted average audit fee: $1,589.**
+**Weighted average audit fee: $1,699.**
 
 | Level | Audits/week | Audit revenue/week | Audit revenue/year (50 wks) | What runs out first |
 |---|---|---|---|---|
-| **1 — Proving it** | 1 | $1,589 | $79,470 | **Pipeline.** Not enough contacted prospects to fill the week. |
-| **2 — Practiced solo** | 3 | $4,768 | $238,410 | **Russ's calendar** — interview slots and handover meetings collide. |
-| **3 — Solo ceiling** | 5 | $7,947 | $397,350 | **Russ.** Report writing plus interviews exceeds a work week. Beyond this needs tooling or help. |
+| **1 — Proving it** | 1 | $1,699 | $84,950 | **Pipeline.** Not enough contacted prospects to fill the week. |
+| **2 — Practiced solo** | 3 | $5,097 | $254,850 | **Russ's calendar** — interview slots and handover meetings collide. |
+| **3 — Solo ceiling** | 5 | $8,495 | $424,750 | **Russ.** Report writing plus interviews exceeds a work week. Beyond this needs tooling or help. |
 
 Every figure above is reproducible from audits-per-week × the weighted average fee × 50 weeks.
 
@@ -221,13 +241,13 @@ The audit is not the business. Including pull-through to the higher rungs:
 - 40% of audits convert to a tool implementation, averaging $2,250
 - 15% of audits convert to a custom build, averaging $25,000
 
-Expected revenue per audit: $1,589 + (0.40 × $2,250 = $900) + (0.15 × $25,000 = $3,750) = **$6,239**
+Expected revenue per audit: $1,699 + (0.40 × $2,250 = $900) + (0.15 × $25,000 = $3,750) = **$6,349**
 
 | Level | Audits/year | Total revenue/year |
 |---|---|---|
-| 1 | 50 | $311,970 |
-| 2 | 150 | $935,910 |
-| 3 | 250 | $1,559,850 |
+| 1 | 50 | $317,450 |
+| 2 | 150 | $952,350 |
+| 3 | 250 | $1,587,250 |
 
 **Read this correctly.** Roughly three quarters of the revenue at every level comes from rungs 2 and 3, not from the audit. The audit's job is to be cheap enough to say yes to and good enough to earn the next rung. Pricing it higher would slow the machine down, not speed it up.
 
@@ -294,7 +314,7 @@ Hours only. No dollar figure in the body. Price stated, computed from public hea
 >
 > I'm local here in Bend, and I spend my time helping owners get their week back — the double entry, the chasing, the report somebody rebuilds by hand every Monday.
 >
-> Here's what I do, and I'll just put it plainly. I spend a week looking at how work actually moves through [Company], and I find you at least **[N] hours a week** you can have back, with the specific tools that get them back, all written down. It's **$999**, it's all remote apart from one call, and if I can't find you those hours you don't pay me anything and you keep the report either way.
+> Here's what I do, and I'll just put it plainly. I spend a week looking at how work actually moves through [Company], and I find you at least **[BAND HOURS] hours a week** you can have back, with the specific tools that get them back, all written down. It's **$[BAND FEE]**, it's all remote apart from one call, and if I can't find you those hours you don't pay me anything and you keep the report either way.
 >
 > The reason I can promise it is that the research already says most people lose about ten hours a week to repetitive work — over 40% of workers spend a quarter of their week on it, according to Smartsheet — so finding one hour per person is a tenth of what's usually sitting there.
 >
@@ -316,7 +336,7 @@ Hours and dollars both. **The guarantee is still stated in hours.**
 >
 > Here's the offer plainly. I spend a week looking at how work moves through [Company], and I find at least **[N] hours a week** of recoverable time with the specific tools that recover it. At your headcount that's **$[fee]**, and it's **$[annual] a year** of loaded staff time at the Deschutes County average wage. **The guarantee is the hours** — if I don't find them, you pay nothing and you keep the report.
 >
-> The reason that's a conservative promise rather than a bold one is that Smartsheet's research puts the average at about ten hours a week per worker lost to repetitive tasks, and nearly 60% of people say they could get six or more of those back if it were automated. I'm promising to find one per head.
+> The reason that's a conservative promise rather than a bold one is that Smartsheet's research puts the average at about ten hours a week per worker lost to repetitive tasks, and nearly 60% of people say they could get six or more of those back if it were automated. I'm promising to find about one per head.
 >
 > It's remote apart from a single call, and there's no obligation to have me do any of the implementation — plenty of what I find is off-the-shelf and you can wire it up with whoever you like.
 >
@@ -324,7 +344,7 @@ Hours and dollars both. **The guarantee is still stated in hours.**
 >
 > Russ
 
-**Both messages carry a cited evidence claim** matching a source named in §1, and **both state the prospect's own price** computed from public headcount.
+**Both messages carry a cited evidence claim** matching a source named in §1, and **both state the prospect's own price and guaranteed hours** read straight off the band table in §3 using public headcount.
 
 ### Target-list sourcing
 

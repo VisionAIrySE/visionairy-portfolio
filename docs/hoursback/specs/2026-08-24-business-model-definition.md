@@ -13,16 +13,16 @@ Intent: Write one business-model definition document for the Central Oregon guar
 Build
 - [x] The business-model definition document exists on disk at its stated location. <!-- type:Build --> <!-- check: file_exists | docs/hoursback/business-model.md |  -->
 - [x] The locked-decisions source of truth the document defers to exists on disk. <!-- type:Build --> <!-- check: file_exists | docs/hoursback/locked-decisions.md |  -->
-- [x] The document reproduces the fee/guarantee/annual-value/return table including the 100-staff row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $206,959 -->
-- [x] The document reproduces the 5-staff floor row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $10,348 -->
+- [x] The document reproduces the band/fee/guaranteed-hours/annual-value/return table including the 76-100 band row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $206,960 -->
+- [x] The document reproduces the 11-15 band row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $31,044 -->
 - [x] The document reproduces the 25-staff row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $51,740 -->
 - [x] The document reproduces the 50-staff row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $103,480 -->
 - [x] The document reproduces the 10-staff flat-rate row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $20,696 -->
 - [x] Both outreach messages are written out as quotable text, not described — the small-owner subject line is present. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** ten hours a week back, or you don't pay -->
 - [x] The larger-company outreach message is written out as quotable text — its subject line is present. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** [N] hours a week back at [Company], guaranteed -->
-- [x] The capacity model is a table with one row per level carrying audits per week and revenue. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $79,470 -->
-- [x] The capacity table carries the practiced-solo level row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $238,410 -->
-- [x] The capacity table carries the solo-ceiling level row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $397,350 -->
+- [x] The capacity model is a table with one row per level carrying audits per week and revenue. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $84,950 -->
+- [x] The capacity table carries the practiced-solo level row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $254,850 -->
+- [x] The capacity table carries the solo-ceiling level row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $424,750 -->
 
 Understand
 - [x] The document states that what is guaranteed is the finding and not the doing. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | FINDING, not the doing -->
@@ -31,7 +31,7 @@ Understand
 - [x] The document states the anti-disintermediation reason the quote sits inside the deliverable. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | takes the list and hires the wiring cheaper elsewhere -->
 - [x] The document states the wage arithmetic behind every dollar figure. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $82,784 per employee per year -->
 - [x] The document states the hourly basis derived from the county wage. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $39.80 per hour -->
-- [x] The document explains the 10x floor row as intended rather than an inconsistency. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | This is intended, not an inconsistency -->
+- [x] The document states the return is constant across every band and explains why. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | The return is 21x at every band, without exception -->
 - [x] The document states the open competitive band left by the local shops. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $10,000–$30,000 band -->
 - [x] The document states that loss framing was considered and rejected. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | was considered and **rejected** -->
 
@@ -67,16 +67,16 @@ Specify
 
   audit-offer-terms-pricing-guarantee-and-credits
   - [x] An audit-offer-terms section exists. <!-- type:Build --> <!-- check: section_exists | docs/hoursback/business-model.md | ## 3. The Audit Offer — Pricing, Guarantee, Refunds, Credits -->
-  - [x] The pricing rule is stated as a flat rate to ten with per-employee pricing above it and a cap. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **$999 flat for teams of 10 or fewer. $100 per employee above 10. Capped at $15,000.** -->
-  - [x] The document states headcount is public so every prospect is priced before contact. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | every prospect carries its own price before first contact -->
-  - [x] The guarantee threshold is stated with its floor. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **One hour per employee per week, or you pay nothing.** Floor of five hours -->
+  - [x] The pricing rule is stated as a fixed price per guaranteed hour, banded. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **$100 for every hour a week you get back.** -->
+  - [x] The document states headcount is public so every prospect is priced before contact. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | every prospect carries its own price and its own promised hours before first contact -->
+  - [x] The guarantee is stated as the band's named hours with its entry and top values. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **The hours named for your band, every week, or you pay nothing.** -->
   - [x] The binding promise is specified as hours only, never dollars. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **The binding promise is hours only, never dollars.** -->
   - [x] The refund condition names both halves of the test. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | A named, specific tool or change that recovers each block -->
   - [x] The refund outcome is stated as pay-nothing-and-keep-the-report. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | the client pays nothing and keeps the report -->
   - [x] The document states implementation is the client's choice, not part of the guarantee. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | never part of the guarantee -->
   - [x] The fee credit rule is stated. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **credited in full against the implementation invoice** -->
   - [x] The document states what happens to the credit if the client implements elsewhere. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | the credit does not apply and is not refunded -->
-  - [x] The floor-row multiple is explained rather than presented as an error. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Why the five-person row returns 10x -->
+  - [x] The tightest point of each band is named and defended against the evidence. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Where the promise is tightest.** -->
 
   audit-deliverable-structure-with-embedded-implementation-quote
   - [x] An audit-deliverable section exists. <!-- type:Build --> <!-- check: section_exists | docs/hoursback/business-model.md | ## 4. The Audit Deliverable -->
@@ -99,7 +99,7 @@ Specify
   - [x] Each rung states what must already have been bought, so the ladder reads as a sequence. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | An ordered sequence, not a menu -->
   - [x] The document identifies which rung absorbs the audit fee credit. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | the tool implementation invoice absorbs it -->
   - [x] The capacity model names the binding constraint at each level. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | What runs out first -->
-  - [x] The assumed headcount mix behind the revenue figures is stated. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Weighted average audit fee: $1,589.** -->
+  - [x] The assumed headcount mix behind the revenue figures is stated. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Weighted average audit fee: $1,699.** -->
   - [x] Unvalidated conversion rates are labelled as assumptions. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | largest source of error in this model -->
   - [x] Each capacity revenue figure is reproducible from the stated inputs. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | reproducible from audits-per-week × the weighted average fee × 50 weeks -->
 
@@ -115,7 +115,7 @@ Specify
 
   outreach-messages-and-target-list-sourcing
   - [x] An outreach and sourcing section exists. <!-- type:Build --> <!-- check: section_exists | docs/hoursback/business-model.md | ## 7. Outreach Messages and Target-List Sourcing -->
-  - [x] The small-owner message states the prospect's own price in the body. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | It's **$999**, it's all remote apart from one call -->
+  - [x] The small-owner message states the prospect's own band price in the body. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | It's **$[BAND FEE]**, it's all remote apart from one call -->
   - [x] The larger-company message shows hours and dollars while binding on hours. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **The guarantee is the hours** -->
   - [x] Each message carries a cited evidence claim matching a source named in the document. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | according to Smartsheet -->
   - [x] The sourcing plan names each data source and the field it supplies. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Oregon Secretary of State business registry** -->

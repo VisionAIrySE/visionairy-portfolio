@@ -5,7 +5,7 @@ Captured 2026-08-24 through discovery. These are settled; the business-model doc
 NOT loss framing ("you're wasting hours"). GAIN framing: **you get 5–10 hours a week back — what would you do with them? Sell more, be with your family, work on the next thing. It's an investment in getting your life back.**
 
 ## Pricing (settled)
-- **$999 flat for teams of 10 or fewer. $100 per employee above 10.** Cap $15,000.
+- **$100 for every guaranteed hour a week.** Priced in bands, not per head — see the band table below. $999 entry, $15,000 cap.
 - Stated this way deliberately: the small end gets a flat number, not a formula that happens to land near one. Nothing to compute on a phone call.
 - Headcount is public (website, LinkedIn), so every prospect carries its own price before contact.
 - Fee is credited against the implementation invoice.
@@ -13,25 +13,29 @@ NOT loss framing ("you're wasting hours"). GAIN framing: **you get 5–10 hours 
 ## The guarantee (settled)
 - **What is guaranteed is the FINDING, not the doing.** The audit finds the recoverable hours *and* names the tools that recover them. Whether Russ implements is the client's choice — they can hire him or hire anyone. Custom builds are suggested after the audit and are never part of the guarantee.
 - Refund test is therefore clean and binary: either the report names the hours and the tools, or it does not.
-- **One hour per employee per week, or the client pays nothing.** Floor of 5 hours for the smallest shops.
+- **The hours named for the band, every week, or the client pays nothing.** 10 hours at the entry band, 150 at the largest.
 - **The binding promise is HOURS ONLY — never dollars.** Hours can be counted together in a room; dollars invite an argument about whose wage was used.
 - For companies **over 50 employees, show both** the hours figure and the dollar figure in the pitch — but the guarantee still binds on hours.
 - Constant ~21x return at every company size.
 
 | Staff | Fee | Guarantee | Annual value | Return |
 |---|---|---|---|---|
-| 5 | $999 (flat) | 5 hrs/wk (floor) | $10,300 | 10x |
-| 10 | $999 (flat) | 10 hrs/wk | $20,700 | 21x |
-| 25 | $2,500 | 25 hrs/wk | $51,700 | 21x |
-| 50 | $5,000 | 50 hrs/wk | $103,500 | 21x |
-| 100 | $10,000 | 100 hrs/wk | $207,000 | 21x |
+| Up to 10 | $999 | 10 hrs/wk | $20,700 | 21x |
+| 11–15 | $1,500 | 15 hrs/wk | $31,000 | 21x |
+| 16–20 | $2,000 | 20 hrs/wk | $41,400 | 21x |
+| 21–25 | $2,500 | 25 hrs/wk | $51,700 | 21x |
+| 26–35 | $3,500 | 35 hrs/wk | $72,400 | 21x |
+| 36–50 | $5,000 | 50 hrs/wk | $103,500 | 21x |
+| 51–75 | $7,500 | 75 hrs/wk | $155,200 | 21x |
+| 76–100 | $10,000 | 100 hrs/wk | $207,000 | 21x |
+| 101–150 | $15,000 | 150 hrs/wk | $310,400 | 21x |
 
 ## Corroborating evidence (must appear in the document)
 - Over **40% of workers** spend at least a quarter of their week — roughly **10 hours** — on manual repetitive tasks. (Smartsheet)
 - Nearly **60% of workers** say they could save **6+ hours a week** if the repetitive parts were automated. (Smartsheet)
 - Small business owners spend about **36% of their workweek** on administrative tasks like invoicing and data entry.
 - Broader analyses put recoverable time at **15–20 hours per employee per week**.
-- Guaranteeing 1 hour per head is roughly **one tenth** of the waste the research already documents.
+- The band hours work out at roughly 1 hour per head — never above about 1.5 even at the tightest point of a band — which is roughly **one tenth** of the waste the research already documents.
 - **Deschutes County average annual wage: $66,227** (Business Oregon, 2024); fully loaded ≈ **$82,784**, or **$39.80/hour**.
 - Oregon statewide average annual wage: **$71,964** (2025).
 
@@ -55,7 +59,7 @@ Four parts:
 ## The ladder (settled)
 | Rung | Price | Purpose |
 |---|---|---|
-| Audit | $100/employee ($999–$15,000) | Pays for itself, gets inside, credited forward |
+| Audit | $100 per guaranteed hour ($999–$15,000) | Pays for itself, gets inside, credited forward |
 | Tool implementation | $1,500–$3,000, fixed scope, one week | No budget conversation. Reveals the real problem. |
 | **Custom build** | **$10,000–$75,000** | **The goal.** Only Russ can do it — it's Part 3. |
 | Retainer | $500–$2,000/mo | Recurring, after the custom work is live |
