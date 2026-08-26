@@ -45,15 +45,15 @@ function registerFor(selfDescription) {
 // The same sentence, at three registers. Russ's warmth and his refusal to
 // pitch are constant; only the ceremony moves.
 const OPENING_BY_REGISTER = {
-  FORMAL: "I'm local to Central Oregon, and I build software that takes repetitive office work off people's plates. Rather than describe it, I would rather point at something specific.",
-  NEUTRAL: "I'm local to Central Oregon and I build software that takes repetitive office work off people's plates, and rather than describe it I'd rather point at something specific.",
-  PLAIN: "I'm local to Central Oregon and I build software that takes the repetitive office work off people's plates. Rather than describe it, here's something specific.",
+  FORMAL: "I'm local to Central Oregon, and I build software that takes repetitive office work off people's plates. Rather than describe it, I would rather speak to what look like some specific needs for your team.",
+  NEUTRAL: "I'm local to Central Oregon and I build software that takes repetitive office work off people's plates, and rather than describe it I'd rather talk to what seem to be some specific needs for your team.",
+  PLAIN: "I'm local to Central Oregon and I build software that takes the repetitive office work off people's plates. Rather than describe it, I'd rather talk to what look like some specific needs for your team.",
 };
 
 const CLOSING_BY_REGISTER = {
-  FORMAL: "I am not asking for a meeting. Have a look, and if it is useful I would welcome the chance to share more.",
-  NEUTRAL: "I'm not asking for a meeting, I'd just welcome the chance to share more if it's useful!",
-  PLAIN: "Not asking for a meeting. If it's useful, happy to share more!",
+  FORMAL: "No need for a meeting, and no obligation either way. If it is useful, I would welcome the chance to share more.",
+  NEUTRAL: "No meeting needed and no obligation, I'd just welcome the chance to share more if it's useful!",
+  PLAIN: "No meeting, no obligation. If it's useful, happy to share more!",
 };
 
 // A word Russ would use anyway, chosen to sit naturally beside theirs.

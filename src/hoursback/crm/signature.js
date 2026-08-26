@@ -40,6 +40,7 @@ function signatureHtml() {
   return `<table cellpadding="0" cellspacing="0" border="0" style="font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a">
   ${logo}
   <tr><td style="border-top:2px solid ${LEAF};padding-top:8px">
+    <div style="padding-bottom:6px">Best,<br><b>Russ</b></div>
     <div style="font-weight:700">${CONTACT.name}</div>
     <div style="padding-top:6px">
       <a href="tel:+1${CONTACT.phone.replace(/\D/g, '')}" style="color:#1a1a1a;text-decoration:none">${CONTACT.phone}</a> &nbsp;·&nbsp;
@@ -55,8 +56,11 @@ function signatureHtml() {
 
 // The same sign-off for anywhere that cannot show pictures.
 function signatureText() {
-  return `${CONTACT.name}
-VisionAIry — Success Engineering
+  return `Best,
+Russ
+
+${CONTACT.name}
+VisionAIry, Success Engineering
 ${CONTACT.phone}
 ${CONTACT.email}
 ${CONTACT.siteLabel}
@@ -66,7 +70,9 @@ ${CONTACT.linkedIn}`;
 // Turn the written message into the version a mail app draws, sign-off and
 // all. The words are never rewritten here — only wrapped.
 function toHtmlEmail(plainBody) {
-  const withoutSignOff = String(plainBody).split(/\n\nRuss Wright\n/)[0];
+  // Everything from "Best," onward is the sign-off; the drawn version
+  // renders it, so the typed one is trimmed first.
+  const withoutSignOff = String(plainBody).split(/\n\nBest,\n/)[0];
   const paragraphs = withoutSignOff.split(/\n\n+/)
     .map((p) => `<p style="margin:0 0 14px">${p.replace(/\n/g, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`)
     .join('\n');

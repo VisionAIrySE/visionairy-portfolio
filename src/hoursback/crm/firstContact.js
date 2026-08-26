@@ -141,9 +141,12 @@ const BODY = `Hi {greeting},
 
 {opener} {followOn}
 
-{credibility} What I do is spend a week inside an operation and come back with a plain list of where the hours are going, which of them can be fixed with tools that already exist, and which would need something built. In your case that mostly looks like {valueIn}. You get the whole picture in your hands either way, and if I can't find at least ten hours a week your team could have back, you don't pay me.
+{credibility} What I do is spend time with you and your team, enough to actually understand how the work moves, and then come back with a plain list of where the hours are going, which of them could be fixed with tools that already exist, and which would need something built. In your case that would probably look like {valueIn}. You would have the whole picture either way, and if I couldn't find at least ten hours a week your team could have back, there would be nothing to pay.
 
 {close}
+
+Best,
+Russ
 
 Russ Wright
 Visionairy
@@ -168,7 +171,10 @@ I wrote last week about {shortTell}, and I think I led with the wrong thing.
 
 Here is what I actually meant. {recognition}
 
-I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up. That is the whole reason I do this as a week rather than a quote, and why you do not pay if the hours are not there. There is nothing to weigh up, really. You either get the hours back or you find out for nothing.
+I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up. That is the whole reason I look first and quote after, and why you do not pay if the hours are not there. There is not much to weigh up, really. Either you get the hours back, or you find out for nothing.
+
+Best,
+Russ
 
 Russ Wright
 Visionairy
@@ -184,6 +190,9 @@ Last one from me, and no hard feelings either way.
 If the timing is wrong, say the word and I will make a note for the spring rather than keep writing.
 
 If it is not the timing but the idea, I would genuinely like to know that too. It is useful either way, and I would rather hear a no than keep guessing.
+
+Best,
+Russ
 
 Russ Wright
 Visionairy

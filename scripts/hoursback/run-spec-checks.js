@@ -1412,7 +1412,7 @@ def('send_one_refusal_never_stops_the_rest', () => withDb(async (db) => {
 
 def('send_carries_the_signature_with_the_logo_inside_it', () => {
   const sig = require(path.join(ROOT, 'src/hoursback/crm/signature.js'));
-  const html = sig.toHtmlEmail('Hi Dale,\n\nA line.\n\nRuss Wright\nVisionairy\nruss@visionairy.biz');
+  const html = sig.toHtmlEmail('Hi Dale,\n\nA line.\n\nBest,\nRuss\n\nRuss Wright\nVisionairy\nruss@visionairy.biz');
   const inlineLogo = /src="data:image\/png;base64,/.test(html);
   const noFetch = !/src="https?:\/\//.test(html);
   const once = (html.match(/Russ Wright/g) || []).length === 1;
@@ -1719,7 +1719,8 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
     && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
     && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
-    && [a, b, c].every((m) => m.body.includes("you don't pay me"));
+    && [a, b, c].every((m) => /there would be nothing to pay/.test(m.body))
+    && [a, b, c].every((m) => /\nBest,\nRuss\n/.test(m.body));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
 
