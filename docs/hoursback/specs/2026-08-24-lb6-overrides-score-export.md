@@ -15,26 +15,26 @@ Intent: Make Russ's corrections outrank anything the machine fetched, and make t
 Build
 
   hand-corrections-win-and-persist
-  - [ ] The overrides module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/overrides.js |  -->
-  - [ ] Every machine-written field has a paired hand-entered value alongside it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_fetched_field_has_override_pair | 0 -->
-  - [ ] resolveField returns the hand-entered value when present and the fetched value otherwise. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_wins_over_fetched | 0 -->
-  - [ ] Setting a correction records who set it and when. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_records_who_and_when | 0 -->
-  - [ ] Re-running enrichment overwrites the fetched value and leaves the hand-entered value untouched. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_survives_reenrichment | 0 -->
-  - [ ] A monthly top-up that re-finds the business leaves every hand-entered value untouched. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_survives_monthly_topup | 0 -->
-  - [ ] Correcting the headcount recomputes the band, the fee and the guaranteed hours from the corrected number. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=headcount_override_recomputes_band | 0 -->
-  - [ ] Every correction appends a history row naming the field, the old value, the new value, who and when. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=edit_history_is_append_only | 0 -->
-  - [ ] Clearing a correction restores the fetched value rather than leaving the field empty. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=clearing_override_restores_fetched | 0 -->
+  - [x] The overrides module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/overrides.js |  -->
+  - [x] Every machine-written field has a paired hand-entered value alongside it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_fetched_field_has_override_pair | 0 -->
+  - [x] resolveField returns the hand-entered value when present and the fetched value otherwise. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_wins_over_fetched | 0 -->
+  - [x] Setting a correction records who set it and when. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_records_who_and_when | 0 -->
+  - [x] Re-running enrichment overwrites the fetched value and leaves the hand-entered value untouched. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_survives_reenrichment | 0 -->
+  - [x] A monthly top-up that re-finds the business leaves every hand-entered value untouched. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=override_survives_monthly_topup | 0 -->
+  - [x] Correcting the headcount recomputes the band, the fee and the guaranteed hours from the corrected number. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=headcount_override_recomputes_band | 0 -->
+  - [x] Every correction appends a history row naming the field, the old value, the new value, who and when. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=edit_history_is_append_only | 0 -->
+  - [x] Clearing a correction restores the fetched value rather than leaving the field empty. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=clearing_override_restores_fetched | 0 -->
 
   automation-fit-score
-  - [ ] The scoring module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/scoring.js |  -->
-  - [ ] The signal weights live in one exported table, not scattered through the code. <!-- type:Build --> <!-- check: text_presence | src/hoursback/scoring.js | SIGNAL_WEIGHTS -->
-  - [ ] A live job posting for an admin, scheduler, receptionist or data-entry role is the highest-weighted single signal. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=job_posting_is_top_signal | 0 -->
-  - [ ] The other signals scored are no online booking, downloadable forms, a listed fax number, no customer portal, and high review count relative to headcount. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=manual_work_signals_declared | 0 -->
-  - [ ] Headcount contributes nothing to the score — it sets the band, never the ranking. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=headcount_does_not_affect_score | 0 -->
-  - [ ] Business category shifts the score only slightly and never gates a business out of the list. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=category_tilts_only | 0 -->
-  - [ ] Each scored business carries the evidence behind its score — which signal, what weight, and where it was seen. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=score_carries_evidence | 0 -->
-  - [ ] A business with no signals found scores zero and stays on the list rather than being dropped. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_signals_scores_zero_not_dropped | 0 -->
-  - [ ] The weights can be revised from logged call outcomes without editing the scoring code. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=weights_revisable_from_outcomes | 0 -->
+  - [x] The scoring module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/scoring.js |  -->
+  - [x] The signal weights live in one exported table, not scattered through the code. <!-- type:Build --> <!-- check: text_presence | src/hoursback/scoring.js | SIGNAL_WEIGHTS -->
+  - [x] A live job posting for an admin, scheduler, receptionist or data-entry role is the highest-weighted single signal. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=job_posting_is_top_signal | 0 -->
+  - [x] The other signals scored are no online booking, downloadable forms, a listed fax number, no customer portal, and high review count relative to headcount. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=manual_work_signals_declared | 0 -->
+  - [x] Headcount contributes nothing to the score — it sets the band, never the ranking. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=headcount_does_not_affect_score | 0 -->
+  - [x] Business category shifts the score only slightly and never gates a business out of the list. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=category_tilts_only | 0 -->
+  - [x] Each scored business carries the evidence behind its score — which signal, what weight, and where it was seen. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=score_carries_evidence | 0 -->
+  - [x] A business with no signals found scores zero and stays on the list rather than being dropped. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_signals_scores_zero_not_dropped | 0 -->
+  - [x] The weights can be revised from logged call outcomes without editing the scoring code. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=weights_revisable_from_outcomes | 0 -->
 
   call-sheet-export
   - [ ] The export module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/export.js |  -->
@@ -56,9 +56,9 @@ Understand
 Specify
 
 - [ ] The export runs before the CRM exists, needing nothing from it. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_has_no_crm_dependency | 0 -->
-- [ ] Every check here runs with no network access. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=checks_run_offline | 0 -->
+- [x] Every check here runs with no network access. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=checks_run_offline | 0 -->
 
 Operate
 
-- [ ] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
-- [ ] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->
+- [x] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
+- [x] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->

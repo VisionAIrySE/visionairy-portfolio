@@ -860,6 +860,426 @@ def('no_per_employee_fee_field', () => {
   return { ok: !bad, detail: bad ? 'schema still carries a per-employee fee field' : 'no per-employee fee field in the schema' };
 });
 
+// --- website-reading suite (lb5) + corrections and score (lb6) -------------
+// Every check below reads recorded sample pages from
+// scripts/hoursback/fixtures/site-fixtures.js. Nothing here touches the
+// internet: the reader is handed pages, and the run is handed a stand-in for
+// the fetcher that serves those same recordings.
+const enrich = () => require(path.join(ROOT, 'src/hoursback/enrich.js'));
+const scoring = () => require(path.join(ROOT, 'src/hoursback/scoring.js'));
+const siteFixtures = () => require(path.join(ROOT, 'scripts/hoursback/fixtures/site-fixtures.js'));
+const overrides = () => require(path.join(ROOT, 'src/hoursback/overrides.js'));
+
+function readFixture(key) {
+  const f = siteFixtures()[key];
+  return enrich().readSite(f.pages, { domain: f.domain });
+}
+
+// A stand-in for the fetcher. Serves recorded pages by address; anything it
+// does not recognise is treated as an unreachable site. Counts its calls so a
+// check can prove a budget or a retry count was honoured.
+function recordedFetcher(pagesByUrl, options = {}) {
+  const calls = [];
+  const impl = async (url) => {
+    calls.push(url);
+    if (options.alwaysFail) throw new Error('connection refused');
+    const html = pagesByUrl[url];
+    if (html === undefined) throw new Error('404');
+    return { ok: true, headers: { get: () => 'text/html' }, text: async () => html };
+  };
+  impl.calls = calls;
+  return impl;
+}
+
+function fixtureUrlMap(key) {
+  const map = {};
+  for (const p of siteFixtures()[key].pages) map[p.url] = p.html;
+  return map;
+}
+
+async function cleanSite(db, tag) {
+  await db.prospectFieldEdit.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
+  await db.callLog.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: `site-${tag}` } } });
+}
+
+async function seedSite(db, tag, extra = {}) {
+  return db.prospect.create({
+    data: { placeId: `site-${tag}`, name: `Site ${tag} Co`, phone: '541-555-0400', fieldSource: 'test', ...extra },
+  });
+}
+
+def('headcount_writes_count_source_confidence', () => withDb(async (db) => {
+  await cleanSite(db, 'hcwrite');
+  const p = await seedSite(db, 'hcwrite', { website: 'https://highdesertplumbing.com/' });
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
+  const ok = after.employeeCount === 12
+    && after.headcountSourceUrl === 'https://highdesertplumbing.com/'
+    && after.headcountStatus === 'RESOLVED'
+    && after.headcountPublishedAs === '12'
+    && after.siteStatus === 'READ' && after.siteReadAt instanceof Date;
+  await cleanSite(db, 'hcwrite');
+  return { ok, detail: ok ? 'wrote 12 people, the page it was read from, and how sure the reading is' : `count=${after.employeeCount} src=${after.headcountSourceUrl} status=${after.headcountStatus}` };
+}));
+
+def('band_derived_from_headcount_only', () => {
+  const { enrichHeadcount } = enrich();
+  const a = enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://a/' });
+  const b = enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://b/', email: 'x@y.com', signals: ['fax_listed'] });
+  const c = enrichHeadcount({ employeeCount: 40 });
+  const sameInputsSameBand = a.segment === b.segment && a.auditFee === b.auditFee && a.guaranteedHours === b.guaranteedHours;
+  const differentCountDifferentBand = a.segment !== c.segment;
+  const ok = sameInputsSameBand && differentCountDifferentBand;
+  return { ok, detail: ok ? 'only the number of people moved the band; nothing else did' : `same=${sameInputsSameBand} differs=${differentCountDifferentBand}` };
+});
+
+def('derived_fee_matches_band_table', () => {
+  const { enrichHeadcount } = enrich();
+  const bad = [];
+  for (const row of bandsFromBusinessModel()) {
+    for (const n of [row.floor, row.ceiling]) {
+      const got = enrichHeadcount({ employeeCount: n });
+      if (got.auditFee !== row.auditFee || got.guaranteedHours !== row.guaranteedHours) {
+        bad.push(`${n}: got $${got.auditFee}/${got.guaranteedHours}h want $${row.auditFee}/${row.guaranteedHours}h`);
+      }
+    }
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.join('; ') : 'every band edge prices exactly as the business model says' };
+});
+
+def('unresolved_headcount_leaves_nulls_with_reason', () => {
+  const { enrichHeadcount } = enrich();
+  const got = enrichHeadcount(readFixture('emptyShell'));
+  const ok = got.employeeCount === null && got.segment === null && got.auditFee === null
+    && got.guaranteedHours === null && /^UNRESOLVED_/.test(got.headcountStatus);
+  return { ok, detail: ok ? `no team size published: band, fee and hours all left empty, reason "${got.headcountStatus}"` : JSON.stringify(got) };
+});
+
+def('headcount_range_resolves_to_band', () => {
+  const { enrichHeadcount } = enrich();
+  const finding = readFixture('rangePublisher');
+  const got = enrichHeadcount(finding);
+  const ok = finding.headcountPublishedAs === '8-20' && got.segment !== null && got.auditFee !== null && got.guaranteedHours !== null;
+  return { ok, detail: ok ? `"8 to 20 employees" landed in one band: ${got.segment}, $${got.auditFee}, ${got.guaranteedHours} hours` : JSON.stringify(got) };
+});
+
+def('ambiguous_range_takes_lower_band', () => {
+  const { enrichHeadcount } = enrich();
+  const { bandForEmployeeCount } = rules();
+  const got = enrichHeadcount(readFixture('rangePublisher'));
+  const low = bandForEmployeeCount(8);
+  const high = bandForEmployeeCount(20);
+  const ok = got.guaranteedHours === low.guaranteedHours && got.auditFee === low.auditFee && low.guaranteedHours < high.guaranteedHours;
+  return { ok, detail: ok ? `a range spanning two bands promised the smaller ${low.guaranteedHours} hours, not ${high.guaranteedHours}` : JSON.stringify(got) };
+});
+
+def('no_per_employee_fee_written', () => {
+  const { enrichHeadcount } = enrich();
+  const keys = Object.keys(enrichHeadcount({ employeeCount: 12 }));
+  const src = read(path.join(ROOT, 'src/hoursback/enrich.js'));
+  const ok = !keys.some((k) => /perEmployee/i.test(k)) && !/perEmployee/i.test(src);
+  return { ok, detail: ok ? 'nothing written is a per-person price' : 'a per-employee figure appears in the reader' };
+});
+
+def('email_lookup_uses_domain', () => {
+  const { emailsFromPages, resolveSiteAddress } = enrich();
+  const pages = [{ url: 'https://acme.com/contact', html: '<a href="mailto:sara@acme.com">Sara</a> <a href="mailto:acmefan@gmail.com">fan</a>' }];
+  const onDomain = emailsFromPages(pages, 'acme.com');
+  const usesWebsiteField = resolveSiteAddress({ name: 'Acme Plumbing', website: 'https://acme.com', websiteManualValue: null }) === 'https://acme.com';
+  const ok = onDomain[0].email === 'sara@acme.com' && onDomain[0].confidence > onDomain[1].confidence && usesWebsiteField;
+  return { ok, detail: ok ? 'looked at the business\'s own web address, and its own domain outranked a stray gmail' : JSON.stringify(onDomain) };
+});
+
+def('email_stored_with_confidence_and_status', () => withDb(async (db) => {
+  await cleanSite(db, 'emailstore');
+  const p = await seedSite(db, 'emailstore', { website: 'https://highdesertplumbing.com/' });
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
+  const ok = after.email === 'dale@highdesertplumbing.com' && typeof after.emailConfidence === 'number' && after.emailStatus === 'FOUND_ON_SITE';
+  await cleanSite(db, 'emailstore');
+  return { ok, detail: ok ? `stored ${after.email} at confidence ${after.emailConfidence}, marked ${after.emailStatus}` : JSON.stringify({ e: after.email, c: after.emailConfidence, s: after.emailStatus }) };
+}));
+
+def('no_website_marked_unavailable_kept', () => withDb(async (db) => {
+  await cleanSite(db, 'nosite');
+  const p = await seedSite(db, 'nosite', { website: null });
+  const after = (await enrich().applySiteRead(db, p.id, enrich().readNoWebsite())).prospect;
+  const stillThere = await db.prospect.findFirst({ where: { placeId: 'site-nosite', doNotContact: false } });
+  const ok = after.emailStatus === 'UNAVAILABLE_NO_WEBSITE' && after.headcountStatus === 'UNRESOLVED_NO_WEBSITE' && Boolean(stillThere);
+  await cleanSite(db, 'nosite');
+  return { ok, detail: ok ? 'no website: both blanks carry a named reason and the business stays on the list' : JSON.stringify({ e: after.emailStatus, h: after.headcountStatus, kept: Boolean(stillThere) }) };
+}));
+
+def('empty_lookup_marked_unavailable_kept', () => withDb(async (db) => {
+  await cleanSite(db, 'emptylookup');
+  const p = await seedSite(db, 'emptylookup', { website: 'https://redmondsigns.com/' });
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('emptyShell'))).prospect;
+  const stillThere = await db.prospect.findFirst({ where: { placeId: 'site-emptylookup', doNotContact: false } });
+  const ok = after.emailStatus === 'UNAVAILABLE_NOT_PUBLISHED' && Boolean(stillThere);
+  await cleanSite(db, 'emptylookup');
+  return { ok, detail: ok ? 'a site that publishes no address is marked and kept' : JSON.stringify({ e: after.emailStatus, kept: Boolean(stillThere) }) };
+}));
+
+def('low_confidence_email_kept_marked', () => {
+  const { readSite, EMAIL_CONFIDENCE_FLOOR } = enrich();
+  const pages = [{ url: 'https://sisters.com/', html: '<a href="mailto:info@gmail.com">email us</a>' }];
+  const got = readSite(pages, { domain: 'sisters.com' });
+  const ok = got.email === 'info@gmail.com' && got.emailConfidence < EMAIL_CONFIDENCE_FLOOR && got.emailStatus === 'FOUND_LOW_CONFIDENCE';
+  return { ok, detail: ok ? `a weak address (${got.emailConfidence}) was kept and flagged, not thrown away` : JSON.stringify(got) };
+});
+
+def('email_never_gates_the_list', () => withDb(async (db) => {
+  await cleanSite(db, 'emailgate');
+  const p = await seedSite(db, 'emailgate', { website: null, stage: 'NO_CONTACT' });
+  const after = (await enrich().applySiteRead(db, p.id, enrich().readNoWebsite())).prospect;
+  const { callQueue } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const queued = (await callQueue(db)).some((q) => q.id === p.id);
+  const ok = queued && after.doNotContact === false && after.stage === 'NO_CONTACT';
+  await cleanSite(db, 'emailgate');
+  return { ok, detail: ok ? 'a business with no email address is still in the day\'s call queue' : `queued=${queued} stage=${after.stage}` };
+}));
+
+def('no_repeat_headcount_lookup', () => withDb(async (db) => {
+  await cleanSite(db, 'norepeathc');
+  await seedSite(db, 'norepeathc', { website: 'https://x.example/', employeeCount: 12, headcountStatus: 'RESOLVED', email: 'a@x.example' });
+  const fetcher = recordedFetcher({});
+  const run = await enrich().runSiteEnrichment(db, { budget: 5, delayMs: 0, fetch: fetcher, where: { placeId: { startsWith: 'site-norepeathc' } } });
+  const ok = fetcher.calls.length === 0 && run.skippedAlreadyRead === 1 && run.read === 0;
+  await cleanSite(db, 'norepeathc');
+  return { ok, detail: ok ? 'a business already carrying a team size was not read again' : JSON.stringify(run) };
+}));
+
+def('no_repeat_email_lookup', () => withDb(async (db) => {
+  await cleanSite(db, 'norepeatem');
+  await seedSite(db, 'norepeatem', { website: 'https://x.example/', employeeCount: 9, headcountStatus: 'RESOLVED', email: 'have@x.example' });
+  await seedSite(db, 'norepeatem2', { website: 'https://x.example/', employeeCount: 9, headcountStatus: 'RESOLVED', email: null });
+  const fetcher = recordedFetcher({});
+  const run = await enrich().runSiteEnrichment(db, { budget: 5, delayMs: 0, fetch: fetcher, where: { placeId: { startsWith: 'site-norepeatem' } } });
+  const ok = run.skippedAlreadyRead === 1 && run.read === 1;
+  await cleanSite(db, 'norepeatem');
+  return { ok, detail: ok ? 'the one that already had an email was skipped; the one without it was read' : JSON.stringify(run) };
+}));
+
+def('lookup_budget_enforced_and_recorded', () => withDb(async (db) => {
+  await cleanSite(db, 'budget');
+  const map = fixtureUrlMap('manualPlumber');
+  for (const n of [1, 2, 3]) await seedSite(db, `budget${n}`, { website: 'https://highdesertplumbing.com/' });
+  const fetcher = recordedFetcher(map);
+  const run = await enrich().runSiteEnrichment(db, { budget: 2, delayMs: 0, fetch: fetcher, where: { placeId: { startsWith: 'site-budget' } } });
+  const ok = run.read === 2 && run.stoppedAt !== null && /budget of 2/.test(run.stoppedBecause);
+  await cleanSite(db, 'budget');
+  return { ok, detail: ok ? `stopped after 2 businesses and named where it stopped: ${run.stoppedAt}` : JSON.stringify(run) };
+}));
+
+def('failed_lookup_retries_then_marks', () => withDb(async (db) => {
+  await cleanSite(db, 'retry');
+  const p = await seedSite(db, 'retry', { website: 'https://unreachable.example/' });
+  const fetcher = recordedFetcher({}, { alwaysFail: true });
+  await enrich().runSiteEnrichment(db, { budget: 1, attempts: 3, delayMs: 0, fetch: fetcher, where: { placeId: { startsWith: 'site-retry' } } });
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = fetcher.calls.length === 3 && after.siteStatus === 'UNREACHABLE'
+    && after.headcountStatus === 'UNRESOLVED_SITE_UNREACHABLE' && after.emailStatus === 'UNAVAILABLE_SITE_UNREACHABLE'
+    && after.employeeCount === null && after.email === null;
+  await cleanSite(db, 'retry');
+  return { ok, detail: ok ? 'tried 3 times, then wrote one complete "could not reach it" state — nothing half-written' : `tries=${fetcher.calls.length} status=${after.siteStatus}` };
+}));
+
+def('enrichment_is_idempotent', () => withDb(async (db) => {
+  await cleanSite(db, 'idem');
+  const p = await seedSite(db, 'idem', { website: 'https://highdesertplumbing.com/' });
+  const finding = readFixture('manualPlumber');
+  const first = await enrich().applySiteRead(db, p.id, finding);
+  const second = await enrich().applySiteRead(db, p.id, finding);
+  const ok = first.changed === true && second.changed === false
+    && JSON.stringify(first.prospect) === JSON.stringify(second.prospect);
+  await cleanSite(db, 'idem');
+  return { ok, detail: ok ? 'reading the same site twice left the record byte-for-byte identical' : `firstChanged=${first.changed} secondChanged=${second.changed}` };
+}));
+
+def('enrichment_respects_hand_corrections', () => withDb(async (db) => {
+  await cleanSite(db, 'handcorr');
+  const p = await seedSite(db, 'handcorr', { website: 'https://highdesertplumbing.com/', employeeCount: 5 });
+  await overrides().setOverride(db, p.id, 'employeeCount', 40, 'russ');
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
+  const { bandForEmployeeCount } = rules();
+  const want = bandForEmployeeCount(40);
+  const ok = after.employeeCountManualValue === 40 && after.employeeCount === 12
+    && after.auditFee === want.auditFee && after.guaranteedHours === want.guaranteedHours;
+  await cleanSite(db, 'handcorr');
+  return { ok, detail: ok ? 'the site said 12, Russ said 40 — the price still follows Russ' : JSON.stringify({ manual: after.employeeCountManualValue, fetched: after.employeeCount, fee: after.auditFee }) };
+}));
+
+def('no_api_key_in_repo', () => {
+  const { execSync } = require('child_process');
+  const tracked = execSync('git ls-files', { cwd: ROOT }).toString().split('\n').filter(Boolean);
+  const offenders = [];
+  for (const f of tracked) {
+    if (!/\.(js|jsx|ts|tsx|json|md|ya?ml|prisma|sh)$/.test(f)) continue;
+    let body; try { body = read(path.join(ROOT, f)); } catch { continue; }
+    if (/AIza[0-9A-Za-z_-]{30,}/.test(body)) offenders.push(`${f}: google key`);
+    if (/\b[a-f0-9]{32}\b\s*(?:#|\/\/)?\s*hunter/i.test(body)) offenders.push(`${f}: hunter key`);
+  }
+  return { ok: !offenders.length, detail: offenders.length ? offenders.join('; ') : 'no lookup key is committed anywhere in the repository' };
+});
+
+// --- corrections and the score (lb6) ---------------------------------------
+
+def('every_fetched_field_has_override_pair', () => {
+  const s = SCHEMA();
+  const missing = overrides().OVERRIDABLE.filter((f) => !new RegExp(`${f}ManualValue\\s`).test(s));
+  return { ok: !missing.length, detail: missing.length ? `no hand-entered column for: ${missing.join(', ')}` : 'every machine-written field has a typed-by-hand column beside it' };
+});
+
+def('override_wins_over_fetched', () => {
+  const { resolveField } = overrides();
+  const rec = { email: 'machine@x.com', emailManualValue: 'typed@x.com', phone: '541-555-0100', phoneManualValue: null };
+  const ok = resolveField(rec, 'email') === 'typed@x.com' && resolveField(rec, 'phone') === '541-555-0100';
+  return { ok, detail: ok ? 'the typed value is used where it exists, the fetched one where it does not' : 'resolution order wrong' };
+});
+
+def('override_records_who_and_when', () => withDb(async (db) => {
+  await cleanSite(db, 'whowhen');
+  const p = await seedSite(db, 'whowhen', { email: 'machine@x.com' });
+  await overrides().setOverride(db, p.id, 'email', 'typed@x.com', 'russ');
+  const row = await db.prospectFieldEdit.findFirst({ where: { prospectId: p.id } });
+  const ok = row && row.correctedBy === 'russ' && row.correctedAt instanceof Date && row.fieldName === 'email';
+  await cleanSite(db, 'whowhen');
+  return { ok, detail: ok ? `recorded who changed it (${row.correctedBy}) and when` : 'no history row' };
+}));
+
+def('override_survives_reenrichment', () => withDb(async (db) => {
+  await cleanSite(db, 'survive');
+  const p = await seedSite(db, 'survive', { website: 'https://highdesertplumbing.com/', email: 'old@x.com' });
+  await overrides().setOverride(db, p.id, 'email', 'typed@x.com', 'russ');
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
+  const ok = after.emailManualValue === 'typed@x.com' && after.email === 'dale@highdesertplumbing.com';
+  await cleanSite(db, 'survive');
+  return { ok, detail: ok ? 'a later read replaced the fetched address and left the typed one alone' : JSON.stringify({ manual: after.emailManualValue, fetched: after.email }) };
+}));
+
+def('override_survives_monthly_topup', () => withDb(async (db) => {
+  await cleanSite(db, 'topup');
+  const p = await seedSite(db, 'topup', { phone: '541-555-0100', website: 'https://a.example' });
+  await overrides().setOverride(db, p.id, 'phone', '541-555-9999', 'russ');
+  // what a monthly sweep does when it re-finds the business
+  const after = await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-0101', website: 'https://b.example', fetchedAt: new Date() } });
+  const ok = after.phoneManualValue === '541-555-9999' && after.phone === '541-555-0101';
+  await cleanSite(db, 'topup');
+  return { ok, detail: ok ? 'the monthly sweep refreshed what it fetched and never touched what Russ typed' : JSON.stringify({ manual: after.phoneManualValue, fetched: after.phone }) };
+}));
+
+def('headcount_override_recomputes_band', () => withDb(async (db) => {
+  await cleanSite(db, 'recompute');
+  const p = await seedSite(db, 'recompute', { employeeCount: 8 });
+  const after = await overrides().setOverride(db, p.id, 'employeeCount', 40, 'russ');
+  const want = rules().bandForEmployeeCount(40);
+  const ok = after.segment === want.band && after.auditFee === want.auditFee && after.guaranteedHours === want.guaranteedHours;
+  await cleanSite(db, 'recompute');
+  return { ok, detail: ok ? `correcting the team size to 40 repriced it to $${after.auditFee} for ${after.guaranteedHours} hours` : JSON.stringify(after) };
+}));
+
+def('edit_history_is_append_only', () => withDb(async (db) => {
+  await cleanSite(db, 'history');
+  const p = await seedSite(db, 'history', { email: 'first@x.com' });
+  await overrides().setOverride(db, p.id, 'email', 'second@x.com', 'russ');
+  await overrides().setOverride(db, p.id, 'email', 'third@x.com', 'russ');
+  const rows = await db.prospectFieldEdit.findMany({ where: { prospectId: p.id }, orderBy: { correctedAt: 'asc' } });
+  const ok = rows.length === 2 && rows[0].valueBefore === 'first@x.com' && rows[0].valueAfter === 'second@x.com'
+    && rows[1].valueBefore === 'second@x.com' && rows[1].valueAfter === 'third@x.com';
+  await cleanSite(db, 'history');
+  return { ok, detail: ok ? 'both corrections kept, in order, each naming what it changed from and to' : JSON.stringify(rows.map((r) => [r.valueBefore, r.valueAfter])) };
+}));
+
+def('clearing_override_restores_fetched', () => withDb(async (db) => {
+  await cleanSite(db, 'clearing');
+  const p = await seedSite(db, 'clearing', { email: 'machine@x.com' });
+  await overrides().setOverride(db, p.id, 'email', 'typed@x.com', 'russ');
+  const after = await overrides().setOverride(db, p.id, 'email', null, 'russ');
+  const ok = overrides().resolveField(after, 'email') === 'machine@x.com';
+  await cleanSite(db, 'clearing');
+  return { ok, detail: ok ? 'clearing a correction fell back to the fetched value, not to blank' : JSON.stringify(after) };
+}));
+
+def('job_posting_is_top_signal', () => {
+  const { SIGNAL_WEIGHTS } = scoring();
+  const top = SIGNAL_WEIGHTS.hiring_admin_role;
+  const others = Object.entries(SIGNAL_WEIGHTS).filter(([k]) => k !== 'hiring_admin_role').map(([, v]) => v);
+  const ok = others.every((v) => top > v);
+  return { ok, detail: ok ? `a live opening for an office role is worth ${top}, more than any other single tell` : JSON.stringify(SIGNAL_WEIGHTS) };
+});
+
+def('job_posting_not_confused_with_staff_bio', () => {
+  const bio = readFixture('staffBioNotHiring').signals.map((x) => x.signal);
+  const real = readFixture('realJobPosting').signals.map((x) => x.signal);
+  const ok = !bio.includes('hiring_admin_role') && real.includes('hiring_admin_role');
+  return { ok, detail: ok ? 'a staff page naming an office manager does not count as an opening; a real posting does' : `bio=${bio.join('|')} posting=${real.join('|')}` };
+});
+
+def('manual_work_signals_declared', () => {
+  const { SIGNAL_WEIGHTS } = scoring();
+  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'high_reviews_for_headcount'];
+  const missing = want.filter((w) => !(w in SIGNAL_WEIGHTS));
+  return { ok: !missing.length, detail: missing.length ? `not scored: ${missing.join(', ')}` : 'all six tells are declared in one table' };
+});
+
+def('headcount_does_not_affect_score', () => {
+  const { scoreAutomationFit } = scoring();
+  const signals = [{ signal: 'fax_listed' }, { signal: 'no_online_booking' }];
+  const small = scoreAutomationFit({ signals, employeeCount: 5 });
+  const large = scoreAutomationFit({ signals, employeeCount: 150 });
+  const ok = small.score === large.score;
+  return { ok, detail: ok ? 'a 5-person shop and a 150-person one score the same on the same tells' : `${small.score} vs ${large.score}` };
+});
+
+def('category_tilts_only', () => {
+  const { scoreAutomationFit, CATEGORY_TILT_CAP, SIGNAL_WEIGHTS } = scoring();
+  const signals = [{ signal: 'fax_listed' }];
+  const dental = scoreAutomationFit({ signals, category: 'dental office' }).score;
+  const diner = scoreAutomationFit({ signals, category: 'restaurant' }).score;
+  const none = scoreAutomationFit({ signals, category: 'something nobody listed' }).score;
+  const smallest = Math.min(...Object.values(SIGNAL_WEIGHTS));
+  const ok = Math.abs(dental - none) <= CATEGORY_TILT_CAP && Math.abs(diner - none) <= CATEGORY_TILT_CAP
+    && CATEGORY_TILT_CAP < smallest && diner >= 0;
+  return { ok, detail: ok ? `category moves the order by at most ${CATEGORY_TILT_CAP} and never drops anyone off the list` : `dental=${dental} diner=${diner} none=${none}` };
+});
+
+def('score_carries_evidence', () => {
+  const { scoreAutomationFit } = scoring();
+  const got = scoreAutomationFit({ signals: readFixture('manualPlumber').signals });
+  const complete = got.evidence.every((e) => e.signal && typeof e.weight === 'number' && (e.url || e.quote));
+  const adds = got.evidence.reduce((a, e) => a + e.weight, 0) === got.score;
+  const ok = complete && adds && got.evidence.length >= 4;
+  return { ok, detail: ok ? `${got.score} points, each one traced to a tell and the page it was seen on` : JSON.stringify(got) };
+});
+
+def('no_signals_scores_zero_not_dropped', () => withDb(async (db) => {
+  await cleanSite(db, 'zeroscore');
+  const p = await seedSite(db, 'zeroscore', { website: 'https://redmondsigns.com/' });
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('emptyShell'))).prospect;
+  const stillThere = await db.prospect.findFirst({ where: { placeId: 'site-zeroscore', doNotContact: false } });
+  const ok = after.automationScore === 0 && Boolean(stillThere);
+  await cleanSite(db, 'zeroscore');
+  return { ok, detail: ok ? 'nothing found: scores zero and stays on the list' : `score=${after.automationScore} kept=${Boolean(stillThere)}` };
+}));
+
+def('weights_revisable_from_outcomes', () => {
+  const { reviseWeightsFromOutcomes, loadWeights, SIGNAL_WEIGHTS, scoreAutomationFit } = scoring();
+  const file = path.join(require('os').tmpdir(), `hb-weights-${process.pid}.json`);
+  const outcomes = [];
+  for (let i = 0; i < 6; i++) outcomes.push({ signals: ['fax_listed'], interested: false });
+  for (let i = 0; i < 6; i++) outcomes.push({ signals: ['no_online_booking'], interested: true });
+  const revised = reviseWeightsFromOutcomes(outcomes, { file });
+  const reloaded = loadWeights(file);
+  const scored = scoreAutomationFit({ signals: ['fax_listed'] }, { weightsFile: file });
+  const srcUnchanged = read(path.join(ROOT, 'src/hoursback/scoring.js')).includes('fax_listed: 12');
+  const ok = revised.fax_listed < SIGNAL_WEIGHTS.fax_listed
+    && revised.no_online_booking > SIGNAL_WEIGHTS.no_online_booking
+    && reloaded.fax_listed === revised.fax_listed
+    && scored.score === revised.fax_listed
+    && srcUnchanged;
+  try { fs.unlinkSync(file); } catch { /* already gone */ }
+  return { ok, detail: ok ? 'call outcomes retuned the order through a settings file; the scoring code was never edited' : JSON.stringify(revised) };
+});
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
