@@ -65,7 +65,7 @@ const TRADES = [
   ['trades', /plumb|electric|\bHVAC\b|heating|cooling|air condition|mechanical contract|septic|well drilling|sheet ?metal|welding|refrigerat|fire protection|garage door|overhead door|glass (?:co|company|service)|locksmith|pest control|pool (?:and|&)? ?spa service/i],
   ['auto', /\bauto\b|automotive|\bmotor(?:s|works)?\b|\btire\b|collision|transmission|muffler|exhaust|brakes?\b|repair (?:co|company|shop|service)|garage\b|body shop|detailing|\bRV\b|powersports|diesel|smog|lube|windshield|towing|fleet service|import specialt|mobile mechanic|service center/i],
   ['landscaping', /landscap|lawn|irrigation|tree (?:service|care)|nursery|greenhouse|garden cent|sprinkler|hardscap|snow removal/i],
-  ['storage & logistics', /storage|moving|logistic|freight|carrier|transport|trucking|hauling|dumpster|\bdump\b|waste|disposal|recycling|courier|delivery service|warehous|distribut/i],
+  ['storage & logistics', /storage|moving|logistic|freight|carrier|transport|trucking|haul(?:ing|s|er)?\b|dumpster|\bdump\b|waste|disposal|recycling|junk removal|clear ?out|courier|delivery service|warehous|distribut/i],
   ['staffing', /staffing|employment|recruit|personnel|temp(?:orary)? (?:agency|service)|workforce|human resource/i],
   ['retail & food', /restaurant|cafe|coffee|brew(?:ing|ery)|market\b|\bstore\b|bakery|butcher|deli\b|catering|food(?:s)?\b|grocer|pizza|taproom|winery|distiller|boutique|books?\b|gift|florist|jewel|furniture|apparel|outfitter|sporting goods|feed (?:and|&|store)|hardware/i],
   ['manufacturing', /manufactur|millwork|fabricat|machine (?:shop|works)|\bmill\b|products (?:inc|llc)|industries|specialt(?:y|ies)\b|custom (?:metal|wood|cabinet)|cabinet|sign(?:s| co| shop)|print(?:ing|er)|upholster/i],

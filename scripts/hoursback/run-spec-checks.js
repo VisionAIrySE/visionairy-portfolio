@@ -1723,6 +1723,31 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
 
+def('site_everything_read_is_actually_written_down', () => withDb(async (db) => {
+  // Twice now, something the reader found was only written when some OTHER
+  // detail had changed — so on a second pass almost nothing landed. Anything
+  // read has to count as a change in its own right.
+  await cleanSite(db, 'written');
+  const e = enrich();
+  const p = await seedSite(db, 'written', { website: 'https://w.example/' });
+  const html = `<html><head><meta name="description" content="We haul junk and clear out garages across Central Oregon, family owned since 1998.">
+    </head><body><h1>W Co</h1><p>Dale Hutchins, Owner. dale@w.example</p>
+    <a href="https://www.linkedin.com/company/w-example">us</a><p>Fax: 541-555-0100</p></body></html>`;
+  const finding = e.readSite([{ url: 'https://w.example/', html }], { domain: 'w.example' });
+  await e.applySiteRead(db, p.id, finding);
+  const first = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  // A record already carrying all of it must still keep it on a second pass.
+  await e.applySiteRead(db, p.id, finding);
+  const second = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const contacts = await db.contact.count({ where: { prospectId: p.id } });
+  const ok = Boolean(first.selfDescription) && first.selfDescription.includes('haul junk')
+    && first.linkedInUrl === 'https://www.linkedin.com/company/w-example'
+    && first.trade !== null && contacts >= 1
+    && second.selfDescription === first.selfDescription && second.linkedInUrl === first.linkedInUrl;
+  await cleanSite(db, 'written');
+  return { ok, detail: ok ? 'what they say they do, their LinkedIn page, their trade and their people were all written on the first read and survived the second' : JSON.stringify({ desc: first.selfDescription, li: first.linkedInUrl, trade: first.trade, contacts }) };
+}), 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3

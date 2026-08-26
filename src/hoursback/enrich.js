@@ -613,6 +613,24 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
     data.segment = band.band; data.auditFee = band.auditFee; data.guaranteedHours = band.guaranteedHours;
   }
 
+  // Their own LinkedIn page, the line they wrote about themselves, and the
+  // trade their own words settle. These belong in the comparison below, not
+  // after it: added afterwards, a business whose other details were unchanged
+  // never got them written at all — 14 of 1,583, found 2026-08-26.
+  if (finding.linkedIn && finding.linkedIn.company) data.linkedInUrl = finding.linkedIn.company;
+  if (finding.selfDescription) data.selfDescription = finding.selfDescription;
+  if (finding.tradeWords) {
+    const { tradeOf } = require('./crm/queues.js');
+    const fromName = tradeOf(before.name);
+    if (fromName === 'other') {
+      // The line they wrote about themselves is the richest signal there is,
+      // and it lives in the page header where the plain-text read cannot see
+      // it — so it has to be added back explicitly.
+      const fromSite = tradeOf(`${before.name} ${finding.selfDescription || ''} ${finding.tradeWords.slice(0, 3000)}`);
+      if (fromSite !== 'other') data.trade = fromSite;
+    } else { data.trade = fromName; }
+  }
+
   // Nothing new to say? Write nothing at all, so reading twice leaves the
   // record byte-for-byte identical.
   const same = Object.entries(data).every(([k, v]) => {
@@ -629,17 +647,6 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
 
   data.siteReadAt = options.now || new Date();
   data.fetchedAt = options.now || new Date();
-  if (finding.linkedIn && finding.linkedIn.company) data.linkedInUrl = finding.linkedIn.company;
-  if (finding.selfDescription) data.selfDescription = finding.selfDescription;
-  // Their own words settle the trade when the name could not.
-  if (finding.tradeWords) {
-    const { tradeOf } = require('./crm/queues.js');
-    const fromName = tradeOf(before.name);
-    if (fromName === 'other') {
-      const fromSite = tradeOf(`${before.name} ${finding.tradeWords.slice(0, 3000)}`);
-      if (fromSite !== 'other') data.trade = fromSite;
-    } else { data.trade = fromName; }
-  }
   const after = await db.prospect.update({ where: { id: prospectId }, data });
   return { changed: true, prospect: after, score: scored.score };
 }
