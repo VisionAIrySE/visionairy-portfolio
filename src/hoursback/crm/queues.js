@@ -50,6 +50,27 @@ function capPerBrand(rows, cap = MAX_PER_BRAND_PER_DAY) {
   return kept;
 }
 
+// The trade a business is in, read off its own name. Rough on purpose — it
+// only has to be good enough to show that, say, every dental practice says no.
+const TRADES = [
+  ['dental', /dental|dentist|orthodon|endodon/i], ['medical', /clinic|medical|health|physical therapy|chiroprac|veterinar|vet\b/i],
+  ['legal', /law|attorney|legal|counsel/i], ['accounting', /account|cpa|tax|bookkeep|payroll/i],
+  ['insurance', /insur|state farm|allstate|farmers/i], ['real estate', /realty|real estate|properties|property manage/i],
+  ['construction', /construct|builder|contract|excavat|concrete|roofing|framing/i],
+  ['trades', /plumb|electric|hvac|heating|cooling|mechanical|septic|well drilling/i],
+  ['auto', /auto|motor|tire|collision|transmission|repair shop/i],
+  ['landscaping', /landscap|lawn|irrigation|tree service|nursery/i],
+  ['storage & logistics', /storage|moving|logistic|freight|carrier|transport/i],
+  ['staffing', /staffing|employment|recruit|personnel/i],
+  ['retail & food', /restaurant|cafe|coffee|brewing|market|store|shop|bakery/i],
+  ['manufacturing', /manufactur|millwork|fabricat|machine|products inc/i],
+];
+function tradeOf(name) {
+  const n = String(name || '');
+  for (const [label, re] of TRADES) if (re.test(n)) return label;
+  return 'other';
+}
+
 function startOfDay(d = new Date()) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function endOfDay(d = new Date()) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
 
@@ -113,8 +134,27 @@ async function callToPaidReadout(db, days = 28, now = new Date()) {
   const saidYesUnpaid = await db.prospect.findMany({
     where: { stage: { in: ['CUSTOMER', 'EXPANDED_CUSTOMER'] }, paidAt: null }, select: { name: true },
   });
+  // Broken down by trade so a vein that never converts is visible rather than
+  // guessed at. The trade comes from the business's own name — no category is
+  // stored, and asking Google for one is not an option.
+  const byCategory = {};
+  if (calls.length) {
+    const ids = [...new Set(calls.map((c) => c.prospectId))];
+    const called = await db.prospect.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, paidAt: true } });
+    const countPer = {};
+    for (const c of calls) countPer[c.prospectId] = (countPer[c.prospectId] || 0) + 1;
+    for (const p of called) {
+      const trade = tradeOf(p.name);
+      const row = byCategory[trade] || (byCategory[trade] = { calls: 0, paid: 0, rate: 0 });
+      row.calls += countPer[p.id] || 0;
+      if (p.paidAt && p.paidAt >= since) row.paid += 1;
+    }
+    for (const row of Object.values(byCategory)) row.rate = row.calls ? +(row.paid / row.calls).toFixed(4) : 0;
+  }
+
   return {
     windowDays: days,
+    byCategory,
     callsLogged: calls.length,
     distinctProspectsCalled: new Set(calls.map((c) => c.prospectId)).size,
     paidInWindow: paid.length,
@@ -129,6 +169,8 @@ exports.callQueue = callQueue;
 exports.followUpQueue = followUpQueue;
 exports.callToPaidReadout = callToPaidReadout;
 exports.interimScore = interimScore;
+exports.tradeOf = tradeOf;
+exports.TRADES = TRADES;
 exports.orderingScore = orderingScore;
 exports.brandKey = brandKey;
 exports.capPerBrand = capPerBrand;
