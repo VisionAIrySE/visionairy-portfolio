@@ -305,7 +305,10 @@ function readSite(pages, options = {}) {
     headcountQuote: head ? head.quote : null,
     ownerName: owner ? owner.ownerName : null,
     ownerSourceUrl: owner ? owner.sourceUrl : null,
-    signals: signalsFromPages(list),
+    signals: [
+      ...signalsFromPages(list),
+      ...(best ? [] : [{ signal: 'no_email_published', url: list[0].url, quote: 'no email address published anywhere on the site' }]),
+    ],
     pagesRead: list.length,
   };
 }
@@ -317,7 +320,8 @@ function readNoWebsite() {
     emails: [], email: null, emailConfidence: null, emailStatus: EMAIL_STATUS.UNAVAILABLE_NO_WEBSITE,
     employeeCount: null, headcountStatus: HEADCOUNT_STATUS.UNRESOLVED_NO_WEBSITE,
     headcountSourceUrl: null, headcountPublishedAs: null, headcountQuote: null,
-    ownerName: null, ownerSourceUrl: null, signals: [], pagesRead: 0,
+    ownerName: null, ownerSourceUrl: null, pagesRead: 0,
+    signals: [{ signal: 'no_website', url: null, quote: 'no website anywhere — every enquiry they get has to be a phone call' }],
   };
 }
 

@@ -1223,9 +1223,42 @@ def('job_posting_not_confused_with_staff_bio', () => {
   return { ok, detail: ok ? 'a staff page naming an office manager does not count as an opening; a real posting does' : `bio=${bio.join('|')} posting=${real.join('|')}` };
 });
 
+def('no_website_is_scored_as_the_loudest_kind_of_manual', () => {
+  const { readNoWebsite } = enrich();
+  const { scoreAutomationFit, SIGNAL_WEIGHTS } = scoring();
+  const got = scoreAutomationFit(readNoWebsite());
+  // A business with nothing online takes every enquiry by phone. Scoring it
+  // zero — as it was before 2026-08-25 — put 460 of the most manual
+  // businesses on the list at the very bottom of it.
+  const ok = got.score === SIGNAL_WEIGHTS.no_website && got.score > 0
+    && got.evidence.some((e) => e.signal === 'no_website');
+  return { ok, detail: ok ? `no website at all now scores ${got.score}, not zero` : JSON.stringify(got) };
+});
+
+def('site_with_no_published_address_scores_for_it', () => {
+  const { readSite } = enrich();
+  const withNone = readSite([{ url: 'https://x.example/', html: '<html><body><h1>X</h1></body></html>' }], { domain: 'x.example' });
+  const withOne = readSite([{ url: 'https://y.example/', html: '<a href="mailto:sara@y.example">Sara</a>' }], { domain: 'y.example' });
+  const has = (r) => r.signals.some((x) => x.signal === 'no_email_published');
+  const ok = has(withNone) && !has(withOne);
+  return { ok, detail: ok ? 'a site publishing no address is marked; one publishing an address is not' : `none=${has(withNone)} one=${has(withOne)}` };
+});
+
+def('rare_signals_outweigh_the_near_universal_ones', () => {
+  const { SIGNAL_WEIGHTS } = scoring();
+  // Measured on the real list: no online booking and no customer login fired
+  // on roughly three in four businesses, so at their old weights 799 tied on
+  // the same number. A tell that nearly everyone shows cannot outrank one
+  // that only a few do, or the middle of the list will not sort.
+  const universal = [SIGNAL_WEIGHTS.no_online_booking, SIGNAL_WEIGHTS.no_customer_portal];
+  const rare = [SIGNAL_WEIGHTS.hiring_admin_role, SIGNAL_WEIGHTS.no_website, SIGNAL_WEIGHTS.downloadable_forms];
+  const ok = rare.every((r) => r > Math.max(...universal));
+  return { ok, detail: ok ? 'every rare tell outweighs both of the near-universal ones' : JSON.stringify(SIGNAL_WEIGHTS) };
+});
+
 def('manual_work_signals_declared', () => {
   const { SIGNAL_WEIGHTS } = scoring();
-  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'high_reviews_for_headcount'];
+  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'high_reviews_for_headcount', 'no_website', 'no_email_published'];
   const missing = want.filter((w) => !(w in SIGNAL_WEIGHTS));
   return { ok: !missing.length, detail: missing.length ? `not scored: ${missing.join(', ')}` : 'all six tells are declared in one table' };
 });
@@ -1262,8 +1295,10 @@ def('score_carries_evidence', () => {
 
 def('no_signals_scores_zero_not_dropped', () => withDb(async (db) => {
   await cleanSite(db, 'zeroscore');
-  const p = await seedSite(db, 'zeroscore', { website: 'https://redmondsigns.com/' });
-  const after = (await enrich().applySiteRead(db, p.id, readFixture('emptyShell'))).prospect;
+  // A business that already books online, already has a customer login and
+  // already publishes an address shows no tells at all — the true zero case.
+  const p = await seedSite(db, 'zeroscore', { website: 'https://cascadesmiles.com/' });
+  const after = (await enrich().applySiteRead(db, p.id, readFixture('automatedDental'))).prospect;
   const stillThere = await db.prospect.findFirst({ where: { placeId: 'site-zeroscore', doNotContact: false } });
   const ok = after.automationScore === 0 && Boolean(stillThere);
   await cleanSite(db, 'zeroscore');

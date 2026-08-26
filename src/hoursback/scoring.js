@@ -14,23 +14,34 @@ const path = require('path');
 // The tells, and what each is worth. A live posting for an office role is the
 // strongest single signal by design: someone is about to be paid to do what
 // software could do.
+//
+// Weights rebalanced 2026-08-25 against the real Central Oregon list. The two
+// absence signals fired on roughly three in four businesses, so at their
+// original weights 799 companies tied on exactly the same number and the
+// middle of the list could not be sorted at all. They are still real tells —
+// they are just not distinguishing ones here, so they weigh less than the
+// rare ones that actually separate one business from the next.
 const SIGNAL_WEIGHTS = {
   hiring_admin_role: 40,          // source: lb6 spec — highest single signal
-  no_online_booking: 20,          // every appointment costs a phone call
+  no_website: 25,                 // nothing online at all: every enquiry is a call
   downloadable_forms: 15,         // paper in, typing out
+  no_online_booking: 14,          // every appointment costs a phone call
   fax_listed: 12,                 // a fax number in this decade
-  no_customer_portal: 10,         // every status question is a phone call
+  no_email_published: 8,          // no way to reach them but the phone
   high_reviews_for_headcount: 8,  // busy, and small — the squeeze point
+  no_customer_portal: 7,          // every status question is a phone call
 };
 
 // Plain-English labels, for the call screen.
 const SIGNAL_LABELS = {
   hiring_admin_role: 'Hiring for an office role right now',
-  no_online_booking: 'No way to book online',
+  no_website: 'No website at all',
   downloadable_forms: 'Forms are PDFs to print and fill in',
+  no_online_booking: 'No way to book online',
   fax_listed: 'Still lists a fax number',
-  no_customer_portal: 'No customer login',
+  no_email_published: 'Publishes no email address',
   high_reviews_for_headcount: 'Lots of reviews for their size',
+  no_customer_portal: 'No customer login',
 };
 
 // Category nudges the order a little and never gates anyone out. Capped at
