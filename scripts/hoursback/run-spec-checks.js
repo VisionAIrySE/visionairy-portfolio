@@ -1748,6 +1748,40 @@ def('site_everything_read_is_actually_written_down', () => withDb(async (db) => 
   return { ok, detail: ok ? 'what they say they do, their LinkedIn page, their trade and their people were all written on the first read and survived the second' : JSON.stringify({ desc: first.selfDescription, li: first.linkedInUrl, trade: first.trade, contacts }) };
 }), 'lanes');
 
+def('pipeline_shows_who_is_in_play_and_who_is_leaking', () => withDb(async (db) => {
+  // A business sitting at interested with nothing scheduled is the most
+  // expensive thing in the system, and it is invisible on every other screen.
+  await cleanDay(db, 'pipe');
+  const leaking = await seedDay(db, 'pipe1', { stage: 'ACTIVE', nextAction: null, nextActionDate: null, auditFee: 1500, guaranteedHours: 15 });
+  const fine = await seedDay(db, 'pipe2', { stage: 'IN_PROCESS', nextAction: 'send the one-pager', nextActionDate: new Date(Date.now() + 86400000), auditFee: 999, guaranteedHours: 10 });
+  const cold = await seedDay(db, 'pipe3', { stage: 'NO_CONTACT' });
+  const { leakReport } = nextAction();
+  const leaks = await leakReport(db);
+  const live = await db.prospect.findMany({ where: { doNotContact: false, stage: { in: ['INITIAL_CONTACT', 'ACTIVE', 'IN_PROCESS', 'CUSTOMER', 'EXPANDED_CUSTOMER'] } } });
+  const money = live.filter((p) => [leaking.id, fine.id].includes(p.id)).reduce((a, p) => a + (p.auditFee || 0), 0);
+  const ok = leaks.some((l) => l.id === leaking.id) && !leaks.some((l) => l.id === fine.id)
+    && !live.some((p) => p.id === cold.id) && money === 2499;
+  await cleanDay(db, 'pipe');
+  return { ok, detail: ok ? 'the one with nothing scheduled is flagged, the one with a next step is not, uncalled businesses stay off the board, and the money in play adds up' : `leaks=${leaks.length} money=${money}` };
+}), 'day');
+
+def('money_keeps_quoted_agreed_and_paid_apart', () => withDb(async (db) => {
+  // A customer who has not paid is not revenue. Counting them as such is how
+  // a founder talks himself into a month he did not have.
+  await cleanDay(db, 'money');
+  const quotedOnly = await seedDay(db, 'money1', { quotedAt: new Date(), quotedAuditFee: 1500, quotedGuaranteedHours: 15, stage: 'ACTIVE' });
+  const saidYes = await seedDay(db, 'money2', { stage: 'CUSTOMER', quotedAt: new Date(), quotedAuditFee: 999, paidAt: null });
+  const actuallyPaid = await seedDay(db, 'money3', { stage: 'CUSTOMER', quotedAt: new Date(), quotedAuditFee: 2000, paidAt: new Date() });
+  const q = await db.prospect.findMany({ where: { placeId: { startsWith: 'day-money' }, quotedAt: { not: null }, paidAt: null } });
+  const yes = await db.prospect.findMany({ where: { placeId: { startsWith: 'day-money' }, stage: { in: ['CUSTOMER', 'EXPANDED_CUSTOMER'] }, paidAt: null } });
+  const paid = await db.prospect.findMany({ where: { placeId: { startsWith: 'day-money' }, paidAt: { not: null } } });
+  const ok = q.length === 2 && yes.length === 1 && yes[0].id === saidYes.id
+    && paid.length === 1 && paid[0].id === actuallyPaid.id
+    && q.some((x) => x.id === quotedOnly.id);
+  await cleanDay(db, 'money');
+  return { ok, detail: ok ? 'quoted, agreed and actually paid are three separate numbers, and a customer who has not paid is never counted as revenue' : `quoted=${q.length} yes=${yes.length} paid=${paid.length}` };
+}), 'day');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3
