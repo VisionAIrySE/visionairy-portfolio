@@ -62,12 +62,48 @@ const WHAT_I_DO = [
   "In practice I spend time with you and the people doing the work, enough to understand how it actually moves, and come back with a plain list of where the hours sit, what off-the-shelf tools would take care of, and what would need building.",
 ];
 
-// The guarantee, four ways. Never softer, never harder.
+// The guarantee, on its own line, where it cannot be missed. Four ways.
+//
+// Where the team size is known the numbers are theirs: their band's hours and
+// their band's price, straight from the pricing table. Where it is not, the
+// floor of ten hours stands, because that is the promise at every band.
 const GUARANTEE = [
-  "You would have the whole picture either way, and if I couldn't find at least ten hours a week your team could have back, there would be nothing to pay.",
-  "The picture is yours either way, and if there aren't at least ten hours a week in it for your team, there's nothing to pay.",
-  "You keep the findings whichever way it goes, and if I can't turn up at least ten hours a week for your team, you owe me nothing.",
-  "Either way the picture is yours to keep, and if there is not at least ten hours a week in it, there is nothing to pay.",
+  "If I can't find at least {hours} hours a week your team could have back, you don't pay. That's the whole deal.",
+  "If there aren't at least {hours} hours a week in it for your team, you owe me nothing. That is the entire arrangement.",
+  "No {hours} hours a week found, no invoice. That is the whole of it.",
+  "If I can't turn up {hours} hours a week for your team, there's nothing to pay. That's the deal, start to finish.",
+];
+
+// The same, when we know their team size and can put their own number on it.
+const GUARANTEE_PRICED = [
+  "{hours} hours a week back, for {fee}. If I can't find them, you don't pay. That's the whole deal.",
+  "For {fee} I find you {hours} hours a week, or you owe me nothing. That is the entire arrangement.",
+  "{fee}, for {hours} hours a week of your team's time back. No hours, no invoice.",
+  "{hours} hours a week, guaranteed, for {fee}. If they are not there, there's nothing to pay.",
+];
+
+// The first message states the hours as a YEAR, never as a price. A number
+// with no context becomes the whole conversation; the same hours as a slice of
+// somebody's working life cannot be argued with.
+const YEAR_FRAMING = [
+  '{hours} hours a week is {yearHours} hours a year, which is about {months} of somebody\'s working life handed back.',
+  'Put another way, {hours} hours a week comes to {yearHours} hours a year, roughly {months} of one person\'s time.',
+  '{hours} hours a week does not sound like much until it is {yearHours} hours a year, which is about {months} of a working life.',
+  'Across a year {hours} hours a week is {yearHours} hours, near enough {months} of one person\'s working time.',
+];
+
+// The SECOND message is where the price belongs, and where the return goes —
+// stated so the reader puts their own number on an hour rather than arguing
+// with one of ours.
+// The return is 21x at every band, from the business model, which values an
+// hour at $39.80 — a real Central Oregon wage with overhead on it, sourced.
+// Not $100: that is the PRICE per guaranteed hour, not what an hour of their
+// staff time costs them, and using it would get argued with on the first call.
+const PRICE_FRAMING = [
+  'The audit is {fee}, and it buys back {yearHours} hours a year. At what an hour of staff time actually costs around here that is about {value} of time returned, against {fee} spent.',
+  'It costs {fee}. What comes back is {yearHours} hours a year, worth roughly {value} at local wages once you load them properly. I would rather you did that sum than take mine.',
+  '{fee} for the audit. {yearHours} hours a year back, which lands near {value} of your team\'s time. Whatever number you put on an hour, the arithmetic is not close.',
+  'The number is {fee}, against {yearHours} hours a year returned. Costed at what your people actually cost you, that is somewhere around {value}.',
 ];
 
 // The close, four ways, at each register.
@@ -145,4 +181,4 @@ const TELL_WORDINGS = {
   ],
 };
 
-module.exports = { pick, OPENINGS, WHAT_I_DO, GUARANTEE, CLOSES, TELL_WORDINGS };
+module.exports = { pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };

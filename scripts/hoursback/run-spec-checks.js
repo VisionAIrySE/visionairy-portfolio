@@ -1719,7 +1719,9 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
     && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
     && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
-    && [a, b, c].every((m) => require(path.join(ROOT, 'src/hoursback/crm/variants.js')).GUARANTEE.some((g) => m.body.includes(g)))
+    // The guarantee stands on its own line now, and carries their own hours
+    // and price where the team size is known.
+    && [a, b, c].every((m) => /\n(?:If |No |[A-Z][a-z]+ hours a week|\$[\d,]+, for )[^\n]*(?:you don't pay|owe me nothing|no invoice|nothing to pay)/.test(m.body))
     && [a, b, c].every((m) => /\nBest regards,\nRuss Wright\nFounder\nVisionAIry\n/.test(m.body));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
@@ -1891,6 +1893,68 @@ def('message_every_wording_is_free_of_machine_habits', () => {
   const enough = counts.every((n) => n >= 4);
   const ok = !bad.length && enough;
   return { ok, detail: ok ? `all ${all.length} wordings clear the bar, and every line has at least four ways to say it` : (bad.slice(0, 2).join(' | ') || 'some line has fewer than four wordings') };
+}, 'lanes');
+
+def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
+  // The guarantee was the last clause of a five-line paragraph, where nobody
+  // reads. It stands on its own line now, short, in their own hours — and
+  // with no price, because a price in a first approach becomes the whole
+  // conversation. The year's hours follow it on their own line.
+  const fc = firstContact();
+  const { bandForEmployeeCount } = rules();
+  const bad = [];
+  for (const [name, count] of [['Sunwest Builders', 40], ['Cascade Smiles Dental', 8], ['Highland Veterinary Hospital', 22]]) {
+    const m = fc.draftFirstContact({ name, ownerName: 'Sara', employeeCount: count }, [{ signal: 'fax_listed' }]);
+    const paras = m.body.split('\n\n');
+    const promise = paras[paras.length - 4];
+    const year = paras[paras.length - 3];
+    const band = bandForEmployeeCount(count);
+    if (promise.split(/\s+/).length > 26) bad.push(`${name}: the promise is too long to land`);
+    if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
+    if (!/you don't pay|owe me nothing|no invoice|nothing to pay/i.test(promise)) bad.push(`${name}: no promise in it`);
+    if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);
+    if (!year.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${name}: the year's hours are missing`);
+    if (!/^[A-Z]/.test(year)) bad.push(`${name}: the year line starts lowercase`);
+  }
+  // Where the size is unknown, ten hours is the floor at every band.
+  const unknown = fc.draftFirstContact({ name: 'Legacy Auto Repair', ownerName: 'Sara' }, [{ signal: 'fax_listed' }]);
+  const up = unknown.body.split('\n\n');
+  if (!/ten hours a week/.test(up[up.length - 4])) bad.push('unknown size does not fall back to ten hours');
+  if (!/\b520\b/.test(up[up.length - 3])) bad.push('unknown size does not state the year');
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : "the promise stands alone in their own hours with no price on it, and the year's hours land right underneath" };
+}, 'lanes');
+
+def('message_price_only_in_the_second_and_the_maths_matches_the_model', () => {
+  // No price in a first approach — Russ's own edit struck one out, and a
+  // number with no context becomes the whole conversation. The second message
+  // is where it belongs, and the value stated has to match the business model
+  // exactly: 21x at every band, off an hour valued at what Central Oregon
+  // staff time actually costs, not off the price per guaranteed hour.
+  const fc = firstContact();
+  const { bandForEmployeeCount } = rules();
+  const bad = [];
+  for (const count of [8, 22, 40, 90]) {
+    const p = { name: `Test ${count} Co`, ownerName: 'Sara', employeeCount: count, trade: 'construction' };
+    const band = bandForEmployeeCount(count);
+    const first = fc.draftFirstContact(p, [{ signal: 'fax_listed' }]);
+    if (/\$[\d,]+/.test(first.body)) bad.push(`a price appears in the first message to a ${count}-person business`);
+    if (!first.body.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${count}: the year's hours are missing from the first message`);
+
+    const second = fc.draftFollowUpTouch(p, 'fax_listed', 2);
+    const fee = `$${band.auditFee.toLocaleString()}`;
+    const value = `$${Math.round(band.guaranteedHours * 52 * 39.80).toLocaleString()}`;
+    if (!second.body.includes(fee)) bad.push(`${count}: their fee ${fee} is missing from the second message`);
+    if (!second.body.includes(value)) bad.push(`${count}: the value ${value} is missing or wrong`);
+    // And the arithmetic has to be the 21x the model states.
+    const ratio = Math.round((band.guaranteedHours * 52 * 39.80) / band.auditFee);
+    if (ratio !== 21 && count !== 8) bad.push(`${count}: the return works out at ${ratio}x, not 21x`);
+  }
+  // The stated figure must come from the business model, not from the $100 a
+  // guaranteed hour the FEE is set from.
+  const model = read(BM);
+  if (!/39\.80/.test(model)) bad.push('the business model no longer states the hourly value the messages use');
+  if (!/21x at every band/.test(model)) bad.push('the business model no longer states 21x at every band');
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'no price in a first approach; the second carries their own fee and the value the model states, and the return is 21x at every band' };
 }, 'lanes');
 
 def('three_lanes_declared', () => {

@@ -141,7 +141,11 @@ const BODY = `Hi {greeting},
 
 {opener} {followOn}
 
-{credibility} {whatIDo} In your case that would probably look like {valueIn}. {guarantee}
+{credibility} {whatIDo} In your case that would probably look like {valueIn}.
+
+{guarantee}
+
+{yearLine}
 
 {close}
 
@@ -171,7 +175,11 @@ I wrote last week about {shortTell}, and I think I led with the wrong thing.
 
 Here is what I actually meant. {recognition}
 
-I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up. That is the whole reason I look first and quote after, and why you do not pay if the hours are not there. There is not much to weigh up, really. Either you get the hours back, or you find out for nothing.
+I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up.
+
+{priceLine}
+
+There is not much to weigh up, really. Either you get the hours back, or you find out for nothing.
 
 Best regards,
 Russ Wright
@@ -273,6 +281,64 @@ function followOnFor(key, prospect) {
   return { line: TRADE_FOLLOW_ONS[key].replace('{work}', work), trade };
 }
 
+// The guarantee, in their own numbers where we know their team size. Ten hours
+// is the floor at every band, so it is safe wherever the size is unknown.
+// What an hour of Central Oregon staff time actually costs, wage plus
+// overhead. Sourced in the business model; it is what makes the return 21x at
+// every band. Not the $100 per guaranteed hour the FEE is set from.
+const HOURLY_VALUE = 39.80;
+
+const WORDS = { 10: 'ten', 15: 'fifteen', 20: 'twenty', 25: 'twenty-five', 35: 'thirty-five',
+  50: 'fifty', 75: 'seventy-five', 100: 'a hundred', 150: 'a hundred and fifty' };
+const MONTHS = { 520: 'three months', 780: 'four and a half months', 1040: 'six months',
+  1300: 'seven and a half months', 1820: 'ten months', 2600: 'a year and a quarter',
+  3900: 'nearly two years', 5200: 'two and a half years', 7800: 'nearly four years' };
+
+// What the band means for this business. Ten hours is the floor everywhere, so
+// it is safe wherever the team size is unknown.
+function bandFacts(prospect) {
+  const { resolveField } = require('../overrides.js');
+  const count = resolveField(prospect, 'employeeCount');
+  if (count) {
+    const { bandForEmployeeCount } = require('../rules.js');
+    const b = bandForEmployeeCount(count);
+    if (b && b.guaranteedHours && b.auditFee) {
+      const yearHours = b.guaranteedHours * 52;
+      return { hours: b.guaranteedHours, fee: b.auditFee, yearHours, known: true,
+        hoursWord: WORDS[b.guaranteedHours] || String(b.guaranteedHours),
+        months: MONTHS[yearHours] || 'a good stretch' };
+    }
+  }
+  return { hours: 10, fee: null, yearHours: 520, known: false, hoursWord: 'ten', months: 'three months' };
+}
+
+// The guarantee, in their own hours. No price in a first approach — Russ's own
+// edit struck one out, and a number with no context becomes the whole
+// conversation.
+function guaranteeFor(prospect, seed) {
+  const V = require('./variants.js');
+  const f = bandFacts(prospect);
+  return V.pick(V.GUARANTEE, seed, 'guarantee').replace(/\{hours\}/g, f.hoursWord);
+}
+
+// The hours as a slice of a working life, which cannot be argued with the way
+// a dollar figure can.
+function yearLineFor(prospect, seed) {
+  const V = require('./variants.js');
+  const f = bandFacts(prospect);
+  return V.pick(V.YEAR_FRAMING, seed, 'year')
+    .replace(/\{hours\}/g, f.hoursWord)
+    .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
+    .replace(/\{months\}/g, f.months);
+}
+
+// A guarantee that starts with a number reads as a fragment unless the first
+// letter is lifted: "fifty hours a week back" becomes "Fifty hours a week back".
+function sentenceCase(t) {
+  const s = String(t).trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
 function draftFirstContact(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
@@ -295,7 +361,8 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{followOn}', line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
-    .replace('{guarantee}', V.pick(V.GUARANTEE, seed, 'guarantee'))
+    .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
+    .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
     .replace(/\{business\}/g, business);
@@ -327,7 +394,18 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   const t = touch === 2 ? SECOND_TOUCH : THIRD_TOUCH;
   const { painFor } = require('./painPoints.js');
   const pain = painFor(prospect.trade || tradeOf(prospect.name));
+  const V2 = require('./variants.js');
+  const f = bandFacts(prospect);
+  // The price belongs HERE, not in a first approach — by now they have read
+  // something honest, and the number arrives with context around it.
+  const priceLine = f.known
+    ? V2.pick(V2.PRICE_FRAMING, prospect.name || '', 'price')
+      .replace(/\{fee\}/g, `$${f.fee.toLocaleString()}`)
+      .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
+      .replace(/\{value\}/g, `$${Math.round(f.yearHours * HOURLY_VALUE).toLocaleString()}`)
+    : `The audit is priced off the size of your team. At the smallest band it buys back ${f.yearHours.toLocaleString()} hours a year, which is around $${Math.round(f.yearHours * HOURLY_VALUE).toLocaleString()} of time at what people actually cost around here.`;
   const body = t.body
+    .replace('{priceLine}', priceLine)
     .replace('{greeting}', greetingFor(prospect))
     .replace('{shortTell}', SHORT_TELLS[openedWith] || 'the admin hours in your office')
     .replace('{recognition}', pain.recognition)
@@ -338,7 +416,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
 }
 
 module.exports = {
-  CREDIBILITY, longevityLine, toolsLine, toolsNoteForRuss,
+  CREDIBILITY, longevityLine, toolsLine, toolsNoteForRuss, bandFacts, yearLineFor,
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
