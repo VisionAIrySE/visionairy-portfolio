@@ -16,6 +16,12 @@
 // The opening line, in the business's own terms. Ordered: the loudest tell
 // that is also the least awkward to say out loud goes first.
 const OPENERS = {
+  // The strongest opening there is: they run more than one thing, so the
+  // hours are multiplied and nobody else writing to them has noticed.
+  runs_several_businesses:
+    'I noticed you are behind more than one business here, which usually means you are carrying the same office work twice over.',
+  hiring_several_office_roles:
+    'I noticed you have more than one office role open at the moment.',
   hiring_admin_role:
     'I noticed you have an opening for an office role at the moment.',
   no_website:
@@ -31,8 +37,8 @@ const OPENERS = {
 };
 // Preference order when a business shows more than one.
 const OPENER_ORDER = [
-  'hiring_admin_role', 'downloadable_forms', 'no_website', 'fax_listed',
-  'no_online_booking', 'no_customer_portal',
+  'runs_several_businesses', 'hiring_several_office_roles', 'hiring_admin_role',
+  'downloadable_forms', 'no_website', 'fax_listed', 'no_online_booking', 'no_customer_portal',
 ];
 
 // The paperwork each trade actually does. This is what turns "I noticed you
@@ -58,6 +64,10 @@ const TRADE_WORK = {
 // How each opening lands once we know the trade. {work} is their own
 // paperwork, and every line is written so it reads properly with any of them.
 const TRADE_FOLLOW_ONS = {
+  runs_several_businesses:
+    'Each one has its own {work} and its own version of the same admin, and the hours do not add up so much as double.',
+  hiring_several_office_roles:
+    'Before you fill either, it is worth knowing how much of both jobs is {work}, because that part mostly stops needing a person once it is set up properly.',
   hiring_admin_role:
     "Before you fill it, it's worth knowing how much of that job is {work}, and how much of that stops needing a person at all once it is set up properly.",
   no_website:
@@ -78,6 +88,10 @@ const TRADE_FOLLOW_ONS = {
 // What each opening leads into — one sentence, always about what THEY lose,
 // never about what software does.
 const FOLLOW_ONS = {
+  runs_several_businesses:
+    'Each one carries its own version of the same admin, and the hours do not add up so much as double.',
+  hiring_several_office_roles:
+    'Before you fill either, it is worth knowing how much of both jobs is work that does not need a person once it is set up properly.',
   hiring_admin_role:
     "Before you fill it, it's worth knowing how much of that role is work that doesn't need a person at all, because in most offices I look at it's more than the owner expects.",
   no_website:
@@ -93,6 +107,8 @@ const FOLLOW_ONS = {
 };
 
 const SUBJECTS = {
+  runs_several_businesses: 'Both of your businesses, {business}',
+  hiring_several_office_roles: 'The office roles you are hiring for',
   hiring_admin_role: 'About the office role you are hiring for',
   no_website: 'A thought about the calls coming into {business}',
   downloadable_forms: 'The forms on your site',
@@ -176,6 +192,8 @@ russ@visionairy.biz`,
 
 // A short way of naming what was noticed, for the second message.
 const SHORT_TELLS = {
+  runs_several_businesses: 'the fact you run more than one business',
+  hiring_several_office_roles: 'the office roles you were advertising',
   hiring_admin_role: 'the office role you were advertising',
   no_website: 'how much comes to you by phone',
   downloadable_forms: 'the forms on your site',

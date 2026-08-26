@@ -1782,6 +1782,37 @@ def('money_keeps_quoted_agreed_and_paid_apart', () => withDb(async (db) => {
   return { ok, detail: ok ? 'quoted, agreed and actually paid are three separate numbers, and a customer who has not paid is never counted as revenue' : `quoted=${q.length} yes=${yes.length} paid=${paid.length}` };
 }), 'day');
 
+def('score_counts_everything_known_not_just_the_website', () => {
+  // The score used to read only what a website was missing. Everything since
+  // learned — who owns them, how long they have been going, what they already
+  // pay for, how big the team is, whether the same person runs other
+  // businesses here — has to count too, or the call order ignores it.
+  const { SIGNAL_WEIGHTS, SIGNAL_LABELS, scoreAutomationFit } = scoring();
+  const learned = ['runs_several_businesses', 'hiring_several_office_roles', 'long_established',
+    'team_size_known', 'disconnected_tools', 'named_decision_maker'];
+  const missing = learned.filter((k) => !(k in SIGNAL_WEIGHTS) || !SIGNAL_LABELS[k]);
+  // Running several businesses must outrank every website tell except an
+  // actual job posting — it is one conversation covering several sets of hours.
+  const websiteTells = ['no_online_booking', 'no_customer_portal', 'fax_listed', 'downloadable_forms', 'no_website'];
+  const outranks = websiteTells.every((k) => SIGNAL_WEIGHTS.runs_several_businesses > SIGNAL_WEIGHTS[k]);
+  const bare = scoreAutomationFit({ signals: [{ signal: 'fax_listed' }] }).score;
+  const rich = scoreAutomationFit({ signals: [{ signal: 'fax_listed' }, { signal: 'runs_several_businesses' }, { signal: 'long_established' }] }).score;
+  const ok = !missing.length && outranks && rich > bare;
+  return { ok, detail: ok ? 'everything learned about a business counts towards its place in the queue, and an owner running several outranks any single website tell' : `missing: ${missing.join(', ')} | outranks=${outranks}` };
+}, 'lanes');
+
+def('message_leads_with_the_strongest_thing_known', () => {
+  const fc = firstContact();
+  const p = { name: 'Hoyts Hardware', trade: 'retail & food', ownerName: 'Alison Huycke', yearsInBusiness: 41, toolsInUse: 'QuickBooks, Square' };
+  const m = fc.draftFirstContact(p, [{ signal: 'fax_listed' }, { signal: 'runs_several_businesses' }]);
+  const leadsWithTheBigOne = m.openedWith === 'runs_several_businesses';
+  const carriesYears = /Forty-odd years|41 years/.test(m.body);
+  const carriesTools = /QuickBooks and Square/.test(m.body);
+  const noDash = !/[—–]/.test(m.body);
+  const ok = leadsWithTheBigOne && carriesYears && carriesTools && noDash;
+  return { ok, detail: ok ? 'it opens on the strongest thing known about them, and still carries their years and their software' : `lead=${m.openedWith} years=${carriesYears} tools=${carriesTools}` };
+}, 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3

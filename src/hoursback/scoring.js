@@ -30,6 +30,16 @@ const SIGNAL_WEIGHTS = {
   no_email_published: 8,          // no way to reach them but the phone
   high_reviews_for_headcount: 8,  // busy, and small — the squeeze point
   no_customer_portal: 7,          // every status question is a phone call
+
+  // Everything below comes from what was learned about the business rather
+  // than from a missing feature on its website. Added 2026-08-26 so the call
+  // order reflects everything known, not just the tells.
+  runs_several_businesses: 30,    // one conversation, several sets of hours
+  hiring_several_office_roles: 22,// more than one open desk job at once
+  long_established: 10,           // decades of habits, and the money to fix them
+  team_size_known: 6,             // priceable on the first call, no discovery needed
+  disconnected_tools: 14,         // paying for software that does not talk
+  named_decision_maker: 8,        // you can ask for them by name
 };
 
 // Plain-English labels, for the call screen.
@@ -42,6 +52,12 @@ const SIGNAL_LABELS = {
   no_email_published: 'Publishes no email address',
   high_reviews_for_headcount: 'Lots of reviews for their size',
   no_customer_portal: 'No customer login',
+  runs_several_businesses: 'The same owner runs other businesses here',
+  hiring_several_office_roles: 'Advertising more than one office role',
+  long_established: 'Decades in business',
+  team_size_known: 'Team size known, so priceable today',
+  disconnected_tools: 'Paying for software that does not talk to itself',
+  named_decision_maker: 'You can ask for them by name',
 };
 
 // Category nudges the order a little and never gates anyone out. Capped at
