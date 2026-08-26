@@ -130,22 +130,23 @@ const SUBJECTS = {
 // and building AI platforms — and having personally hit almost every
 // frustration the person reading this has.
 const CREDIBILITY = {
-  FORMAL: 'My own career has been split between senior management and working for myself, across sales, marketing and operations, in finance, construction and building AI platforms. I have run into almost every frustration a manager runs into, and what I build now comes out of that rather than out of a textbook.',
-  NEUTRAL: "I've spent my career between senior management and running my own thing, in sales, marketing and operations, across finance, construction and building AI platforms, so I've hit just about every frustration you can hit in a management seat, and what I build now comes straight out of that.",
-  PLAIN: "I've spent my career in senior management and running my own shops, in sales, marketing and operations, across finance, construction and AI platforms. I've hit just about every frustration you can hit, and what I build now comes out of that.",
+  // Reassurance at the end, not a resume in the middle. The long version ran
+  // five lines and Russ read it back to me (2026-08-26).
+  FORMAL: 'My career has been split between senior management and working for myself, across finance, construction and building AI platforms. I have run into almost every frustration a manager runs into, and what I build now comes out of that.',
+  NEUTRAL: "I've spent my career in senior management and running my own businesses, across finance, construction and AI. I've hit most of the frustrations you can hit in a management seat, and what I build now comes out of that.",
+  PLAIN: "I've spent my career in senior management and running my own shops, across finance, construction and AI. I've hit most of the frustrations you can hit, and what I build now comes out of that.",
 };
+
 
 const BODY = `Hi {greeting},
 
 {opener} {followOn}
 
-{guarantee}
-
-{intro} {credibility}
-
 {whatIDo} In your case that would probably look like {valueIn}.
 
-{yearLine}
+{guarantee} {yearLine}
+
+{intro} {credibility}
 
 {close}
 
@@ -154,7 +155,8 @@ Russ Wright
 Founder
 VisionAIry
 503-621-8000 · russ@visionairy.biz
-VisionAIry.biz · LinkedIn`;
+VisionAIry.biz · LinkedIn
+Grab a time on my calendar: https://calendly.com/visionairy`;
 
 // ---------------------------------------------------------------------------
 // the second and third touch
@@ -334,7 +336,9 @@ function yearLineFor(prospect, seed) {
   const wordings = f.hours > 10
     ? V.YEAR_FRAMING.filter((w) => !/does not sound like much/.test(w))
     : V.YEAR_FRAMING;
+  const Word = f.hoursWord.charAt(0).toUpperCase() + f.hoursWord.slice(1);
   return V.pick(wordings, seed, 'year')
+    .replace(/\{Hours\}/g, Word)
     .replace(/\{hours\}/g, f.hoursWord)
     .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
     .replace(/\{months\}/g, f.months);

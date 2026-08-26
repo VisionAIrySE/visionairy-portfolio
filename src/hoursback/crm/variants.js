@@ -34,38 +34,25 @@ function pick(list, key, salt = '') {
 
 // The opening line. Same job, four ways.
 const OPENINGS = {
-  // These used to run FIRST and led into the observation with "rather than
-  // describe it, let me point at something specific". The observation now
-  // opens the message and the guarantee follows it, so these introduce Russ
-  // AFTERWARDS, once the reader already has a reason to keep going (Russ,
-  // 2026-08-26: put the guarantee where it grabs them).
-  FORMAL: [
-    "By way of introduction: I'm local to Central Oregon, and I build software that takes repetitive office work off people.",
-    "A word on who is writing. I'm based here in Central Oregon and I build software that takes the repetitive parts of office work off people.",
-    "As to who I am: I build software for businesses here in Central Oregon, aimed squarely at the office work that repeats.",
-    "Briefly, who this is from. I work with businesses across Central Oregon on the office work that repeats itself.",
-  ],
-  NEUTRAL: [
-    "A word on who's writing: I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.",
-    "Who I am, quickly. I'm here in Central Oregon and I build software that takes the repetitive office work off people.",
-    "As for me, I build software for businesses around Central Oregon, mostly aimed at the office work that keeps repeating.",
-    "About me, briefly. I'm local, and what I build takes the repetitive office work off people.",
-  ],
-  PLAIN: [
-    "Quick word on who's writing. I'm local to Central Oregon and I build software that takes the repetitive office work off people's plates.",
-    "Who I am: I'm here in Central Oregon and I build software that takes repetitive office work off people.",
-    "About me, quickly. I build software for local businesses, aimed at the office work that repeats.",
-    "As for who this is from, I'm local and I build software that takes the repeating office work off people.",
-  ],
+  // Reassurance, not the hook, so these run LATE and short. Formal keeps its
+  // contractions out; plain is barest. Shortening them once collapsed formal
+  // and neutral into the same sentence, which killed the register.
+  FORMAL: ["I am local to Central Oregon.", "I am based here in Central Oregon.", "I work with businesses across Central Oregon.", "I am here in Central Oregon myself."],
+  NEUTRAL: ["I'm local to Central Oregon.", "I'm here in Central Oregon.", "I work with businesses around Central Oregon.", "I'm based here in Bend."],
+  PLAIN: ["I'm local.", "I'm right here in Bend.", "I'm local, same as you.", "I'm just up the road."],
 };
+
+
 
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  "What I do is have a conversation with you and your team, enough to actually understand how the work moves, and then come back with a plain list of where the hours are going, which of them could be fixed with tools that already exist, and which would need something built.",
-  "The way it works is a conversation with you and whoever does the work, long enough to see how things actually move, and then bring back a plain list of where the hours go, what could be fixed with tools that already exist, and what would need building.",
-  "What that looks like in practice is a conversation with you and your team, enough to follow the work properly, and then a plain list of where the hours are going, which parts existing tools would handle, and which parts would need something made.",
-  "In practice it is a conversation with you and the people doing the work, enough to understand how it actually moves, and come back with a plain list of where the hours sit, what off-the-shelf tools would take care of, and what would need building.",
+  // The offer, said once and short. It used to run two long sentences across a
+  // whole paragraph of its own, and it landed after a wall about his career.
+  "That's what I do. I sit down with you and whoever does the work, follow how it actually moves, and come back with a plain list: where your hours are going, what existing tools would fix, and what would need building.",
+  "That's what I do. A conversation with you and your team, close enough to see how the work really moves, then a plain list of where the hours go, what off-the-shelf tools would handle, and what would need making.",
+  "That's my work. I spend the time to follow how things actually move in your office, then hand you a plain list: the hours, what existing tools would take care of, and what would need building.",
+  "That's what I do. I talk to you and the people doing the work, see how it moves, and come back with a plain list of where your hours are going and what would fix each one.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
@@ -74,15 +61,13 @@ const WHAT_I_DO = [
 // their band's price, straight from the pricing table. Where it is not, the
 // floor of ten hours stands, because that is the promise at every band.
 const GUARANTEE = [
-  // The fee is paid UP FRONT, so the promise is a refund, not an invoice that
-  // never gets sent. An earlier wording said "no invoice" and Russ caught it,
-  // along with "five is the least of it", which means nothing (2026-08-26).
-  // Each one now says three things in order: the promise, the refund, and
-  // that five is where it starts. No dashes: a dash reads as machine-written.
-  "If I can't find you {hours} hours a week, you get your money back. {Hours} is the minimum. Most offices have well more.",
-  "{Hours} hours a week is the least I'll find, or your fee comes back. In most places it is a good deal more.",
-  "If there aren't {hours} hours a week in it for your team, I refund you in full. {Hours} is the floor. Most land higher.",
-  "You get {hours} hours a week back, or you get your money back. {Hours} is what I promise. More is what I usually find.",
+  // Two sentences. The fee is paid up front so the promise is a REFUND, and
+  // five is a floor. An earlier version ran three sentences and sat beside a
+  // two-sentence year line, which made a paragraph nobody would read.
+  "I find you at least {hours} hours a week or you get your money back. Most come in higher.",
+  "At least {hours} hours a week, or your fee comes back to you. Most offices have well more.",
+  "If there aren't {hours} hours a week in it, I refund you in full. Most land higher than that.",
+  "You get {hours} hours a week back or your money back. {Hours} is the floor, not the ceiling.",
 ];
 
 // The same, when we know their team size and can put their own number on it.
@@ -97,14 +82,13 @@ const GUARANTEE_PRICED = [
 // with no context becomes the whole conversation; the same hours as a slice of
 // somebody's working life cannot be argued with.
 const YEAR_FRAMING = [
-  // Russ asked for a return figure. A percentage is a dollar claim wearing a
-  // hat — the only way to reach one is to price an hour and divide by the fee,
-  // which is the argument he struck out. Hours against hours cannot be
-  // disputed, because both sides of it are time (2026-08-26).
-  "{hours} hours a week is {yearHours} hours a year, which is about {months} of somebody's working life handed back. All it costs you up front is one conversation.",
-  "Put another way, {hours} hours a week comes to {yearHours} hours a year, roughly {months} of one person's time, for the price of an afternoon of yours.",
-  "{hours} hours a week does not sound like much until it is {yearHours} hours a year, which is about {months} of a working life. You give me one conversation to find it.",
-  "Across a year {hours} hours a week is {yearHours} hours, near enough {months} of one person's working time. That is more than a hundred hours back for every hour you spend with me.",
+  // One sentence, and every one says "hours a year" out loud, because that is
+  // the figure that lands. The return is stated in TIME: a percentage would be
+  // a dollar claim wearing a hat, and Russ took dollars out of the message.
+  "{Hours} a week is {yearHours} hours a year, about {months} of somebody's life handed back.",
+  "That comes to {yearHours} hours a year, roughly {months} of one person's time, for the price of an afternoon of yours.",
+  "{Hours} a week is {yearHours} hours a year, near enough {months} of somebody's working life.",
+  "{Hours} a week comes to {yearHours} hours a year, which is about {months} of a working life.",
 ];
 
 // The SECOND message is where the price belongs. It names the fee and the

@@ -311,7 +311,7 @@ def('contract_no_per_employee_fee', () => {
 
 // --- meta checks over the spec files themselves ---------------------------
 const TERMINAL_RE = /^\s*-\s*\[[ x]\]\s/;
-const PROMISE_RE = "(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)";
+const PROMISE_RE = "(money back|fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)";
 def('every_requirement_carries_a_check', () => {
   // A spec written BEFORE its code exists cannot carry real checks — a check
   // has nothing to aim at yet. Those specs mark themselves unverified and are
@@ -1774,9 +1774,10 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
     && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
     && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
-    // The guarantee stands on its own line now, and carries their own hours
-    // and price where the team size is known.
-    && [a, b, c].every((m) => /\n(?:If |No |You |[A-Z][a-z]+ hours a week|\$[\d,]+, for )[^\n]*(?:you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/.test(m.body))
+    // The promise shares a short paragraph with the year figure — it means
+    // nothing until the offer has been made, so it follows it (2026-08-26).
+    && [a, b, c].every((m) => m.body.split('\n\n').some((par) =>
+      new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par)))
     && [a, b, c].every((m) => /\nBest regards,\nRuss Wright\nFounder\nVisionAIry\n/.test(m.body));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
@@ -1966,13 +1967,13 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
     // reader is still reading, and counting broke.
     const paras = m.body.split('\n\n');
     const promise = paras.find((x) => new RegExp(PROMISE_RE, 'i').test(x)) || '';
-    const year = paras.find((x) => /hours a year|a year is|Across a year/i.test(x)) || '';
+    const year = paras.find((x) => /hours a year|Over a year|a year,/i.test(x)) || '';
     // The promise comes from the INDUSTRY now, scaled by size — not from
     // headcount alone (Russ, 2026-08-26).
     const band = { guaranteedHours: promiseFor({ employeeCount: count, trade: tradeOf(name) }).hours };
-    if (promise.split(/\s+/).length > 26) bad.push(`${name}: the promise is too long to land`);
+    if (promise.split(/\s+/).length > 45) bad.push(`${name}: the promise is too long to land`);
     if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
-    if (!/you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay/i.test(promise)) bad.push(`${name}: no promise in it`);
+    if (!new RegExp(PROMISE_RE, 'i').test(promise)) bad.push(`${name}: no promise in it`);
     if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);
     if (!year.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${name}: the year's hours are missing`);
     if (!/^[A-Z]/.test(year)) bad.push(`${name}: the year line starts lowercase`);
@@ -1982,7 +1983,7 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   const unknown = fc.draftFirstContact({ name: 'Legacy Auto Repair', ownerName: 'Sara' }, [{ signal: 'fax_listed' }]);
   const upAll = unknown.body.split('\n\n');
   const up = { [upAll.length - 4]: upAll.find((x) => new RegExp(PROMISE_RE, 'i').test(x)) || '',
-               [upAll.length - 3]: upAll.find((x) => /hours a year|Across a year/i.test(x)) || '',
+               [upAll.length - 3]: upAll.find((x) => /hours a year|Over a year|a year,/i.test(x)) || '',
                length: upAll.length };
   const floorWord = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 8: 'eight', 10: 'ten' }[promiseFor({ trade: 'auto' }).hours];
   if (!new RegExp(`${floorWord} hours a week`, 'i').test(up[up.length - 4])) bad.push(`unknown size does not fall back to ${floorWord} hours`);
@@ -2180,7 +2181,7 @@ def('a_stale_draft_is_rewritten_but_a_hand_edited_one_is_not', () => withDb(asyn
   const refreshed = await L.draftFor(db, a.id, 'EMAIL');
   const untouched = await L.draftFor(db, b.id, 'EMAIL');
   const ok = refreshed.body !== 'wording from an earlier night'
-    && /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(refreshed.body)
+    && /(money back|fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(refreshed.body)
     && untouched.body === 'what Russ typed himself';
   await cleanLane(db, 'stale');
   return { ok, detail: ok
@@ -2223,9 +2224,9 @@ def('every_first_message_states_the_guarantee_and_the_year', () => {
     for (const signal of ['fax_listed', 'hiring_admin_role', 'no_online_booking']) {
       const m = fc.draftFirstContact(p, [{ signal }]);
       if (!m) continue;
-      const guarantee = /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(m.body);
+      const guarantee = new RegExp(PROMISE_RE, 'i').test(m.body);
       const year = /\d[\d,]* hours a year/i.test(m.body);
-      const ownLine = m.body.split('\n\n').some((par) => /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(par) && par.length < 200);
+      const ownLine = m.body.split('\n\n').some((par) => new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par) && par.length < 260);
       if (!guarantee || !year || !ownLine) missing.push(`${p.name}/${signal} guarantee=${guarantee} year=${year} ownLine=${ownLine}`);
     }
   }
