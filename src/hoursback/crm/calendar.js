@@ -21,9 +21,16 @@ function icsFor(prospect, when) {
 
 // Exactly one entry per promised callback; replaying the same promise
 // overwrites the same file rather than duplicating it.
+//
+// No time promised means no reminder. Without this it wrote one dated 1st
+// January 1970 — a real reminder, for a real business, at a date that would
+// sit at the very top of the calendar forever. Found by a check, 2026-08-25.
 function writeCallback(prospect, when) {
+  if (when === null || when === undefined || when === '') return null;
+  const at = new Date(when);
+  if (Number.isNaN(at.getTime())) return null;
   fs.mkdirSync(CALLBACK_DIR, { recursive: true });
-  const { uid, body } = icsFor(prospect, new Date(when));
+  const { uid, body } = icsFor(prospect, at);
   const file = path.join(CALLBACK_DIR, `${uid}.ics`);
   fs.writeFileSync(file, body);
   return file;

@@ -77,12 +77,15 @@ async function callQueue(db, now = new Date()) {
       doNotContact: false, NOT: { phone: null }, id: { notIn: calledToday.concat(callbacks.map((c) => c.id)) },
       stage: 'NO_CONTACT',
     },
-    orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
+    // The id is the last tiebreaker on purpose. Two State Farm agents share a
+    // name AND a score, and without it the tie broke differently run to run —
+    // the same morning could hand back a different list twice.
+    orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }, { id: 'asc' }],
     take: QUEUE_SIZE * 20,
   });
   // Same order, now with the stand-in filling in for anything unread, and the
   // tie broken by name so the same data always produces the same day.
-  cold.sort((a, b) => orderingScore(b) - orderingScore(a) || String(a.name).localeCompare(String(b.name)));
+  cold.sort((a, b) => orderingScore(b) - orderingScore(a) || String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
   return callbacks.concat(capPerBrand(cold)).slice(0, QUEUE_SIZE)
     .map((p) => ({ ...p, isCallbackDueToday: !!callbacks.find((c) => c.id === p.id) }));
 }
@@ -95,7 +98,7 @@ async function followUpQueue(db, now = new Date()) {
       doNotContact: false, stage: { notIn: ['DORMANT', 'NEEDS_REVIEW'] },
       nextActionDate: { lte: endOfDay(now) },
     },
-    orderBy: { nextActionDate: 'asc' },
+    orderBy: [{ nextActionDate: 'asc' }, { id: 'asc' }],
   });
 }
 

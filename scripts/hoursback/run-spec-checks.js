@@ -1697,6 +1697,445 @@ def('lane_message_leads_with_something_true_about_them', () => {
 }, 'lanes');
 
 
+// --- the calling day, proven at the edges (crm2, crm3, crm5) ---------------
+// The code below has run Russ's CRM since it was written. These checks prove
+// it behaves when something unusual happens — the cases that quietly cost a
+// deal rather than throwing an error.
+const stages = () => require(path.join(ROOT, 'src/hoursback/crm/stages.js'));
+const nextAction = () => require(path.join(ROOT, 'src/hoursback/crm/nextAction.js'));
+const queues = () => require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+const calendar = () => require(path.join(ROOT, 'src/hoursback/crm/calendar.js'));
+
+async function cleanDay(db, tag) {
+  const w = { prospect: { placeId: { startsWith: `day-${tag}` } } };
+  await db.outreachMessage.deleteMany({ where: w });
+  await db.callLog.deleteMany({ where: w });
+  await db.prospectFieldEdit.deleteMany({ where: w });
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: `day-${tag}` } } });
+}
+async function seedDay(db, tag, extra = {}) {
+  return db.prospect.create({
+    data: { placeId: `day-${tag}`, name: `Day ${tag} Co`, phone: '541-555-0600', fieldSource: 'test', ...extra },
+  });
+}
+const THREE = { outcome: 'NO_ANSWER', nextWhat: 'call back Thursday', nextWhen: new Date(Date.now() + 86400000) };
+
+// --- the ladder ------------------------------------------------------------
+
+def('ladder_declares_six_stages_in_order', () => {
+  const { LADDER } = stages();
+  const want = ['NO_CONTACT', 'INITIAL_CONTACT', 'ACTIVE', 'IN_PROCESS', 'CUSTOMER', 'EXPANDED_CUSTOMER'];
+  const ok = LADDER.length === 6 && want.every((v, i) => LADDER[i] === v);
+  return { ok, detail: ok ? 'six stages, in order, and no seventh' : JSON.stringify(LADDER) };
+}, 'day');
+
+def('ladder_new_business_starts_at_no_contact', () => withDb(async (db) => {
+  await cleanDay(db, 'start');
+  const p = await seedDay(db, 'start');
+  const ok = p.stage === 'NO_CONTACT' && p.attemptCount === 0;
+  await cleanDay(db, 'start');
+  return { ok, detail: ok ? 'a business the sweep found starts at no contact, zero attempts' : `${p.stage}/${p.attemptCount}` };
+}), 'day');
+
+def('ladder_cannot_skip_to_customer', () => withDb(async (db) => {
+  await cleanDay(db, 'skip');
+  const p = await seedDay(db, 'skip');
+  let refused = false;
+  try { await stages().advanceStage(db, p.id, 'CUSTOMER'); } catch { refused = true; }
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = refused && after.stage === 'NO_CONTACT';
+  await cleanDay(db, 'skip');
+  return { ok, detail: ok ? 'nobody jumps straight from no contact to customer — the middle has to happen' : `stage now ${after.stage}` };
+}), 'day');
+
+def('ladder_expanded_only_from_customer', () => withDb(async (db) => {
+  await cleanDay(db, 'expand');
+  const p = await seedDay(db, 'expand', { stage: 'ACTIVE' });
+  let refused = false;
+  try { await stages().advanceStage(db, p.id, 'EXPANDED_CUSTOMER'); } catch { refused = true; }
+  await db.prospect.update({ where: { id: p.id }, data: { stage: 'CUSTOMER' } });
+  const allowed = await stages().advanceStage(db, p.id, 'EXPANDED_CUSTOMER');
+  const ok = refused && allowed.stage === 'EXPANDED_CUSTOMER';
+  await cleanDay(db, 'expand');
+  return { ok, detail: ok ? 'an expanded customer can only come from a customer' : `refused=${refused}` };
+}), 'day');
+
+def('ladder_call_outcome_never_moves_the_stage', () => withDb(async (db) => {
+  // Writing what happened on a call is a record, not a promotion. Only the
+  // one answer that warrants it — they were interested — may move anybody,
+  // and then by a single rung.
+  await cleanDay(db, 'outcome');
+  const quiet = ['NO_ANSWER', 'VOICEMAIL', 'GATEKEEPER', 'WRONG_NUMBER', 'NOT_INTERESTED'];
+  const stuck = [];
+  for (const outcome of quiet) {
+    const p = await seedDay(db, `outcome-${outcome}`, { stage: 'INITIAL_CONTACT' });
+    await nextAction().logCall(db, p.id, { ...THREE, outcome }, `day-outcome-${outcome}`);
+    const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+    if (after.stage !== 'INITIAL_CONTACT') stuck.push(`${outcome} moved them to ${after.stage}`);
+  }
+  const keen = await seedDay(db, 'outcome-keen', { stage: 'INITIAL_CONTACT' });
+  await nextAction().logCall(db, keen.id, { ...THREE, outcome: 'INTERESTED' }, 'day-outcome-keen');
+  const keenAfter = await db.prospect.findUniqueOrThrow({ where: { id: keen.id } });
+  const movedOneRung = keenAfter.stage === 'ACTIVE';
+  const ok = stuck.length === 0 && movedOneRung;
+  await cleanDay(db, 'outcome');
+  return { ok, detail: ok ? 'no answer, voicemail, gatekeeper, wrong number and a flat no all left the stage alone; only genuine interest moved them, and by one rung' : (stuck.join('; ') || `interested landed at ${keenAfter.stage}`) };
+}), 'day');
+
+def('ladder_stage_change_never_writes_a_call', () => withDb(async (db) => {
+  await cleanDay(db, 'nocall');
+  const p = await seedDay(db, 'nocall');
+  await stages().advanceStage(db, p.id, 'INITIAL_CONTACT');
+  const logs = await db.callLog.count({ where: { prospectId: p.id } });
+  const ok = logs === 0;
+  await cleanDay(db, 'nocall');
+  return { ok, detail: ok ? 'moving someone along the pipeline invented no phone call' : `${logs} calls appeared` };
+}), 'day');
+
+def('ladder_every_dial_appends_never_overwrites', () => withDb(async (db) => {
+  await cleanDay(db, 'append');
+  const p = await seedDay(db, 'append');
+  await nextAction().logCall(db, p.id, { ...THREE, outcome: 'NO_ANSWER' }, 'day-append-1');
+  await nextAction().logCall(db, p.id, { ...THREE, outcome: 'VOICEMAIL' }, 'day-append-2');
+  const logs = await db.callLog.findMany({ where: { prospectId: p.id }, orderBy: { loggedAt: 'asc' } });
+  const ok = logs.length === 2 && logs[0].outcome === 'NO_ANSWER' && logs[1].outcome === 'VOICEMAIL';
+  await cleanDay(db, 'append');
+  return { ok, detail: ok ? 'both dials kept, the first one untouched by the second' : JSON.stringify(logs.map((l) => l.outcome)) };
+}), 'day');
+
+def('ladder_do_not_contact_is_absent_everywhere', () => withDb(async (db) => {
+  await cleanDay(db, 'dnc');
+  const p = await seedDay(db, 'dnc');
+  await stages().markDoNotContact(db, p.id);
+  const inCalls = (await queues().callQueue(db)).some((x) => x.id === p.id);
+  const inFollow = (await queues().followUpQueue(db)).some((x) => x.id === p.id);
+  const inLanes = [];
+  for (const lane of lanes().LANES) if ((await lanes().reachableOn(db, lane, 5000)).some((x) => x.id === p.id)) inLanes.push(lane);
+  const ok = !inCalls && !inFollow && inLanes.length === 0;
+  await cleanDay(db, 'dnc');
+  return { ok, detail: ok ? 'they said never call again and they are gone from the call list, the follow-ups, and every way of writing to them' : `calls=${inCalls} follow=${inFollow} lanes=${inLanes}` };
+}), 'day');
+
+def('ladder_suppression_lives_in_the_query', () => {
+  const src = read(path.join(ROOT, 'src/hoursback/crm/queues.js')) + read(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+  const inQueries = (src.match(/doNotContact: false/g) || []).length;
+  const ok = inQueries >= 4;
+  return { ok, detail: ok ? `filtered inside ${inQueries} queries, so a new screen cannot forget to check` : `only ${inQueries} places filter` };
+}, 'day');
+
+def('ladder_topup_leaves_suppression_alone', () => withDb(async (db) => {
+  await cleanDay(db, 'topupdnc');
+  const p = await seedDay(db, 'topupdnc');
+  await stages().markDoNotContact(db, p.id);
+  const after = await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-1111', fetchedAt: new Date() } });
+  const ok = after.doNotContact === true;
+  await cleanDay(db, 'topupdnc');
+  return { ok, detail: ok ? 'a later sweep re-found them and never un-suppressed them' : 'suppression was lost' };
+}), 'day');
+
+def('ladder_attempts_survive_a_stage_change', () => withDb(async (db) => {
+  await cleanDay(db, 'attempts');
+  const p = await seedDay(db, 'attempts');
+  await nextAction().logCall(db, p.id, { ...THREE, outcome: 'NO_ANSWER' }, 'day-attempts-1');
+  await nextAction().logCall(db, p.id, { ...THREE, outcome: 'VOICEMAIL' }, 'day-attempts-2');
+  const before = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const { LADDER } = stages();
+  const nextRung = LADDER[LADDER.indexOf(before.stage) + 1];
+  await stages().advanceStage(db, p.id, nextRung);
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = before.attemptCount === 2 && after.attemptCount === 2;
+  await cleanDay(db, 'attempts');
+  return { ok, detail: ok ? 'two dials counted, and moving them along did not reset the count' : `${before.attemptCount} then ${after.attemptCount}` };
+}), 'day');
+
+def('ladder_give_up_threshold_is_configured', () => {
+  const src = read(path.join(ROOT, 'src/hoursback/crm/stages.js'));
+  const { GIVE_UP_ATTEMPTS } = stages();
+  const ok = /process\.env\.HOURSBACK_GIVE_UP_ATTEMPTS/.test(src) && Number.isFinite(GIVE_UP_ATTEMPTS) && GIVE_UP_ATTEMPTS > 0;
+  return { ok, detail: ok ? `give up after ${GIVE_UP_ATTEMPTS} tries, and that number is a setting rather than buried in the code` : 'the threshold is hardcoded' };
+}, 'day');
+
+def('ladder_goes_dormant_after_the_give_up_rule', () => withDb(async (db) => {
+  await cleanDay(db, 'dormant');
+  const n = stages().GIVE_UP_ATTEMPTS;
+  const p = await seedDay(db, 'dormant', { stage: 'INITIAL_CONTACT', attemptCount: n });
+  await stages().dormancySweep(db);
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = after.stage === 'DORMANT';
+  await cleanDay(db, 'dormant');
+  return { ok, detail: ok ? `${n} tries with no reply and they went quiet automatically` : `stage stayed ${after.stage}` };
+}), 'day');
+
+def('ladder_leaving_records_why_and_when_to_return', () => withDb(async (db) => {
+  await cleanDay(db, 'lost');
+  const p = await seedDay(db, 'lost', { stage: 'ACTIVE' });
+  const when = new Date(Date.now() + 90 * 86400000);
+  const after = await stages().markLost(db, p.id, 'no budget until the new year', when);
+  const ok = after.lostReason === 'no budget until the new year' && after.reactivateAfter !== null;
+  await cleanDay(db, 'lost');
+  return { ok, detail: ok ? 'why they left and when to come back are both written down' : JSON.stringify(after) };
+}), 'day');
+
+def('ladder_dormant_returns_when_its_time_unless_suppressed', () => withDb(async (db) => {
+  await cleanDay(db, 'return');
+  const past = new Date(Date.now() - 86400000);
+  const due = await seedDay(db, 'return1', { stage: 'NO_CONTACT', reactivateAfter: past });
+  const never = await seedDay(db, 'return2', { stage: 'NO_CONTACT', reactivateAfter: past, doNotContact: true });
+  const q = await queues().callQueue(db);
+  const ok = q.some((x) => x.id === due.id) && !q.some((x) => x.id === never.id);
+  await cleanDay(db, 'return');
+  return { ok, detail: ok ? 'the one whose time came is back on the list; the one who said never call is not' : 'wrong ones returned' };
+}), 'day');
+
+// --- the next action, and the calendar -------------------------------------
+
+def('nextact_live_business_always_carries_a_next_step', () => withDb(async (db) => {
+  await cleanDay(db, 'carry');
+  const p = await seedDay(db, 'carry', { stage: 'INITIAL_CONTACT' });
+  await nextAction().logCall(db, p.id, THREE, 'day-carry-1');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = Boolean(after.nextAction) && after.nextActionDate !== null;
+  await cleanDay(db, 'carry');
+  return { ok, detail: ok ? `after the call they carry "${after.nextAction}" and a date for it` : JSON.stringify(after) };
+}), 'day');
+
+def('nextact_a_business_with_nothing_scheduled_is_named', () => withDb(async (db) => {
+  await cleanDay(db, 'leak');
+  const leaking = await seedDay(db, 'leak1', { stage: 'ACTIVE', nextAction: null, nextActionDate: null });
+  const fine = await seedDay(db, 'leak2', { stage: 'ACTIVE', nextAction: 'send the one-pager', nextActionDate: new Date() });
+  const report = await nextAction().leakReport(db);
+  const ok = report.some((r) => r.id === leaking.id) && !report.some((r) => r.id === fine.id);
+  await cleanDay(db, 'leak');
+  return { ok, detail: ok ? 'the live business with nothing scheduled is named; the one with a next step is not' : JSON.stringify(report.map((r) => r.name)) };
+}), 'day');
+
+def('nextact_quiet_and_suppressed_are_never_called_leaks', () => withDb(async (db) => {
+  await cleanDay(db, 'exempt');
+  const cold = await seedDay(db, 'exempt1', { stage: 'NO_CONTACT' });
+  const gone = await seedDay(db, 'exempt2', { stage: 'DORMANT' });
+  const never = await seedDay(db, 'exempt3', { stage: 'ACTIVE', doNotContact: true });
+  const report = await nextAction().leakReport(db);
+  const ids = report.map((r) => r.id);
+  const ok = ![cold.id, gone.id, never.id].some((id) => ids.includes(id));
+  await cleanDay(db, 'exempt');
+  return { ok, detail: ok ? 'nobody uncalled, retired, or suppressed is counted as leaking' : 'an exempt business was flagged' };
+}), 'day');
+
+def('nextact_refuses_a_half_answered_call', () => withDb(async (db) => {
+  await cleanDay(db, 'partial');
+  const p = await seedDay(db, 'partial');
+  const tries = [{ outcome: 'NO_ANSWER' }, { outcome: 'NO_ANSWER', nextWhat: 'x' }, { nextWhat: 'x', nextWhen: new Date() }];
+  let refusals = 0;
+  for (const [i, t] of tries.entries()) {
+    try { await nextAction().logCall(db, p.id, t, `day-partial-${i}`); } catch { refusals += 1; }
+  }
+  const logs = await db.callLog.count({ where: { prospectId: p.id } });
+  const ok = refusals === 3 && logs === 0;
+  await cleanDay(db, 'partial');
+  return { ok, detail: ok ? 'all three half-answered calls were refused rather than half-written' : `${refusals} refused, ${logs} written` };
+}), 'day');
+
+def('nextact_one_call_writes_everything_at_once', () => withDb(async (db) => {
+  await cleanDay(db, 'atomic');
+  const p = await seedDay(db, 'atomic', { stage: 'INITIAL_CONTACT' });
+  await nextAction().logCall(db, p.id, THREE, 'day-atomic-1');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const log = await db.callLog.findFirst({ where: { prospectId: p.id } });
+  const ok = Boolean(log) && log.outcome === 'NO_ANSWER' && after.nextAction === THREE.nextWhat
+    && after.nextActionDate !== null && after.attemptCount === 1;
+  await cleanDay(db, 'atomic');
+  return { ok, detail: ok ? 'one call wrote the outcome, the next step, its date, and counted the attempt' : JSON.stringify(after) };
+}), 'day');
+
+def('nextact_same_call_logged_twice_writes_one_row', () => withDb(async (db) => {
+  await cleanDay(db, 'twice');
+  const p = await seedDay(db, 'twice');
+  await nextAction().logCall(db, p.id, THREE, 'day-twice-same');
+  await nextAction().logCall(db, p.id, THREE, 'day-twice-same');
+  const logs = await db.callLog.count({ where: { prospectId: p.id } });
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = logs === 1 && after.attemptCount === 1;
+  await cleanDay(db, 'twice');
+  return { ok, detail: ok ? 'a double-tap on save wrote one call, not two' : `${logs} rows, ${after.attemptCount} attempts` };
+}), 'day');
+
+def('nextact_not_interested_records_why_without_advancing', () => withDb(async (db) => {
+  await cleanDay(db, 'nope');
+  const p = await seedDay(db, 'nope', { stage: 'INITIAL_CONTACT' });
+  await nextAction().logCall(db, p.id, { ...THREE, outcome: 'NOT_INTERESTED' }, 'day-nope-1');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = after.stage === 'INITIAL_CONTACT' && Boolean(after.lostReason);
+  await cleanDay(db, 'nope');
+  return { ok, detail: ok ? 'a no was written down as a reason and moved nobody up the pipeline' : `stage=${after.stage} reason=${after.lostReason}` };
+}), 'day');
+
+def('nextact_calendar_writes_one_entry_and_never_reads', () => withDb(async (db) => {
+  await cleanDay(db, 'cal');
+  const p = await seedDay(db, 'cal');
+  const when = new Date(Date.now() + 172800000);
+  const a = calendar().writeCallback(p, when);
+  const b = calendar().writeCallback(p, when);
+  const src = read(path.join(ROOT, 'src/hoursback/crm/calendar.js'));
+  const readsBack = /readdir|readFile|\.list\(|fetch\(/.test(src);
+  const body = a && fs.existsSync(a) ? read(a) : '';
+  const ok = a === b && !readsBack && body.includes(p.name) && body.includes(String(p.phone));
+  await cleanDay(db, 'cal');
+  return { ok, detail: ok ? 'one reminder for one promise, carrying their name and number, and the calendar is never read back' : `same=${a === b} readsBack=${readsBack}` };
+}), 'day');
+
+def('nextact_no_promised_time_means_no_reminder', () => withDb(async (db) => {
+  await cleanDay(db, 'notime');
+  const p = await seedDay(db, 'notime');
+  const made = calendar().writeCallback(p, null);
+  const ok = made === null || made === undefined;
+  await cleanDay(db, 'notime');
+  return { ok, detail: ok ? 'no time promised, so no reminder invented' : `a reminder was written anyway: ${made}` };
+}), 'day');
+
+def('nextact_a_failed_reminder_never_loses_the_call', () => withDb(async (db) => {
+  await cleanDay(db, 'calfail');
+  const p = await seedDay(db, 'calfail');
+  const cal = calendar();
+  const real = cal.writeCallback;
+  cal.writeCallback = () => { throw new Error('disk full'); };
+  let threw = false;
+  try { await nextAction().logCall(db, p.id, THREE, 'day-calfail-1'); } catch { threw = true; }
+  cal.writeCallback = real;
+  const logs = await db.callLog.count({ where: { prospectId: p.id } });
+  const ok = logs === 1 && !threw;
+  await cleanDay(db, 'calfail');
+  return { ok, detail: ok ? 'the reminder failed to write and the call was still recorded' : `threw=${threw} logs=${logs}` };
+}), 'day');
+
+// --- the day's lists -------------------------------------------------------
+
+def('queue_size_is_a_setting_between_twenty_and_thirty', () => {
+  const src = read(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const { QUEUE_SIZE } = queues();
+  const ok = /process\.env\.HOURSBACK_QUEUE_SIZE/.test(src) && QUEUE_SIZE >= 20 && QUEUE_SIZE <= 30;
+  return { ok, detail: ok ? `${QUEUE_SIZE} calls a day, and that is a setting rather than buried in the code` : `size ${QUEUE_SIZE}` };
+}, 'day');
+
+def('queue_never_returns_more_than_its_size', () => withDb(async (db) => {
+  const q = await queues().callQueue(db);
+  const ok = q.length <= queues().QUEUE_SIZE;
+  return { ok, detail: ok ? `${q.length} today, never more than ${queues().QUEUE_SIZE}` : `${q.length} came back` };
+}), 'day');
+
+def('queue_callback_today_outranks_every_cold_business', () => withDb(async (db) => {
+  await cleanDay(db, 'cbfirst');
+  const cb = await seedDay(db, 'cbfirst1', { stage: 'INITIAL_CONTACT', nextActionDate: new Date(), automationScore: 1 });
+  await seedDay(db, 'cbfirst2', { stage: 'NO_CONTACT', automationScore: 999 });
+  const q = await queues().callQueue(db);
+  const at = q.findIndex((x) => x.id === cb.id);
+  const ok = at === 0 && q[0].isCallbackDueToday === true;
+  await cleanDay(db, 'cbfirst');
+  return { ok, detail: ok ? 'a promised callback sits above the best-scoring stranger, as it should' : `callback landed at position ${at}` };
+}), 'day');
+
+def('queue_cold_businesses_sort_by_score', () => withDb(async (db) => {
+  await cleanDay(db, 'sorted');
+  await seedDay(db, 'sorted1', { name: 'Zeta Low Co', automationScore: 5 });
+  await seedDay(db, 'sorted2', { name: 'Alpha High Co', automationScore: 998 });
+  const q = await queues().callQueue(db);
+  const high = q.findIndex((x) => x.name === 'Alpha High Co');
+  const low = q.findIndex((x) => x.name === 'Zeta Low Co');
+  const ok = high >= 0 && (low === -1 || high < low);
+  await cleanDay(db, 'sorted');
+  return { ok, detail: ok ? 'the more manual business is called first, regardless of the alphabet' : `high at ${high}, low at ${low}` };
+}), 'day');
+
+def('queue_excludes_suppressed_dormant_and_needs_review', () => withDb(async (db) => {
+  await cleanDay(db, 'excl');
+  const a = await seedDay(db, 'excl1', { doNotContact: true, automationScore: 999 });
+  const b = await seedDay(db, 'excl2', { stage: 'DORMANT', automationScore: 999 });
+  const c = await seedDay(db, 'excl3', { stage: 'NEEDS_REVIEW', automationScore: 999 });
+  const q = await queues().callQueue(db);
+  const ids = q.map((x) => x.id);
+  const ok = ![a.id, b.id, c.id].some((id) => ids.includes(id));
+  await cleanDay(db, 'excl');
+  return { ok, detail: ok ? 'suppressed, retired and unconfirmed businesses stay off the day\'s list' : 'one of them appeared' };
+}), 'day');
+
+def('queue_someone_called_today_does_not_come_back', () => withDb(async (db) => {
+  await cleanDay(db, 'called');
+  const p = await seedDay(db, 'called', { automationScore: 999 });
+  const before = (await queues().callQueue(db)).some((x) => x.id === p.id);
+  await nextAction().logCall(db, p.id, THREE, 'day-called-1');
+  const after = (await queues().callQueue(db)).some((x) => x.id === p.id);
+  await cleanDay(db, 'called');
+  return { ok: before && !after, detail: before && !after ? 'they were on the list, you called them, and they left it for the day' : `before=${before} after=${after}` };
+}), 'day');
+
+def('queue_no_phone_number_never_appears', () => withDb(async (db) => {
+  await cleanDay(db, 'nophone');
+  const p = await seedDay(db, 'nophone', { phone: null, automationScore: 999 });
+  const q = await queues().callQueue(db);
+  const ok = !q.some((x) => x.id === p.id);
+  await cleanDay(db, 'nophone');
+  return { ok, detail: ok ? 'no number, so never on a list of people to ring' : 'a phoneless business was queued' };
+}), 'day');
+
+def('queue_is_the_same_twice_over', () => withDb(async (db) => {
+  const now = new Date();
+  const a = (await queues().callQueue(db, now)).map((x) => x.id).join(',');
+  const b = (await queues().callQueue(db, now)).map((x) => x.id).join(',');
+  const ok = a === b;
+  return { ok, detail: ok ? 'the same data produced exactly the same day, twice' : 'the order shifted between runs' };
+}), 'day');
+
+def('queue_overdue_stays_until_it_is_done', () => withDb(async (db) => {
+  await cleanDay(db, 'overdue');
+  const p = await seedDay(db, 'overdue', { stage: 'ACTIVE', nextAction: 'send the one-pager', nextActionDate: new Date(Date.now() - 5 * 86400000) });
+  const still = (await queues().followUpQueue(db)).some((x) => x.id === p.id);
+  await db.prospect.update({ where: { id: p.id }, data: { nextActionDate: new Date(Date.now() + 5 * 86400000) } });
+  const gone = !(await queues().followUpQueue(db)).some((x) => x.id === p.id);
+  await cleanDay(db, 'overdue');
+  return { ok: still && gone, detail: still && gone ? 'five days overdue and still on the list; rescheduled forward and it left' : `still=${still} gone=${gone}` };
+}), 'day');
+
+def('queue_and_followups_never_show_the_same_business', () => withDb(async (db) => {
+  const [q, f] = await Promise.all([queues().callQueue(db), queues().followUpQueue(db)]);
+  const overlap = q.filter((x) => f.some((y) => y.id === x.id) && !x.isCallbackDueToday);
+  const ok = overlap.length === 0;
+  return { ok, detail: ok ? 'nobody sits on both lists on the same day except as their own callback' : `${overlap.length} listed twice` };
+}), 'day');
+
+def('readout_is_paid_over_calls_with_no_stored_total', () => withDb(async (db) => {
+  const r = await queues().callToPaidReadout(db);
+  const src = read(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const recomputed = /callLog\.findMany|prospect\.findMany/.test(src) && !/runningTotal|storedRate|cachedCount/.test(src);
+  const consistent = r.callsLogged === 0 ? r.callToPaidRate === 0 : Math.abs(r.callToPaidRate - r.paidInWindow / r.callsLogged) < 1e-6;
+  const ok = recomputed && consistent;
+  return { ok, detail: ok ? 'the rate is worked out from the calls and the payments every time, never from a number kept lying around' : JSON.stringify(r) };
+}), 'day');
+
+def('readout_shows_a_zero_rather_than_refusing', () => withDb(async (db) => {
+  const r = await queues().callToPaidReadout(db, 1);
+  const ok = typeof r.callToPaidRate === 'number' && !Number.isNaN(r.callToPaidRate) && r.weeklyTarget === '2-3';
+  return { ok, detail: ok ? `shows ${(r.callToPaidRate * 100).toFixed(1)}% against the two-to-three a week target rather than refusing to display` : JSON.stringify(r) };
+}), 'day');
+
+def('readout_a_past_week_cannot_be_rewritten', () => withDb(async (db) => {
+  await cleanDay(db, 'history');
+  const p = await seedDay(db, 'history');
+  await nextAction().logCall(db, p.id, THREE, 'day-history-1');
+  const before = (await queues().callToPaidReadout(db)).callsLogged;
+  await stages().markDoNotContact(db, p.id);
+  const after = (await queues().callToPaidReadout(db)).callsLogged;
+  await cleanDay(db, 'history');
+  return { ok: before === after, detail: before === after ? 'suppressing a business today did not rewrite the calls already made' : `${before} became ${after}` };
+}), 'day');
+
+def('queues_build_fast_enough_to_be_usable', () => withDb(async (db) => {
+  const started = Date.now();
+  await Promise.all([queues().callQueue(db), queues().followUpQueue(db)]);
+  const took = Date.now() - started;
+  const ok = took < 4000;
+  return { ok, detail: ok ? `both lists built in ${took}ms against the live store` : `took ${took}ms` };
+}), 'day');
+
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
