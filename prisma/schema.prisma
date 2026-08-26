@@ -114,6 +114,11 @@ model Prospect {
   fieldEdits      ProspectFieldEdit[]
   duplicatesKept  ProspectDuplicate[] @relation("keptProspect")
   callLogs        CallLog[]
+  messages        OutreachMessage[]
+
+  // --- the email lane -----------------------------------------------------
+  emailBouncedAt DateTime?   // suppressed on email only; the phone lane is untouched
+  repliedAt      DateTime?   // a reply anywhere stops every queued message everywhere
 }
 
 /// One dial, appended forever — never overwritten. outcome is the per-dial
@@ -168,4 +173,48 @@ model ProspectFieldEdit {
   valueAfter  String?
   correctedBy String
   correctedAt DateTime @default(now())
+}
+
+
+/// The message Russ approves ONCE. Every first-contact email is a copy of this
+/// with the business's own facts slotted in, and nothing else changed. Until
+/// approvedAt is set, nothing on the email lane can send.
+model MessageTemplate {
+  id         String    @id @default(cuid())
+  name       String    @unique   // "first_contact"
+  subject    String
+  body       String
+  version    Int       @default(1)
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  messages   OutreachMessage[]
+}
+
+/// One message, on one lane, to one business. Written, never overwritten.
+/// lane:  PHONE | EMAIL | LINKEDIN
+/// state: DRAFT | QUEUED | SENT | REPLIED | SUPPRESSED
+/// A LinkedIn message can only reach SENT through a person's hand, recorded in
+/// sentBy — the engine may never write it.
+model OutreachMessage {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  lane       String
+  state      String   @default("DRAFT")
+  subject    String?
+  body       String
+  openedWith String?  // which tell this message led with
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id])
+  queuedAt   DateTime?
+  sentAt     DateTime?
+  sentBy     String?  // a person's name for LinkedIn; "engine" for email
+  repliedAt  DateTime?
+  suppressedReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([prospectId, lane])
+  @@index([state])
 }

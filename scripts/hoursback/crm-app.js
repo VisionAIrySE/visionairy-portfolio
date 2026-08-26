@@ -27,6 +27,8 @@ const { logCall, leakReport } = require('../../src/hoursback/crm/nextAction.js')
 const { markDoNotContact, CALL_OUTCOMES } = require('../../src/hoursback/crm/stages.js');
 const { freezeQuote } = require('../../src/hoursback/crm/quote.js');
 const { setOverride, resolveField, OVERRIDABLE } = require('../../src/hoursback/overrides.js');
+const L = require('../../src/hoursback/crm/lanes.js');
+const { draftFirstContact, draftLinkedIn, BODY: TEMPLATE_BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
 const db = new PrismaClient();
 
 const OUTCOME_LABELS = {
@@ -73,7 +75,8 @@ a{color:#065f46}
 .was{font-size:13px;color:#888;margin-top:2px}
 nav{margin-bottom:8px} nav a{margin-right:14px;font-weight:600}
 table{width:100%;border-collapse:collapse} td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;font-size:15px}
-</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a></nav>${body}</body></html>`;
+pre.msg{background:#fff;border:1px solid #e0ddd5;border-radius:10px;padding:14px;white-space:pre-wrap;font:15px/1.55 system-ui,sans-serif;margin:8px 0}
+</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a><a href="/email">Email</a><a href="/linkedin">LinkedIn</a></nav>${body}</body></html>`;
 }
 
 const scoreBadge = (n) => `<span class="pill ${(n || 0) >= 40 ? '' : 'cool'}">${n === null || n === undefined ? '–' : n}</span>`;
@@ -139,6 +142,74 @@ async function list(params) {
   <p class="muted">Sorted by how manual they still look — the highest numbers are the ones most worth a call.</p>
   <table><tr><th>Score</th><th>Business</th><th>Phone</th><th>Email</th><th>Stage</th></tr>${rowHtml}</table>
   <p class="row">${page_ > 1 ? link(page_ - 1) : '<span></span>'}<span class="muted">page ${page_} of ${pages || 1}</span>${page_ < pages ? link(page_ + 1) : '<span></span>'}</p>`);
+}
+
+// ---------------------------------------------------------------------------
+// The email screen. Nothing goes out until the wording is approved once, and
+// after that every message is that same wording with their own facts in it.
+async function emailScreen(params) {
+  const template = await db.messageTemplate.findUnique({ where: { name: L.FIRST_CONTACT } });
+  const approved = Boolean(template && template.approvedAt);
+  const weeks = Number(params.get('weeks') || 0);
+  const [left, ready, sent, batch] = await Promise.all([
+    L.emailsLeftToday(db, weeks),
+    db.outreachMessage.findMany({
+      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
+      include: { prospect: true }, orderBy: { prospect: { automationScore: 'desc' } }, take: 25,
+    }),
+    db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
+    L.pendingBatch(db),
+  ]);
+  const reachable = await db.prospect.count({
+    where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
+  });
+
+  const wording = `<h2>The message</h2>
+  <p class="muted">Written once in your voice. Approve it once and every business gets this exact wording with only their own name and the thing you found on their site changed.</p>
+  ${approved
+    ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">Approved ${new Date(template.approvedAt).toLocaleDateString()} by ${esc(template.approvedBy)} — version ${template.version}. Change a word and it needs approving again.</div>`
+    : '<div class="card warn"><b>Not approved yet.</b> Nothing can be sent until you read this and approve it.</div>'}
+  <pre class="msg">${esc(template ? template.body : TEMPLATE_BODY)}</pre>
+  ${approved ? '' : `<form method="POST" action="/email/approve"><button class="primary">I've read it — approve it</button></form>`}`;
+
+  const one = (m) => `<div class="card"><div class="row">
+      <div><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore)}
+        <div class="muted">${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}</div></div>
+      <div class="muted">${esc(m.state)}</div></div>
+      <pre class="msg">${esc(m.subject ? `Subject: ${m.subject}\n\n` : '')}${esc(m.body)}</pre>
+      <form method="POST" action="/email/sent/${m.id}" style="display:inline"><button ${approved ? '' : 'disabled'}>I sent this</button></form>
+      <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button>They replied</button></form>
+      <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button>It bounced</button></form>
+    </div>`;
+
+  return page(`<h1>Email</h1>
+  <div class="score">
+    <div><b>${reachable}</b>reachable by email</div>
+    <div><b>${ready.length}</b>written and waiting</div>
+    <div><b>${sent}</b>sent so far</div>
+    <div><b>${left}</b>allowed today<br><span class="muted">week ${weeks} of the ramp</span></div>
+  </div>
+  ${wording}
+  ${batch.length ? `<h2>After-call follow-ups waiting (${batch.length})</h2>
+    <p class="muted">Written from what you promised on the call. None of them go anywhere until you release them.</p>
+    ${batch.slice(0, 5).map(one).join('')}
+    <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
+  <h2>First contact, written and waiting (${ready.length})</h2>
+  <p><form method="POST" action="/email/write"><button ${approved ? 'class="primary"' : 'disabled'}>Write the next 25</button></form></p>
+  ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
+}
+
+// LinkedIn is only ever sent by hand, one at a time, and who sent it is kept.
+async function linkedInScreen() {
+  const queue = await L.linkedInQueue(db, 25);
+  return page(`<h1>LinkedIn — by hand only</h1>
+  <p class="muted">The engine never sends these. Copy one, send it yourself, then mark it. Your name goes on it.</p>
+  <p><form method="POST" action="/linkedin/write"><button class="primary">Write the next 25</button></form></p>
+  ${queue.map((m) => `<div class="card">
+      <div class="row"><div><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore)}</div></div>
+      <pre class="msg">${esc(m.body)}</pre>
+      <form method="POST" action="/linkedin/sent/${m.id}"><button>I sent this one</button></form>
+    </div>`).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +350,9 @@ async function handleCall(id, form) {
     const p = await db.prospect.findUnique({ where: { id } });
     if (!p.quotedAt) { try { await freezeQuote(db, id); } catch { /* already quoted */ } }
   }
+  // The follow-up writes itself from what he just promised, and waits in the
+  // batch until he releases it. A failure here never loses the call.
+  try { await L.queueFollowUp(db, id, { nextWhat: form.nextWhat }); } catch { /* the call is what matters */ }
 }
 
 // --- the lock. When CRM_PASSWORD is set (it always is in production), every
@@ -341,6 +415,42 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST') {
       const form = await body();
+      if (route === 'email') {
+        const [, , what, arg] = url.pathname.split('/');
+        if (what === 'approve') {
+          await L.upsertTemplate(db, { subject: SUBJECTS.default, body: TEMPLATE_BODY });
+          await L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
+        }
+        // Write the next batch of first-contact messages, best businesses first.
+        if (what === 'write') {
+          const targets = await L.reachableOn(db, 'EMAIL', 200);
+          let written = 0;
+          for (const t of targets) {
+            if (written >= 25) break;
+            const m = await L.draftFor(db, t.id, 'EMAIL');
+            if (m && m.state === 'DRAFT') written += 1;
+          }
+        }
+        if (what === 'sent' && arg) await L.markEmailSent(db, arg);
+        if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');
+        if (what === 'bounced' && arg) await L.markBounced(db, arg);
+        if (what === 'batch') await L.approveBatch(db);
+        res.writeHead(303, { Location: '/email' }); return res.end();
+      }
+      if (route === 'linkedin') {
+        const [, , what, arg] = url.pathname.split('/');
+        if (what === 'write') {
+          const targets = await L.reachableOn(db, 'PHONE', 200);
+          let written = 0;
+          for (const t of targets) {
+            if (written >= 25) break;
+            const m = await L.draftFor(db, t.id, 'LINKEDIN');
+            if (m && m.state === 'DRAFT') written += 1;
+          }
+        }
+        if (what === 'sent' && arg) { try { await L.markLinkedInSent(db, arg, 'Russ'); } catch { /* already sent */ } }
+        res.writeHead(303, { Location: '/linkedin' }); return res.end();
+      }
       if (route === 'call') { await handleCall(id, form); res.writeHead(303, { Location: '/' }); return res.end(); }
       if (route === 'business') { await saveBusiness(id, form); res.writeHead(303, { Location: `/business/${id}?saved=1` }); return res.end(); }
       if (route === 'quote') { try { await freezeQuote(db, id); } catch { /* already quoted */ } res.writeHead(303, { Location: `/business/${id}` }); return res.end(); }
@@ -348,6 +458,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(303, { Location: '/' }); return res.end();
     }
 
+    if (route === 'email') return html(res, await emailScreen(url.searchParams));
+    if (route === 'linkedin') return html(res, await linkedInScreen());
     if (route === 'call' && id) return html(res, await callForm(id));
     if (route === 'business' && id) return html(res, await businessCard(id, url.searchParams.get('saved')));
     if (route === 'list') return html(res, await list(url.searchParams));

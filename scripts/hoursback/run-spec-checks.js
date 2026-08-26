@@ -77,7 +77,11 @@ const rules = () => require(path.join(ROOT, 'src/hoursback/rules.js'));
 // ---------------------------------------------------------------------------
 // The checks. Each returns {ok, detail}. Never throws to the caller.
 const CHECKS = {};
-function def(name, fn) { CHECKS[name] = fn; }
+// Checks that seed the same rows must run one after another. By default a
+// check's family is guessed from the first word of its name; a check whose
+// name has to match a spec can declare its family outright instead.
+const FAMILY_OF = {};
+function def(name, fn, family) { CHECKS[name] = fn; FAMILY_OF[name] = family || name.split('_')[0]; }
 
 def('pricing_module_loads_and_exports', () => {
   const p = require(path.join(ROOT, 'src/hoursback/pricing.js'));
@@ -1324,6 +1328,258 @@ def('weights_revisable_from_outcomes', () => {
   return { ok, detail: ok ? 'call outcomes retuned the order through a settings file; the scoring code was never edited' : JSON.stringify(revised) };
 });
 
+// --- the three outreach lanes (crm4) ---------------------------------------
+// Every check seeds its own businesses, proves one rule, and cleans up after
+// itself. Nothing here sends anything anywhere.
+const lanes = () => require(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+const firstContact = () => require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+
+async function cleanLane(db, tag) {
+  await db.outreachMessage.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
+  await db.callLog.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
+  await db.prospectFieldEdit.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: `lane-${tag}` } } });
+}
+const FAX_TELL = JSON.stringify([{ signal: 'fax_listed', url: 'https://x.example/', quote: 'Fax: 541-555-0143' }]);
+async function seedLane(db, tag, extra = {}) {
+  return db.prospect.create({
+    data: {
+      placeId: `lane-${tag}`, name: `Lane ${tag} Co`, phone: '541-555-0500',
+      email: `owner@lane${tag}.example`, ownerName: 'Dale Hutchins',
+      scoreEvidence: FAX_TELL, automationScore: 12, fieldSource: 'test', ...extra,
+    },
+  });
+}
+async function approvedTemplate(db) {
+  const L = lanes();
+  await L.upsertTemplate(db, { subject: firstContact().SUBJECTS.default, body: firstContact().BODY });
+  return L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
+}
+
+def('three_lanes_declared', () => {
+  const L = lanes();
+  const ok = Array.isArray(L.LANES) && L.LANES.length === 3
+    && ['PHONE', 'EMAIL', 'LINKEDIN'].every((x) => L.LANES.includes(x));
+  return { ok, detail: ok ? 'exactly three ways to reach a business: phone, email, LinkedIn' : JSON.stringify(L.LANES) };
+}, 'lanes');
+
+def('one_row_per_touch', () => withDb(async (db) => {
+  await cleanLane(db, 'onerow');
+  const p = await seedLane(db, 'onerow');
+  const m = await lanes().draftFor(db, p.id, 'EMAIL');
+  const again = await lanes().draftFor(db, p.id, 'EMAIL');
+  const rows = await db.outreachMessage.findMany({ where: { prospectId: p.id } });
+  const ok = rows.length === 1 && m.id === again.id && m.lane === 'EMAIL'
+    && m.prospectId === p.id && m.state === 'DRAFT' && Boolean(m.body);
+  await cleanLane(db, 'onerow');
+  return { ok, detail: ok ? 'one row per business per lane, naming the lane, the business and where it stands' : `${rows.length} rows` };
+}), 'lanes');
+
+def('reply_stops_all_lanes', () => withDb(async (db) => {
+  await cleanLane(db, 'reply');
+  const p = await seedLane(db, 'reply');
+  await approvedTemplate(db);
+  await lanes().queueEmail(db, p.id);
+  await lanes().draftFor(db, p.id, 'LINKEDIN');
+  await lanes().markReplied(db, p.id, 'EMAIL');
+  const rows = await db.outreachMessage.findMany({ where: { prospectId: p.id } });
+  const stillWaiting = rows.filter((r) => ['DRAFT', 'QUEUED'].includes(r.state));
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const ok = stillWaiting.length === 0 && after.repliedAt !== null
+    && rows.every((r) => r.state === 'SUPPRESSED' || r.state === 'REPLIED');
+  await cleanLane(db, 'reply');
+  return { ok, detail: ok ? 'they answered on email and every message still waiting, on every lane, stopped' : JSON.stringify(rows.map((r) => [r.lane, r.state])) };
+}), 'lanes');
+
+def('linkedin_never_auto_sent', () => withDb(async (db) => {
+  await cleanLane(db, 'linotengine');
+  const p = await seedLane(db, 'linotengine');
+  const m = await lanes().draftFor(db, p.id, 'LINKEDIN');
+  let blankRefused = false; let engineRefused = false;
+  try { await lanes().markLinkedInSent(db, m.id, ''); } catch (e) { blankRefused = e.code === 'LINKEDIN_NEEDS_A_PERSON'; }
+  try { await lanes().markLinkedInSent(db, m.id, 'engine'); } catch (e) { engineRefused = e.code === 'LINKEDIN_NEEDS_A_PERSON'; }
+  const still = await db.outreachMessage.findUniqueOrThrow({ where: { id: m.id } });
+  const noEngineSender = /sentBy: 'engine'/.test(read(path.join(ROOT, 'src/hoursback/crm/lanes.js')).split('markLinkedInSent')[1] || '');
+  const ok = blankRefused && engineRefused && still.state !== 'SENT' && !noEngineSender;
+  await cleanLane(db, 'linotengine');
+  return { ok, detail: ok ? 'the engine cannot mark a LinkedIn message sent, blank or named as itself' : `blank=${blankRefused} engine=${engineRefused} state=${still.state}` };
+}), 'lanes');
+
+def('linkedin_hand_send_queue', () => withDb(async (db) => {
+  await cleanLane(db, 'lihand');
+  const p = await seedLane(db, 'lihand');
+  await lanes().draftFor(db, p.id, 'LINKEDIN');
+  const queue = await lanes().linkedInQueue(db);
+  const mine = queue.find((q) => q.prospectId === p.id);
+  const sent = await lanes().markLinkedInSent(db, mine.id, 'Russ');
+  const ok = Boolean(mine) && Boolean(mine.body) && sent.state === 'SENT' && sent.sentBy === 'Russ' && sent.sentAt instanceof Date;
+  await cleanLane(db, 'lihand');
+  return { ok, detail: ok ? 'it waited in the hand-send list, and sending it recorded Russ by name' : JSON.stringify({ found: Boolean(mine), sentBy: sent && sent.sentBy }) };
+}), 'lanes');
+
+def('email_ramp_caps_daily_volume', () => {
+  const { dailyEmailCap, EMAIL_RAMP } = lanes();
+  const caps = [0, 1, 2, 3, 4, 5, 6].map(dailyEmailCap);
+  const rising = caps.every((c, i) => i === 0 || c > caps[i - 1]);
+  const flatAfter = dailyEmailCap(99) === EMAIL_RAMP[EMAIL_RAMP.length - 1];
+  const ok = rising && flatAfter && caps[0] <= 20;
+  return { ok, detail: ok ? `starts at ${caps[0]} a day and climbs to ${caps[caps.length - 1]}, then holds` : caps.join(',') };
+}, 'lanes');
+
+def('email_ramp_stops_at_cap', () => withDb(async (db) => {
+  await cleanLane(db, 'cap');
+  await approvedTemplate(db);
+  const L = lanes();
+  const cap = L.dailyEmailCap(0);
+  for (let i = 0; i < cap; i++) {
+    const p = await seedLane(db, `cap${i}`);
+    const m = await L.queueEmail(db, p.id);
+    await L.markEmailSent(db, m.id);
+  }
+  const leftToday = await L.emailsLeftToday(db, 0);
+  const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+  const leftTomorrow = await L.emailsLeftToday(db, 0, new Date(Date.now() + 24 * 3600 * 1000));
+  const ok = leftToday === 0 && leftTomorrow === cap;
+  await cleanLane(db, 'cap');
+  return { ok, detail: ok ? `hit today's ceiling of ${cap} and stopped; tomorrow opens at ${cap} again` : `today=${leftToday} tomorrow=${leftTomorrow}` };
+}), 'lanes');
+
+def('bounce_suppresses_email_only', () => withDb(async (db) => {
+  await cleanLane(db, 'bounce');
+  const p = await seedLane(db, 'bounce');
+  await approvedTemplate(db);
+  await lanes().queueEmail(db, p.id);
+  await lanes().markBounced(db, p.id);
+  const emails = await db.outreachMessage.findMany({ where: { prospectId: p.id, lane: 'EMAIL' } });
+  const onPhone = (await lanes().reachableOn(db, 'PHONE', 5000)).some((x) => x.id === p.id);
+  const onEmail = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const ok = emails.every((m) => m.state === 'SUPPRESSED') && onPhone && !onEmail;
+  await cleanLane(db, 'bounce');
+  return { ok, detail: ok ? 'the address bounced, email stopped, and they are still on the call list' : `phone=${onPhone} email=${onEmail}` };
+}), 'lanes');
+
+def('no_email_still_callable', () => withDb(async (db) => {
+  await cleanLane(db, 'noemail');
+  const p = await seedLane(db, 'noemail', { email: null });
+  const onPhone = (await lanes().reachableOn(db, 'PHONE', 5000)).some((x) => x.id === p.id);
+  const onEmail = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const ok = onPhone && !onEmail;
+  await cleanLane(db, 'noemail');
+  return { ok, detail: ok ? 'no email address, and still completely active on the phone' : `phone=${onPhone} email=${onEmail}` };
+}), 'lanes');
+
+def('no_send_without_approved_template', () => withDb(async (db) => {
+  await cleanLane(db, 'approve');
+  const L = lanes();
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  await L.upsertTemplate(db, { subject: 'S', body: 'B' });
+  const p = await seedLane(db, 'approve');
+  let refused = false;
+  try { await L.queueEmail(db, p.id); } catch (e) { refused = e.code === 'TEMPLATE_NOT_APPROVED'; }
+  const t = await db.messageTemplate.findUniqueOrThrow({ where: { name: L.FIRST_CONTACT } });
+  const beforeNull = t.approvedAt === null;
+  await L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
+  const queued = await L.queueEmail(db, p.id);
+  const ok = refused && beforeNull && queued && queued.state === 'QUEUED';
+  await cleanLane(db, 'approve');
+  return { ok, detail: ok ? 'unapproved, it refused to send; approved, it queued with no further asking' : `refused=${refused} queued=${queued && queued.state}` };
+}), 'lanes');
+
+def('approved_template_sends_unattended', () => withDb(async (db) => {
+  const L = lanes();
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  await L.upsertTemplate(db, { subject: 'S', body: 'first wording' });
+  await L.approveTemplate(db);
+  const changed = await L.upsertTemplate(db, { subject: 'S', body: 'different wording' });
+  const stillApproved = await L.templateIsApproved(db);
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  const ok = changed.approvedAt === null && changed.version === 2 && !stillApproved;
+  return { ok, detail: ok ? 'rewording it took the approval away — a message Russ has not read does not send' : JSON.stringify(changed) };
+}), 'lanes');
+
+def('personalisation_changes_only_prospect_values', () => {
+  const fc = firstContact();
+  const a = fc.draftFirstContact({ name: 'Alpha Co', ownerName: 'Dale Hutchins' }, [{ signal: 'fax_listed' }]);
+  const b = fc.draftFirstContact({ name: 'Beta Co', ownerName: 'Sara Lin' }, [{ signal: 'fax_listed' }]);
+  const strip = (t, p) => t.replace(new RegExp(p.first, 'g'), '{X}').replace(new RegExp(p.biz, 'g'), '{B}');
+  const sa = strip(a.body, { first: 'Dale', biz: 'Alpha Co' });
+  const sb = strip(b.body, { first: 'Sara', biz: 'Beta Co' });
+  const ok = sa === sb && a.body !== b.body;
+  return { ok, detail: ok ? 'two businesses, same approved wording, only their own name and greeting different' : 'the copies differ beyond their own values' };
+}, 'lanes');
+
+def('followups_wait_in_pending_batch', () => withDb(async (db) => {
+  await cleanLane(db, 'batch');
+  const L = lanes();
+  const made = [];
+  for (const i of [1, 2, 3]) {
+    const p = await seedLane(db, `batch${i}`);
+    made.push(await L.queueFollowUp(db, p.id, { nextWhat: 'I will send the one-pager over' }));
+  }
+  const pendingBefore = await L.pendingBatch(db);
+  const noneQueued = pendingBefore.every((m) => m.state === 'DRAFT');
+  const cleared = await L.approveBatch(db);
+  const pendingAfter = await L.pendingBatch(db);
+  const nowQueued = await db.outreachMessage.count({ where: { id: { in: made.map((m) => m.id) }, state: 'QUEUED' } });
+  const ok = made.every(Boolean) && noneQueued && cleared.approved >= 3 && pendingAfter.length === 0 && nowQueued === 3;
+  await cleanLane(db, 'batch');
+  return { ok, detail: ok ? `${cleared.approved} follow-ups waited unsent, then one action released them all` : JSON.stringify({ cleared, left: pendingAfter.length }) };
+}), 'lanes');
+
+def('voice_failure_never_sends_unvoiced', () => {
+  const L = lanes();
+  const withAnswer = L.draftFollowUp({ name: 'Alpha Co', ownerName: 'Dale' }, { nextWhat: 'send the one-pager' });
+  const withNone = L.draftFollowUp({ name: 'Alpha Co', ownerName: 'Dale' }, { nextWhat: '' });
+  const ok = withAnswer.body.includes('send the one-pager') && withNone === null;
+  return { ok, detail: ok ? 'the promise he made on the call is what the message repeats; with no answer, no message' : 'follow-up invented content' };
+}, 'lanes');
+
+def('engine_calls_voice_not_russ', () => {
+  // The wording is written into the code in Russ's voice and approved once.
+  // Nothing anywhere requires him to open a separate tool to produce it.
+  const src = read(path.join(ROOT, 'src/hoursback/crm/lanes.js')) + read(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const callsOut = /https?:\/\/[^\s'"]*voice|voiceApi|requestVoice|openVoice/i.test(src);
+  const hasWording = /Russ Wright/.test(read(path.join(ROOT, 'src/hoursback/crm/firstContact.js')));
+  const ok = !callsOut && hasWording;
+  return { ok, detail: ok ? 'the wording is his, held in the engine, and he never opens a separate tool for it' : 'the code reaches for an outside voice tool' };
+}, 'lanes');
+
+def('lanes_filter_suppressed_at_read', () => withDb(async (db) => {
+  await cleanLane(db, 'suppress');
+  const p = await seedLane(db, 'suppress', { doNotContact: true });
+  const L = lanes();
+  const onAny = [];
+  for (const lane of L.LANES) {
+    const rows = await L.reachableOn(db, lane, 5000);
+    if (rows.some((x) => x.id === p.id)) onAny.push(lane);
+  }
+  const drafted = await L.draftFor(db, p.id, 'EMAIL');
+  const src = read(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+  const inTheQuery = /doNotContact: false/.test(src);
+  const ok = onAny.length === 0 && drafted === null && inTheQuery;
+  await cleanLane(db, 'suppress');
+  return { ok, detail: ok ? 'a do-not-contact business is absent from every lane, filtered in the query itself' : `still on: ${onAny.join(',')}` };
+}), 'lanes');
+
+def('lane_no_price_in_a_first_approach', () => {
+  // Russ's own rewrite of a cold email removed the pricing Claude had put in.
+  const fc = firstContact();
+  const m = fc.draftFirstContact({ name: 'Alpha Co', ownerName: 'Dale' }, [{ signal: 'fax_listed' }]);
+  const li = fc.draftLinkedIn({ name: 'Alpha Co', ownerName: 'Dale' }, [{ signal: 'fax_listed' }]);
+  const priced = (t) => /\$\s?\d/.test(t);
+  const ok = !priced(m.body) && !priced(m.subject) && !priced(li.body);
+  return { ok, detail: ok ? 'no price anywhere in a first approach, matching his own edit' : 'a price appears in the first message' };
+}, 'lanes');
+
+def('lane_message_leads_with_something_true_about_them', () => {
+  const fc = firstContact();
+  const withTell = fc.draftFirstContact({ name: 'Alpha Co' }, [{ signal: 'hiring_admin_role' }]);
+  const noTell = fc.draftFirstContact({ name: 'Alpha Co' }, []);
+  const ok = withTell.body.includes(fc.OPENERS.hiring_admin_role) && noTell === null;
+  return { ok, detail: ok ? 'it opens on what was actually found on their site; with nothing found, no message is written' : 'a message was written with no observation in it' };
+}, 'lanes');
+
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
@@ -1365,7 +1621,7 @@ async function run(name) {
   // run one after another the suite took 3m9s, past every timeout. Checks
   // sharing a fixture prefix must stay in order (they seed and clean the same
   // rows); different families are independent and run side by side.
-  const family = (n) => n.split('_')[0];
+  const family = (n) => FAMILY_OF[n] || n.split('_')[0];
   const groups = new Map();
   for (const n of names) {
     const g = family(n);
