@@ -194,6 +194,11 @@ model MessageTemplate {
   version    Int       @default(1)
   approvedAt DateTime?
   approvedBy String?
+  /// A fingerprint of every sentence that can appear in the message, taken at
+  /// the moment Russ approved it. Approval used to attach to the SHAPE only,
+  /// so rewriting the sentences inside left it reading as approved and the
+  /// approve button stayed hidden — he had nothing to press (2026-08-26).
+  approvedWording String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   messages   OutreachMessage[]

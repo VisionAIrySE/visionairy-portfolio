@@ -491,8 +491,11 @@ async function emailScreen(params) {
   // What is shown is always the message as it stands NOW, never the copy
   // saved the last time it was approved — and an approval from before a
   // rewrite does not count, so the approve button comes back.
-  const drifted = Boolean(template && template.approvedAt && template.body !== TEMPLATE_BODY);
-  const approved = Boolean(template && template.approvedAt) && !drifted;
+  // Approval is of the SENTENCES, not the shape. Russ had nothing to press
+  // because the button hid itself the moment anything read as approved, even
+  // after the wording underneath had been rewritten (2026-08-26).
+  const approved = await L.templateIsApproved(db);
+  const drifted = Boolean(template && template.approvedAt) && !approved;
   const weeks = Number(params.get('weeks') || 0);
   const [left, ready, sent, batch] = await Promise.all([
     L.emailsLeftToday(db, weeks),
@@ -507,15 +510,18 @@ async function emailScreen(params) {
     where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
   });
 
+  const sample = ready[0] || await db.outreachMessage.findFirst({ where: { lane: 'EMAIL' }, orderBy: { createdAt: 'desc' } });
   const wording = `<h2>The message</h2>
-  <p class="muted">Written once in your voice. Approve it once and every business gets this exact wording with only their own name and the thing you found on their site changed.</p>
+  <p class="muted">This is a real one, exactly as it will land. Every business gets this wording with only their own name and what was found on their site changed.</p>
   ${approved
     ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">Approved ${new Date(template.approvedAt).toLocaleDateString()} by ${esc(template.approvedBy)} — version ${template.version}. Change a word and it needs approving again.</div>`
     : drifted
       ? '<div class="card warn"><b>The message has changed since you approved it.</b> What you approved is no longer what would go out. Read the wording below and approve it again — nothing sends until you do.</div>'
       : '<div class="card warn"><b>Not approved yet.</b> Nothing can be sent until you read this and approve it.</div>'}
-  <pre class="msg">${esc(TEMPLATE_BODY)}</pre>
-  ${approved ? '' : `<form method="POST" action="/email/approve"><button class="primary">I've read it — approve it</button></form>`}`;
+  <pre class="msg">${esc(sample ? sample.body : TEMPLATE_BODY)}</pre>
+  <form method="POST" action="/email/approve"><button class="${approved ? '' : 'primary'}">${approved
+    ? 'Approve it again' : drifted ? "I've read the new wording — approve it" : "I've read it — approve it"}</button></form>
+  <p class="mini">The button never goes away. Approve again any time you want the record to say you have read what is going out now.</p>`;
 
   const one = (m) => `<div class="card"><div class="row">
       <div><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}

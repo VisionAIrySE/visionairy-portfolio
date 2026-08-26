@@ -10,6 +10,20 @@
 // waiting on EVERY lane. Nobody who has answered gets chased.
 
 const { draftFirstContact, draftLinkedIn, BODY } = require('./firstContact.js');
+const crypto = require('crypto');
+
+// Every sentence that can reach a reader, in one fingerprint. Approval is of
+// THESE WORDS. Change any of them and the approval stops counting, which is
+// what Russ expected all along.
+function wordingFingerprint() {
+  const V = require('./variants.js');
+  const { CREDIBILITY, SUBJECTS, OPENERS, TRADE_FOLLOW_ONS } = require('./firstContact.js');
+  const everything = JSON.stringify([
+    BODY, V.OPENINGS, V.WHAT_I_DO, V.GUARANTEE, V.YEAR_FRAMING, V.CLOSES,
+    V.TELL_WORDINGS, V.PRICE_FRAMING, CREDIBILITY, SUBJECTS, OPENERS, TRADE_FOLLOW_ONS,
+  ]);
+  return crypto.createHash('sha256').update(everything).digest('hex').slice(0, 16);
+}
 
 const LANES = ['PHONE', 'EMAIL', 'LINKEDIN'];
 const MESSAGE_STATES = ['DRAFT', 'QUEUED', 'SENT', 'REPLIED', 'SUPPRESSED'];
@@ -45,7 +59,7 @@ async function upsertTemplate(db, { subject, body, name = FIRST_CONTACT }) {
 async function approveTemplate(db, name = FIRST_CONTACT, approvedBy = 'russ') {
   return db.messageTemplate.update({
     where: { name },
-    data: { approvedAt: new Date(), approvedBy },
+    data: { approvedAt: new Date(), approvedBy, approvedWording: wordingFingerprint() },
   });
 }
 
@@ -58,7 +72,10 @@ async function approveTemplate(db, name = FIRST_CONTACT, approvedBy = 'russ') {
 async function templateIsApproved(db, name = FIRST_CONTACT) {
   const t = await db.messageTemplate.findUnique({ where: { name } });
   if (!t || !t.approvedAt) return false;
-  if (name === FIRST_CONTACT && t.body !== BODY) return false;
+  if (name !== FIRST_CONTACT) return true;
+  if (t.body !== BODY) return false;
+  // The sentences, not just the shape.
+  if (t.approvedWording !== wordingFingerprint()) return false;
   return true;
 }
 
@@ -403,7 +420,7 @@ module.exports = {
   FOLLOW_UP_DAYS, touchDue, queueNextTouch, queueDueTouches,
   sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
-  dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved,
+  dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
   signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent,
   markLinkedInSent, linkedInQueue, markReplied, markBounced, reachableOn,
 };
