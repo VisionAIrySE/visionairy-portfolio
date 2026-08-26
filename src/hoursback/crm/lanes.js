@@ -243,6 +243,71 @@ async function approveBatch(db, now = new Date()) {
 }
 
 // ---------------------------------------------------------------------------
+// the sequence
+//
+// Three messages, four days then a week apart. The later ones are where most
+// replies come from, and each says something the last one did not. Every one
+// of them stops the instant somebody answers, bounces, or is marked never
+// contact again — and that is checked at the moment of queueing, not hoped for.
+
+const { FOLLOW_UP_DAYS, draftFollowUpTouch } = require('./firstContact.js');
+
+// Which touch a business is due, or null when it is not due anything.
+function touchDue(sentTouches, firstSentAt, now = new Date()) {
+  const next = sentTouches + 1;
+  if (next > FOLLOW_UP_DAYS.length) return null;          // the sequence is finished
+  if (next === 1) return 1;
+  if (!firstSentAt) return null;
+  const daysSince = (now - new Date(firstSentAt)) / 86400000;
+  return daysSince >= FOLLOW_UP_DAYS[next - 1] ? next : null;
+}
+
+// Write and queue whatever a business is due next. Returns null when it is
+// due nothing, or when anything at all says stop.
+async function queueNextTouch(db, prospectId, now = new Date()) {
+  if (!await templateIsApproved(db)) return null;
+  const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
+  if (!p.email && !p.emailManualValue) return null;
+
+  const sent = await db.outreachMessage.findMany({
+    where: { prospectId, lane: 'EMAIL', state: { in: ['SENT', 'REPLIED'] }, openedWith: { not: 'after_the_call' } },
+    orderBy: { sentAt: 'asc' },
+  });
+  const due = touchDue(sent.length, sent[0] ? sent[0].sentAt : null, now);
+  if (due === null) return null;
+  if (due === 1) return queueEmail(db, prospectId);
+
+  const already = await db.outreachMessage.findFirst({ where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` } });
+  if (already) return already;
+  const built = draftFollowUpTouch(p, sent[0] ? sent[0].openedWith : null, due);
+  if (!built) return null;
+  return db.outreachMessage.create({
+    data: {
+      prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now,
+      subject: built.subject, body: built.body, openedWith: built.openedWith,
+    },
+  });
+}
+
+// Walk everyone reachable and queue whatever each is due. Bounded, like
+// everything else that could run away.
+async function queueDueTouches(db, options = {}) {
+  const now = options.now || new Date();
+  const limit = Math.min(Number(options.limit || 200), 500);
+  const rows = await reachableOn(db, 'EMAIL', limit);
+  const out = { first: 0, second: 0, third: 0, skipped: 0 };
+  for (const p of rows) {
+    const m = await queueNextTouch(db, p.id, now);
+    if (!m) { out.skipped += 1; continue; }
+    if (m.openedWith === 'touch_2') out.second += 1;
+    else if (m.openedWith === 'touch_3') out.third += 1;
+    else out.first += 1;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // actually sending
 //
 // Three ceilings, all in the code, none of them optional:
@@ -315,6 +380,7 @@ function defaultSender(key) {
 
 module.exports = {
   LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP, MAX_PER_RUN,
+  FOLLOW_UP_DAYS, touchDue, queueNextTouch, queueDueTouches,
   sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved,

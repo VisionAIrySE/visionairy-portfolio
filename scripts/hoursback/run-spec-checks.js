@@ -1604,6 +1604,88 @@ def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (d
   return { ok, detail: ok ? 'picking Sara sent the message to her by name instead of the shared inbox, and left the fetched address on record' : `${overrides().resolveField(after, 'email')} / ${greeting}` };
 }), 'lanes');
 
+def('message_claims_no_experience_russ_does_not_have', () => {
+  // A cold email from somebody selling honesty about where hours go cannot
+  // open by claiming clients he has not had. Every number in the follow-up
+  // must read as what this kind of business typically carries, never as "the
+  // last four I looked at".
+  const fc = firstContact();
+  const FALSE_CLAIM = /\b(I have looked at|I looked at|the last (?:few|four|several)|my (?:clients|customers)|businesses I have worked with|in my experience with)\b/i;
+  const bad = [];
+  for (const proof of [...Object.values(fc.TRADE_PROOF), fc.GENERAL_PROOF]) {
+    if (FALSE_CLAIM.test(proof)) bad.push(proof.slice(0, 70));
+  }
+  for (const touch of [2, 3]) {
+    const m = fc.draftFollowUpTouch({ name: 'Cascade Smiles Dental' }, 'fax_listed', touch);
+    if (FALSE_CLAIM.test(m.body)) bad.push(`touch ${touch}`);
+    if (/just following up|bumping this|circling back|top of your inbox|per my last email/i.test(m.body)) bad.push(`touch ${touch}: a phrase that says "you are on a list"`);
+    if (/[—–]/.test(m.body)) bad.push(`touch ${touch}: a dash`);
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'every number reads as what that kind of business typically carries, and nothing claims a client he has not had' };
+}, 'lanes');
+
+def('sequence_three_touches_spaced_and_then_it_stops', () => withDb(async (db) => {
+  await cleanLane(db, 'seq');
+  const L = lanes();
+  await approvedTemplate(db);
+  const p = await seedLane(db, 'seq');
+  const day = 86400000;
+  const t0 = new Date('2026-09-01T09:00:00Z');
+
+  const first = await L.queueNextTouch(db, p.id, t0);
+  await L.markEmailSent(db, first.id, t0);
+  const tooSoon = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 2 * day));
+  const second = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 5 * day));
+  if (second) await L.markEmailSent(db, second.id, new Date(t0.getTime() + 5 * day));
+  const third = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 12 * day));
+  if (third) await L.markEmailSent(db, third.id, new Date(t0.getTime() + 12 * day));
+  const fourth = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 40 * day));
+
+  const ok = first && tooSoon === null && second && second.openedWith === 'touch_2'
+    && third && third.openedWith === 'touch_3' && fourth === null;
+  await cleanLane(db, 'seq');
+  return { ok, detail: ok ? 'first, then nothing at two days, second at five, third at twelve, and then it stops for good' : JSON.stringify({ tooSoon, second: second && second.openedWith, third: third && third.openedWith, fourth }) };
+}), 'lanes');
+
+def('sequence_stops_the_moment_they_answer', () => withDb(async (db) => {
+  await cleanLane(db, 'seqstop');
+  const L = lanes();
+  await approvedTemplate(db);
+  const day = 86400000;
+  const t0 = new Date('2026-09-01T09:00:00Z');
+  const replied = await seedLane(db, 'seqstop1');
+  const bounced = await seedLane(db, 'seqstop2');
+  const never = await seedLane(db, 'seqstop3');
+  for (const x of [replied, bounced, never]) {
+    const m = await L.queueNextTouch(db, x.id, t0);
+    await L.markEmailSent(db, m.id, t0);
+  }
+  await L.markReplied(db, replied.id, 'EMAIL');
+  await L.markBounced(db, bounced.id);
+  await stages().markDoNotContact(db, never.id);
+  const later = new Date(t0.getTime() + 12 * day);
+  const results = await Promise.all([replied, bounced, never].map((x) => L.queueNextTouch(db, x.id, later)));
+  const ok = results.every((r) => r === null);
+  await cleanLane(db, 'seqstop');
+  return { ok, detail: ok ? 'a reply, a bounce and a never-contact-again each ended the sequence on the spot' : JSON.stringify(results.map((r) => r && r.openedWith)) };
+}), 'lanes');
+
+def('sequence_each_message_says_something_new', () => {
+  const fc = firstContact();
+  const p = { name: 'Cascade Smiles Dental', ownerName: 'Sara Lin' };
+  const one = fc.draftFirstContact(p, [{ signal: 'fax_listed' }]);
+  const two = fc.draftFollowUpTouch(p, 'fax_listed', 2);
+  const three = fc.draftFollowUpTouch(p, 'fax_listed', 3);
+  const bodies = [one.body, two.body, three.body];
+  const subjects = [one.subject, two.subject, three.subject];
+  const uniqueSubjects = new Set(subjects).size === 3;
+  const shrinking = bodies[0].split(/\s+/).length > bodies[1].split(/\s+/).length
+    && bodies[1].split(/\s+/).length > bodies[2].split(/\s+/).length;
+  const noLazyPhrases = !bodies.some((b) => /just following up|circling back|bumping this|per my last|touching base/i.test(b));
+  const ok = uniqueSubjects && shrinking && noLazyPhrases;
+  return { ok, detail: ok ? `three different subjects, each message shorter than the last (${bodies.map((b) => b.split(/\s+/).length).join(' then ')} words), and none of the phrases that say "you are on a list"` : `subjects=${uniqueSubjects} shrinking=${shrinking} phrases=${noLazyPhrases}` };
+}, 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3

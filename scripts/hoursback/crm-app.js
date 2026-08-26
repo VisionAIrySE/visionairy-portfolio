@@ -313,9 +313,10 @@ async function emailScreen(params) {
     <p class="muted">Written from what you promised on the call. None of them go anywhere until you release them.</p>
     ${batch.slice(0, 5).map(one).join('')}
     <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
-  <h2>First contact, written and waiting (${ready.length})</h2>
+  <h2>Written and waiting (${ready.length})</h2>
+  <p class="muted">Three messages, four days then a week apart. Anybody who answers, bounces, or says never again drops out of the sequence on the spot.</p>
   <p class="row">
-    <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write the next 25</button></form>
+    <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
     <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send the queue — at most ${Math.min(left, 25)} right now</button></form>
   </p>
   <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go, never passes today's ${L.dailyEmailCap(weeks)}, and refuses entirely without an approved message.</p>
@@ -565,15 +566,10 @@ const server = http.createServer(async (req, res) => {
           await L.upsertTemplate(db, { subject: SUBJECTS.default, body: TEMPLATE_BODY });
           await L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
         }
-        // Write the next batch of first-contact messages, best businesses first.
+        // Write whatever each business is due next — a first message, or the
+        // second or third if enough days have passed and they never answered.
         if (what === 'write') {
-          const targets = await L.reachableOn(db, 'EMAIL', 200);
-          let written = 0;
-          for (const t of targets) {
-            if (written >= 25) break;
-            const m = await L.draftFor(db, t.id, 'EMAIL');
-            if (m && m.state === 'DRAFT') written += 1;
-          }
+          await L.queueDueTouches(db, { limit: 200 });
         }
         // Send for real. The ceiling lives in the code, not in this button.
         if (what === 'send') {
