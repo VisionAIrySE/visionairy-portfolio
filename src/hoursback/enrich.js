@@ -83,6 +83,7 @@ function isUsableEmail(addr) {
   const a = addr.toLowerCase();
   if (/\.(png|jpe?g|gif|svg|webp|css|js)$/.test(a)) return false;
   if (/@\d+x\./.test(a)) return false;
+  if (a.includes('%')) return false;   // an encoding artefact, not an address
   const [local, domain] = a.split('@');
   if (!local || !domain) return false;
   if (EMAIL_JUNK_LOCAL.some((j) => local.startsWith(j))) return false;
@@ -100,12 +101,18 @@ function emailConfidence(addr, siteDomain) {
   return Math.min(1, Number(c.toFixed(2)));
 }
 
+// A link written with a stray % is not decodable. Take it as it stands
+// rather than throwing — one malformed link is not worth an exception.
+function safeDecode(v) {
+  try { return decodeURIComponent(v); } catch { return v; }
+}
+
 function emailsFromPages(pages, siteDomain) {
   const seen = new Map();
   for (const page of pages) {
     const html = String(page.html || '');
     const found = [];
-    for (const m of html.matchAll(/mailto:([^"'?>\s]+)/gi)) found.push(decodeURIComponent(m[1]));
+    for (const m of html.matchAll(/mailto:([^"'?>\s]+)/gi)) found.push(safeDecode(m[1]));
     for (const m of textOf(html).matchAll(EMAIL_RE)) found.push(m[0]);
     for (const raw of found) {
       const addr = raw.trim().replace(/[.,;]$/, '');
@@ -324,7 +331,8 @@ function absoluteUrl(href, base) {
 }
 
 function linksWorthFollowing(html, baseUrl) {
-  const base = new URL(baseUrl);
+  let base;
+  try { base = new URL(baseUrl); } catch { return []; }
   const out = [];
   const seen = new Set();
   for (const m of String(html).matchAll(/<a[^>]+href=["']([^"'#]+)["'][^>]*>([\s\S]{0,120}?)<\/a>/gi)) {
@@ -377,7 +385,8 @@ async function fetchSite(website, options = {}) {
   try { home = await fetchPage(start, fetchImpl); } catch (e) { return { pages: [], error: e.message }; }
   pages.push({ url: start, html: home });
 
-  const queue = linksWorthFollowing(home, start).slice(0, maxPages - 1);
+  let queue = [];
+  try { queue = linksWorthFollowing(home, start).slice(0, maxPages - 1); } catch { queue = []; }
   for (const url of queue) {
     if (pages.length >= maxPages) break;
     if (delay) await sleep(delay);
@@ -545,14 +554,18 @@ async function runSiteEnrichment(db, options = {}) {
         if (got.pages.length) { pages = got.pages; break; }
         if (a < attempts - 1 && delay) await sleep(delay);
       }
-      const finding = pages.length ? readSite(pages, { domain: domainOf(site) }) : readSite([]);
-      if (!pages.length) result.unreachable += 1;
-      if (finding.email) result.withEmail += 1;
-      if (finding.employeeCount !== null) result.withHeadcount += 1;
       try {
+        const finding = pages.length ? readSite(pages, { domain: domainOf(site) }) : readSite([]);
+        if (!pages.length) result.unreachable += 1;
+        if (finding.email) result.withEmail += 1;
+        if (finding.employeeCount !== null) result.withHeadcount += 1;
         const r = await applySiteRead(db, p.id, finding, { ...options, category: p.category || null });
         if (r.changed) result.changed += 1;
-      } catch (e) { /* one bad record never sinks the run */ }
+      } catch (e) {
+        // One rotten page, one unreadable address, one write that would not
+        // land: skipped and counted, never the end of the run.
+        result.failed = (result.failed || 0) + 1;
+      }
       if (options.onProgress) options.onProgress(result, p.name);
       if (delay) await sleep(delay);
     }

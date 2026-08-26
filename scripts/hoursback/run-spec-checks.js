@@ -1027,6 +1027,15 @@ def('low_confidence_email_kept_marked', () => {
   return { ok, detail: ok ? `a weak address (${got.emailConfidence}) was kept and flagged, not thrown away` : JSON.stringify(got) };
 });
 
+def('email_broken_link_never_ends_the_read', () => {
+  // The live run died here once: a mailto written with a stray % cannot be
+  // decoded, and the exception ended the whole run.
+  const { readSite } = enrich();
+  const got = readSite([{ url: 'https://x.example/', html: '<a href="mailto:bad%zz@x.example">a</a> <a href="mailto:good@x.example">b</a>' }], { domain: 'x.example' });
+  const ok = got.email === 'good@x.example' && !got.emails.some((e) => e.email.includes('%'));
+  return { ok, detail: ok ? 'a broken email link was stepped over and the good one still found' : JSON.stringify(got.emails) };
+});
+
 def('email_never_gates_the_list', () => withDb(async (db) => {
   await cleanSite(db, 'emailgate');
   const p = await seedSite(db, 'emailgate', { website: null, stage: 'NO_CONTACT' });
