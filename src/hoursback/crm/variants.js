@@ -34,25 +34,31 @@ function pick(list, key, salt = '') {
 
 // The opening line. Same job, four ways.
 const OPENINGS = {
+  // These used to run FIRST and led into the observation with "rather than
+  // describe it, let me point at something specific". The observation now
+  // opens the message and the guarantee follows it, so these introduce Russ
+  // AFTERWARDS, once the reader already has a reason to keep going (Russ,
+  // 2026-08-26: put the guarantee where it grabs them).
   FORMAL: [
-    "I'm local to Central Oregon, and I build software that takes repetitive office work off people's plates. Rather than describe it, I would rather speak to what look like some specific needs for your team.",
-    "I'm based here in Central Oregon and I build software that takes the repetitive parts of office work off people. Rather than explain that in the abstract, I would rather speak to something I noticed about your team.",
-    "I build software for businesses here in Central Oregon, aimed squarely at the office work that repeats. Rather than describe it in general terms, I would rather raise something specific to you.",
-    "I work with businesses across Central Oregon on the office work that repeats itself. Rather than talk about that generally, I would rather point to something particular to your team.",
+    "By way of introduction: I'm local to Central Oregon, and I build software that takes repetitive office work off people.",
+    "A word on who is writing. I'm based here in Central Oregon and I build software that takes the repetitive parts of office work off people.",
+    "As to who I am: I build software for businesses here in Central Oregon, aimed squarely at the office work that repeats.",
+    "Briefly, who this is from. I work with businesses across Central Oregon on the office work that repeats itself.",
   ],
   NEUTRAL: [
-    "I'm local to Central Oregon and I build software that takes repetitive office work off people's plates, and rather than describe it I'd rather talk to what seem to be some specific needs for your team.",
-    "I'm here in Central Oregon and I build software that takes the repetitive office work off people, and rather than explain it in general I'd rather talk about something specific to your team.",
-    "I build software for businesses around Central Oregon, mostly aimed at the office work that keeps repeating, and rather than describe that I'd rather raise something I noticed about yours.",
-    "I'm local, and what I build takes the repetitive office work off people. Rather than describe it generally, I'd rather talk about what looks like a specific need on your side.",
+    "A word on who's writing: I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.",
+    "Who I am, quickly. I'm here in Central Oregon and I build software that takes the repetitive office work off people.",
+    "As for me, I build software for businesses around Central Oregon, mostly aimed at the office work that keeps repeating.",
+    "About me, briefly. I'm local, and what I build takes the repetitive office work off people.",
   ],
   PLAIN: [
-    "I'm local to Central Oregon and I build software that takes the repetitive office work off people's plates. Rather than describe it, I'd rather talk to what look like some specific needs for your team.",
-    "I'm here in Central Oregon and I build software that takes repetitive office work off people. Rather than explain it, I'd rather talk about something specific I noticed at your place.",
-    "I build software for local businesses, aimed at the office work that repeats. Rather than describe it, I'd rather raise something specific to you.",
-    "I'm local and I build software that takes the repeating office work off people. Rather than talk in general, I'd rather talk about your shop.",
+    "Quick word on who's writing. I'm local to Central Oregon and I build software that takes the repetitive office work off people's plates.",
+    "Who I am: I'm here in Central Oregon and I build software that takes repetitive office work off people.",
+    "About me, quickly. I build software for local businesses, aimed at the office work that repeats.",
+    "As for who this is from, I'm local and I build software that takes the repeating office work off people.",
   ],
 };
+
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [

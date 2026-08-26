@@ -137,13 +137,13 @@ const CREDIBILITY = {
 
 const BODY = `Hi {greeting},
 
-{intro}
-
 {opener} {followOn}
 
-{credibility} {whatIDo} In your case that would probably look like {valueIn}.
-
 {guarantee}
+
+{intro} {credibility}
+
+{whatIDo} In your case that would probably look like {valueIn}.
 
 {yearLine}
 

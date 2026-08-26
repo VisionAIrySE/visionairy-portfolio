@@ -311,6 +311,7 @@ def('contract_no_per_employee_fee', () => {
 
 // --- meta checks over the spec files themselves ---------------------------
 const TERMINAL_RE = /^\s*-\s*\[[ x]\]\s/;
+const PROMISE_RE = "(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)";
 def('every_requirement_carries_a_check', () => {
   // A spec written BEFORE its code exists cannot carry real checks — a check
   // has nothing to aim at yet. Those specs mark themselves unverified and are
@@ -1960,9 +1961,12 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   const bad = [];
   for (const [name, count] of [['Sunwest Builders', 40], ['Cascade Smiles Dental', 8], ['Highland Veterinary Hospital', 22]]) {
     const m = fc.draftFirstContact({ name, ownerName: 'Sara', employeeCount: count }, [{ signal: 'fax_listed' }]);
+    // Find them by what they SAY, not by counting from the bottom. The
+    // guarantee moved to second position on 2026-08-26 so it lands while the
+    // reader is still reading, and counting broke.
     const paras = m.body.split('\n\n');
-    const promise = paras[paras.length - 4];
-    const year = paras[paras.length - 3];
+    const promise = paras.find((x) => new RegExp(PROMISE_RE, 'i').test(x)) || '';
+    const year = paras.find((x) => /hours a year|a year is|Across a year/i.test(x)) || '';
     // The promise comes from the INDUSTRY now, scaled by size — not from
     // headcount alone (Russ, 2026-08-26).
     const band = { guaranteedHours: promiseFor({ employeeCount: count, trade: tradeOf(name) }).hours };
@@ -1976,7 +1980,10 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   // Where the size is unknown, the tier's own smallest promise stands, so
   // that learning the real size can only ever raise it.
   const unknown = fc.draftFirstContact({ name: 'Legacy Auto Repair', ownerName: 'Sara' }, [{ signal: 'fax_listed' }]);
-  const up = unknown.body.split('\n\n');
+  const upAll = unknown.body.split('\n\n');
+  const up = { [upAll.length - 4]: upAll.find((x) => new RegExp(PROMISE_RE, 'i').test(x)) || '',
+               [upAll.length - 3]: upAll.find((x) => /hours a year|Across a year/i.test(x)) || '',
+               length: upAll.length };
   const floorWord = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 8: 'eight', 10: 'ten' }[promiseFor({ trade: 'auto' }).hours];
   if (!new RegExp(`${floorWord} hours a week`, 'i').test(up[up.length - 4])) bad.push(`unknown size does not fall back to ${floorWord} hours`);
   const floorYear = (promiseFor({ trade: 'auto' }).hours * 52).toLocaleString();
@@ -2271,12 +2278,15 @@ def('personalisation_changes_only_prospect_values', () => {
   const strays = [];
   for (const name of ['Alpha Co', 'Beta Co', 'Cascade Smiles Dental', 'Sisters Dental', 'Legacy Auto Repair']) {
     const m = fc.draftFirstContact({ name, ownerName: 'Dale Hutchins' }, [{ signal: 'fax_listed' }]);
-    // The opening, the tell and the close must each be a line he has read.
+    // The introduction, the tell and the close must each be a line he has
+    // read. Found by content, not position — the introduction moved below the
+    // observation and the guarantee on 2026-08-26.
     const paras = m.body.split('\n\n');
-    const opening = paras[1];
+    const intros = Object.values(V.OPENINGS).flat();
+    const closes = Object.values(V.CLOSES).flat();
+    if (!intros.some((t) => m.body.includes(t))) strays.push(`no approved introduction in the message to ${name}`);
     const close = paras[paras.length - 2];
-    if (!approved.has(opening)) strays.push(`opening: ${opening.slice(0, 40)}`);
-    if (!approved.has(close)) strays.push(`close: ${close.slice(0, 40)}`);
+    if (!closes.includes(close)) strays.push(`close: ${close.slice(0, 40)}`);
     if (![...V.TELL_WORDINGS.fax_listed].some((t) => m.body.includes(t))) strays.push(`tell for ${name}`);
   }
   return { ok: !strays.length, detail: strays.length ? strays.slice(0, 2).join(' | ') : 'every sentence that goes out is one Russ has read; only which one varies' };
