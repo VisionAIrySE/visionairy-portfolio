@@ -108,22 +108,26 @@ const SUBJECTS = {
 // jobs he is offering to fix, so he is not a software person guessing at how
 // an office works. Options were written and Russ picked; the others are kept
 // here so a change is a one-word edit rather than a rewrite.
+// Russ's own words for who he is, kept at three registers. The substance is
+// identical and it is his: a career in senior management and working for
+// himself, across sales, marketing and operations, in finance, construction
+// and building AI platforms — and having personally hit almost every
+// frustration the person reading this has.
 const CREDIBILITY = {
-  done_the_jobs: 'I have carried a bag, run the ops desk and built businesses from nothing, so I am not a software person guessing at how your week goes.',
-  decades: 'Before this I spent decades running sales, service and operations, in start-ups and in some of the largest companies in their field, so I know what the work actually looks like from the inside.',
-  short: 'I have run sales and operations for a living, so I am not a software person guessing at how your week goes.',
+  FORMAL: 'My own career has been split between senior management and working for myself, across sales, marketing and operations, in finance, construction and building AI platforms. I have run into almost every frustration a manager runs into, and what I build now comes out of that rather than out of a textbook.',
+  NEUTRAL: "I've spent my career between senior management and running my own thing, in sales, marketing and operations, across finance, construction and building AI platforms, so I've hit just about every frustration you can hit in a management seat, and what I build now comes straight out of that.",
+  PLAIN: "I've spent my career in senior management and running my own shops, in sales, marketing and operations, across finance, construction and AI platforms. I've hit just about every frustration you can hit, and what I build now comes out of that.",
 };
-const CREDIBILITY_LINE = CREDIBILITY.decades;
 
 const BODY = `Hi {greeting},
 
-I'm local to Central Oregon and I build software that takes repetitive office work off people's plates, and rather than describe it I'd rather point at something specific.
+{intro}
 
 {opener} {followOn}
 
-{credibility} What I actually do is spend a week inside an operation and come back with a plain list of where the hours are going, which of them can be fixed with tools that already exist, and which would need something built. You get the whole picture in your hands either way, and if I can't find at least ten hours a week your team could have back, you don't pay me.
+{credibility} What I do is spend a week inside an operation and come back with a plain list of where the hours are going, which of them can be fixed with tools that already exist, and which would need something built. In your case that mostly looks like {valueIn}. You get the whole picture in your hands either way, and if I can't find at least ten hours a week your team could have back, you don't pay me.
 
-I'm not asking for a meeting, I'd just welcome the chance to share more if it's useful!
+{close}
 
 Russ Wright
 Visionairy
@@ -135,8 +139,8 @@ russ@visionairy.biz`;
 // One email gets a reply rate. Three gets roughly three times it, and the
 // later ones are where most replies actually come from. Each is shorter than
 // the last, each says something new, and none of them says "just following up"
-// or "bumping this to the top of your inbox", which are the two phrases that
-// tell a reader they are on a list.
+// or "circling back", which are the two phrases that tell a reader they are on
+// a list.
 
 const FOLLOW_UP_DAYS = [0, 4, 11];   // first contact, then four days, then a week later
 
@@ -215,16 +219,22 @@ function followOnFor(key, prospect) {
 function draftFirstContact(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
+  const { registerFor, OPENING_BY_REGISTER, CLOSING_BY_REGISTER } = require('./register.js');
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
   const { line, trade } = followOnFor(key, prospect);
+  // Meet them where they write. His tone never moves; only the ceremony does.
+  const register = registerFor(prospect.selfDescription);
   const subject = (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, business);
   const body = BODY
     .replace('{greeting}', greetingFor(prospect))
+    .replace('{intro}', OPENING_BY_REGISTER[register])
     .replace('{opener}', OPENERS[key])
     .replace('{followOn}', line)
-    .replace('{credibility}', CREDIBILITY_LINE)
+    .replace('{credibility}', CREDIBILITY[register])
+    .replace('{close}', CLOSING_BY_REGISTER[register])
+    .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
     .replace(/\{business\}/g, business);
-  return { subject, body, openedWith: key, trade };
+  return { subject, body, openedWith: key, trade, register };
 }
 
 // The LinkedIn version: shorter, same observation, same close. Never sent by
@@ -263,7 +273,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
 }
 
 module.exports = {
-  CREDIBILITY, CREDIBILITY_LINE,
+  CREDIBILITY,
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,

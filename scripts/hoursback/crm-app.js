@@ -384,7 +384,11 @@ async function emailScreen(params) {
       <div><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}
         <div class="muted">${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}</div></div>
       <div class="muted">${esc(m.state)}</div></div>
-      <pre class="msg">${esc(m.subject ? `Subject: ${m.subject}\n\n` : '')}${esc(m.body)}</pre>
+      <form method="POST" action="/email/edit/${m.id}">
+        <input name="subject" value="${esc(m.subject || '')}" style="font-weight:600">
+        <textarea name="body" rows="12" style="margin-top:6px">${esc(m.body)}</textarea>
+        <p class="mini"><button>Save my wording</button> — anything you rewrite here is kept as a sample of how you actually write, and everything after is written against it.</p>
+      </form>
       <form method="POST" action="/email/sent/${m.id}" style="display:inline"><button ${approved ? '' : 'disabled'}>I sent this</button></form>
       <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button>They replied</button></form>
       <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button>It bounced</button></form>
@@ -668,6 +672,17 @@ const server = http.createServer(async (req, res) => {
           const run = await L.sendQueuedEmails(db, { weeksSending: weeks });
           res.writeHead(303, { Location: `/email?sent=${run.sent}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
           return res.end();
+        }
+        // Saving a rewrite keeps it as proof of how Russ actually writes.
+        if (what === 'edit' && arg) {
+          const m = await db.outreachMessage.findUniqueOrThrow({ where: { id: arg }, include: { prospect: true } });
+          const body = String(form.body || '').trim();
+          const subject = String(form.subject || '').trim() || null;
+          if (body && body !== m.body) {
+            const { captureRewrite } = require('../../src/hoursback/crm/voiceCapture.js');
+            captureRewrite({ before: m.body, after: body, business: m.prospect.name, lane: m.lane, subject });
+          }
+          await db.outreachMessage.update({ where: { id: arg }, data: { body, subject } });
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
         if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');

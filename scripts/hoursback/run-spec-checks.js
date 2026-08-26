@@ -1671,6 +1671,58 @@ def('message_names_a_pain_they_already_know', () => {
   return { ok, detail: ok ? `every one of the ${Object.keys(PAIN_BY_TRADE).length} trades has a pain named in their own words, with what it costs and where it bites` : `missing: ${missing.join(', ')} | too software-ish: ${softwarey.join(', ')}` };
 }, 'lanes');
 
+def('voice_a_rewrite_is_kept_a_typo_is_not', () => {
+  const dir = path.join(require('os').tmpdir(), `hb-voice-${process.pid}`);
+  process.env.HOURSBACK_VOICE_DIR = dir;
+  delete require.cache[require.resolve(path.join(ROOT, 'src/hoursback/crm/voiceCapture.js'))];
+  const v = require(path.join(ROOT, 'src/hoursback/crm/voiceCapture.js'));
+  const drafted = 'Hi Dale, I noticed you still list a fax number and I wanted to reach out about how we can streamline your operations today.';
+  const typo = drafted.replace('today', 'todya');
+  const rewrite = 'Hi Dale, saw the fax number on your site. That usually means somebody is handling paper by hand, and it adds up faster than it looks. Worth ten minutes of your time?';
+  const ignored = v.captureRewrite({ before: drafted, after: typo, business: 'X' });
+  const kept = v.captureRewrite({ before: drafted, after: rewrite, business: 'High Desert Plumbing', subject: 'The fax number' });
+  const body = kept ? read(kept) : '';
+  const ok = ignored === null && Boolean(kept) && body.includes(rewrite) && body.includes(drafted)
+    && /Russ's version/.test(body);
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* already gone */ }
+  delete process.env.HOURSBACK_VOICE_DIR;
+  return { ok, detail: ok ? 'a typo fix taught nothing and was ignored; a real rewrite was kept with both versions side by side' : `ignored=${ignored} kept=${kept}` };
+}, 'lanes');
+
+def('message_speaks_in_the_trade_own_terms', () => {
+  // Nobody talks conversion rates to a tire shop, or bookkeeping to a
+  // consultancy. What the hours buy has to land in their own world.
+  const { PAIN_BY_TRADE, GENERAL_PAIN } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  const { TRADES } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const missing = [...new Set(TRADES.map(([t]) => t))].filter((t) => !PAIN_BY_TRADE[t] || !PAIN_BY_TRADE[t].valueIn);
+  const CORPORATE = /\b(ROI|conversion rate|KPI|synerg|stakeholder|bandwidth|utili[sz]ation rate|throughput optimi|operational excellence|digital transformation)\b/i;
+  const wrongRegister = Object.entries({ ...PAIN_BY_TRADE, general: GENERAL_PAIN })
+    .filter(([, p]) => CORPORATE.test(p.valueIn) || CORPORATE.test(p.recognition)).map(([t]) => t);
+  const fc = firstContact();
+  const auto = fc.draftFirstContact({ name: 'Legacy Auto Repair' }, [{ signal: 'fax_listed' }]);
+  const firm = fc.draftFirstContact({ name: 'Sensiba Consulting LLP' }, [{ signal: 'fax_listed' }]);
+  const different = auto.body !== firm.body && auto.body.includes('through the bay');
+  const ok = !missing.length && !wrongRegister.length && different;
+  return { ok, detail: ok ? 'every trade knows what the hours buy in its own words, and a tire shop and a consultancy get different messages' : `missing: ${missing.join(', ')} | corporate: ${wrongRegister.join(', ')} | different=${different}` };
+}, 'lanes');
+
+def('message_matches_how_they_write_without_flattering_them', () => {
+  const { registerFor } = require(path.join(ROOT, 'src/hoursback/crm/register.js'));
+  const fc = firstContact();
+  const formal = 'Established in 1974, our firm is committed to providing comprehensive tailored solutions to the clients we serve throughout Central Oregon.';
+  const plain = "We make junk removal easy. We're family-owned and we'll get it done, no job too small.";
+  const a = fc.draftFirstContact({ name: 'Baxter Law', selfDescription: formal }, [{ signal: 'fax_listed' }]);
+  const b = fc.draftFirstContact({ name: 'Git R Dumped', selfDescription: plain }, [{ signal: 'fax_listed' }]);
+  const c = fc.draftFirstContact({ name: 'Plain Co' }, [{ signal: 'fax_listed' }]);
+  // Never fawning, whatever the register.
+  const FAWNING = /\b(impressive|outstanding|world[- ]class|clearly a leader|admire what you|love what you|amazing work|incredible)\b/i;
+  const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
+    && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
+    && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
+    && [a, b, c].every((m) => m.body.includes("you don't pay me"));
+  return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
+}, 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3
