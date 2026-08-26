@@ -63,6 +63,8 @@ model Prospect {
   siteStatus      String?
   siteReadAt      DateTime?
   linkedInUrl     String?   // the business's own LinkedIn page, from their site
+  selfDescription String?   // the one line they wrote about themselves
+  trade           String?   // settled from their own words when the name could not
   automationScore Int?
   scoreEvidence   String?
 

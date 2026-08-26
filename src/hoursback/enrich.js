@@ -187,6 +187,43 @@ function ownerFromPages(pages) {
 }
 
 // ---------------------------------------------------------------------------
+// what they say they do
+//
+// A business name only goes so far. "Git R Dumped" and "OlsenDaines" tell you
+// nothing; their own front page tells you everything. This keeps the one line
+// they wrote about themselves, in their words, which is both the best way to
+// sort them and the best raw material for a message that sounds like somebody
+// actually looked.
+
+function selfDescription(pages) {
+  const home = pages[0];
+  if (!home) return null;
+  const html = String(home.html);
+  const pick = (re) => { const m = html.match(re); return m ? textOf(m[1]).trim() : null; };
+  const candidates = [
+    pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{20,300})["']/i),
+    pick(/<meta[^>]+content=["']([^"']{20,300})["'][^>]+name=["']description["']/i),
+    pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']{20,300})["']/i),
+    pick(/<h1[^>]*>([\s\S]{10,200}?)<\/h1>/i),
+    pick(/<title[^>]*>([\s\S]{10,160}?)<\/title>/i),
+  ].filter(Boolean);
+  for (const c of candidates) {
+    // A page title that is only the business name says nothing new.
+    if (c.split(/\s+/).length < 4) continue;
+    if (/^(home|welcome|index)$/i.test(c)) continue;
+    return c.replace(/\s+/g, ' ').slice(0, 280);
+  }
+  return candidates[0] || null;
+}
+
+// The words on their site that say what kind of business this is. Used only
+// when the name alone could not tell us.
+function tradeWordsFrom(pages) {
+  const text = pages.slice(0, 2).map((p) => textOf(p.html)).join(' ').slice(0, 6000);
+  return text;
+}
+
+// ---------------------------------------------------------------------------
 // the people
 //
 // A business is not one address. A team page usually names the owner, the
@@ -392,6 +429,8 @@ function readSite(pages, options = {}) {
     ownerSourceUrl: owner ? owner.sourceUrl : null,
     people: pairEmailsToPeople(emails, peopleFromPages(list)),
     linkedIn: linkedInFromPages(list),
+    selfDescription: selfDescription(list),
+    tradeWords: tradeWordsFrom(list),
     signals: [
       ...signalsFromPages(list),
       ...(best ? [] : [{ signal: 'no_email_published', url: list[0].url, quote: 'no email address published anywhere on the site' }]),
@@ -581,13 +620,27 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
     if (v instanceof Date || cur instanceof Date) return String(cur) === String(v);
     return cur === v;
   });
+  // People are saved either way. The business's own details may be identical
+  // to last time while its team page still names three people we have never
+  // written down — and skipping them because nothing else moved meant almost
+  // nobody was saved at all.
+  await saveContacts(db, prospectId, finding);
   if (same) return { changed: false, prospect: before, score: scored.score };
 
   data.siteReadAt = options.now || new Date();
   data.fetchedAt = options.now || new Date();
   if (finding.linkedIn && finding.linkedIn.company) data.linkedInUrl = finding.linkedIn.company;
+  if (finding.selfDescription) data.selfDescription = finding.selfDescription;
+  // Their own words settle the trade when the name could not.
+  if (finding.tradeWords) {
+    const { tradeOf } = require('./crm/queues.js');
+    const fromName = tradeOf(before.name);
+    if (fromName === 'other') {
+      const fromSite = tradeOf(`${before.name} ${finding.tradeWords.slice(0, 3000)}`);
+      if (fromSite !== 'other') data.trade = fromSite;
+    } else { data.trade = fromName; }
+  }
   const after = await db.prospect.update({ where: { id: prospectId }, data });
-  await saveContacts(db, prospectId, finding);
   return { changed: true, prospect: after, score: scored.score };
 }
 
@@ -710,6 +763,7 @@ module.exports = {
   textOf, emailsFromPages, headcountFromPages, ownerFromPages, signalsFromPages,
   linksWorthFollowing, readSite, readNoWebsite, fetchSite,
   peopleFromPages, linkedInFromPages, pairEmailsToPeople, saveContacts,
+  selfDescription, tradeWordsFrom,
   enrichHeadcount, enrichEmail, needsSiteRead, applySiteRead, runSiteEnrichment,
   resolveSiteAddress, domainOf,
 };

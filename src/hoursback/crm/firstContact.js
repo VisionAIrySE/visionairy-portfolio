@@ -104,13 +104,24 @@ const SUBJECTS = {
 
 // The fixed body. {greeting}, {opener}, {followOn} and {business} are the only
 // things that move.
+// Who he is, in one line, without a resume. The point is that he has run the
+// jobs he is offering to fix, so he is not a software person guessing at how
+// an office works. Options were written and Russ picked; the others are kept
+// here so a change is a one-word edit rather than a rewrite.
+const CREDIBILITY = {
+  done_the_jobs: 'I have carried a bag, run the ops desk and built businesses from nothing, so I am not a software person guessing at how your week goes.',
+  decades: 'Before this I spent decades running sales, service and operations, in start-ups and in some of the largest companies in their field, so I know what the work actually looks like from the inside.',
+  short: 'I have run sales and operations for a living, so I am not a software person guessing at how your week goes.',
+};
+const CREDIBILITY_LINE = CREDIBILITY.decades;
+
 const BODY = `Hi {greeting},
 
 I'm local to Central Oregon and I build software that takes repetitive office work off people's plates, and rather than describe it I'd rather point at something specific.
 
 {opener} {followOn}
 
-What I actually do is spend a week inside an operation and come back with a plain list of where the hours are going, which of them can be fixed with tools that already exist, and which would need something built. You get the whole picture in your hands either way, and if I can't find at least ten hours a week your team could have back, you don't pay me.
+{credibility} What I actually do is spend a week inside an operation and come back with a plain list of where the hours are going, which of them can be fixed with tools that already exist, and which would need something built. You get the whole picture in your hands either way, and if I can't find at least ten hours a week your team could have back, you don't pay me.
 
 I'm not asking for a meeting, I'd just welcome the chance to share more if it's useful!
 
@@ -211,6 +222,7 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{greeting}', greetingFor(prospect))
     .replace('{opener}', OPENERS[key])
     .replace('{followOn}', line)
+    .replace('{credibility}', CREDIBILITY_LINE)
     .replace(/\{business\}/g, business);
   return { subject, body, openedWith: key, trade };
 }
@@ -251,6 +263,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
 }
 
 module.exports = {
+  CREDIBILITY, CREDIBILITY_LINE,
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
