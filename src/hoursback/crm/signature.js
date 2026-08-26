@@ -20,6 +20,11 @@ const CONTACT = {
   site: 'https://www.visionairy.biz',
   siteLabel: 'VisionAIry.biz',
   linkedIn: 'https://www.linkedin.com/in/russ-wright-00575030b/',
+  // In the sign-off, never in the body. The message closes on "no meeting
+  // needed and no obligation", and a booking link in the same breath takes
+  // that back. Down here it is simply available to anyone already decided
+  // (Russ, 2026-08-26).
+  calendly: 'https://calendly.com/visionairy',
 };
 
 let _logo = null;
@@ -52,6 +57,9 @@ function signatureHtml() {
       <a href="${CONTACT.site}" style="color:${GREEN};text-decoration:none">${CONTACT.siteLabel}</a> &nbsp;·&nbsp;
       <a href="${CONTACT.linkedIn}" style="color:${GREEN};text-decoration:none">LinkedIn</a>
     </div>
+    <div style="padding-top:6px">
+      <a href="${CONTACT.calendly}" style="color:${GREEN};text-decoration:none">Grab a time on my calendar</a>
+    </div>
   </td></tr>
 </table>`;
 }
@@ -63,7 +71,8 @@ ${CONTACT.name}
 Founder
 VisionAIry
 ${CONTACT.phone} · ${CONTACT.email}
-${CONTACT.siteLabel} · ${CONTACT.linkedIn}`;
+${CONTACT.siteLabel} · ${CONTACT.linkedIn}
+${CONTACT.calendly}`;
 }
 
 // Turn the written message into the version a mail app draws, sign-off and

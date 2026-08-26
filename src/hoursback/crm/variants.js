@@ -91,10 +91,14 @@ const GUARANTEE_PRICED = [
 // with no context becomes the whole conversation; the same hours as a slice of
 // somebody's working life cannot be argued with.
 const YEAR_FRAMING = [
-  '{hours} hours a week is {yearHours} hours a year, which is about {months} of somebody\'s working life handed back.',
-  'Put another way, {hours} hours a week comes to {yearHours} hours a year, roughly {months} of one person\'s time.',
-  '{hours} hours a week does not sound like much until it is {yearHours} hours a year, which is about {months} of a working life.',
-  'Across a year {hours} hours a week is {yearHours} hours, near enough {months} of one person\'s working time.',
+  // Russ asked for a return figure. A percentage is a dollar claim wearing a
+  // hat — the only way to reach one is to price an hour and divide by the fee,
+  // which is the argument he struck out. Hours against hours cannot be
+  // disputed, because both sides of it are time (2026-08-26).
+  "{hours} hours a week is {yearHours} hours a year, which is about {months} of somebody's working life handed back. All it costs you up front is one conversation.",
+  "Put another way, {hours} hours a week comes to {yearHours} hours a year, roughly {months} of one person's time, for the price of an afternoon of yours.",
+  "{hours} hours a week does not sound like much until it is {yearHours} hours a year, which is about {months} of a working life. You give me one conversation to find it.",
+  "Across a year {hours} hours a week is {yearHours} hours, near enough {months} of one person's working time. That is more than a hundred hours back for every hour you spend with me.",
 ];
 
 // The SECOND message is where the price belongs. It names the fee and the

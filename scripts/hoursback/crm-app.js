@@ -550,7 +550,9 @@ async function emailScreen(params) {
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
     <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send the queue — at most ${Math.min(left, 25)} right now</button></form>
+    <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
   </p>
+  <p class="mini">"Send one to me" posts a real message to russ@visionairy.biz and nowhere else. It proves the sending key on this site works before a single prospect hears from you.</p>
   <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go, never passes today's ${L.dailyEmailCap(weeks)}, and refuses entirely without an approved message.</p>
   ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
@@ -811,6 +813,33 @@ const server = http.createServer(async (req, res) => {
           const weeks = Number(url.searchParams.get('weeks') || form.weeks || 0);
           const run = await L.sendQueuedEmails(db, { weeksSending: weeks });
           res.writeHead(303, { Location: `/email?sent=${run.sent}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
+          return res.end();
+        }
+        // Prove the sending key works without spending a prospect on it.
+        // The key lives only on this host, so it cannot be tested from a
+        // laptop — this is the one honest way to check (2026-08-26).
+        if (what === 'testsend') {
+          const { toHtmlEmail } = require('../../src/hoursback/crm/signature.js');
+          const sample = await db.outreachMessage.findFirst({ where: { lane: 'EMAIL', state: 'DRAFT' } });
+          const key = process.env.RESEND_API_KEY;
+          let outcome;
+          if (!key) outcome = 'There is no sending key set on this site.';
+          else {
+            try {
+              const r = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  from: process.env.HOURSBACK_EMAIL_FROM || 'Russ Wright <russ@visionairy.biz>',
+                  to: ['russ@visionairy.biz'],
+                  subject: 'Hours Back — this is what a prospect will see',
+                  html: toHtmlEmail(sample ? sample.body : 'No draft to show.'),
+                }),
+              });
+              outcome = r.ok ? 'Sent. Check your inbox.' : `The sending service refused it: ${r.status} ${(await r.text()).slice(0, 160)}`;
+            } catch (e) { outcome = `It could not reach the sending service: ${e.message}`; }
+          }
+          res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent(outcome)}` });
           return res.end();
         }
         // Saving a rewrite keeps it as proof of how Russ actually writes.
