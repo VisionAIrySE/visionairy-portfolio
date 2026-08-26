@@ -19,7 +19,7 @@ const OPENERS = {
   // The strongest opening there is: they run more than one thing, so the
   // hours are multiplied and nobody else writing to them has noticed.
   runs_several_businesses:
-    'I noticed you are behind more than one business here, which usually means you are carrying the same office work twice over.',
+    'I gather you have more than one business going, which usually means the same office work landing on you twice over.',
   hiring_several_office_roles:
     'I noticed you have more than one office role open at the moment.',
   hiring_admin_role:
@@ -215,12 +215,20 @@ function longevityLine(prospect) {
   return `${y} years${where}, so none of this will be news to you. `;
 }
 
-// What they already pay for says exactly what is missing beside it.
-function toolsLine(prospect) {
+// What they already pay for stays OUT of a cold message.
+//
+// The test is whether they chose to put it in the world. A fax number, a
+// booking page, forty years on the homepage — all published, and noticing is
+// flattering. The software behind their site was never broadcast, and naming
+// it reads as somebody who went looking rather than somebody who looked. It
+// stays on the card, for the call, where they are already talking to you.
+function toolsLine() { return ''; }
+
+// The same information, for Russ's eyes only, on the card and before a call.
+function toolsNoteForRuss(prospect) {
   const tools = String(prospect.toolsInUse || '').split(',').map((t) => t.trim()).filter(Boolean);
-  if (!tools.length) return '';
-  if (tools.length === 1) return ` You are already running ${tools[0]}, which usually means the gap is not the software, it is the handoffs either side of it.`;
-  return ` You are already running ${tools.slice(0, 2).join(' and ')}, and in my experience the hours are almost never inside those, they are in getting things from one to the other.`;
+  if (!tools.length) return null;
+  return `They already run ${tools.slice(0, 3).join(', ')}. Worth raising on the call, not in writing — they never published it.`;
 }
 
 // Pick the tell this message should lead with.
@@ -313,7 +321,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
 }
 
 module.exports = {
-  CREDIBILITY, longevityLine, toolsLine,
+  CREDIBILITY, longevityLine, toolsLine, toolsNoteForRuss,
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,

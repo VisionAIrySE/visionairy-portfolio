@@ -1807,10 +1807,43 @@ def('message_leads_with_the_strongest_thing_known', () => {
   const m = fc.draftFirstContact(p, [{ signal: 'fax_listed' }, { signal: 'runs_several_businesses' }]);
   const leadsWithTheBigOne = m.openedWith === 'runs_several_businesses';
   const carriesYears = /Forty-odd years|41 years/.test(m.body);
-  const carriesTools = /QuickBooks and Square/.test(m.body);
+  // Their software must NOT be here — they never published it. It belongs on
+  // the card, for the call.
+  const keepsSoftwareOut = !/QuickBooks|Square|Mailchimp/i.test(m.body);
   const noDash = !/[—–]/.test(m.body);
-  const ok = leadsWithTheBigOne && carriesYears && carriesTools && noDash;
-  return { ok, detail: ok ? 'it opens on the strongest thing known about them, and still carries their years and their software' : `lead=${m.openedWith} years=${carriesYears} tools=${carriesTools}` };
+  const ok = leadsWithTheBigOne && carriesYears && keepsSoftwareOut && noDash;
+  return { ok, detail: ok ? 'it opens on the strongest thing known, carries the years they published, and leaves out the software they did not' : `lead=${m.openedWith} years=${carriesYears} softwareKeptOut=${keepsSoftwareOut}` };
+}, 'lanes');
+
+def('message_says_only_what_they_put_in_the_world', () => {
+  // The test is whether the business chose to publish it. A fax number, a
+  // booking page, forty years on the homepage — all offered, and noticing is
+  // flattering. The software running behind their website was never
+  // broadcast; naming it in a cold email reads as somebody who went looking
+  // rather than somebody who looked.
+  const fc = firstContact();
+  const p = {
+    name: 'Hoyts Hardware', trade: 'retail & food', ownerName: 'Alison Huycke',
+    yearsInBusiness: 41, toolsInUse: 'QuickBooks, Square, Mailchimp',
+  };
+  const first = fc.draftFirstContact(p, [{ signal: 'fax_listed' }, { signal: 'runs_several_businesses' }]);
+  const second = fc.draftFollowUpTouch(p, 'fax_listed', 2);
+  const third = fc.draftFollowUpTouch(p, 'fax_listed', 3);
+  const li = fc.draftLinkedIn(p, [{ signal: 'fax_listed' }]);
+  const NAMES_THEIR_SOFTWARE = /QuickBooks|Square|Mailchimp|ServiceTitan|Dentrix|Clio|Jobber|Housecall|AppFolio|Procore/i;
+  const leaked = [first, second, third, li].filter(Boolean).filter((m) => NAMES_THEIR_SOFTWARE.test(`${m.subject} ${m.body}`));
+
+  // What IS published may be used freely.
+  const usesYears = /Forty-odd years|41 years/.test(first.body);
+  // And it is still on the card, for the call.
+  const note = fc.toolsNoteForRuss(p);
+  const keptForTheCall = Boolean(note) && NAMES_THEIR_SOFTWARE.test(note);
+  // The multi-business line reads as respectful, not as surveillance.
+  const respectful = /I gather you have more than one business/.test(first.body)
+    && !/I (?:looked|searched|found|checked) you up|according to (?:state|public) record|your (?:registration|filing)/i.test(first.body);
+
+  const ok = leaked.length === 0 && usesYears && keptForTheCall && respectful;
+  return { ok, detail: ok ? 'nothing they did not publish appears in any message; their software is kept on the card for the call, and what they did publish is used freely' : `leaked in ${leaked.length} messages | years=${usesYears} note=${keptForTheCall} respectful=${respectful}` };
 }, 'lanes');
 
 def('three_lanes_declared', () => {
