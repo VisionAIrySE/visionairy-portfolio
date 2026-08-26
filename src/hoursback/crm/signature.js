@@ -18,7 +18,7 @@ const CONTACT = {
   phone: '503-621-8000',
   email: 'russ@visionairy.biz',
   site: 'https://www.visionairy.biz',
-  siteLabel: 'visionairy.biz',
+  siteLabel: 'VisionAIry.biz',
   linkedIn: 'https://www.linkedin.com/in/russ-wright-00575030b/',
 };
 
@@ -40,8 +40,10 @@ function signatureHtml() {
   return `<table cellpadding="0" cellspacing="0" border="0" style="font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a">
   ${logo}
   <tr><td style="border-top:2px solid ${LEAF};padding-top:8px">
-    <div style="padding-bottom:6px">Best,<br><b>Russ</b></div>
+    <div style="padding-bottom:10px">Best regards,</div>
     <div style="font-weight:700">${CONTACT.name}</div>
+    <div>Founder</div>
+    <div>VisionAIry</div>
     <div style="padding-top:6px">
       <a href="tel:+1${CONTACT.phone.replace(/\D/g, '')}" style="color:#1a1a1a;text-decoration:none">${CONTACT.phone}</a> &nbsp;·&nbsp;
       <a href="mailto:${CONTACT.email}" style="color:#1a1a1a;text-decoration:none">${CONTACT.email}</a>
@@ -56,15 +58,12 @@ function signatureHtml() {
 
 // The same sign-off for anywhere that cannot show pictures.
 function signatureText() {
-  return `Best,
-Russ
-
+  return `Best regards,
 ${CONTACT.name}
-VisionAIry, Success Engineering
-${CONTACT.phone}
-${CONTACT.email}
-${CONTACT.siteLabel}
-${CONTACT.linkedIn}`;
+Founder
+VisionAIry
+${CONTACT.phone} · ${CONTACT.email}
+${CONTACT.siteLabel} · ${CONTACT.linkedIn}`;
 }
 
 // Turn the written message into the version a mail app draws, sign-off and
@@ -72,7 +71,7 @@ ${CONTACT.linkedIn}`;
 function toHtmlEmail(plainBody) {
   // Everything from "Best," onward is the sign-off; the drawn version
   // renders it, so the typed one is trimmed first.
-  const withoutSignOff = String(plainBody).split(/\n\nBest,\n/)[0];
+  const withoutSignOff = String(plainBody).split(/\n\nBest\b/)[0];
   const paragraphs = withoutSignOff.split(/\n\n+/)
     .map((p) => `<p style="margin:0 0 14px">${p.replace(/\n/g, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`)
     .join('\n');

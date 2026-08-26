@@ -141,16 +141,16 @@ const BODY = `Hi {greeting},
 
 {opener} {followOn}
 
-{credibility} What I do is spend time with you and your team, enough to actually understand how the work moves, and then come back with a plain list of where the hours are going, which of them could be fixed with tools that already exist, and which would need something built. In your case that would probably look like {valueIn}. You would have the whole picture either way, and if I couldn't find at least ten hours a week your team could have back, there would be nothing to pay.
+{credibility} {whatIDo} In your case that would probably look like {valueIn}. {guarantee}
 
 {close}
 
-Best,
-Russ
-
+Best regards,
 Russ Wright
-Visionairy
-russ@visionairy.biz`;
+Founder
+VisionAIry
+503-621-8000 · russ@visionairy.biz
+VisionAIry.biz · LinkedIn`;
 
 // ---------------------------------------------------------------------------
 // the second and third touch
@@ -173,12 +173,12 @@ Here is what I actually meant. {recognition}
 
 I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up. That is the whole reason I look first and quote after, and why you do not pay if the hours are not there. There is not much to weigh up, really. Either you get the hours back, or you find out for nothing.
 
-Best,
-Russ
-
+Best regards,
 Russ Wright
-Visionairy
-russ@visionairy.biz`,
+Founder
+VisionAIry
+503-621-8000 · russ@visionairy.biz
+VisionAIry.biz · LinkedIn`,
 };
 
 const THIRD_TOUCH = {
@@ -191,12 +191,12 @@ If the timing is wrong, say the word and I will make a note for the spring rathe
 
 If it is not the timing but the idea, I would genuinely like to know that too. It is useful either way, and I would rather hear a no than keep guessing.
 
-Best,
-Russ
-
+Best regards,
 Russ Wright
-Visionairy
-russ@visionairy.biz`,
+Founder
+VisionAIry
+503-621-8000 · russ@visionairy.biz
+VisionAIry.biz · LinkedIn`,
 };
 
 // A short way of naming what was noticed, for the second message.
@@ -282,13 +282,21 @@ function draftFirstContact(prospect, signals = []) {
   // Meet them where they write. His tone never moves; only the ceremony does.
   const register = registerFor(prospect.selfDescription);
   const subject = (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, business);
+  // Two dentists both still listing a fax number were getting near-identical
+  // letters, and in a town this size they might know each other. Each fixed
+  // line has four wordings, chosen by the business's own name so it is the
+  // same for them every time and different across the list.
+  const V = require('./variants.js');
+  const seed = business;
   const body = BODY
     .replace('{greeting}', greetingFor(prospect))
-    .replace('{intro}', OPENING_BY_REGISTER[register])
-    .replace('{opener}', longevityLine(prospect) + OPENERS[key])
+    .replace('{intro}', V.pick(V.OPENINGS[register], seed, 'intro'))
+    .replace('{opener}', longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
-    .replace('{close}', CLOSING_BY_REGISTER[register])
+    .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
+    .replace('{guarantee}', V.pick(V.GUARANTEE, seed, 'guarantee'))
+    .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
     .replace(/\{business\}/g, business);
   return { subject, body, openedWith: key, trade, register };

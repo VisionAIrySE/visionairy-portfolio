@@ -1719,8 +1719,8 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
     && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
     && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
-    && [a, b, c].every((m) => /there would be nothing to pay/.test(m.body))
-    && [a, b, c].every((m) => /\nBest,\nRuss\n/.test(m.body));
+    && [a, b, c].every((m) => require(path.join(ROOT, 'src/hoursback/crm/variants.js')).GUARANTEE.some((g) => m.body.includes(g)))
+    && [a, b, c].every((m) => /\nBest regards,\nRuss Wright\nFounder\nVisionAIry\n/.test(m.body));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
 
@@ -1840,11 +1840,57 @@ def('message_says_only_what_they_put_in_the_world', () => {
   const note = fc.toolsNoteForRuss(p);
   const keptForTheCall = Boolean(note) && NAMES_THEIR_SOFTWARE.test(note);
   // The multi-business line reads as respectful, not as surveillance.
-  const respectful = /I gather you have more than one business/.test(first.body)
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const respectful = V.TELL_WORDINGS.runs_several_businesses.some((t) => first.body.includes(t))
     && !/I (?:looked|searched|found|checked) you up|according to (?:state|public) record|your (?:registration|filing)/i.test(first.body);
 
   const ok = leaked.length === 0 && usesYears && keptForTheCall && respectful;
   return { ok, detail: ok ? 'nothing they did not publish appears in any message; their software is kept on the card for the call, and what they did publish is used freely' : `leaked in ${leaked.length} messages | years=${usesYears} note=${keptForTheCall} respectful=${respectful}` };
+}, 'lanes');
+
+def('message_two_businesses_alike_get_different_letters', () => {
+  // Two dentists who both still list a fax number might well know each other
+  // in a town this size. Same approved wording, said a different way.
+  const fc = firstContact();
+  const names = ['Cascade Smiles Dental', 'Bend Family Dental', 'Redmond Dental Care', 'Sisters Dental',
+    'High Desert Dental', 'Awbrey Dental', 'Bend Dental Group', 'Deschutes Dental'];
+  const bodies = names.map((name) => fc.draftFirstContact({ name, trade: 'dental', ownerName: 'Sara Lin' }, [{ signal: 'fax_listed' }]).body);
+  const allDistinct = new Set(bodies).size === names.length;
+  const noHoles = !bodies.some((b) => /undefined|\[object|\{[a-z]+\}/.test(b));
+  // And the same business must get the same letter every time, or a redraft
+  // would send somebody a different message than the one already read.
+  const stable = fc.draftFirstContact({ name: 'Sisters Dental', trade: 'dental' }, [{ signal: 'fax_listed' }]).body
+    === fc.draftFirstContact({ name: 'Sisters Dental', trade: 'dental' }, [{ signal: 'fax_listed' }]).body;
+  const ok = allDistinct && noHoles && stable;
+  return { ok, detail: ok ? `eight dental practices with the same tell got eight different letters, and each one gets the same letter every time` : `distinct=${new Set(bodies).size}/${names.length} holes=${!noHoles} stable=${stable}` };
+}, 'lanes');
+
+def('message_every_wording_is_free_of_machine_habits', () => {
+  // Every alternative wording has to clear the same bar as the original: no
+  // dashes, no sales jargon, no stiff constructions, nothing that reads as
+  // though a machine assembled it.
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const all = [
+    ...Object.values(V.OPENINGS).flat(), ...V.WHAT_I_DO, ...V.GUARANTEE,
+    ...Object.values(V.CLOSES).flat(), ...Object.values(V.TELL_WORDINGS).flat(),
+  ];
+  const BAD = [
+    [/[—–]/, 'a dash'],
+    [/\b(leverage|streamline|utilize|robust|seamless|synerg|holistic|optimi[sz]e|empower|cutting[- ]edge|best[- ]in[- ]class|game[- ]chang|unlock|elevate|revolutioni)/i, 'sales jargon'],
+    [/\b(In today's|It is worth noting|That said,|Moreover|Furthermore|delve|myriad|plethora|landscape of|realm of|navigate the)/i, 'a stiff construction'],
+    [/\bI hope this (?:email )?finds you\b|\bI wanted to reach out\b|\bjust wanted to\b|\btouch base\b|\bcircle back\b/i, 'a cold-email cliche'],
+  ];
+  const bad = [];
+  for (const line of all) {
+    for (const [re, why] of BAD) if (re.test(line)) bad.push(`${why}: "${line.slice(0, 50)}"`);
+  }
+  const counts = [
+    ...Object.values(V.OPENINGS).map((l) => l.length), V.WHAT_I_DO.length, V.GUARANTEE.length,
+    ...Object.values(V.CLOSES).map((l) => l.length), ...Object.values(V.TELL_WORDINGS).map((l) => l.length),
+  ];
+  const enough = counts.every((n) => n >= 4);
+  const ok = !bad.length && enough;
+  return { ok, detail: ok ? `all ${all.length} wordings clear the bar, and every line has at least four ways to say it` : (bad.slice(0, 2).join(' | ') || 'some line has fewer than four wordings') };
 }, 'lanes');
 
 def('three_lanes_declared', () => {
@@ -1989,14 +2035,27 @@ def('approved_template_sends_unattended', () => withDb(async (db) => {
 }), 'lanes');
 
 def('personalisation_changes_only_prospect_values', () => {
+  // Every sentence that goes out has to come from the wordings Russ approved.
+  // Which one a business gets varies, so two alike do not receive the same
+  // letter — but nothing is ever written fresh, so nothing goes out unread.
   const fc = firstContact();
-  const a = fc.draftFirstContact({ name: 'Alpha Co', ownerName: 'Dale Hutchins' }, [{ signal: 'fax_listed' }]);
-  const b = fc.draftFirstContact({ name: 'Beta Co', ownerName: 'Sara Lin' }, [{ signal: 'fax_listed' }]);
-  const strip = (t, p) => t.replace(new RegExp(p.first, 'g'), '{X}').replace(new RegExp(p.biz, 'g'), '{B}');
-  const sa = strip(a.body, { first: 'Dale', biz: 'Alpha Co' });
-  const sb = strip(b.body, { first: 'Sara', biz: 'Beta Co' });
-  const ok = sa === sb && a.body !== b.body;
-  return { ok, detail: ok ? 'two businesses, same approved wording, only their own name and greeting different' : 'the copies differ beyond their own values' };
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const approved = new Set([
+    ...Object.values(V.OPENINGS).flat(), ...V.WHAT_I_DO, ...V.GUARANTEE,
+    ...Object.values(V.CLOSES).flat(), ...Object.values(V.TELL_WORDINGS).flat(),
+  ]);
+  const strays = [];
+  for (const name of ['Alpha Co', 'Beta Co', 'Cascade Smiles Dental', 'Sisters Dental', 'Legacy Auto Repair']) {
+    const m = fc.draftFirstContact({ name, ownerName: 'Dale Hutchins' }, [{ signal: 'fax_listed' }]);
+    // The opening, the tell and the close must each be a line he has read.
+    const paras = m.body.split('\n\n');
+    const opening = paras[1];
+    const close = paras[paras.length - 2];
+    if (!approved.has(opening)) strays.push(`opening: ${opening.slice(0, 40)}`);
+    if (!approved.has(close)) strays.push(`close: ${close.slice(0, 40)}`);
+    if (![...V.TELL_WORDINGS.fax_listed].some((t) => m.body.includes(t))) strays.push(`tell for ${name}`);
+  }
+  return { ok: !strays.length, detail: strays.length ? strays.slice(0, 2).join(' | ') : 'every sentence that goes out is one Russ has read; only which one varies' };
 }, 'lanes');
 
 def('followups_wait_in_pending_batch', () => withDb(async (db) => {
