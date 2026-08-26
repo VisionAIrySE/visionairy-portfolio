@@ -65,6 +65,9 @@ model Prospect {
   linkedInUrl     String?   // the business's own LinkedIn page, from their site
   selfDescription String?   // the one line they wrote about themselves
   trade           String?   // settled from their own words when the name could not
+  yearsInBusiness Int?      // "since 1994" — an opener that writes itself
+  toolsInUse      String?   // what they already pay for, which says what is missing
+  openRoles       Int?      // how many office roles they are advertising
   automationScore Int?
   scoreEvidence   String?
 

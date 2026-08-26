@@ -309,6 +309,84 @@ function pairEmailsToPeople(emails, people) {
 }
 
 // ---------------------------------------------------------------------------
+// the rest of what a website gives away
+//
+// All of this was sitting in pages already downloaded and never read. Years in
+// business writes an opener on its own. The software they run says exactly
+// what is missing. A team page with twelve faces on it is a team of twelve,
+// which sets the price. Three open office roles is a very different call from
+// one.
+
+const YEARS_RE = [
+  /\b(?:since|established|est\.?|serving [A-Za-z ]{3,30} since|founded in|in business since)\s*(19[5-9]\d|20[0-2]\d)\b/i,
+  /\b(?:for )?(?:over|more than|nearly)\s*(\d{2})\s*years\b/i,
+  /\b(\d{2})\+?\s*years (?:of experience|in business|serving)/i,
+];
+
+// What they are already paying for. Each one says what is missing beside it.
+const TOOLS = {
+  QuickBooks: /quickbooks|\bQBO\b/i, Xero: /\bxero\b/i,
+  ServiceTitan: /servicetitan/i, 'Housecall Pro': /housecall ?pro/i, Jobber: /\bjobber\b/i,
+  Procore: /procore/i, Buildertrend: /buildertrend/i, CoConstruct: /coconstruct/i,
+  Dentrix: /dentrix/i, 'Open Dental': /open ?dental/i, Eaglesoft: /eaglesoft/i,
+  Clio: /\bclio\b/i, MyCase: /mycase/i, Salesforce: /salesforce/i, HubSpot: /hubspot/i,
+  Mindbody: /mindbody/i, Vagaro: /vagaro/i, Calendly: /calendly/i, Acuity: /acuityscheduling/i,
+  Square: /squareup|\bsquare pos\b/i, Toast: /toasttab/i, Shopify: /shopify/i,
+  Mailchimp: /mailchimp/i, Constant_Contact: /constantcontact/i,
+  AppFolio: /appfolio/i, Buildium: /buildium/i, 'Rent Manager': /rentmanager/i,
+};
+
+// A team page names people in a repeating block. Counting the blocks is a
+// better team size than anything most businesses publish about themselves.
+function teamCountFrom(pages) {
+  let best = 0;
+  for (const page of pages) {
+    if (!/team|staff|about|our[- ]people|meet/i.test(page.url)) continue;
+    const html = String(page.html);
+    // Count the repeating shapes a team page uses, and take the largest.
+    const shapes = [
+      (html.match(/<img[^>]+(?:alt|title)=["'][^"']{4,40}["'][^>]*>/gi) || []).length,
+      (html.match(/class=["'][^"']*(?:team-member|staff-member|person|bio-card|member)[^"']*["']/gi) || []).length,
+      (html.match(/<h[3-5][^>]*>\s*[A-Z][a-z]+\s+[A-Z][a-z]/g) || []).length,
+    ];
+    best = Math.max(best, ...shapes);
+  }
+  // Two is a coincidence, sixty is a photo gallery.
+  return best >= 3 && best <= 60 ? best : null;
+}
+
+function yearsInBusinessFrom(pages) {
+  const thisYear = new Date().getFullYear();
+  for (const page of pages) {
+    const text = textOf(page.html);
+    for (const re of YEARS_RE) {
+      const m = text.match(re);
+      if (!m) continue;
+      const n = Number(m[1]);
+      const years = n > 1900 ? thisYear - n : n;
+      if (years >= 3 && years <= 120) return { years, since: n > 1900 ? n : null, quote: quoteAround(text, m.index) };
+    }
+  }
+  return null;
+}
+
+function toolsFrom(pages) {
+  const all = pages.map((p) => `${p.html}`).join(' ').slice(0, 400000);
+  return Object.entries(TOOLS).filter(([, re]) => re.test(all)).map(([name]) => name.replace(/_/g, ' ')).slice(0, 6);
+}
+
+// How many office roles they are advertising, not just whether they are.
+function openRolesFrom(pages) {
+  let n = 0;
+  for (const page of pages) {
+    if (!/career|job|employ|hiring|join/i.test(page.url)) continue;
+    const text = textOf(page.html);
+    n = Math.max(n, (text.match(HIRING_ROLE_RE) || []).length);
+  }
+  return n || null;
+}
+
+// ---------------------------------------------------------------------------
 // the manual-work tells
 //
 // Each entry says how to spot it. `absence: true` means the signal fires when
@@ -431,6 +509,10 @@ function readSite(pages, options = {}) {
     linkedIn: linkedInFromPages(list),
     selfDescription: selfDescription(list),
     tradeWords: tradeWordsFrom(list),
+    yearsInBusiness: yearsInBusinessFrom(list),
+    tools: toolsFrom(list),
+    teamCount: teamCountFrom(list),
+    openRoles: openRolesFrom(list),
     signals: [
       ...signalsFromPages(list),
       ...(best ? [] : [{ signal: 'no_email_published', url: list[0].url, quote: 'no email address published anywhere on the site' }]),
@@ -619,6 +701,18 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
   // never got them written at all — 14 of 1,583, found 2026-08-26.
   if (finding.linkedIn && finding.linkedIn.company) data.linkedInUrl = finding.linkedIn.company;
   if (finding.selfDescription) data.selfDescription = finding.selfDescription;
+  if (finding.yearsInBusiness) data.yearsInBusiness = finding.yearsInBusiness.years;
+  if (finding.tools && finding.tools.length) data.toolsInUse = finding.tools.join(', ');
+  if (finding.openRoles) data.openRoles = finding.openRoles;
+  // A team page with twelve faces is a team of twelve — better than anything
+  // most businesses publish, and it sets the price.
+  if (finding.teamCount && head.employeeCount === null) {
+    data.employeeCount = finding.teamCount;
+    data.headcountStatus = 'RESOLVED';
+    data.headcountPublishedAs = `${finding.teamCount} people named on their team page`;
+    const band = bandForEmployeeCount(finding.teamCount);
+    data.segment = band.band; data.auditFee = band.auditFee; data.guaranteedHours = band.guaranteedHours;
+  }
   if (finding.tradeWords) {
     const { tradeOf } = require('./crm/queues.js');
     const fromName = tradeOf(before.name);
@@ -770,7 +864,7 @@ module.exports = {
   textOf, emailsFromPages, headcountFromPages, ownerFromPages, signalsFromPages,
   linksWorthFollowing, readSite, readNoWebsite, fetchSite,
   peopleFromPages, linkedInFromPages, pairEmailsToPeople, saveContacts,
-  selfDescription, tradeWordsFrom,
+  selfDescription, tradeWordsFrom, yearsInBusinessFrom, toolsFrom, teamCountFrom, openRolesFrom, TOOLS,
   enrichHeadcount, enrichEmail, needsSiteRead, applySiteRead, runSiteEnrichment,
   resolveSiteAddress, domainOf,
 };

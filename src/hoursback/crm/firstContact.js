@@ -184,6 +184,27 @@ const SHORT_TELLS = {
   no_customer_portal: 'questions landing with your front desk',
 };
 
+// A business that has been going thirty years has seen every version of this,
+// and saying so is the least generic sentence in the whole message. Only used
+// where their own site states it.
+function longevityLine(prospect) {
+  const y = prospect.yearsInBusiness;
+  if (!y || y < 8) return '';
+  const town = (String(prospect.address || '').match(/,\s*([A-Za-z ]+),\s*OR/) || [])[1];
+  const where = town ? ` in ${town.trim()}` : ' in Central Oregon';
+  if (y >= 40) return `Forty-odd years${where} means you have seen every version of this, so I will be brief. `;
+  if (y >= 25) return `${y} years${where} is a long time to have watched the paperwork change. `;
+  return `${y} years${where}, so none of this will be news to you. `;
+}
+
+// What they already pay for says exactly what is missing beside it.
+function toolsLine(prospect) {
+  const tools = String(prospect.toolsInUse || '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (!tools.length) return '';
+  if (tools.length === 1) return ` You are already running ${tools[0]}, which usually means the gap is not the software, it is the handoffs either side of it.`;
+  return ` You are already running ${tools.slice(0, 2).join(' and ')}, and in my experience the hours are almost never inside those, they are in getting things from one to the other.`;
+}
+
 // Pick the tell this message should lead with.
 function chooseOpener(signals = []) {
   const names = signals.map((s) => (typeof s === 'string' ? s : s.signal));
@@ -210,7 +231,8 @@ function greetingFor(prospect) {
 // can name it, and the general version when we cannot — never a guess.
 function followOnFor(key, prospect) {
   const { tradeOf } = require('./queues.js');
-  const trade = tradeOf(prospect.name);
+  // The trade settled from their own website beats one guessed from the name.
+  const trade = prospect.trade || tradeOf(prospect.name);
   const work = TRADE_WORK[trade];
   if (!work || !TRADE_FOLLOW_ONS[key]) return { line: FOLLOW_ONS[key], trade: null };
   return { line: TRADE_FOLLOW_ONS[key].replace('{work}', work), trade };
@@ -228,8 +250,8 @@ function draftFirstContact(prospect, signals = []) {
   const body = BODY
     .replace('{greeting}', greetingFor(prospect))
     .replace('{intro}', OPENING_BY_REGISTER[register])
-    .replace('{opener}', OPENERS[key])
-    .replace('{followOn}', line)
+    .replace('{opener}', longevityLine(prospect) + OPENERS[key])
+    .replace('{followOn}', line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
     .replace('{close}', CLOSING_BY_REGISTER[register])
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
@@ -261,7 +283,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
   const t = touch === 2 ? SECOND_TOUCH : THIRD_TOUCH;
   const { painFor } = require('./painPoints.js');
-  const pain = painFor(tradeOf(prospect.name));
+  const pain = painFor(prospect.trade || tradeOf(prospect.name));
   const body = t.body
     .replace('{greeting}', greetingFor(prospect))
     .replace('{shortTell}', SHORT_TELLS[openedWith] || 'the admin hours in your office')
@@ -273,7 +295,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
 }
 
 module.exports = {
-  CREDIBILITY,
+  CREDIBILITY, longevityLine, toolsLine,
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
