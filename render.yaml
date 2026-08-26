@@ -15,5 +15,9 @@ services:
         sync: false
       - key: CRM_PASSWORD
         sync: false   # the CRM's front-door password - typed in the dashboard
+      - key: RESEND_API_KEY
+        sync: false   # the sending key - pasted in the dashboard, never in Git
+      - key: HOURSBACK_EMAIL_FROM
+        sync: false   # who the mail comes from, e.g. Russ Wright <russ@visionairy.biz>
       # The Google Places key is deliberately NOT deployed - standing order
       # 2026-08-25: no Places requests until Russ lifts it in writing.

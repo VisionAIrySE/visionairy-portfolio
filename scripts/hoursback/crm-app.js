@@ -76,7 +76,7 @@ a{color:#065f46}
 nav{margin-bottom:8px} nav a{margin-right:14px;font-weight:600}
 table{width:100%;border-collapse:collapse} td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;font-size:15px}
 pre.msg{background:#fff;border:1px solid #e0ddd5;border-radius:10px;padding:14px;white-space:pre-wrap;font:15px/1.55 system-ui,sans-serif;margin:8px 0}
-</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a><a href="/email">Email</a><a href="/linkedin">LinkedIn</a></nav>${body}</body></html>`;
+</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a><a href="/email">Email</a><a href="/linkedin">LinkedIn</a><a href="/add">+ Add</a></nav>${body}</body></html>`;
 }
 
 const scoreBadge = (n) => `<span class="pill ${(n || 0) >= 40 ? '' : 'cool'}">${n === null || n === undefined ? '–' : n}</span>`;
@@ -138,10 +138,93 @@ async function list(params) {
   <form method="GET" action="/list" class="row" style="margin:12px 0">
     <input name="q" value="${esc(q)}" placeholder="search a name, a town, an email" style="flex:1">
     <button class="primary">Search</button>
+    <a class="btn" href="/add">+ Add a business</a>
   </form>
   <p class="muted">Sorted by how manual they still look — the highest numbers are the ones most worth a call.</p>
   <table><tr><th>Score</th><th>Business</th><th>Phone</th><th>Email</th><th>Stage</th></tr>${rowHtml}</table>
   <p class="row">${page_ > 1 ? link(page_ - 1) : '<span></span>'}<span class="muted">page ${page_} of ${pages || 1}</span>${page_ < pages ? link(page_ + 1) : '<span></span>'}</p>`);
+}
+
+// ---------------------------------------------------------------------------
+// Adding a business by hand. The sweep found 2,043; the ones Russ meets at a
+// chamber breakfast are not among them. Everything typed here is his, so it
+// goes straight into the hand-entered columns where no later sweep can touch
+// it, and the record is marked as his rather than the machine's.
+function addForm(message) {
+  return page(`<h1>Add a business</h1>
+  ${message ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">${esc(message)}</div>` : ''}
+  <p class="muted">Someone you met, someone referred, someone the sweep missed. Only the name is required.</p>
+  <form method="POST" action="/add">
+    <div class="grid">
+      <div><label>Business name</label><input name="name" required autofocus></div>
+      <div><label>Phone</label><input name="phone" placeholder="541-555-0100"></div>
+      <div><label>Email</label><input name="email" type="email"></div>
+      <div><label>Website</label><input name="website" placeholder="https://"></div>
+      <div><label>Address</label><input name="address"></div>
+      <div><label>Team size <span class="muted">(sets the price)</span></label><input name="employeeCount" type="number" min="1"></div>
+      <div><label>Owner's name</label><input name="ownerName"></div>
+      <div><label>Who you spoke to</label><input name="contactName"></div>
+    </div>
+    <label>What you know about them <span class="muted">(shows on their card as the reason to call)</span></label>
+    <input name="note" placeholder="e.g. Met at the chamber breakfast, said they are drowning in scheduling">
+    <p><button class="primary">Add them</button> <a class="btn" href="/list">Cancel</a></p>
+  </form>`);
+}
+
+async function addBusiness(form) {
+  const name = String(form.name || '').trim();
+  if (!name) return { error: 'a business needs a name' };
+  const { normalizePhone, normalizeDomain } = require('../../src/hoursback/dedupe.js');
+  const phone = String(form.phone || '').trim() || null;
+  const website = String(form.website || '').trim() || null;
+
+  // Do not create a second copy of somebody already here.
+  const normPhone = phone ? normalizePhone(phone) : null;
+  const normDomain = website ? normalizeDomain(website) : null;
+  const clash = await db.prospect.findFirst({
+    where: { OR: [
+      ...(normPhone ? [{ normalizedPhone: normPhone }] : []),
+      ...(normDomain ? [{ normalizedDomain: normDomain }] : []),
+      { name: { equals: name, mode: 'insensitive' } },
+    ] },
+  });
+  if (clash) return { error: `"${clash.name}" is already here`, id: clash.id };
+
+  const note = String(form.note || '').trim();
+  const count = form.employeeCount ? Number(form.employeeCount) : null;
+  const created = await db.prospect.create({
+    data: {
+      // A hand-added business has no Google id; its own row id stands in.
+      placeId: `hand-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      name,
+      // Everything typed goes in the hand-entered column too, so it outranks
+      // anything a later sweep finds for the same business.
+      nameManualValue: name,
+      phone, phoneManualValue: phone,
+      email: String(form.email || '').trim() || null,
+      emailManualValue: String(form.email || '').trim() || null,
+      website, websiteManualValue: website,
+      address: String(form.address || '').trim() || null,
+      addressManualValue: String(form.address || '').trim() || null,
+      normalizedPhone: normPhone, normalizedDomain: normDomain,
+      ownerName: String(form.ownerName || '').trim() || null,
+      contactName: String(form.contactName || '').trim() || null,
+      employeeCount: count, employeeCountManualValue: count,
+      fieldSource: 'russ',
+      stage: 'NO_CONTACT',
+      emailStatus: form.email ? 'GIVEN_BY_RUSS' : null,
+      siteStatus: website ? null : 'NO_WEBSITE',
+      scoreEvidence: note ? JSON.stringify([{ signal: 'told_to_russ', label: 'What Russ knows', weight: 0, url: null, quote: note }]) : null,
+      automationScore: note ? 0 : null,
+    },
+  });
+  // A team size typed in prices the record immediately.
+  if (count) {
+    const { bandForEmployeeCount } = require('../../src/hoursback/rules.js');
+    const b = bandForEmployeeCount(count);
+    await db.prospect.update({ where: { id: created.id }, data: { segment: b.band, auditFee: b.auditFee, guaranteedHours: b.guaranteedHours } });
+  }
+  return { id: created.id, name };
 }
 
 // ---------------------------------------------------------------------------
@@ -464,6 +547,11 @@ const server = http.createServer(async (req, res) => {
         if (what === 'sent' && arg) { try { await L.markLinkedInSent(db, arg, 'Russ'); } catch { /* already sent */ } }
         res.writeHead(303, { Location: '/linkedin' }); return res.end();
       }
+      if (route === 'add') {
+        const r = await addBusiness(form);
+        if (r.error) return html(res, addForm(r.error + (r.id ? ' — open their card from the list.' : '')));
+        res.writeHead(303, { Location: `/business/${r.id}?saved=1` }); return res.end();
+      }
       if (route === 'call') { await handleCall(id, form); res.writeHead(303, { Location: '/' }); return res.end(); }
       if (route === 'business') { await saveBusiness(id, form); res.writeHead(303, { Location: `/business/${id}?saved=1` }); return res.end(); }
       if (route === 'quote') { try { await freezeQuote(db, id); } catch { /* already quoted */ } res.writeHead(303, { Location: `/business/${id}` }); return res.end(); }
@@ -471,6 +559,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(303, { Location: '/' }); return res.end();
     }
 
+    if (route === 'add') return html(res, addForm(null));
     if (route === 'email') return html(res, await emailScreen(url.searchParams));
     if (route === 'linkedin') return html(res, await linkedInScreen());
     if (route === 'call' && id) return html(res, await callForm(id));

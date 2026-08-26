@@ -1432,6 +1432,47 @@ def('send_never_reaches_someone_who_replied_or_bounced', () => withDb(async (db)
   return { ok, detail: ok ? 'the one who replied and the one who bounced were both skipped; only the third was written to' : JSON.stringify(reached) };
 }), 'lanes');
 
+def('handadd_business_typed_by_russ_outranks_any_sweep', () => withDb(async (db) => {
+  // The sweep found 2,043; the ones Russ meets are not among them. What he
+  // types must survive every later sweep, so it lands in the hand-entered
+  // columns as well as the fetched ones.
+  const tag = 'handadd-outrank';
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: tag } } });
+  const p = await db.prospect.create({
+    data: {
+      placeId: `${tag}-1`, name: 'Chamber Breakfast Co', nameManualValue: 'Chamber Breakfast Co',
+      phone: '541-555-0700', phoneManualValue: '541-555-0700',
+      email: 'pat@chamber.example', emailManualValue: 'pat@chamber.example',
+      fieldSource: 'russ', stage: 'NO_CONTACT',
+    },
+  });
+  // what a later sweep would do
+  const after = await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-9999', email: 'info@chamber.example' } });
+  const { resolveField } = overrides();
+  const ok = resolveField(after, 'phone') === '541-555-0700' && resolveField(after, 'email') === 'pat@chamber.example'
+    && after.fieldSource === 'russ';
+  await db.prospect.deleteMany({ where: { placeId: { startsWith: tag } } });
+  return { ok, detail: ok ? 'a sweep overwrote what it fetched and what Russ typed still stands' : JSON.stringify({ phone: resolveField(after, 'phone'), email: resolveField(after, 'email') }) };
+}), 'handadd');
+
+def('handadd_name_recovered_only_when_it_is_really_a_name', () => {
+  const { nameFromEmail } = require(path.join(ROOT, 'src/hoursback/crm/names.js'));
+  const real = ['dale@x.com', 'devon@dgainescpa.com', 'sonja@y.com', 'reid@z.com'].map(nameFromEmail);
+  const junk = ['info@x.com', 'your@email', 'bagadmin@y.org', 'frontdesk@z.com', 'xqzptv@w.com'].map(nameFromEmail);
+  const ok = real.every(Boolean) && junk.every((n) => n === null);
+  return { ok, detail: ok ? `real names recovered (${real.join(', ')}); shared inboxes and nonsense left alone` : JSON.stringify({ real, junk }) };
+}, 'handadd');
+
+def('handadd_greeting_never_guesses_wrong', () => {
+  const fc = firstContact();
+  const g = (p) => fc.draftFirstContact({ name: 'X', ...p }, [{ signal: 'fax_listed' }]).body.split('\n')[0];
+  const told = g({ ownerName: 'Dale Hutchins', email: 'info@x.com' });
+  const worked = g({ email: 'devon@x.com' });
+  const unknown = g({ email: 'bagadmin@x.com' });
+  const ok = told === 'Hi Dale,' && worked === 'Hi Devon,' && unknown === 'Hi there,';
+  return { ok, detail: ok ? 'a name he was told wins, a name in the address is used, and anything doubtful greets "there"' : [told, worked, unknown].join(' | ') };
+}, 'handadd');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3

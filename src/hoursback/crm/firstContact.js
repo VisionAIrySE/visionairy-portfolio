@@ -88,9 +88,13 @@ function chooseOpener(signals = []) {
 // "Hi Dale," when we know who owns it, "Hi there," when we don't. Never a
 // bare name — Russ's own edit put the greeting back in.
 function greetingFor(prospect) {
-  const name = (prospect.ownerName || prospect.contactName || '').trim();
-  if (!name) return 'there';
-  return name.split(/\s+/)[0];
+  const { nameFromEmail, firstNameOf } = require('./names.js');
+  // A name we were told beats a name we worked out.
+  const known = firstNameOf(prospect.contactName) || firstNameOf(prospect.ownerName);
+  if (known) return known;
+  // "dale@..." is Dale, but only when it is genuinely a name.
+  const fromAddress = nameFromEmail(prospect.emailManualValue || prospect.email);
+  return fromAddress || 'there';
 }
 
 // Build one message for one business. Returns null when there is nothing
