@@ -182,7 +182,9 @@ async function emailScreen(params) {
       <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button>It bounced</button></form>
     </div>`;
 
+  const justSent = params.get('sent');
   return page(`<h1>Email</h1>
+  ${justSent !== null ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(justSent)} sent.</b> ${esc(params.get('why') || '')}</div>` : ''}
   <div class="score">
     <div><b>${reachable}</b>reachable by email</div>
     <div><b>${ready.length}</b>written and waiting</div>
@@ -195,7 +197,11 @@ async function emailScreen(params) {
     ${batch.slice(0, 5).map(one).join('')}
     <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
   <h2>First contact, written and waiting (${ready.length})</h2>
-  <p><form method="POST" action="/email/write"><button ${approved ? 'class="primary"' : 'disabled'}>Write the next 25</button></form></p>
+  <p class="row">
+    <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write the next 25</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send the queue — at most ${Math.min(left, 25)} right now</button></form>
+  </p>
+  <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go, never passes today's ${L.dailyEmailCap(weeks)}, and refuses entirely without an approved message.</p>
   ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
 
@@ -430,6 +436,13 @@ const server = http.createServer(async (req, res) => {
             const m = await L.draftFor(db, t.id, 'EMAIL');
             if (m && m.state === 'DRAFT') written += 1;
           }
+        }
+        // Send for real. The ceiling lives in the code, not in this button.
+        if (what === 'send') {
+          const weeks = Number(url.searchParams.get('weeks') || form.weeks || 0);
+          const run = await L.sendQueuedEmails(db, { weeksSending: weeks });
+          res.writeHead(303, { Location: `/email?sent=${run.sent}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
+          return res.end();
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
         if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');

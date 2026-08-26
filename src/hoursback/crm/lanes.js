@@ -242,8 +242,80 @@ async function approveBatch(db, now = new Date()) {
   return { approved: batch.length };
 }
 
+// ---------------------------------------------------------------------------
+// actually sending
+//
+// Three ceilings, all in the code, none of them optional:
+//   · the day's ramp, which no run may exceed
+//   · a per-run ceiling, so one click can never empty the queue
+//   · a refusal to start at all without a key and an approved message
+//
+// The one that matters: a run counts what it has already sent and stops. It
+// never trusts a loop to end on its own.
+
+const MAX_PER_RUN = 25;          // one click sends at most this many, ever
+
+async function sendQueuedEmails(db, options = {}) {
+  const weeks = Number(options.weeksSending || 0);
+  const key = options.apiKey || process.env.RESEND_API_KEY;
+  const from = options.from || 'Russ Wright <russ@visionairy.biz>';
+  const result = { attempted: 0, sent: 0, failed: 0, stoppedBecause: null };
+
+  if (!await templateIsApproved(db)) { result.stoppedBecause = 'the message has not been approved'; return result; }
+  if (!key) { result.stoppedBecause = 'no sending key is set — nothing was sent'; return result; }
+
+  const allowedToday = await emailsLeftToday(db, weeks, options.now);
+  const ceiling = Math.min(allowedToday, Number(options.limit || MAX_PER_RUN), MAX_PER_RUN);
+  if (ceiling <= 0) { result.stoppedBecause = "today's ceiling is already spent"; return result; }
+
+  const queued = await db.outreachMessage.findMany({
+    where: { lane: 'EMAIL', state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+    include: { prospect: true },
+    orderBy: { prospect: { automationScore: 'desc' } },
+    take: ceiling,
+  });
+
+  const { toHtmlEmail, signatureText } = require('./signature.js');
+  const send = options.send || defaultSender(key);
+
+  for (const m of queued) {
+    if (result.sent >= ceiling) { result.stoppedBecause = `stopped at the ceiling of ${ceiling}`; break; }
+    const to = m.prospect.emailManualValue || m.prospect.email;
+    if (!to) continue;
+    result.attempted += 1;
+    try {
+      await send({
+        from, to, subject: m.subject,
+        html: toHtmlEmail(m.body),
+        text: `${m.body.split(/\n\nRuss Wright\n/)[0]}\n\n${signatureText()}`,
+      });
+      await markEmailSent(db, m.id, options.now);
+      result.sent += 1;
+    } catch (e) {
+      result.failed += 1;   // one refusal never stops the rest
+    }
+  }
+  if (!result.stoppedBecause) result.stoppedBecause = 'the queue ran out';
+  return result;
+}
+
+// The only place that talks to the outside world.
+function defaultSender(key) {
+  return async ({ from, to, subject, html, text }) => {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to, subject, html, text }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`send refused: ${res.status}`);
+    return res.json();
+  };
+}
+
 module.exports = {
-  LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP,
+  LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP, MAX_PER_RUN,
+  sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved,
   signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent,

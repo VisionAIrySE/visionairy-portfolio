@@ -1356,6 +1356,82 @@ async function approvedTemplate(db) {
   return L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
 }
 
+def('send_refuses_without_a_key_or_approval', () => withDb(async (db) => {
+  const L = lanes();
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  let calls = 0;
+  const counting = async () => { calls += 1; };
+  const unapproved = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting });
+  await L.upsertTemplate(db, { subject: 'S', body: 'B' });
+  await L.approveTemplate(db);
+  const keyless = await L.sendQueuedEmails(db, { apiKey: '', send: counting });
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  const ok = calls === 0 && unapproved.sent === 0 && keyless.sent === 0
+    && /not been approved/.test(unapproved.stoppedBecause) && /no sending key/.test(keyless.stoppedBecause);
+  return { ok, detail: ok ? 'nothing left the building without both an approved message and a key' : JSON.stringify({ calls, unapproved, keyless }) };
+}), 'lanes');
+
+def('send_never_exceeds_its_ceiling', () => withDb(async (db) => {
+  await cleanLane(db, 'ceiling');
+  const L = lanes();
+  await approvedTemplate(db);
+  for (const i of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const p = await seedLane(db, `ceiling${i}`);
+    await L.queueEmail(db, p.id);
+  }
+  let calls = 0;
+  const counting = async () => { calls += 1; };
+  const run = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting, limit: 3 });
+  const overAsk = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting, limit: 9999 });
+  await cleanLane(db, 'ceiling');
+  const ok = run.sent === 3 && calls <= 3 + L.MAX_PER_RUN && overAsk.sent <= L.MAX_PER_RUN;
+  return { ok, detail: ok ? `asked for 3 and sent 3; asked for 9999 and never passed the built-in ceiling of ${L.MAX_PER_RUN}` : JSON.stringify({ run, overAsk, calls }) };
+}), 'lanes');
+
+def('send_one_refusal_never_stops_the_rest', () => withDb(async (db) => {
+  await cleanLane(db, 'onefail');
+  const L = lanes();
+  await approvedTemplate(db);
+  for (const i of [1, 2, 3]) { const p = await seedLane(db, `onefail${i}`); await L.queueEmail(db, p.id); }
+  let n = 0;
+  const flaky = async () => { n += 1; if (n === 2) throw new Error('refused'); };
+  const run = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: flaky });
+  await cleanLane(db, 'onefail');
+  const ok = run.sent === 2 && run.failed === 1 && run.attempted === 3;
+  return { ok, detail: ok ? 'one address was refused, the other two still went' : JSON.stringify(run) };
+}), 'lanes');
+
+def('send_carries_the_signature_with_the_logo_inside_it', () => {
+  const sig = require(path.join(ROOT, 'src/hoursback/crm/signature.js'));
+  const html = sig.toHtmlEmail('Hi Dale,\n\nA line.\n\nRuss Wright\nVisionairy\nruss@visionairy.biz');
+  const inlineLogo = /src="data:image\/png;base64,/.test(html);
+  const noFetch = !/src="https?:\/\//.test(html);
+  const once = (html.match(/Russ Wright/g) || []).length === 1;
+  const noTagline = !/automation/i.test(html);
+  const complete = /503-621-8000/.test(html) && /visionairy\.biz/.test(html) && /linkedin\.com/.test(html);
+  const ok = inlineLogo && noFetch && once && noTagline && complete;
+  return { ok, detail: ok ? 'the logo travels inside the message, the sign-off appears once, no tagline, and every way to reach him is there' : JSON.stringify({ inlineLogo, noFetch, once, noTagline, complete }) };
+}, 'lanes');
+
+def('send_never_reaches_someone_who_replied_or_bounced', () => withDb(async (db) => {
+  await cleanLane(db, 'norereach');
+  const L = lanes();
+  await approvedTemplate(db);
+  const replied = await seedLane(db, 'norereach1');
+  const bounced = await seedLane(db, 'norereach2');
+  const fine = await seedLane(db, 'norereach3');
+  for (const p of [replied, bounced, fine]) await L.queueEmail(db, p.id);
+  await db.outreachMessage.updateMany({ where: { prospectId: { in: [replied.id, bounced.id] } }, data: { state: 'QUEUED' } });
+  await db.prospect.update({ where: { id: replied.id }, data: { repliedAt: new Date() } });
+  await db.prospect.update({ where: { id: bounced.id }, data: { emailBouncedAt: new Date() } });
+  const reached = [];
+  const spy = async ({ to }) => { reached.push(to); };
+  await L.sendQueuedEmails(db, { apiKey: 'test-key', send: spy });
+  const ok = reached.length === 1 && reached[0] === fine.email;
+  await cleanLane(db, 'norereach');
+  return { ok, detail: ok ? 'the one who replied and the one who bounced were both skipped; only the third was written to' : JSON.stringify(reached) };
+}), 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3
