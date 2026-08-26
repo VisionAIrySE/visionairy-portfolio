@@ -187,6 +187,91 @@ function ownerFromPages(pages) {
 }
 
 // ---------------------------------------------------------------------------
+// the people
+//
+// A business is not one address. A team page usually names the owner, the
+// office manager and whoever answers the phone, and those are three different
+// conversations. Everything found is kept; Russ decides who to write to.
+
+const ROLE_WORDS = [
+  'Owner', 'Co-Owner', 'Founder', 'Co-Founder', 'President', 'Vice President', 'Principal',
+  'Partner', 'Managing Partner', 'CEO', 'CFO', 'COO', 'General Manager', 'Office Manager',
+  'Operations Manager', 'Office Administrator', 'Practice Manager', 'Practice Administrator',
+  'Service Manager', 'Project Manager', 'Account Manager', 'Sales Manager', 'Branch Manager',
+  'Controller', 'Bookkeeper', 'Receptionist', 'Front Desk', 'Scheduler', 'Dispatcher',
+  'Estimator', 'Superintendent', 'Attorney', 'Associate Attorney', 'Paralegal', 'Agent',
+  'Broker', 'Realtor', 'Property Manager', 'Veterinarian', 'Hygienist', 'Technician',
+  'Administrator', 'Director', 'Manager',
+];
+const ROLE_RE = new RegExp(`\\b(${ROLE_WORDS.map((r) => r.replace(/ /g, '\\s+')).join('|')})\\b`, 'i');
+const PERSON = "[A-Z][a-z]+(?:\\s+[A-Z][a-z'’.-]+){1,2}";
+// "Dale Hutchins, Owner" and "Owner: Dale Hutchins" and "Dale Hutchins. Office Manager."
+const PERSON_ROLE = [
+  new RegExp(`(${PERSON})\\s*[,.]\\s*(${ROLE_WORDS.map((r) => r.replace(/ /g, '\\s+')).join('|')})\\b`, 'g'),
+  new RegExp(`(${ROLE_WORDS.map((r) => r.replace(/ /g, '\\s+')).join('|')})\\s*[:,]\\s*(${PERSON})`, 'gi'),
+];
+const NOT_A_PERSON_NAME = /^(The|Our|Your|We|This|About|Contact|Home|Meet|Team|Privacy|Terms|Read|More|New|Get|Call|Learn|View|Book|Click|All|Free|Site|Web|Page|Main|Office|Front|Service|Customer|Business|Company|Search|Menu|Skip)\b/;
+
+// Everyone the site names, with their role where it gives one.
+function peopleFromPages(pages) {
+  const found = new Map();
+  for (const page of pages) {
+    const text = textOf(page.html);
+    for (const [i, re] of PERSON_ROLE.entries()) {
+      re.lastIndex = 0;
+      for (const m of text.matchAll(re)) {
+        const name = (i === 0 ? m[1] : m[2]).trim();
+        const role = (i === 0 ? m[2] : m[1]).trim();
+        if (NOT_A_PERSON_NAME.test(name)) continue;
+        if (name.split(/\s+/).length > 3) continue;
+        const key = name.toLowerCase();
+        if (!found.has(key)) found.set(key, { name, role, foundOn: page.url });
+      }
+    }
+  }
+  return [...found.values()].slice(0, 12);   // a team page, not a phone book
+}
+
+// The business's own LinkedIn page, and any personal ones it links to.
+function linkedInFromPages(pages) {
+  let company = null;
+  const people = new Set();
+  for (const page of pages) {
+    for (const m of String(page.html).matchAll(/https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(company|in)\/([A-Za-z0-9._%-]+)/gi)) {
+      const url = `https://www.linkedin.com/${m[1].toLowerCase()}/${m[2]}`;
+      if (m[1].toLowerCase() === 'company') { if (!company) company = url; }
+      else people.add(url);
+    }
+  }
+  return { company, people: [...people].slice(0, 12) };
+}
+
+// Match an address to a person by their name, so sara@ lands on Sara.
+function pairEmailsToPeople(emails, people) {
+  const { nameFromEmail } = require('./crm/names.js');
+  const out = [];
+  const takenEmails = new Set();
+  for (const person of people) {
+    const first = person.name.split(/\s+/)[0].toLowerCase();
+    const last = (person.name.split(/\s+/).slice(-1)[0] || '').toLowerCase();
+    const hit = emails.find((e) => {
+      if (takenEmails.has(e.email)) return false;
+      const local = e.email.split('@')[0].toLowerCase();
+      return local === first || local.startsWith(`${first}.`) || local.startsWith(`${first}${last[0] || ''}`)
+        || local === `${first[0]}${last}`;
+    });
+    if (hit) takenEmails.add(hit.email);
+    out.push({ ...person, email: hit ? hit.email : null, emailConfidence: hit ? hit.confidence : null });
+  }
+  // Addresses nobody claimed still belong to somebody, named or not.
+  for (const e of emails) {
+    if (takenEmails.has(e.email)) continue;
+    out.push({ name: nameFromEmail(e.email), role: null, email: e.email, emailConfidence: e.confidence, foundOn: e.url });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // the manual-work tells
 //
 // Each entry says how to spot it. `absence: true` means the signal fires when
@@ -283,7 +368,7 @@ function readSite(pages, options = {}) {
       emails: [], email: null, emailConfidence: null, emailStatus: EMAIL_STATUS.UNAVAILABLE_SITE_UNREACHABLE,
       employeeCount: null, headcountStatus: HEADCOUNT_STATUS.UNRESOLVED_SITE_UNREACHABLE,
       headcountSourceUrl: null, headcountPublishedAs: null,
-      ownerName: null, signals: [], pagesRead: 0,
+      ownerName: null, signals: [], pagesRead: 0, people: [], linkedIn: { company: null, people: [] },
     };
   }
   const emails = emailsFromPages(list, siteDomain);
@@ -305,6 +390,8 @@ function readSite(pages, options = {}) {
     headcountQuote: head ? head.quote : null,
     ownerName: owner ? owner.ownerName : null,
     ownerSourceUrl: owner ? owner.sourceUrl : null,
+    people: pairEmailsToPeople(emails, peopleFromPages(list)),
+    linkedIn: linkedInFromPages(list),
     signals: [
       ...signalsFromPages(list),
       ...(best ? [] : [{ signal: 'no_email_published', url: list[0].url, quote: 'no email address published anywhere on the site' }]),
@@ -320,7 +407,7 @@ function readNoWebsite() {
     emails: [], email: null, emailConfidence: null, emailStatus: EMAIL_STATUS.UNAVAILABLE_NO_WEBSITE,
     employeeCount: null, headcountStatus: HEADCOUNT_STATUS.UNRESOLVED_NO_WEBSITE,
     headcountSourceUrl: null, headcountPublishedAs: null, headcountQuote: null,
-    ownerName: null, ownerSourceUrl: null, pagesRead: 0,
+    ownerName: null, ownerSourceUrl: null, pagesRead: 0, people: [], linkedIn: { company: null, people: [] },
     signals: [{ signal: 'no_website', url: null, quote: 'no website anywhere — every enquiry they get has to be a phone call' }],
   };
 }
@@ -498,7 +585,9 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
 
   data.siteReadAt = options.now || new Date();
   data.fetchedAt = options.now || new Date();
+  if (finding.linkedIn && finding.linkedIn.company) data.linkedInUrl = finding.linkedIn.company;
   const after = await db.prospect.update({ where: { id: prospectId }, data });
+  await saveContacts(db, prospectId, finding);
   return { changed: true, prospect: after, score: scored.score };
 }
 
@@ -578,6 +667,33 @@ async function runSiteEnrichment(db, options = {}) {
   return result;
 }
 
+// Everyone the site named, kept alongside the business. A person typed in by
+// hand is never overwritten by a later read.
+async function saveContacts(db, prospectId, finding) {
+  const people = (finding.people || []).filter((p) => p.name || p.email);
+  if (!people.length) return 0;
+  const personalLinks = (finding.linkedIn && finding.linkedIn.people) || [];
+  let n = 0;
+  for (const [i, person] of people.entries()) {
+    if (!person.email) continue;   // no address, nothing to key on
+    const existing = await db.contact.findFirst({ where: { prospectId, email: person.email } });
+    if (existing && existing.source === 'RUSS') continue;   // his correction stands
+    const data = {
+      prospectId, email: person.email,
+      name: person.name || (existing && existing.name) || null,
+      role: person.role || (existing && existing.role) || null,
+      linkedIn: personalLinks[i] || (existing && existing.linkedIn) || null,
+      foundOn: person.foundOn || null,
+      source: 'WEBSITE',
+      isPrimary: i === 0,
+    };
+    if (existing) await db.contact.update({ where: { id: existing.id }, data });
+    else await db.contact.create({ data });
+    n += 1;
+  }
+  return n;
+}
+
 function resolveSiteAddress(prospect) {
   const { resolveField } = require('./overrides.js');
   const w = resolveField(prospect, 'website');
@@ -593,6 +709,7 @@ module.exports = {
   SITE_STATUS, HEADCOUNT_STATUS, EMAIL_STATUS, EMAIL_CONFIDENCE_FLOOR,
   textOf, emailsFromPages, headcountFromPages, ownerFromPages, signalsFromPages,
   linksWorthFollowing, readSite, readNoWebsite, fetchSite,
+  peopleFromPages, linkedInFromPages, pairEmailsToPeople, saveContacts,
   enrichHeadcount, enrichEmail, needsSiteRead, applySiteRead, runSiteEnrichment,
   resolveSiteAddress, domainOf,
 };

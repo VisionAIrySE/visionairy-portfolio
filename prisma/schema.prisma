@@ -62,6 +62,7 @@ model Prospect {
   // seen - so the number is never a black box on the call screen.
   siteStatus      String?
   siteReadAt      DateTime?
+  linkedInUrl     String?   // the business's own LinkedIn page, from their site
   automationScore Int?
   scoreEvidence   String?
 
@@ -115,6 +116,7 @@ model Prospect {
   duplicatesKept  ProspectDuplicate[] @relation("keptProspect")
   callLogs        CallLog[]
   messages        OutreachMessage[]
+  contacts        Contact[]
 
   // --- the email lane -----------------------------------------------------
   emailBouncedAt DateTime?   // suppressed on email only; the phone lane is untouched
@@ -217,4 +219,30 @@ model OutreachMessage {
 
   @@index([prospectId, lane])
   @@index([state])
+}
+
+
+/// A person at a business. The website reader finds them; Russ corrects them.
+/// Several per business is the normal case — a shared inbox, an owner, and
+/// whoever answers the phone are three different things.
+///
+/// source: WEBSITE | RUSS | CALL
+model Contact {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  name       String?
+  role       String?
+  email      String?
+  phone      String?
+  linkedIn   String?
+  source     String   @default("WEBSITE")
+  foundOn    String?  // the page it was read from
+  isPrimary  Boolean  @default(false)
+  bouncedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([prospectId, email])
+  @@index([prospectId])
 }

@@ -461,6 +461,8 @@ const FIXTURE_CELLS = [
 ];
 
 async function cleanFixtureRows(db, runIds) {
+  await db.contact.deleteMany({ where: { prospect: { placeId: { startsWith: 'fixture-' } } } });
+  await db.outreachMessage.deleteMany({ where: { prospect: { placeId: { startsWith: 'fixture-' } } } });
   await db.prospectDuplicate.deleteMany({ where: { candidatePlaceId: { startsWith: 'fixture-' } } });
   await db.prospect.deleteMany({ where: { placeId: { startsWith: 'fixture-' } } });
   if (runIds && runIds.length) await db.captureRun.deleteMany({ where: { id: { in: runIds } } });
@@ -661,6 +663,8 @@ async function seedStagedRows(db) {
   };
 }
 async function cleanDedupe(db) {
+  await db.contact.deleteMany({ where: { prospect: { placeId: { startsWith: 'dedupe-' } } } });
+  await db.outreachMessage.deleteMany({ where: { prospect: { placeId: { startsWith: 'dedupe-' } } } });
   await db.prospectDuplicate.deleteMany({ where: { candidatePlaceId: { startsWith: 'dedupe-' } } });
   await db.prospect.deleteMany({ where: { placeId: { startsWith: 'dedupe-' } } });
 }
@@ -766,6 +770,8 @@ async function cleanCrm1(db, tag) {
   const rows = await db.prospect.findMany({ where: { placeId: { startsWith: `crm1-${tag}` } }, select: { id: true } });
   const ids = rows.map((r) => r.id);
   if (ids.length) {
+    await db.contact.deleteMany({ where: { prospectId: { in: ids } } });
+    await db.outreachMessage.deleteMany({ where: { prospectId: { in: ids } } });
     await db.prospectFieldEdit.deleteMany({ where: { prospectId: { in: ids } } });
     await db.callLog.deleteMany({ where: { prospectId: { in: ids } } });
     await db.prospect.deleteMany({ where: { id: { in: ids } } });
@@ -902,6 +908,8 @@ function fixtureUrlMap(key) {
 }
 
 async function cleanSite(db, tag) {
+  await db.contact.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
+  await db.outreachMessage.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
   await db.prospectFieldEdit.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
   await db.callLog.deleteMany({ where: { prospect: { placeId: { startsWith: `site-${tag}` } } } });
   await db.prospect.deleteMany({ where: { placeId: { startsWith: `site-${tag}` } } });
@@ -1335,6 +1343,7 @@ const lanes = () => require(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
 const firstContact = () => require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
 
 async function cleanLane(db, tag) {
+  await db.contact.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
   await db.outreachMessage.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
   await db.callLog.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
   await db.prospectFieldEdit.deleteMany({ where: { prospect: { placeId: { startsWith: `lane-${tag}` } } } });
@@ -1508,6 +1517,30 @@ def('message_reads_cleanly_for_every_trade', () => {
   return { ok: !bad.length, detail: bad.length ? bad.slice(0, 3).join(' | ') : `all ${Object.keys(namesByTrade).length * Object.keys(fc.OPENERS).length} trade-and-opening combinations read like a person wrote them` };
 }, 'lanes');
 
+def('message_carries_no_machine_tells', () => {
+  // An em-dash is the single loudest sign a machine wrote something, and
+  // Russ's own voice profile says he joins thoughts with commas and "and"
+  // rather than dashes. Two had crept in.
+  const fc = firstContact();
+  const names = ['High Desert Plumbing', 'Baxter Law', 'Cascade Smiles Dental', 'Random Widget Co'];
+  const JARGON = /\b(delve|leverage|robust|streamline|utilize|seamless|holistic|synerg|cutting[- ]edge|game[- ]chang|revolutioni|elevate your|unlock)/i;
+  const STIFF = /\b(In today's|worth noting that|That said,|Moreover|Furthermore|In conclusion|I hope this email finds you)/i;
+  const bad = [];
+  for (const name of names) {
+    for (const signal of Object.keys(fc.OPENERS)) {
+      const m = fc.draftFirstContact({ name, ownerName: 'Dale Hutchins' }, [{ signal }]);
+      if (!m) continue;
+      const t = `${m.subject} ${m.body}`;
+      if (/[—–]/.test(t)) bad.push(`${name}/${signal}: a dash`);
+      if (JARGON.test(t)) bad.push(`${name}/${signal}: ${t.match(JARGON)[0]}`);
+      if (STIFF.test(t)) bad.push(`${name}/${signal}: ${t.match(STIFF)[0]}`);
+    }
+    const li = fc.draftLinkedIn({ name }, [{ signal: 'fax_listed' }]);
+    if (li && /[—–]/.test(li.body)) bad.push(`${name}: a dash in the LinkedIn version`);
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 3).join(' | ') : 'no dashes, no sales jargon, no stiff openers, anywhere in any version' };
+}, 'lanes');
+
 def('message_names_the_trade_when_it_can', () => {
   const fc = firstContact();
   const known = fc.draftFirstContact({ name: 'High Desert Plumbing' }, [{ signal: 'fax_listed' }]);
@@ -1517,6 +1550,59 @@ def('message_names_the_trade_when_it_can', () => {
   const ok = namesWork && fallsBack;
   return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
 }, 'lanes');
+
+def('contact_every_person_a_site_names_is_kept', () => withDb(async (db) => {
+  // A business is not one address. The team page names the owner, the office
+  // manager and whoever answers the phone, and those are three different
+  // conversations. Keeping only the best address threw two of them away.
+  const e = enrich();
+  const html = `<html><body><h1>Our Team</h1>
+    <p>Dale Hutchins, Owner. dale@t.example</p>
+    <p>Sara Lin. Office Manager. sara@t.example</p>
+    <p>Front desk: info@t.example</p>
+    <a href="https://www.linkedin.com/company/t-example">us</a>
+    <a href="https://www.linkedin.com/in/dale-hutchins-123">Dale</a></body></html>`;
+  const finding = e.readSite([{ url: 'https://t.example/team', html }], { domain: 't.example' });
+  const named = finding.people.filter((x) => x.name);
+  const ok = finding.people.length >= 3
+    && named.some((x) => x.name === 'Dale Hutchins' && x.role === 'Owner' && x.email === 'dale@t.example')
+    && named.some((x) => x.name === 'Sara Lin' && /Office\s*Manager/i.test(x.role) && x.email === 'sara@t.example')
+    && finding.people.some((x) => x.email === 'info@t.example')
+    && finding.linkedIn.company === 'https://www.linkedin.com/company/t-example';
+  return { ok, detail: ok ? 'all three people kept with their roles, each matched to their own address, plus the company LinkedIn page' : JSON.stringify(finding.people) };
+}), 'lanes');
+
+def('contact_people_are_saved_and_a_hand_typed_one_survives', () => withDb(async (db) => {
+  await cleanLane(db, 'contacts');
+  const p = await seedLane(db, 'contacts', { website: 'https://c.example/' });
+  const e = enrich();
+  const html = '<p>Dale Hutchins, Owner. dale@c.example</p><p>Sara Lin. Office Manager. sara@c.example</p>';
+  await e.applySiteRead(db, p.id, e.readSite([{ url: 'https://c.example/', html }], { domain: 'c.example' }));
+  const saved = await db.contact.findMany({ where: { prospectId: p.id } });
+  // Russ corrects one of them by hand
+  await db.contact.updateMany({ where: { prospectId: p.id, email: 'dale@c.example' }, data: { name: 'Dale W. Hutchins', role: 'Founder', source: 'RUSS' } });
+  await e.applySiteRead(db, p.id, e.readSite([{ url: 'https://c.example/', html }], { domain: 'c.example' }), { now: new Date(Date.now() + 1000) });
+  const after = await db.contact.findFirst({ where: { prospectId: p.id, email: 'dale@c.example' } });
+  const ok = saved.length >= 2 && after.name === 'Dale W. Hutchins' && after.role === 'Founder';
+  await cleanLane(db, 'contacts');
+  return { ok, detail: ok ? `${saved.length} people saved, and the one Russ corrected survived a second reading untouched` : JSON.stringify({ saved: saved.length, after }) };
+}), 'lanes');
+
+def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (db) => {
+  await cleanLane(db, 'primary');
+  const p = await seedLane(db, 'primary', { email: 'info@p.example' });
+  const person = await db.contact.create({ data: { prospectId: p.id, name: 'Sara Lin', role: 'Office Manager', email: 'sara@p.example', source: 'WEBSITE' } });
+  // what the "write to them" button does
+  await db.contact.updateMany({ where: { prospectId: p.id }, data: { isPrimary: false } });
+  await db.contact.update({ where: { id: person.id }, data: { isPrimary: true } });
+  await overrides().setOverride(db, p.id, 'email', person.email, 'russ');
+  await db.prospect.update({ where: { id: p.id }, data: { contactName: person.name, contactRole: person.role } });
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const greeting = firstContact().draftFirstContact(after, [{ signal: 'fax_listed' }]).body.split('\n')[0];
+  const ok = overrides().resolveField(after, 'email') === 'sara@p.example' && after.email === 'info@p.example' && greeting === 'Hi Sara,';
+  await cleanLane(db, 'primary');
+  return { ok, detail: ok ? 'picking Sara sent the message to her by name instead of the shared inbox, and left the fetched address on record' : `${overrides().resolveField(after, 'email')} / ${greeting}` };
+}), 'lanes');
 
 def('three_lanes_declared', () => {
   const L = lanes();
@@ -1753,6 +1839,7 @@ const calendar = () => require(path.join(ROOT, 'src/hoursback/crm/calendar.js'))
 
 async function cleanDay(db, tag) {
   const w = { prospect: { placeId: { startsWith: `day-${tag}` } } };
+  await db.contact.deleteMany({ where: w });
   await db.outreachMessage.deleteMany({ where: w });
   await db.callLog.deleteMany({ where: w });
   await db.prospectFieldEdit.deleteMany({ where: w });

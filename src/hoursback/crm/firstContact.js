@@ -59,7 +59,7 @@ const TRADE_WORK = {
 // paperwork, and every line is written so it reads properly with any of them.
 const TRADE_FOLLOW_ONS = {
   hiring_admin_role:
-    "Before you fill it, it's worth knowing how much of that job is {work} — work that mostly stops needing a person once it is set up properly.",
+    "Before you fill it, it's worth knowing how much of that job is {work}, and how much of that stops needing a person at all once it is set up properly.",
   no_website:
     'Every one of those calls is somebody stopping what they were doing, on top of {work}, and it adds up faster than it feels like it should.',
   downloadable_forms:
@@ -68,7 +68,7 @@ const TRADE_FOLLOW_ONS = {
   fax_listed:
     // Phrased to sit before the list rather than after it — "{work} is still
     // moving" reads wrong the moment the trade's paperwork is plural.
-    'That usually means paper is still moving somewhere between you and your customers — {work}, most likely — and someone is handling every piece of it by hand.',
+    'That usually means paper is still moving somewhere between you and your customers, most likely {work}, and someone is handling every piece of it by hand.',
   no_online_booking:
     "That's fine when it's quiet, but your busiest days are the ones where somebody is tied to the phone on top of {work}.",
   no_customer_portal:
@@ -170,7 +170,7 @@ function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
   const { line } = followOnFor(key, prospect);
-  const body = `Hi ${greetingFor(prospect)} — I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.
+  const body = `Hi ${greetingFor(prospect)}, I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.
 
 ${OPENERS[key]} ${line}
 

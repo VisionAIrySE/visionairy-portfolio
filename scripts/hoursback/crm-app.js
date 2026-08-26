@@ -347,7 +347,11 @@ function editable(p, field, label, type = 'text') {
 }
 
 async function businessCard(id, saved) {
-  const p = await db.prospect.findUnique({ where: { id }, include: { callLogs: { orderBy: { loggedAt: 'desc' }, take: 8 }, fieldEdits: { orderBy: { correctedAt: 'desc' }, take: 8 } } });
+  const p = await db.prospect.findUnique({ where: { id }, include: {
+    callLogs: { orderBy: { loggedAt: 'desc' }, take: 8 },
+    fieldEdits: { orderBy: { correctedAt: 'desc' }, take: 8 },
+    contacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
+  } });
   if (!p) return page('<p>Not found. <a href="/">Back</a></p>');
   let evidence = [];
   try { evidence = JSON.parse(p.scoreEvidence || '[]'); } catch { evidence = []; }
@@ -385,10 +389,27 @@ async function businessCard(id, saved) {
   <p>${priceLine}</p>
   <p class="muted">Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
 
-  <h2>Who</h2>
-  <p>Owner: ${esc(p.ownerName || '—')} · Spoke to: ${esc(p.contactName || '—')}${p.contactRole ? ` (${esc(p.contactRole)})` : ''}
+  <h2>Who works there (${p.contacts.length})</h2>
+  ${p.contacts.length ? `<table>
+    <tr><th>Name</th><th>Role</th><th>Email</th><th>LinkedIn</th><th></th></tr>
+    ${p.contacts.map((c) => `<tr${c.bouncedAt ? ' style="opacity:.5"' : ''}>
+      <td><b>${esc(c.name || '—')}</b>${c.isPrimary ? ' <span class="pill">writes to</span>' : ''}</td>
+      <td class="muted">${esc(c.role || '—')}</td>
+      <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">—</span>'}${c.bouncedAt ? ' <span class="muted">(bounced)</span>' : ''}</td>
+      <td>${c.linkedIn ? `<a href="${esc(c.linkedIn)}" target="_blank">profile</a>` : '<span class="muted">—</span>'}</td>
+      <td>${c.isPrimary ? '' : `<form method="POST" action="/contact/primary/${c.id}"><button>Write to them</button></form>`}</td>
+    </tr>`).join('')}
+  </table>` : '<p class="muted">Nobody found on their site yet.</p>'}
+  <form method="POST" action="/contact/add/${p.id}" class="row" style="margin-top:10px">
+    <input name="name" placeholder="Name" style="flex:1">
+    <input name="role" placeholder="Role" style="flex:1">
+    <input name="email" placeholder="Email" style="flex:1.4">
+    <input name="linkedIn" placeholder="LinkedIn link" style="flex:1.4">
+    <button>Add a person</button>
+  </form>
+  <p class="muted" style="margin-top:14px">Owner on record: ${esc(p.ownerName || '—')} · Spoke to: ${esc(p.contactName || '—')}${p.contactRole ? ` (${esc(p.contactRole)})` : ''}
      · Decision maker: ${p.isDecisionMaker === null ? 'unknown' : (p.isDecisionMaker ? 'yes' : 'no')}<br>
-     Email: ${emailLine}</p>
+     Sending to: ${emailLine}${p.linkedInUrl ? ` · <a href="${esc(p.linkedInUrl)}" target="_blank">their company page on LinkedIn</a>` : ''}</p>
 
   <h2>Everything, editable</h2>
   <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
@@ -580,6 +601,31 @@ const server = http.createServer(async (req, res) => {
         }
         if (what === 'sent' && arg) { try { await L.markLinkedInSent(db, arg, 'Russ'); } catch { /* already sent */ } }
         res.writeHead(303, { Location: '/linkedin' }); return res.end();
+      }
+      if (route === 'contact') {
+        const [, , what, arg] = url.pathname.split('/');
+        // Choosing who to write to sets the business's address to theirs, so
+        // the message goes to a person rather than a shared inbox.
+        if (what === 'primary' && arg) {
+          const c = await db.contact.findUniqueOrThrow({ where: { id: arg } });
+          await db.contact.updateMany({ where: { prospectId: c.prospectId }, data: { isPrimary: false } });
+          await db.contact.update({ where: { id: arg } , data: { isPrimary: true } });
+          if (c.email) await setOverride(db, c.prospectId, 'email', c.email, 'russ');
+          if (c.name) await db.prospect.update({ where: { id: c.prospectId }, data: { contactName: c.name, contactRole: c.role } });
+          res.writeHead(303, { Location: `/business/${c.prospectId}?saved=1` }); return res.end();
+        }
+        if (what === 'add' && arg) {
+          const email = String(form.email || '').trim() || null;
+          if (email) {
+            await db.contact.upsert({
+              where: { prospectId_email: { prospectId: arg, email } },
+              update: { name: String(form.name || '').trim() || null, role: String(form.role || '').trim() || null, linkedIn: String(form.linkedIn || '').trim() || null, source: 'RUSS' },
+              create: { prospectId: arg, email, name: String(form.name || '').trim() || null, role: String(form.role || '').trim() || null, linkedIn: String(form.linkedIn || '').trim() || null, source: 'RUSS' },
+            });
+          }
+          res.writeHead(303, { Location: `/business/${arg}?saved=1` }); return res.end();
+        }
+        res.writeHead(303, { Location: '/' }); return res.end();
       }
       if (route === 'add') {
         const r = await addBusiness(form);
