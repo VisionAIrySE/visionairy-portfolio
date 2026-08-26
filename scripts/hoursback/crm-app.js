@@ -76,7 +76,7 @@ a{color:#065f46}
 nav{margin-bottom:8px} nav a{margin-right:14px;font-weight:600}
 table{width:100%;border-collapse:collapse} td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;font-size:15px}
 pre.msg{background:#fff;border:1px solid #e0ddd5;border-radius:10px;padding:14px;white-space:pre-wrap;font:15px/1.55 system-ui,sans-serif;margin:8px 0}
-</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a><a href="/email">Email</a><a href="/linkedin">LinkedIn</a><a href="/add">+ Add</a></nav>${body}</body></html>`;
+</style></head><body><nav><a href="/">Today</a><a href="/list">All businesses</a><a href="/email">Email</a><a href="/linkedin">LinkedIn</a><a href="/needemail">Needs email</a><a href="/add">+ Add</a></nav>${body}</body></html>`;
 }
 
 const scoreBadge = (n) => `<span class="pill ${(n || 0) >= 40 ? '' : 'cool'}">${n === null || n === undefined ? '–' : n}</span>`;
@@ -143,6 +143,40 @@ async function list(params) {
   <p class="muted">Sorted by how manual they still look — the highest numbers are the ones most worth a call.</p>
   <table><tr><th>Score</th><th>Business</th><th>Phone</th><th>Email</th><th>Stage</th></tr>${rowHtml}</table>
   <p class="row">${page_ > 1 ? link(page_ - 1) : '<span></span>'}<span class="muted">page ${page_} of ${pages || 1}</span>${page_ < pages ? link(page_ + 1) : '<span></span>'}</p>`);
+}
+
+// ---------------------------------------------------------------------------
+// The businesses worth finding an address for, best first. Russ works down
+// this list with Hunter.io by hand and types what he finds onto their card.
+async function needEmailScreen(params) {
+  const page_ = Math.max(1, Number(params.get('page') || 1));
+  const per = 40;
+  const where = {
+    doNotContact: false, repliedAt: null,
+    email: null, emailManualValue: null,
+    website: { not: null },              // no site, nothing for Hunter to search
+    automationScore: { gt: 0 },          // worth the effort
+  };
+  const [rows, total] = await Promise.all([
+    db.prospect.findMany({ where, orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }], take: per, skip: (page_ - 1) * per }),
+    db.prospect.count({ where }),
+  ]);
+  const host = (u) => { try { return new URL(u.startsWith('http') ? u : `https://${u}`).host.replace(/^www\./, ''); } catch { return u; } };
+  const body = rows.map((p) => `<tr>
+    <td>${scoreBadge(p.automationScore)}</td>
+    <td><a href="/business/${p.id}"><b>${esc(resolveField(p, 'name'))}</b></a></td>
+    <td><a href="https://hunter.io/search/${esc(host(resolveField(p, 'website')))}" target="_blank">${esc(host(resolveField(p, 'website')))}</a></td>
+    <td><a class="btn" href="/business/${p.id}">Type it in</a></td>
+  </tr>`).join('');
+  const pages = Math.ceil(total / per);
+  return page(`<h1>Needs an email address (${total})</h1>
+  <p class="muted">Every one of these has a website but published no address. Click the domain to open it straight in Hunter, then put whatever you find on their card. Highest scores first — those are the ones worth your searches.</p>
+  <table><tr><th>Score</th><th>Business</th><th>Look it up</th><th></th></tr>${body}</table>
+  <p class="row">
+    ${page_ > 1 ? `<a class="btn" href="/needemail?page=${page_ - 1}">Previous</a>` : '<span></span>'}
+    <span class="muted">page ${page_} of ${pages || 1}</span>
+    ${page_ < pages ? `<a class="btn" href="/needemail?page=${page_ + 1}">Next</a>` : '<span></span>'}
+  </p>`);
 }
 
 // ---------------------------------------------------------------------------
@@ -559,6 +593,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(303, { Location: '/' }); return res.end();
     }
 
+    if (route === 'needemail') return html(res, await needEmailScreen(url.searchParams));
     if (route === 'add') return html(res, addForm(null));
     if (route === 'email') return html(res, await emailScreen(url.searchParams));
     if (route === 'linkedin') return html(res, await linkedInScreen());

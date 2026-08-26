@@ -30,7 +30,8 @@ willie alan juan wayne elijah randy roy vincent ralph eugene russell bobby mason
 philip louis todd chad marcus travis shane jared cody trevor derek jeff cory brett
 casey grant blake garrett colin curtis dale duane wade dean drew glenn neil rick
 ross seth spencer stuart victor warren dustin lance lonnie marty mitchell reid
-rodney shawn troy wesley clint clay chase brady bret cole devon garrick pete
+rodney shawn troy wesley clint clay chase brady bret cole devon garrick pete craig kurt lyle nate rob stan vern wes brent
+chris jim mike nick rich rod ron tim tom will zach jake josh matt
 mary patricia jennifer linda elizabeth barbara susan jessica sarah karen lisa nancy
 betty margaret sandra ashley kimberly emily donna michelle carol amanda dorothy
 melissa deborah stephanie rebecca sharon laura cynthia kathleen amy angela shirley
@@ -41,6 +42,8 @@ jacqueline martha gloria teresa ann sara madison frances kathryn janice jean abi
 alice julia judy sophia grace denise amber danielle marilyn beverly charlotte
 natalie theresa diana brittany doris kayla alexis lori marie tammy tracy erin
 holly jill jodi kara kris leah lindsay melanie monica renee robin sonja stacy
+crystal krystal misty tonya darcy shelly staci kerri jodie marcia lynne
+becky cindy connie dawn debbie kathy patty penny sherry tami terri traci
 tina wendy allison bonnie carrie colleen dana darlene elaine ellen erica gail
 gina heidi jenna jenny kate kim krista lana lynn maureen nina paula peggy rhonda
 rita sally sandy shannon sheila stacey suzanne tara valerie vicki whitney yvonne
@@ -52,10 +55,18 @@ function nameFromEmail(email) {
   const local = email.split('@')[0].toLowerCase();
   // "dale.hutchins", "dale_h", "dale123" all reduce to the leading word.
   const head = local.replace(/[^a-z].*$/, '');
-  if (head.length < 3 || head.length > 12) return null;
+  if (head.length < 3 || head.length > 14) return null;
   if (NOT_A_PERSON.has(head)) return null;
-  if (!FIRST_NAMES.has(head)) return null;
-  return head[0].toUpperCase() + head.slice(1);
+  // "crystalh" is Crystal with a surname initial stuck on; "davidsmith" is
+  // David. Try the whole thing first, then shorter and shorter, and stop at
+  // the first real name. Never shorter than four letters — below that the
+  // matches are coincidences ("dan" out of "dansmith" is fine, "jo" is not).
+  for (let len = head.length; len >= 4; len--) {
+    const candidate = head.slice(0, len);
+    if (NOT_A_PERSON.has(candidate)) return null;
+    if (FIRST_NAMES.has(candidate)) return candidate[0].toUpperCase() + candidate.slice(1);
+  }
+  return null;
 }
 
 // A first name out of a full name, for the same greeting.
