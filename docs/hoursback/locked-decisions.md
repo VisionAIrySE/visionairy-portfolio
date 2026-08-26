@@ -4,31 +4,33 @@ Captured 2026-08-24 through discovery. These are settled; the business-model doc
 ## The pain (settled)
 NOT loss framing ("you're wasting hours"). GAIN framing: **you get 5–10 hours a week back — what would you do with them? Sell more, be with your family, work on the next thing. It's an investment in getting your life back.**
 
-## Pricing (settled)
-- **$100 for every guaranteed hour a week.** Priced in bands, not per head — see the band table below. $999 entry, $15,000 cap. The fee column of that table is the auditFee figure the engine stores, and this table is the governing source: wherever business-model.md restates it and differs, the restatement is discarded.
-- Stated this way deliberately: the small end gets a flat number, not a formula that happens to land near one. Nothing to compute on a phone call.
-- Headcount is public (website, LinkedIn), so every prospect carries its own price before contact.
+## Pricing (settled 2026-08-26 — supersedes everything before it)
+
+- **One price. One promise. $999, five hours a week found, or nothing to pay.** The same for a three-person shop and a hundred-person builder.
+- Russ's words: *"Just do 1 price for SMBs - $999 - guarantee 5 hours. If I find more, it's a bonus and I get access to propose other projects and implement the tools found."*
+- **The nine headcount bands are retired.** So is the industry-tier model that briefly replaced them. There is no per-hour rule, no band, no multiplier, and no arithmetic behind the number.
+- **Finding more than five is the normal case, and it is the door.** Everything above five is a bonus that earns the right to propose the work and implement the tools.
 - Fee is credited against the implementation invoice.
 
 ## The guarantee (settled)
-- **What is guaranteed is the FINDING, not the doing.** The audit finds the recoverable hours *and* names the tools that recover them. Whether Russ implements is the client's choice — they can hire him or hire anyone. Custom builds are suggested after the audit and are never part of the guarantee.
-- Refund test is therefore clean and binary: either the report names the hours and the tools, or it does not.
-- **The hours named for the band, every week, or the client pays nothing.** 10 hours at the entry band, 150 at the largest.
-- **The binding promise is HOURS ONLY — never dollars.** Hours can be counted together in a room; dollars invite an argument about whose wage was used.
-- For companies **over 50 employees, show both** the hours figure and the dollar figure in the pitch — but the guarantee still binds on hours.
-- Constant ~21x return at every company size.
 
-| Staff | Fee | Guarantee | Annual value | Return |
-|---|---|---|---|---|
-| Up to 10 | $999 | 10 hrs/wk | $20,700 | 21x |
-| 11–15 | $1,500 | 15 hrs/wk | $31,000 | 21x |
-| 16–20 | $2,000 | 20 hrs/wk | $41,400 | 21x |
-| 21–25 | $2,500 | 25 hrs/wk | $51,700 | 21x |
-| 26–35 | $3,500 | 35 hrs/wk | $72,400 | 21x |
-| 36–50 | $5,000 | 50 hrs/wk | $103,500 | 21x |
-| 51–75 | $7,500 | 75 hrs/wk | $155,200 | 21x |
-| 76–100 | $10,000 | 100 hrs/wk | $207,000 | 21x |
-| 101–150 | $15,000 | 150 hrs/wk | $310,400 | 21x |
+- **What is guaranteed is the FINDING, not the doing.** The audit finds the recoverable hours *and* names the tools that recover them. Whether Russ implements is the client's choice — they can hire him or hire anyone. Custom builds are suggested after the audit and are never part of the guarantee.
+- Refund test is therefore clean and binary: either the report names five hours and the tools, or it does not.
+- **The binding promise is HOURS ONLY — never dollars.** No dollar value is ever put on an hour. The $999 fee is the only money that exists in this business.
+- **Hours only, at every size.** The earlier rule showing dollars above 50 employees is retired.
+
+### Why five is safe everywhere
+
+| Industry | What the research documents recovering | Independent? |
+|---|---|---|
+| Contractors | 8+ hrs/wk from dispatch and invoicing alone | vendor |
+| Real estate | 14 hrs/wk lost to paperwork per agent | vendor |
+| Dental | 15–20 hrs/wk, single-doctor practice | vendor |
+| Insurance | 34 hrs/wk lost to manual work | vendor |
+| Deloitte | organisations expect automation to cover ~20% of capacity | independent |
+| BLS OEWS 2023 | office work is 26–32% of admin-heavy industries, under 10% of field | independent |
+
+Five is below the documented floor of every one of them, and the promise is only to FIND the hours.
 
 ## Corroborating evidence (must appear in the document)
 - Over **40% of workers** spend at least a quarter of their week — roughly **10 hours** — on manual repetitive tasks. (Smartsheet)
@@ -36,12 +38,11 @@ NOT loss framing ("you're wasting hours"). GAIN framing: **you get 5–10 hours 
 - Small business owners spend about **36% of their workweek** on administrative tasks like invoicing and data entry.
 - Broader analyses put recoverable time at **15–20 hours per employee per week**.
 - The band hours work out at roughly 1 hour per head — never above about 1.5 even at the tightest point of a band — which is roughly **one tenth** of the waste the research already documents.
-- **Deschutes County average annual wage: $66,227** (Business Oregon, 2024); fully loaded ≈ **$82,784**, or **$39.80/hour**.
-- Oregon statewide average annual wage: **$71,964** (2025).
+- Wage figures are retired from this document. They existed only to translate hours into dollars, which this business does not do.
 
 ## Two tracks (settled)
 - **Small owner-operator** (roughly 5–30 staff, owner still in the machine): sold on hours and life back.
-- **Larger company**: sold on return, staffing savings, efficiency — hours plus dollars shown.
+- **Larger company**: sold on the same hours, in more operational language. No dollars, no return multiple.
 - One guarantee underneath, stated in two languages. Marketing bifurcates; the promise does not.
 
 ## Delivery (settled)
@@ -59,7 +60,7 @@ Four parts:
 ## The ladder (settled)
 | Rung | Price | Purpose |
 |---|---|---|
-| Audit | $100 per guaranteed hour ($999–$15,000) | Pays for itself, gets inside, credited forward |
+| Audit | $999 floor, up to $15,000 by band | Pays for itself, gets inside, credited forward |
 | Tool implementation | $1,500–$3,000, fixed scope, one week | No budget conversation. Reveals the real problem. |
 | **Custom build** | **$10,000–$75,000** | **The goal.** Only Russ can do it — it's Part 3. |
 | Retainer | $500–$2,000/mo | Recurring, after the custom work is live |

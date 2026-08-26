@@ -56,10 +56,10 @@ const OPENINGS = {
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  "What I do is spend time with you and your team, enough to actually understand how the work moves, and then come back with a plain list of where the hours are going, which of them could be fixed with tools that already exist, and which would need something built.",
-  "The way it works is that I spend time with you and whoever does the work, long enough to see how things actually move, and then bring back a plain list of where the hours go, what could be fixed with tools that already exist, and what would need building.",
-  "What that looks like in practice is time with you and your team, enough to follow the work properly, and then a plain list of where the hours are going, which parts existing tools would handle, and which parts would need something made.",
-  "In practice I spend time with you and the people doing the work, enough to understand how it actually moves, and come back with a plain list of where the hours sit, what off-the-shelf tools would take care of, and what would need building.",
+  "What I do is have a conversation with you and your team, enough to actually understand how the work moves, and then come back with a plain list of where the hours are going, which of them could be fixed with tools that already exist, and which would need something built.",
+  "The way it works is a conversation with you and whoever does the work, long enough to see how things actually move, and then bring back a plain list of where the hours go, what could be fixed with tools that already exist, and what would need building.",
+  "What that looks like in practice is a conversation with you and your team, enough to follow the work properly, and then a plain list of where the hours are going, which parts existing tools would handle, and which parts would need something made.",
+  "In practice it is a conversation with you and the people doing the work, enough to understand how it actually moves, and come back with a plain list of where the hours sit, what off-the-shelf tools would take care of, and what would need building.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
@@ -68,10 +68,15 @@ const WHAT_I_DO = [
 // their band's price, straight from the pricing table. Where it is not, the
 // floor of ten hours stands, because that is the promise at every band.
 const GUARANTEE = [
-  "If I can't find at least {hours} hours a week your team could have back, you don't pay. That's the whole deal.",
-  "If there aren't at least {hours} hours a week in it for your team, you owe me nothing. That is the entire arrangement.",
-  "No {hours} hours a week found, no invoice. That is the whole of it.",
-  "If I can't turn up {hours} hours a week for your team, there's nothing to pay. That's the deal, start to finish.",
+  // The fee is paid UP FRONT, so the promise is a refund, not an invoice that
+  // never gets sent. An earlier wording said "no invoice" and Russ caught it,
+  // along with "five is the least of it", which means nothing (2026-08-26).
+  // Each one now says three things in order: the promise, the refund, and
+  // that five is where it starts. No dashes: a dash reads as machine-written.
+  "If I can't find you {hours} hours a week, you get your money back. {Hours} is the minimum. Most offices have well more.",
+  "{Hours} hours a week is the least I'll find, or your fee comes back. In most places it is a good deal more.",
+  "If there aren't {hours} hours a week in it for your team, I refund you in full. {Hours} is the floor. Most land higher.",
+  "You get {hours} hours a week back, or you get your money back. {Hours} is what I promise. More is what I usually find.",
 ];
 
 // The same, when we know their team size and can put their own number on it.
@@ -92,18 +97,16 @@ const YEAR_FRAMING = [
   'Across a year {hours} hours a week is {yearHours} hours, near enough {months} of one person\'s working time.',
 ];
 
-// The SECOND message is where the price belongs, and where the return goes —
-// stated so the reader puts their own number on an hour rather than arguing
-// with one of ours.
-// The return is 21x at every band, from the business model, which values an
-// hour at $39.80 — a real Central Oregon wage with overhead on it, sourced.
-// Not $100: that is the PRICE per guaranteed hour, not what an hour of their
-// staff time costs them, and using it would get argued with on the first call.
+// The SECOND message is where the price belongs. It names the fee and the
+// hours, and nothing else — no dollar value put on an hour, no multiple, no
+// return. Russ sells HOURS, not dollars (his instruction, 2026-08-26): a
+// dollar figure invites an argument about whose wage was used, and the hours
+// cannot be argued with.
 const PRICE_FRAMING = [
-  'The audit is {fee}, and it buys back {yearHours} hours a year. At what an hour of staff time actually costs around here that is about {value} of time returned, against {fee} spent.',
-  'It costs {fee}. What comes back is {yearHours} hours a year, worth roughly {value} at local wages once you load them properly. I would rather you did that sum than take mine.',
-  '{fee} for the audit. {yearHours} hours a year back, which lands near {value} of your team\'s time. Whatever number you put on an hour, the arithmetic is not close.',
-  'The number is {fee}, against {yearHours} hours a year returned. Costed at what your people actually cost you, that is somewhere around {value}.',
+  'The audit is {fee}, and what comes back is {yearHours} hours a year.',
+  'It costs {fee}. What you get back is {yearHours} hours a year.',
+  '{fee} for the audit. {yearHours} hours a year returned.',
+  'The number is {fee}, against {yearHours} hours a year back in the building.',
 ];
 
 // The close, four ways, at each register.

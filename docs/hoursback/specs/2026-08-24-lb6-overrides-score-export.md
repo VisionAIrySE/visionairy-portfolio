@@ -49,7 +49,7 @@ Build
 
 Understand
 
-- [x] The band table the exported fee and hours come from is in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $100 for every hour a week you get back. -->
+- [x] The band table the exported fee and hours come from is in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $999 is the floor. Above it, the fee is set by band -->
 - [x] The qualification rules the export filters on are defined. <!-- type:Comprehend --> <!-- check: file_exists | docs/hoursback/specs/2026-08-24-lb1-rules.md |  -->
 - [x] The code layout names where these three modules live. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/code-layout.md | src/hoursback/scoring.js -->
 

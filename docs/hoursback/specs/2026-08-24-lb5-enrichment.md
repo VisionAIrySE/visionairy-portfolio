@@ -44,7 +44,7 @@ Build
 
 Understand
 
-- [x] The band table the derived fee is checked against is in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $100 for every hour a week you get back. -->
+- [x] The band table the derived fee is checked against is in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $999 is the floor. Above it, the fee is set by band -->
 - [x] The rules module that maps a headcount to a band is specified. <!-- type:Comprehend --> <!-- check: file_exists | docs/hoursback/specs/2026-08-24-lb1-rules.md |  -->
 - [x] The record these fields are written onto is specified. <!-- type:Comprehend --> <!-- check: file_exists | docs/hoursback/specs/2026-08-24-lb2-record-shape.md |  -->
 - [x] The code layout names where the enrichment module lives. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/code-layout.md | src/hoursback/enrich.js -->

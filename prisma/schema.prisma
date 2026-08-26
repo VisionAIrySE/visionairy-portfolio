@@ -65,7 +65,7 @@ model Prospect {
   linkedInUrl     String?   // the business's own LinkedIn page, from their site
   selfDescription String?   // the one line they wrote about themselves
   trade           String?   // settled from their own words when the name could not
-  yearsInBusiness Int?      // "since 1994" — an opener that writes itself
+  yearsInBusiness Int?      // how many years, already counted from "since 1994"
   toolsInUse      String?   // what they already pay for, which says what is missing
   openRoles       Int?      // how many office roles they are advertising
   automationScore Int?
@@ -220,6 +220,9 @@ model OutreachMessage {
   sentBy     String?  // a person's name for LinkedIn; "engine" for email
   repliedAt  DateTime?
   suppressedReason String?
+  /// Set the moment Russ rewrites a draft by hand. A message he has touched is
+  /// never regenerated underneath him, however far the wording moves on.
+  editedAt   DateTime?
   createdAt  DateTime @default(now())
 
   @@index([prospectId, lane])

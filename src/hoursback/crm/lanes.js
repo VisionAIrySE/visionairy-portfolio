@@ -9,7 +9,7 @@
 // The rule that matters most: a reply on ANY lane stops every message still
 // waiting on EVERY lane. Nobody who has answered gets chased.
 
-const { draftFirstContact, draftLinkedIn } = require('./firstContact.js');
+const { draftFirstContact, draftLinkedIn, BODY } = require('./firstContact.js');
 
 const LANES = ['PHONE', 'EMAIL', 'LINKEDIN'];
 const MESSAGE_STATES = ['DRAFT', 'QUEUED', 'SENT', 'REPLIED', 'SUPPRESSED'];
@@ -49,9 +49,17 @@ async function approveTemplate(db, name = FIRST_CONTACT, approvedBy = 'russ') {
   });
 }
 
+// Approval attaches to a WORDING, not to a row. If the message has been
+// rewritten since Russ read it, the old approval does not cover what would
+// now go out, so it stops counting. Found 2026-08-26: the screen was showing
+// an approved copy saved at 3am while the message had been rewritten all
+// night, and because it read as approved the approve button was hidden —
+// there was no way back to the current words.
 async function templateIsApproved(db, name = FIRST_CONTACT) {
   const t = await db.messageTemplate.findUnique({ where: { name } });
-  return Boolean(t && t.approvedAt);
+  if (!t || !t.approvedAt) return false;
+  if (name === FIRST_CONTACT && t.body !== BODY) return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,12 +75,24 @@ function signalsOf(prospect) {
 async function draftFor(db, prospectId, lane) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact) return null;
-  const existing = await db.outreachMessage.findFirst({ where: { prospectId, lane } });
-  if (existing) return existing;
-
   const built = lane === 'EMAIL' ? draftFirstContact(p, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
   if (!built) return null;
   if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return null;
+
+  // A draft already written is kept. The one exception: it is still sitting
+  // unsent, Russ has never touched it, and the wording has moved on
+  // underneath it — then it is rewritten rather than left stale. Twenty-five
+  // drafts from 3am survived a whole night of rewrites because this returned
+  // the existing row before it ever looked at the new words, 2026-08-26.
+  const existing = await db.outreachMessage.findFirst({ where: { prospectId, lane } });
+  if (existing) {
+    const rewritable = existing.state === 'DRAFT' && !existing.editedAt && existing.body !== built.body;
+    if (!rewritable) return existing;
+    return db.outreachMessage.update({
+      where: { id: existing.id },
+      data: { subject: built.subject, body: built.body, openedWith: built.openedWith },
+    });
+  }
 
   const template = await db.messageTemplate.findUnique({ where: { name: FIRST_CONTACT } });
   return db.outreachMessage.create({

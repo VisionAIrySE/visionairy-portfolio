@@ -67,7 +67,7 @@ Specify
 
   audit-offer-terms-pricing-guarantee-and-credits
   - [x] An audit-offer-terms section exists. <!-- type:Build --> <!-- check: section_exists | docs/hoursback/business-model.md | ## 3. The Audit Offer — Pricing, Guarantee, Refunds, Credits -->
-  - [x] The pricing rule is stated as a fixed price per guaranteed hour, banded. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **$100 for every hour a week you get back.** -->
+  - [x] The pricing rule is stated as a floor with banded fees above it. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $999 is the floor. Above it, the fee is set by band -->
   - [x] The document states headcount is public so every prospect is priced before contact. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | every prospect carries its own price and its own promised hours before first contact -->
   - [x] The guarantee is stated as the band's named hours with its entry and top values. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **The hours named for your band, every week, or you pay nothing.** -->
   - [x] The binding promise is specified as hours only, never dollars. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **The binding promise is hours only, never dollars.** -->

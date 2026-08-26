@@ -1,0 +1,115 @@
+#!/usr/bin/env node
+// Read every business's own website for its people and its real team size.
+//
+// Russ opened the first business on the list — BeginRight Employment, which
+// has a team page right under its About tab — and the record said team size
+// unknown. It did across 2,010 of 2,044 businesses, and not one of the 2,471
+// people on file had a phone number. Two causes: the first reader only went
+// one click deep, and it threw away any person who had no published email
+// before it ever looked at their phone number (2026-08-26).
+//
+// FREE. Their own websites, no key, no paid service, nothing that can meter.
+// The only ceilings that matter here are politeness ones: pages per site, a
+// pause between pages, and a timeout so a dead host cannot stall the run.
+
+const { PrismaClient } = require('@prisma/client');
+const ps = require('../../src/hoursback/peopleSweep.js');
+
+const PAGES_PER_SITE = 8;
+const PAUSE_BETWEEN_SITES_MS = 400;
+const PROGRESS_EVERY = 25;
+
+// Save the people, keeping anyone with a name even when they published no
+// email — that omission is exactly what lost every phone number last time.
+async function savePeople(db, prospectId, people) {
+  let saved = 0;
+  for (const [i, person] of people.entries()) {
+    if (!person.name && !person.email) continue;
+    const where = person.email
+      ? { prospectId, email: person.email }
+      : { prospectId, name: person.name };
+    const existing = await db.contact.findFirst({ where });
+    if (existing && existing.source === 'RUSS') continue;   // his correction stands
+    const data = {
+      prospectId,
+      name: person.name || (existing && existing.name) || null,
+      role: person.role || (existing && existing.role) || null,
+      email: person.email || (existing && existing.email) || null,
+      phone: person.phone || (existing && existing.phone) || null,
+      foundOn: person.foundOn || (existing && existing.foundOn) || null,
+      source: 'WEBSITE',
+      isPrimary: i === 0 && !existing,
+    };
+    if (existing) await db.contact.update({ where: { id: existing.id }, data });
+    else await db.contact.create({ data });
+    saved += 1;
+  }
+  return saved;
+}
+
+async function main() {
+  const db = new PrismaClient();
+  const started = Date.now();
+  let done = 0, withPeople = 0, withSize = 0, withPhones = 0, peopleSaved = 0, failed = 0;
+  try {
+    const rows = await db.prospect.findMany({
+      where: { website: { not: null }, doNotContact: false },
+      select: { id: true, name: true, website: true },
+      orderBy: { automationScore: 'desc' },
+    });
+    console.log(`${rows.length} businesses with a website to read`);
+
+    for (const b of rows) {
+      done += 1;
+      try {
+        const read = await ps.fetchPeoplePages(b.website, { maxPages: PAGES_PER_SITE });
+        if (read.error && !read.pages.length) { failed += 1; continue; }
+        const people = ps.peopleFromSite(read.pages);
+        if (people.length) {
+          withPeople += 1;
+          peopleSaved += await savePeople(db, b.id, people);
+          if (people.some((p) => p.phone)) withPhones += 1;
+        }
+        const size = ps.teamSizeFrom(people);
+        if (size) {
+          withSize += 1;
+          // Only where nothing was known — a number Russ typed always wins.
+          const current = await db.prospect.findUnique({
+            where: { id: b.id }, select: { employeeCount: true, employeeCountManualValue: true },
+          });
+          if (current.employeeCountManualValue === null && current.employeeCount === null) {
+            await db.prospect.update({
+              where: { id: b.id },
+              data: {
+                employeeCount: size,
+                headcountStatus: 'RESOLVED',
+                headcountPublishedAs: `${size} people named on their own site`,
+                headcountSourceUrl: (people.find((p) => p.foundOn) || {}).foundOn || null,
+              },
+            });
+          }
+        }
+      } catch (e) {
+        failed += 1;
+      }
+      if (done % PROGRESS_EVERY === 0) {
+        const mins = Math.round((Date.now() - started) / 60000);
+        console.log(`${done}/${rows.length} read (${mins}m) — ${withPeople} with people, ${withSize} with a team size, ${withPhones} with a direct number, ${peopleSaved} people saved, ${failed} unreadable`);
+      }
+      await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_SITES_MS));
+    }
+
+    console.log('');
+    console.log(`DONE in ${Math.round((Date.now() - started) / 60000)} minutes`);
+    console.log(`  businesses read:        ${done}`);
+    console.log(`  with people found:      ${withPeople}`);
+    console.log(`  with a real team size:  ${withSize}`);
+    console.log(`  with a direct number:   ${withPhones}`);
+    console.log(`  people saved:           ${peopleSaved}`);
+    console.log(`  unreadable:             ${failed}`);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });

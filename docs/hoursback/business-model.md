@@ -26,7 +26,7 @@ So the offer is stated as a gain, not a loss:
 
 This framing is a **settled decision, not a stylistic preference**. Loss framing — "you're wasting hours," "you're bleeding time" — was considered and **rejected**, for two reasons. Loss framing makes the purchase a cost decision, and cost decisions get compared against other costs and deferred. Gain framing makes it a personal decision, and personal decisions get made. Second, loss framing puts the owner on the defensive about how they run their own company, which is the wrong footing for someone about to let you inside it.
 
-No sentence in this section frames the pain as waste. Every dollar figure that appears anywhere in this document exists to make the *hours* land, never to replace them.
+No sentence in this section frames the pain as waste. And no dollar figure appears anywhere as a measure of the hours — the fee is the only money in this document.
 
 ### The evidence
 
@@ -43,11 +43,11 @@ Every numeric claim below carries a named source.
 
 **Which wage figure governs.** The **county figure ($66,227) governs** for any Central Oregon prospect. The statewide figure is carried here for context and for prospects outside the county. Where the two disagree, the county figure is used and the statewide figure is not quoted to a local buyer.
 
-**The wage basis, stated once, used everywhere.** $66,227 average annual wage, loaded at 25% for payroll taxes and benefits, gives **≈$82,784 per employee per year**, or **$39.80 per hour** across 2,080 hours. Every dollar figure shown to a prospect in this business is reproducible from that number and the guaranteed hours. Nothing else.
+**No wage basis is used, because no hour is ever priced.** This business sells HOURS (Russ, 2026-08-26). No dollar value is put on an hour of anyone's time, in writing or on a call, at any company size. The fee is the only dollar figure that exists, and it is never divided by, derived from, or compared against the hours.
 
 ### Why the guarantee is credible, in one line
 
-The research documents roughly **ten hours a week per worker** lost to repetitive tasks. This practice guarantees finding the hours named for a company's band — which works out at roughly **one hour per employee per week**, and never more than about an hour and a half even at the tightest point of any band. That is approximately **one tenth of the waste the evidence already establishes**. The promise is deliberately set an order of magnitude below the documented problem. That is what makes it safe to guarantee, and it is the argument to make out loud when a skeptical owner asks how you can possibly promise that.
+The research documents roughly **ten hours a week per worker** lost to repetitive tasks. This practice guarantees finding **five hours a week for the whole business** — below the lowest figure any independent source documents recovering, in any industry, at any size. Contractors alone are documented recovering 8+ hours a week from dispatch and invoicing; dental practices 15-20; insurance agencies lose 34. Five is a fraction of the smallest of those, and the promise is only to FIND the hours and name the tools. That is what makes it safe to guarantee, and it is the argument to make out loud when a skeptical owner asks how you can possibly promise it.
 
 **Verdict test for this section:** every numeric pain claim carries a named source. There are no uncited numeric claims.
 
@@ -65,7 +65,7 @@ There are **exactly two** segments. A prospect with a known public headcount lan
 | Minimum to qualify | **5 employees** — below this there is not enough repeated process to find an hour per head reliably |
 | Observable qualifier | **The owner is still in the machine** — answering the phone, approving invoices, doing payroll, personally the bottleneck |
 | What is sold | Hours, and what the hours are for. Time and life back. |
-| What is shown | **Hours only.** No dollar figure in the outreach body. |
+| What is shown | **Hours only.** No dollar figure in the outreach body. Five hours, every business. |
 
 Observable signals that the owner is still in the machine: the owner's name is on the contact page; the owner answers the main line; the website's team page lists fewer than five non-owner roles; the owner is the one posting on the company's social accounts.
 
@@ -76,11 +76,11 @@ Observable signals that the owner is still in the machine: the owner's name is o
 | Headcount band | **31 or more staff** |
 | Observable qualifier | The owner or CEO is **not** personally doing the manual work; a manager, controller, or operations lead owns the process |
 | What is sold | Return, staffing savings, operational efficiency |
-| What is shown | **Hours and dollars both — above 50 employees.** Between 31 and 50, hours lead and dollars appear only on request. |
+| What is shown | **Hours only, at every size.** (Russ, 2026-08-26 — the earlier dollars-above-50 rule is retired.) |
 
-**The 50-employee threshold.** At or above **50 employees**, the dollar figure is shown alongside the hours figure in outreach and in the meeting. Below 50, only hours are shown. The reason is that "one hundred hours a week" reads as absurd out loud even though it is conservative, and above 50 the dollar translation is what makes the same promise sound sober rather than fantastic.
+**The 50-employee threshold is retired** (Russ, 2026-08-26). It existed to allow a dollar translation for larger companies. There is no dollar translation any more, at any size. Where "a hundred hours a week" reads as too large to say out loud, the answer is to say it per department or per process — never to convert it to money.
 
-**The guarantee works identically across both segments.** The hours named for the band, every week. Only the *language* differs — hours for the small owner, hours plus dollars for the larger company. Marketing bifurcates; the promise does not.
+**The guarantee works identically across both segments.** Five hours a week found, every week. Only the *language* differs — plainer for the small owner, more operational for the larger company. Neither is given a dollar figure. Marketing bifurcates; the promise does not.
 
 **Verdict test:** a reader can sort any prospect into exactly one segment, or disqualify it, using public headcount alone.
 
@@ -90,29 +90,21 @@ Observable signals that the owner is still in the machine: the owner's name is o
 
 ### The pricing rule
 
-> **$100 for every hour a week you get back.**
+> **$999. Five hours a week found, or nothing to pay. The same for every business.**
 
-| Team size | Hours a week guaranteed | Fee |
+| Every business | Hours a week guaranteed | Fee |
 |---|---|---|
-| Up to 10 | 10 | $999 |
-| 11–15 | 15 | $1,500 |
-| 16–20 | 20 | $2,000 |
-| 21–25 | 25 | $2,500 |
-| 26–35 | 35 | $3,500 |
-| 36–50 | 50 | $5,000 |
-| 51–75 | 75 | $7,500 |
-| 76–100 | 100 | $10,000 |
-| 101–150 | 150 | $15,000 |
+| any size | 5 | $999 |
 
-**The price follows the hours, never the headcount.** Every band carries one fee and one guaranteed-hours figure, and the fee is exactly $100 per guaranteed hour at every band above the entry price. Nobody pays more for the same promise, and more hours always cost more. The $999 entry price is $1,000 rounded down — the single rounding in the table, and the only exception to the rule.
+**One price, one promise, every business** (Russ, 2026-08-26). $999, five hours a week found, or nothing to pay. The nine headcount bands are retired, and so is the industry-tier model that briefly replaced them. There is no per-hour rule, no band and no multiplier — nothing to compute on a phone call, and nothing a reader can reverse-engineer. Finding more than five is the normal case and it is the door: everything above five is a bonus that earns the right to propose the work and implement the tools found.
 
-Stated as a band deliberately — there is nothing to compute on a phone call, the two numbers that matter are said in one breath, and neither sounds like a quote.
+Stated as one flat offer deliberately — there is nothing to compute on a phone call, the two numbers that matter are said in one breath, and neither sounds like a quote.
 
 **Headcount is public.** Company websites and LinkedIn company pages both publish it, usually as a range rather than an exact number — which is why the bands are built to tolerate a range. Therefore **every prospect carries its own price and its own promised hours before first contact** — both can appear in the first email, and the sales conversation never begins with "let me put together a quote."
 
 ### The guarantee
 
-> **The hours named for your band, every week, or you pay nothing.** Ten hours at the entry band, rising to 150 at the largest.
+> **Five hours a week found, every week, or you pay nothing.** The same promise for every business, at every size.
 
 **What is guaranteed is the FINDING, not the doing.** The audit finds the recoverable hours *and* names the specific tools that recover them. Whether Russ implements any of it is entirely the client's choice — they may hire him, hire someone else, or do it themselves. Custom builds are *suggested* after the audit and are **never part of the guarantee**.
 
@@ -135,21 +127,13 @@ The audit fee is **credited in full against the implementation invoice** if the 
 
 ### The numbers, at every size
 
-| Team size | Fee | Guaranteed hours/week | Annual value at $39.80/hr | Return |
-|---|---|---|---|---|
-| Up to 10 | $999 | 10 | $20,696 | 21x |
-| 11–15 | $1,500 | 15 | $31,044 | 21x |
-| 16–20 | $2,000 | 20 | $41,392 | 21x |
-| 21–25 | $2,500 | 25 | $51,740 | 21x |
-| 26–35 | $3,500 | 35 | $72,436 | 21x |
-| 36–50 | $5,000 | 50 | $103,480 | 21x |
-| 51–75 | $7,500 | 75 | $155,220 | 21x |
-| 76–100 | $10,000 | 100 | $206,960 | 21x |
-| 101–150 | $15,000 | 150 | $310,440 | 21x |
+| Every business | Fee | Guaranteed hours/week |
+|---|---|---|
+| any size | $999 | 5 |
 
-**The return is 21x at every band, without exception.** That falls straight out of the pricing rule: at $100 per guaranteed hour, the annual value of those hours divided by the fee is the same arithmetic every time. There is no size at which the buyer gets a worse deal, and no size at which the practice is underpaid relative to the promise.
+**No return multiple is quoted, to anyone.** A multiple is a dollar claim wearing a different hat, and it invites an argument about whose wage was used. The hours are the whole promise and they can be counted in a room.
 
-**Where the promise is tightest.** Each band guarantees the hours a company at the *top* of that band would expect, so the hardest case in every band is the company at the bottom of it — an eleven-person company promised fifteen hours is being promised roughly an hour and a half per person per week. The research documents ten hours per person per week lost to repetitive work. Even the tightest case sits at about a seventh of the documented waste.
+**Where the promise is tightest.** The smallest business on the list. Even there, five hours a week is below the lowest figure any independent source documents recovering, and the promise is only to FIND those hours and name the tools — not to deliver them.
 
 **Verdict test:** for any headcount, the fee, the guaranteed hours, and the refund test are each computable from this section with no further judgment call.
 
@@ -201,7 +185,7 @@ An ordered sequence, not a menu. Each rung requires the one before it.
 
 | # | Rung | Price band | Requires | Purpose |
 |---|---|---|---|---|
-| 1 | **Audit** | $999 – $15,000 | Nothing | Pays for itself, gets inside, credited forward |
+| 1 | **Audit** | $999 | Nothing | Pays for itself, gets inside, credited forward |
 | 2 | **Tool implementation** | $1,500 – $3,000 | A completed audit | Fixed scope, one week. No budget conversation. Builds trust. Reveals the real problem. |
 | 3 | **Custom build** | $10,000 – $75,000 | An audit, and usually rung 2 | **The goal.** This is Section 4 of the deliverable, bought. |
 | 4 | **Support retainer** | $500 – $2,000/month | A live custom build | Recurring revenue after the build ships |
@@ -218,7 +202,7 @@ An ordered sequence, not a menu. Each rung requires the one before it.
 
 | Share of clients | Band | Fee used |
 |---|---|---|
-| 60% | Up to 10 staff | $999 |
+| 60% | Any size | $999 |
 | 30% | 11–30 staff (avg 18, so the 16–20 band) | $2,000 |
 | 10% | 31–75 staff (avg 45, so the 36–50 band) | $5,000 |
 
@@ -306,7 +290,7 @@ Researched 2026-08-24. Every rate below is attributed.
 
 ### Message — Segment A (small owner-operator)
 
-Hours only. No dollar figure in the body. Price stated, computed from public headcount.
+Hours only. No dollar figure in the body. One price, $999, the same for everyone.
 
 **Subject:** ten hours a week back, or you don't pay
 
@@ -326,7 +310,7 @@ Hours only. No dollar figure in the body. Price stated, computed from public hea
 
 ### Message — Segment B (larger company, 50+)
 
-Hours and dollars both. **The guarantee is still stated in hours.**
+Hours only, in more operational language. **The guarantee is stated in hours, and nothing else.**
 
 **Subject:** [N] hours a week back at [Company], guaranteed
 
@@ -541,7 +525,7 @@ Changing anything in the locked column requires editing `locked-decisions.md` fi
 
 1. **After the first 10 audits** — replace every ASSUMPTION in §5 with actuals
 2. **Any refund paid** — re-examine whether the guaranteed hours threshold is set correctly
-3. **Any new Business Oregon wage release** — the $39.80/hour basis changes and every dollar figure moves with it
+3. ~~Wage releases~~ — no longer a trigger. No hour is priced, so no wage figure moves anything.
 4. **A new local competitor publishing a guarantee** — the differentiator in §6 is no longer sole
 5. **Three consecutive weeks at capacity** — the tracking system and the capacity model both need re-cutting
 6. **Any audit taking more than 12 working hours** — the pricing rule's assumption about effort is wrong

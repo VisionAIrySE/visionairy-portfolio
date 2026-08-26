@@ -12,11 +12,17 @@
 
 const OVERRIDABLE = [
   'name', 'phone', 'website', 'address', 'employeeCount', 'email',
+  // Trade was guessed from the business name or their own words and was never
+  // correctable by hand, so a wrong guess stuck forever. Russ asked for it,
+  // 2026-08-26. It has no ...ManualValue column of its own — the guess and the
+  // correction share one field, because a guess is not a fetched fact.
+  'trade',
 ];
 
 function manualColumn(field) { return `${field}ManualValue`; }
 
 function resolveField(record, field) {
+  if (field === 'trade') return record.trade;
   const manual = record[manualColumn(field)];
   return manual !== null && manual !== undefined ? manual : record[field];
 }
@@ -26,7 +32,10 @@ async function setOverride(db, prospectId, field, value, correctedBy) {
     throw new Error(`field "${field}" is not overridable (${OVERRIDABLE.join(', ')})`);
   }
   const before = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  const data = { [manualColumn(field)]: value };
+  // Trade has no fetched/corrected pair — the stored value was only ever a
+  // guess from the business name or their own words, so a correction simply
+  // replaces it rather than sitting beside it.
+  const data = field === 'trade' ? { trade: value } : { [manualColumn(field)]: value };
 
   // A corrected headcount reprices the record from the resolved count.
   if (field === 'employeeCount') {

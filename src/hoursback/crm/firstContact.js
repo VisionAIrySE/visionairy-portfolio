@@ -223,8 +223,12 @@ const SHORT_TELLS = {
 // and saying so is the least generic sentence in the whole message. Only used
 // where their own site states it.
 function longevityLine(prospect) {
+  // A COUNT of years, not the year they opened — the website reader converts
+  // "since 1994" before it stores anything. Guarded anyway: a raw year
+  // slipping through here would tell a thirty-year-old shop it has been
+  // around for forty-odd, in writing, to a stranger.
   const y = prospect.yearsInBusiness;
-  if (!y || y < 8) return '';
+  if (!y || y < 8 || y > 120) return '';
   const town = (String(prospect.address || '').match(/,\s*([A-Za-z ]+),\s*OR/) || [])[1];
   const where = town ? ` in ${town.trim()}` : ' in Central Oregon';
   if (y >= 40) return `Forty-odd years${where} means you have seen every version of this, so I will be brief. `;
@@ -283,33 +287,27 @@ function followOnFor(key, prospect) {
 
 // The guarantee, in their own numbers where we know their team size. Ten hours
 // is the floor at every band, so it is safe wherever the size is unknown.
-// What an hour of Central Oregon staff time actually costs, wage plus
-// overhead. Sourced in the business model; it is what makes the return 21x at
-// every band. Not the $100 per guaranteed hour the FEE is set from.
-const HOURLY_VALUE = 39.80;
+// No hourly dollar value lives here any more. Russ sells HOURS, not dollars
+// (his instruction, 2026-08-26). A dollar figure invites an argument about
+// whose wage was used; hours counted against named tasks cannot be argued.
+// $999 is the price floor, and the fee is the only dollar figure that exists.
 
-const WORDS = { 10: 'ten', 15: 'fifteen', 20: 'twenty', 25: 'twenty-five', 35: 'thirty-five',
+const WORDS = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 8: 'eight',
+  10: 'ten', 15: 'fifteen', 20: 'twenty', 25: 'twenty-five', 35: 'thirty-five',
   50: 'fifty', 75: 'seventy-five', 100: 'a hundred', 150: 'a hundred and fifty' };
-const MONTHS = { 520: 'three months', 780: 'four and a half months', 1040: 'six months',
+const MONTHS = { 156: 'a working month', 208: 'five weeks', 260: 'six weeks',
+  312: 'two months', 416: 'two and a half months',
+  520: 'three months', 780: 'four and a half months', 1040: 'six months',
   1300: 'seven and a half months', 1820: 'ten months', 2600: 'a year and a quarter',
   3900: 'nearly two years', 5200: 'two and a half years', 7800: 'nearly four years' };
 
 // What the band means for this business. Ten hours is the floor everywhere, so
 // it is safe wherever the team size is unknown.
-function bandFacts(prospect) {
-  const { resolveField } = require('../overrides.js');
-  const count = resolveField(prospect, 'employeeCount');
-  if (count) {
-    const { bandForEmployeeCount } = require('../rules.js');
-    const b = bandForEmployeeCount(count);
-    if (b && b.guaranteedHours && b.auditFee) {
-      const yearHours = b.guaranteedHours * 52;
-      return { hours: b.guaranteedHours, fee: b.auditFee, yearHours, known: true,
-        hoursWord: WORDS[b.guaranteedHours] || String(b.guaranteedHours),
-        months: MONTHS[yearHours] || 'a good stretch' };
-    }
-  }
-  return { hours: 10, fee: null, yearHours: 520, known: false, hoursWord: 'ten', months: 'three months' };
+function bandFacts() {
+  // One offer, every business: five hours a week found, or nothing to pay,
+  // for $999. Russ, 2026-08-26. Nothing here varies by size or by trade.
+  const { THE_OFFER } = require('../industryTiers.js');
+  return { ...THE_OFFER, known: true };
 }
 
 // The guarantee, in their own hours. No price in a first approach — Russ's own
@@ -318,7 +316,11 @@ function bandFacts(prospect) {
 function guaranteeFor(prospect, seed) {
   const V = require('./variants.js');
   const f = bandFacts(prospect);
-  return V.pick(V.GUARANTEE, seed, 'guarantee').replace(/\{hours\}/g, f.hoursWord);
+  const word = f.hoursWord;
+  const Word = word.charAt(0).toUpperCase() + word.slice(1);
+  return V.pick(V.GUARANTEE, seed, 'guarantee')
+    .replace(/\{Hours\}/g, Word)
+    .replace(/\{hours\}/g, word);
 }
 
 // The hours as a slice of a working life, which cannot be argued with the way
@@ -326,7 +328,13 @@ function guaranteeFor(prospect, seed) {
 function yearLineFor(prospect, seed) {
   const V = require('./variants.js');
   const f = bandFacts(prospect);
-  return V.pick(V.YEAR_FRAMING, seed, 'year')
+  // "Thirty-five hours a week does not sound like much" is absurd. That
+  // wording only works while the weekly number is genuinely small, so above
+  // ten hours the wordings that lean on it are dropped.
+  const wordings = f.hours > 10
+    ? V.YEAR_FRAMING.filter((w) => !/does not sound like much/.test(w))
+    : V.YEAR_FRAMING;
+  return V.pick(wordings, seed, 'year')
     .replace(/\{hours\}/g, f.hoursWord)
     .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
     .replace(/\{months\}/g, f.months);
@@ -402,8 +410,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
     ? V2.pick(V2.PRICE_FRAMING, prospect.name || '', 'price')
       .replace(/\{fee\}/g, `$${f.fee.toLocaleString()}`)
       .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
-      .replace(/\{value\}/g, `$${Math.round(f.yearHours * HOURLY_VALUE).toLocaleString()}`)
-    : `The audit is priced off the size of your team. At the smallest band it buys back ${f.yearHours.toLocaleString()} hours a year, which is around $${Math.round(f.yearHours * HOURLY_VALUE).toLocaleString()} of time at what people actually cost around here.`;
+    : `The audit is priced off the size of your team, from ${'$999'} up. At the smallest band it buys back ${f.yearHours.toLocaleString()} hours a year.`;
   const body = t.body
     .replace('{priceLine}', priceLine)
     .replace('{greeting}', greetingFor(prospect))

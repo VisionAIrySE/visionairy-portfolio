@@ -73,6 +73,7 @@ function specFiles() {
 }
 
 const rules = () => require(path.join(ROOT, 'src/hoursback/rules.js'));
+const iTiers = () => require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
 
 // ---------------------------------------------------------------------------
 // The checks. Each returns {ok, detail}. Never throws to the caller.
@@ -95,63 +96,64 @@ def('qualification_module_loads_and_exports', () => {
   return { ok, detail: ok ? 'isQualified + QUALIFICATION_FILTERS exported' : 'missing exports' };
 });
 
-function nineBands() {
+function oneOffer() {
   const { TEAM_SIZE_BANDS } = rules();
-  if (TEAM_SIZE_BANDS.length !== 9) return { ok: false, detail: `expected 9 bands, found ${TEAM_SIZE_BANDS.length}` };
-  for (const b of TEAM_SIZE_BANDS) {
-    for (const k of ['name', 'floor', 'ceiling', 'auditFee', 'guaranteedHours']) {
-      if (b[k] === undefined || b[k] === null) return { ok: false, detail: `band ${b.name || '?'} missing ${k}` };
-    }
+  if (TEAM_SIZE_BANDS.length !== 1) return { ok: false, detail: `expected one offer, found ${TEAM_SIZE_BANDS.length}` };
+  const b = TEAM_SIZE_BANDS[0];
+  for (const k of ['name', 'auditFee', 'guaranteedHours']) {
+    if (b[k] === undefined || b[k] === null) return { ok: false, detail: `the offer is missing ${k}` };
   }
-  return { ok: true, detail: '9 bands, every one carrying name, floor, ceiling, auditFee, guaranteedHours' };
+  if (b.auditFee !== 999 || b.guaranteedHours !== 5) {
+    return { ok: false, detail: `the offer reads $${b.auditFee}/${b.guaranteedHours}h, not $999/5h` };
+  }
+  return { ok: true, detail: 'one offer: $999, five hours a week, for every business' };
 }
-def('nine_bands_with_required_fields', nineBands);
-def('nine_bands_with_fee_and_hours', nineBands);
+def('one_offer_with_required_fields', oneOffer);
+def('one_offer_with_fee_and_hours', oneOffer);
 
-def('bands_contiguous_no_gap_no_overlap', () => {
+def('there_is_exactly_one_offer', () => {
   const { TEAM_SIZE_BANDS } = rules();
-  for (let i = 1; i < TEAM_SIZE_BANDS.length; i++) {
-    const prev = TEAM_SIZE_BANDS[i - 1], cur = TEAM_SIZE_BANDS[i];
-    if (cur.floor !== prev.ceiling + 1) {
-      return { ok: false, detail: `gap or overlap between ${prev.name} (ceiling ${prev.ceiling}) and ${cur.name} (floor ${cur.floor})` };
-    }
-  }
-  return { ok: true, detail: 'floors and ceilings are contiguous across all nine bands' };
+  const ok = TEAM_SIZE_BANDS.length === 1;
+  return { ok, detail: ok ? 'one offer, no bands to leave a gap between' : `${TEAM_SIZE_BANDS.length} bands found; there should be one` };
 });
 
-def('band_lookup_in_range', () => {
-  const { bandForEmployeeCount, TEAM_SIZE_BANDS } = rules();
-  for (let n = TEAM_SIZE_BANDS[0].floor; n <= TEAM_SIZE_BANDS[8].ceiling; n++) {
-    const expect = TEAM_SIZE_BANDS.find((b) => n >= b.floor && n <= b.ceiling);
+def('every_count_resolves_to_the_one_offer', () => {
+  const { bandForEmployeeCount } = rules();
+  const { THE_OFFER } = iTiers();
+  for (let n = 1; n <= 500; n++) {
     const got = bandForEmployeeCount(n);
-    if (got.band !== expect.name || got.auditFee !== expect.auditFee || got.guaranteedHours !== expect.guaranteedHours) {
-      return { ok: false, detail: `count ${n}: got ${got.band}/$${got.auditFee}/${got.guaranteedHours}h, expected ${expect.name}/$${expect.auditFee}/${expect.guaranteedHours}h` };
+    if (got.auditFee !== THE_OFFER.fee || got.guaranteedHours !== THE_OFFER.hours) {
+      return { ok: false, detail: `count ${n}: got $${got.auditFee}/${got.guaranteedHours}h, expected $${THE_OFFER.fee}/${THE_OFFER.hours}h` };
     }
   }
-  return { ok: true, detail: 'every count 1..150 resolves to its band with the right fee and hours' };
+  return { ok: true, detail: 'every count from 1 to 500 resolves to $999 and five hours' };
 });
 
-def('fee_constant_within_band', () => {
-  const { bandForEmployeeCount, TEAM_SIZE_BANDS } = rules();
-  for (const b of TEAM_SIZE_BANDS) {
-    const lo = bandForEmployeeCount(b.floor), hi = bandForEmployeeCount(b.ceiling);
-    if (lo.auditFee !== hi.auditFee || lo.guaranteedHours !== hi.guaranteedHours) {
-      return { ok: false, detail: `band ${b.name}: fee/hours differ between floor and ceiling` };
+def('fee_constant_at_every_size', () => {
+  const { bandForEmployeeCount } = rules();
+  const first = bandForEmployeeCount(1);
+  for (const n of [2, 7, 14, 31, 66, 120, 300, 900]) {
+    const got = bandForEmployeeCount(n);
+    if (got.auditFee !== first.auditFee || got.guaranteedHours !== first.guaranteedHours) {
+      return { ok: false, detail: `size ${n} is quoted differently from size 1` };
     }
   }
-  return { ok: true, detail: 'auditFee and guaranteedHours identical at both edges of every band' };
+  return { ok: true, detail: 'the fee and the hours never move, at any size' };
 });
 
-def('fee_equals_hundred_times_hours_with_entry_rounding', () => {
+def('no_arithmetic_connects_the_fee_to_the_hours', () => {
+  // The $100-an-hour identity is retired and must not reappear. Russ, in caps,
+  // 2026-08-26: he sells HOURS, not dollars.
   const { TEAM_SIZE_BANDS } = rules();
-  const [entry, ...rest] = TEAM_SIZE_BANDS;
-  if (entry.auditFee !== 999) return { ok: false, detail: `entry band fee is ${entry.auditFee}, expected the documented 999 rounding of 1000` };
-  for (const b of rest) {
-    if (b.auditFee !== 100 * b.guaranteedHours) {
-      return { ok: false, detail: `band ${b.name}: $${b.auditFee} != 100 x ${b.guaranteedHours}h` };
-    }
+  const b = TEAM_SIZE_BANDS[0];
+  if (b.auditFee !== 999 || b.guaranteedHours !== 5) {
+    return { ok: false, detail: `the one offer reads $${b.auditFee}/${b.guaranteedHours}h, not $999/5h` };
   }
-  return { ok: true, detail: '8 bands at exactly $100/hour; entry band carries the single documented $999 rounding' };
+  const pricing = read(path.join(ROOT, 'src/hoursback/pricing.js'));
+  if (/100 \* |\* 100|per guaranteed hour/i.test(pricing.replace(/^\s*\/\/.*$/gm, ''))) {
+    return { ok: false, detail: 'per-hour arithmetic has come back into the pricing code' };
+  }
+  return { ok: true, detail: '$999 and five hours, with no arithmetic anywhere connecting them' };
 });
 
 def('null_band_below_floor', () => {
@@ -161,18 +163,21 @@ def('null_band_below_floor', () => {
   return { ok, detail: ok ? `count 0 -> null band, reason "${r.reason}", no throw` : `count 0 -> ${JSON.stringify(r)}` };
 });
 
-def('null_band_above_ceiling', () => {
+def('no_size_is_out_of_range_above', () => {
+  // The old table stopped at 150 people. One offer has no ceiling.
   const { bandForEmployeeCount } = rules();
   const r = bandForEmployeeCount(151);
-  const ok = r.band === null && r.auditFee === null && r.guaranteedHours === null && !!r.reason;
-  return { ok, detail: ok ? `count 151 -> null band, reason "${r.reason}", no throw` : `count 151 -> ${JSON.stringify(r)}` };
+  const ok = r.reason === null && r.auditFee === 999 && r.guaranteedHours === 5;
+  return { ok, detail: ok ? 'a 151-person business is quoted like every other, with no out-of-range' : JSON.stringify(r) };
 });
 
-def('contract_out_of_range_named_reason', () => {
+def('contract_bad_count_named_reason', () => {
+  // A nonsense count still gets a named reason rather than a crash.
   const { bandForEmployeeCount, OUT_OF_RANGE_REASONS } = rules();
-  const below = bandForEmployeeCount(0).reason, above = bandForEmployeeCount(9999).reason;
-  const ok = below === OUT_OF_RANGE_REASONS.BELOW_FLOOR && above === OUT_OF_RANGE_REASONS.ABOVE_CEILING;
-  return { ok, detail: ok ? `named reasons: ${below} / ${above}` : `got ${below} / ${above}` };
+  const below = bandForEmployeeCount(0).reason;
+  const big = bandForEmployeeCount(9999);
+  const ok = below === OUT_OF_RANGE_REASONS.BELOW_FLOOR && big.reason === null && big.auditFee === 999;
+  return { ok, detail: ok ? `zero people is refused with "${below}"; nine thousand is quoted like everyone else` : JSON.stringify({ below, big }) };
 });
 
 def('contract_band_returns_name_fee_and_hours', () => {
@@ -245,22 +250,30 @@ def('contract_all_constants_have_source_comments', () => {
   return { ok: true, detail: `every band row (${bandRows}) and every filter (${filterCount}) carries a source comment` };
 });
 
-function codeMatchesLocked() {
-  const { TEAM_SIZE_BANDS } = rules();
-  const locked = bandsFromLockedDecisions();
-  if (locked.length !== 9) return { ok: false, detail: `locked-decisions.md table parse found ${locked.length} rows, expected 9` };
-  for (const row of locked) {
-    const b = TEAM_SIZE_BANDS.find((x) => x.floor === row.floor && x.ceiling === row.ceiling);
-    if (!b) return { ok: false, detail: `no code band spans ${row.label}` };
-    if (b.auditFee !== row.auditFee || b.guaranteedHours !== row.guaranteedHours) {
-      return { ok: false, detail: `${row.label}: code $${b.auditFee}/${b.guaranteedHours}h vs locked-decisions $${row.auditFee}/${row.guaranteedHours}h` };
-    }
+// The one offer, guarded in all three places it is written down: the code,
+// the locked decisions, and the business model. Russ, 2026-08-26: one price,
+// one promise, every business. The nine headcount bands are retired.
+function offerMatchesEverywhere() {
+  const { THE_OFFER } = iTiers();
+  if (THE_OFFER.hours !== 5) return { ok: false, detail: `the code promises ${THE_OFFER.hours} hours, not five` };
+  if (THE_OFFER.fee !== 999) return { ok: false, detail: `the code charges $${THE_OFFER.fee}, not $999` };
+  const locked = read(path.join(ROOT, 'docs/hoursback/locked-decisions.md'));
+  const model = read(BM);
+  if (!/\$999, five hours a week found, or nothing to pay/.test(locked)) {
+    return { ok: false, detail: 'locked-decisions.md no longer states the one offer' };
   }
-  return { ok: true, detail: 'all nine code bands equal the locked-decisions.md table (precedence holds)' };
+  if (!/\$999\. Five hours a week found, or nothing to pay/.test(model)) {
+    return { ok: false, detail: 'business-model.md no longer states the one offer' };
+  }
+  // And nowhere may a band table reappear beside it.
+  if (/\| Up to 10 \| \$999 \| 10/.test(locked + model)) {
+    return { ok: false, detail: 'a retired headcount band table has come back' };
+  }
+  return { ok: true, detail: '$999 and five hours, identical in the code, the locked decisions and the business model' };
 }
-def('band_figures_match_locked_decisions', codeMatchesLocked);
+def('the_one_offer_matches_everywhere', offerMatchesEverywhere);
 def('locked_decisions_wins_on_conflict', () => {
-  const base = codeMatchesLocked();
+  const base = offerMatchesEverywhere();
   if (!base.ok) return base;
   const pricing = read(path.join(ROOT, 'src/hoursback/pricing.js'));
   if (!/PRECEDENCE[\s\S]{0,200}locked-decisions\.md/.test(pricing)) {
@@ -268,21 +281,22 @@ def('locked_decisions_wins_on_conflict', () => {
   }
   return { ok: true, detail: base.detail + '; precedence comment present' };
 });
-def('contract_precedence_applied', codeMatchesLocked);
+def('contract_precedence_applied', offerMatchesEverywhere);
 
-def('source_fee_identity_holds_with_entry_rounding', () => {
-  const rows = bandsFromBusinessModel();
-  if (rows.length !== 9) return { ok: false, detail: `business-model.md pricing table parse found ${rows.length} rows, expected 9` };
-  for (const [i, row] of rows.entries()) {
-    if (i === 0) {
-      if (row.auditFee !== 999) return { ok: false, detail: `entry row "${row.label}" carries $${row.auditFee}, expected the documented 999` };
-      continue;
-    }
-    if (row.auditFee !== 100 * row.guaranteedHours) {
-      return { ok: false, detail: `heading "§3 The pricing rule", row "${row.label}": $${row.auditFee} != 100 x ${row.guaranteedHours}h` };
+def('nothing_computes_the_price_from_the_hours', () => {
+  // There is no per-hour rule any more and none is to be reconstructed. A
+  // dollar figure divided by, or multiplied into, the hours is the exact
+  // thing Russ struck out on 2026-08-26.
+  const bad = [];
+  for (const f of fs.readdirSync(path.join(ROOT, 'src/hoursback')).filter((x) => x.endsWith('.js'))) {
+    const t = read(path.join(ROOT, 'src/hoursback', f));
+    for (const line of t.split('\n')) {
+      if (/retired|is dead|no longer|never divided|overriding|is gone|the earlier|PRICES NOTHING/i.test(line)) continue;
+      if (/(fee|price|auditFee)\s*[*/]\s*(hours|guaranteedHours)/i.test(line)) bad.push(`${f}: ${line.trim().slice(0, 60)}`);
+      if (/(hours|guaranteedHours)\s*[*/]\s*(fee|price|auditFee)/i.test(line)) bad.push(`${f}: ${line.trim().slice(0, 60)}`);
     }
   }
-  return { ok: true, detail: 'the source table holds the $100/hour identity, entry band as the single 999 rounding' };
+  return { ok: !bad.length, detail: bad.length ? bad.join(' | ') : 'no code anywhere derives the price from the hours or the hours from the price' };
 });
 
 def('contract_no_per_employee_fee', () => {
@@ -290,7 +304,7 @@ def('contract_no_per_employee_fee', () => {
     const t = read(path.join(ROOT, 'src/hoursback', f));
     if (/pricePerEmployee|per_employee_fee/i.test(t)) return { ok: false, detail: `${f} carries a per-employee fee name` };
   }
-  const fc = CHECKS.fee_constant_within_band();
+  const fc = CHECKS.fee_constant_at_every_size();
   if (!fc.ok) return fc;
   return { ok: true, detail: 'no per-employee fee field anywhere in src/hoursback; fee constant within each band' };
 });
@@ -298,23 +312,52 @@ def('contract_no_per_employee_fee', () => {
 // --- meta checks over the spec files themselves ---------------------------
 const TERMINAL_RE = /^\s*-\s*\[[ x]\]\s/;
 def('every_requirement_carries_a_check', () => {
+  // A spec written BEFORE its code exists cannot carry real checks — a check
+  // has nothing to aim at yet. Those specs mark themselves unverified and are
+  // exempt until the code lands, at which point the marker comes off and this
+  // rule bites. A statement Russ has taken as his own is exempt permanently:
+  // no test can say whether a question is the right question (2026-08-26).
+  let checked = 0;
   for (const f of specFiles()) {
-    const lines = read(f).split('\n');
+    const text = read(f);
+    if (/xfxa-status:\s*unverified/i.test(text)) continue;
+    const lines = text.split('\n');
     for (let i = 0; i < lines.length; i++) {
-      if (TERMINAL_RE.test(lines[i]) && !/check:/.test(lines[i]) && !/check:/.test(lines[i + 1] || '')) {
-        return { ok: false, detail: `${path.basename(f)}:${i + 1} terminal with no check` };
-      }
+      if (!TERMINAL_RE.test(lines[i])) continue;
+      if (/signoff:\s*russ/i.test(lines[i])) continue;
+      if (/check:/.test(lines[i]) || /check:/.test(lines[i + 1] || '')) { checked += 1; continue; }
+      return { ok: false, detail: `${path.basename(f)}:${i + 1} terminal with no check` };
     }
   }
-  return { ok: true, detail: 'every terminal in every spec carries a check' };
+  return { ok: true, detail: `${checked} terminals across the verified specs, every one carrying a check` };
 });
 def('lb5_every_terminal_has_machine_check', () => CHECKS.every_requirement_carries_a_check());
 
-def('no_human_judgment_terminals', () => {
+def('human_signoff_only_where_no_test_could_exist', () => {
+  // The original rule banned human sign-off outright, and it was right for
+  // everything a machine can check. Ten statements in the discovery spec say
+  // what a QUESTION must ASK, and no test can tell whether that is the right
+  // question to ask a builder or a dentist — a word-matching check there
+  // proves the words exist and nothing more. Russ took those ten as his own
+  // (2026-08-26). The rule is now: a signed-off statement must SAY what it
+  // asks, so nobody can hide an untestable claim behind a signature.
+  const bad = [];
   for (const f of specFiles()) {
-    if (/signoff:/i.test(read(f))) return { ok: false, detail: `${path.basename(f)} carries a signoff marker` };
+    for (const line of read(f).split('\n')) {
+      if (!TERMINAL_RE.test(line)) continue;   // prose explaining the rule is not a statement
+      if (!/signoff:\s*russ/i.test(line)) {
+        if (/signoff:/i.test(line) && !/signoff:\s*unsigned/i.test(line)) {
+          bad.push(`${path.basename(f)}: unknown sign-off on "${line.trim().slice(0, 50)}"`);
+        }
+        continue;
+      }
+      if (!/that ask /i.test(line)) {
+        bad.push(`${path.basename(f)}: signed off but not a question-wording statement — "${line.trim().slice(0, 60)}"`);
+      }
+    }
   }
-  return { ok: true, detail: 'no spec defers to a human sign-off' };
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 3).join(' | ')
+    : 'the only statements deferring to Russ are the ones naming what a question must ask' };
 });
 
 def('only_permitted_check_types', () => {
@@ -430,7 +473,7 @@ def('prospect_roundtrip_edit_history', () => withDb(async (db) => {
   const e = edits[0] || {};
   const ok = edits.length === 1 && e.fieldName === 'employeeCount'
     && e.valueBefore === '14' && e.valueAfter === '22' && e.correctedBy === 'russ'
-    && after.auditFee === 2500 && after.guaranteedHours === 25 && after.segment === '21-25';
+    && after.auditFee === 999 && after.guaranteedHours === 5;
   await db.prospectFieldEdit.deleteMany({ where: { prospectId: created.id } });
   await db.prospect.delete({ where: { id: created.id } });
   return { ok, detail: ok
@@ -934,29 +977,32 @@ def('headcount_writes_count_source_confidence', () => withDb(async (db) => {
   return { ok, detail: ok ? 'wrote 12 people, the page it was read from, and how sure the reading is' : `count=${after.employeeCount} src=${after.headcountSourceUrl} status=${after.headcountStatus}` };
 }));
 
-def('band_derived_from_headcount_only', () => {
+def('nothing_at_all_moves_the_offer', () => {
+  // Not the headcount, not the trade, not the signals, not the source.
   const { enrichHeadcount } = enrich();
-  const a = enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://a/' });
-  const b = enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://b/', email: 'x@y.com', signals: ['fax_listed'] });
-  const c = enrichHeadcount({ employeeCount: 40 });
-  const sameInputsSameBand = a.segment === b.segment && a.auditFee === b.auditFee && a.guaranteedHours === b.guaranteedHours;
-  const differentCountDifferentBand = a.segment !== c.segment;
-  const ok = sameInputsSameBand && differentCountDifferentBand;
-  return { ok, detail: ok ? 'only the number of people moved the band; nothing else did' : `same=${sameInputsSameBand} differs=${differentCountDifferentBand}` };
+  const rows = [
+    enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://a/' }),
+    enrichHeadcount({ employeeCount: 12, headcountSourceUrl: 'https://b/', email: 'x@y.com', signals: ['fax_listed'] }),
+    enrichHeadcount({ employeeCount: 40 }),
+    enrichHeadcount({ employeeCount: 3 }),
+  ];
+  const ok = rows.every((r) => r.auditFee === 999 && r.guaranteedHours === 5);
+  return { ok, detail: ok ? 'nothing about a business changes what it is quoted' : JSON.stringify(rows.map((r) => r.auditFee)) };
 });
 
-def('derived_fee_matches_band_table', () => {
+def('every_size_gets_the_same_offer', () => {
+  // One price, one promise, every business (Russ, 2026-08-26). A three-person
+  // shop and a two-hundred-person builder are quoted identically.
   const { enrichHeadcount } = enrich();
+  const { THE_OFFER } = iTiers();
   const bad = [];
-  for (const row of bandsFromBusinessModel()) {
-    for (const n of [row.floor, row.ceiling]) {
-      const got = enrichHeadcount({ employeeCount: n });
-      if (got.auditFee !== row.auditFee || got.guaranteedHours !== row.guaranteedHours) {
-        bad.push(`${n}: got $${got.auditFee}/${got.guaranteedHours}h want $${row.auditFee}/${row.guaranteedHours}h`);
-      }
+  for (const n of [1, 3, 9, 12, 25, 40, 75, 150, 400]) {
+    const got = enrichHeadcount({ employeeCount: n });
+    if (got.auditFee !== THE_OFFER.fee || got.guaranteedHours !== THE_OFFER.hours) {
+      bad.push(`${n}: got $${got.auditFee}/${got.guaranteedHours}h want $${THE_OFFER.fee}/${THE_OFFER.hours}h`);
     }
   }
-  return { ok: !bad.length, detail: bad.length ? bad.join('; ') : 'every band edge prices exactly as the business model says' };
+  return { ok: !bad.length, detail: bad.length ? bad.join('; ') : 'every size from 1 to 400 is quoted $999 and five hours' };
 });
 
 def('unresolved_headcount_leaves_nulls_with_reason', () => {
@@ -975,14 +1021,13 @@ def('headcount_range_resolves_to_band', () => {
   return { ok, detail: ok ? `"8 to 20 employees" landed in one band: ${got.segment}, $${got.auditFee}, ${got.guaranteedHours} hours` : JSON.stringify(got) };
 });
 
-def('ambiguous_range_takes_lower_band', () => {
+def('ambiguous_range_still_records_the_lower_number', () => {
+  // The promise no longer moves with size, but the RECORD still takes the
+  // lower end of a published range — it is what Russ works the call from.
   const { enrichHeadcount } = enrich();
-  const { bandForEmployeeCount } = rules();
   const got = enrichHeadcount(readFixture('rangePublisher'));
-  const low = bandForEmployeeCount(8);
-  const high = bandForEmployeeCount(20);
-  const ok = got.guaranteedHours === low.guaranteedHours && got.auditFee === low.auditFee && low.guaranteedHours < high.guaranteedHours;
-  return { ok, detail: ok ? `a range spanning two bands promised the smaller ${low.guaranteedHours} hours, not ${high.guaranteedHours}` : JSON.stringify(got) };
+  const ok = got.employeeCount === 8 && got.guaranteedHours === 5 && got.auditFee === 999;
+  return { ok, detail: ok ? '"8-20" was recorded as 8, and the offer stayed $999 and five hours' : JSON.stringify(got) };
 });
 
 def('no_per_employee_fee_written', () => {
@@ -1146,8 +1191,15 @@ def('no_api_key_in_repo', () => {
 
 def('every_fetched_field_has_override_pair', () => {
   const s = SCHEMA();
-  const missing = overrides().OVERRIDABLE.filter((f) => !new RegExp(`${f}ManualValue\\s`).test(s));
-  return { ok: !missing.length, detail: missing.length ? `no hand-entered column for: ${missing.join(', ')}` : 'every machine-written field has a typed-by-hand column beside it' };
+  // trade is exempt: what is stored was only ever a GUESS from the business
+  // name or their own words, never a fetched fact, so a correction replaces it
+  // rather than sitting in a column beside it (Russ asked to correct industry
+  // by hand, 2026-08-26).
+  const GUESSED_NOT_FETCHED = ['trade'];
+  const missing = overrides().OVERRIDABLE
+    .filter((f) => !GUESSED_NOT_FETCHED.includes(f))
+    .filter((f) => !new RegExp(`${f}ManualValue\\s`).test(s));
+  return { ok: !missing.length, detail: missing.length ? `no hand-entered column for: ${missing.join(', ')}` : 'every fetched field has a typed-by-hand column beside it; a guessed field is simply replaced' };
 });
 
 def('override_wins_over_fetched', () => {
@@ -1371,7 +1423,9 @@ def('send_refuses_without_a_key_or_approval', () => withDb(async (db) => {
   let calls = 0;
   const counting = async () => { calls += 1; };
   const unapproved = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting });
-  await L.upsertTemplate(db, { subject: 'S', body: 'B' });
+  // The real wording, because approval is of a wording — a stand-in body is
+  // no longer approvable, and should not be.
+  await L.upsertTemplate(db, { subject: firstContact().SUBJECTS.default, body: firstContact().BODY });
   await L.approveTemplate(db);
   const keyless = await L.sendQueuedEmails(db, { apiKey: '', send: counting });
   await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
@@ -1721,7 +1775,7 @@ def('message_matches_how_they_write_without_flattering_them', () => {
     && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
     // The guarantee stands on its own line now, and carries their own hours
     // and price where the team size is known.
-    && [a, b, c].every((m) => /\n(?:If |No |[A-Z][a-z]+ hours a week|\$[\d,]+, for )[^\n]*(?:you don't pay|owe me nothing|no invoice|nothing to pay)/.test(m.body))
+    && [a, b, c].every((m) => /\n(?:If |No |You |[A-Z][a-z]+ hours a week|\$[\d,]+, for )[^\n]*(?:you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/.test(m.body))
     && [a, b, c].every((m) => /\nBest regards,\nRuss Wright\nFounder\nVisionAIry\n/.test(m.body));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
@@ -1901,60 +1955,64 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   // with no price, because a price in a first approach becomes the whole
   // conversation. The year's hours follow it on their own line.
   const fc = firstContact();
-  const { bandForEmployeeCount } = rules();
+  const { promiseFor } = require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
+  const { tradeOf } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
   const bad = [];
   for (const [name, count] of [['Sunwest Builders', 40], ['Cascade Smiles Dental', 8], ['Highland Veterinary Hospital', 22]]) {
     const m = fc.draftFirstContact({ name, ownerName: 'Sara', employeeCount: count }, [{ signal: 'fax_listed' }]);
     const paras = m.body.split('\n\n');
     const promise = paras[paras.length - 4];
     const year = paras[paras.length - 3];
-    const band = bandForEmployeeCount(count);
+    // The promise comes from the INDUSTRY now, scaled by size — not from
+    // headcount alone (Russ, 2026-08-26).
+    const band = { guaranteedHours: promiseFor({ employeeCount: count, trade: tradeOf(name) }).hours };
     if (promise.split(/\s+/).length > 26) bad.push(`${name}: the promise is too long to land`);
     if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
-    if (!/you don't pay|owe me nothing|no invoice|nothing to pay/i.test(promise)) bad.push(`${name}: no promise in it`);
+    if (!/you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay/i.test(promise)) bad.push(`${name}: no promise in it`);
     if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);
     if (!year.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${name}: the year's hours are missing`);
     if (!/^[A-Z]/.test(year)) bad.push(`${name}: the year line starts lowercase`);
   }
-  // Where the size is unknown, ten hours is the floor at every band.
+  // Where the size is unknown, the tier's own smallest promise stands, so
+  // that learning the real size can only ever raise it.
   const unknown = fc.draftFirstContact({ name: 'Legacy Auto Repair', ownerName: 'Sara' }, [{ signal: 'fax_listed' }]);
   const up = unknown.body.split('\n\n');
-  if (!/ten hours a week/.test(up[up.length - 4])) bad.push('unknown size does not fall back to ten hours');
-  if (!/\b520\b/.test(up[up.length - 3])) bad.push('unknown size does not state the year');
+  const floorWord = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 8: 'eight', 10: 'ten' }[promiseFor({ trade: 'auto' }).hours];
+  if (!new RegExp(`${floorWord} hours a week`, 'i').test(up[up.length - 4])) bad.push(`unknown size does not fall back to ${floorWord} hours`);
+  const floorYear = (promiseFor({ trade: 'auto' }).hours * 52).toLocaleString();
+  if (!up[up.length - 3].includes(floorYear)) bad.push(`unknown size does not state the year (${floorYear})`);
   return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : "the promise stands alone in their own hours with no price on it, and the year's hours land right underneath" };
 }, 'lanes');
 
-def('message_price_only_in_the_second_and_the_maths_matches_the_model', () => {
+def('message_price_only_in_the_second_and_it_carries_no_value_on_an_hour', () => {
   // No price in a first approach — Russ's own edit struck one out, and a
   // number with no context becomes the whole conversation. The second message
-  // is where it belongs, and the value stated has to match the business model
-  // exactly: 21x at every band, off an hour valued at what Central Oregon
-  // staff time actually costs, not off the price per guaranteed hour.
+  // is where the fee belongs. And it carries the fee and the hours, nothing
+  // else: no value put on an hour, no multiple. Russ, 2026-08-26.
   const fc = firstContact();
   const { bandForEmployeeCount } = rules();
   const bad = [];
   for (const count of [8, 22, 40, 90]) {
     const p = { name: `Test ${count} Co`, ownerName: 'Sara', employeeCount: count, trade: 'construction' };
-    const band = bandForEmployeeCount(count);
+    const band = { guaranteedHours: iTiers().promiseFor({ employeeCount: count, trade: 'construction' }).hours,
+                   auditFee: iTiers().promiseFor({ employeeCount: count, trade: 'construction' }).fee };
     const first = fc.draftFirstContact(p, [{ signal: 'fax_listed' }]);
     if (/\$[\d,]+/.test(first.body)) bad.push(`a price appears in the first message to a ${count}-person business`);
     if (!first.body.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${count}: the year's hours are missing from the first message`);
 
     const second = fc.draftFollowUpTouch(p, 'fax_listed', 2);
     const fee = `$${band.auditFee.toLocaleString()}`;
-    const value = `$${Math.round(band.guaranteedHours * 52 * 39.80).toLocaleString()}`;
     if (!second.body.includes(fee)) bad.push(`${count}: their fee ${fee} is missing from the second message`);
-    if (!second.body.includes(value)) bad.push(`${count}: the value ${value} is missing or wrong`);
-    // And the arithmetic has to be the 21x the model states.
-    const ratio = Math.round((band.guaranteedHours * 52 * 39.80) / band.auditFee);
-    if (ratio !== 21 && count !== 8) bad.push(`${count}: the return works out at ${ratio}x, not 21x`);
+    if (!second.body.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${count}: the year's hours are missing from the second message`);
+    // The fee is the ONLY dollar figure allowed anywhere in it.
+    const dollars = second.body.match(/\$\d[\d,]*\d|\$\d/g) || [];
+    const stray = dollars.filter((d) => d !== fee);
+    if (stray.length) bad.push(`${count}: a second dollar figure appears — ${stray[0]}`);
+    if (/\b\d{1,3}x\b/.test(second.body)) bad.push(`${count}: a return multiple appears in the message`);
   }
-  // The stated figure must come from the business model, not from the $100 a
-  // guaranteed hour the FEE is set from.
   const model = read(BM);
-  if (!/39\.80/.test(model)) bad.push('the business model no longer states the hourly value the messages use');
-  if (!/21x at every band/.test(model)) bad.push('the business model no longer states 21x at every band');
-  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'no price in a first approach; the second carries their own fee and the value the model states, and the return is 21x at every band' };
+  if (!/\$999\. Five hours a week found, or nothing to pay/.test(model)) bad.push('the business model no longer states the one offer');
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'no price in a first approach; the second carries their own fee and their hours, and no value is put on an hour anywhere' };
 }, 'lanes');
 
 def('three_lanes_declared', () => {
@@ -2073,7 +2131,7 @@ def('no_send_without_approved_template', () => withDb(async (db) => {
   await cleanLane(db, 'approve');
   const L = lanes();
   await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
-  await L.upsertTemplate(db, { subject: 'S', body: 'B' });
+  await L.upsertTemplate(db, { subject: firstContact().SUBJECTS.default, body: firstContact().BODY });
   const p = await seedLane(db, 'approve');
   let refused = false;
   try { await L.queueEmail(db, p.id); } catch (e) { refused = e.code === 'TEMPLATE_NOT_APPROVED'; }
@@ -2097,6 +2155,108 @@ def('approved_template_sends_unattended', () => withDb(async (db) => {
   const ok = changed.approvedAt === null && changed.version === 2 && !stillApproved;
   return { ok, detail: ok ? 'rewording it took the approval away — a message Russ has not read does not send' : JSON.stringify(changed) };
 }), 'lanes');
+
+def('a_stale_draft_is_rewritten_but_a_hand_edited_one_is_not', () => withDb(async (db) => {
+  // The whole failure of 2026-08-26 in one check: the wording was rewritten
+  // all night and twenty-five drafts written at 3am still said the old thing,
+  // because a draft that already existed was returned before the new words
+  // were ever looked at. What Russ typed himself must still survive that.
+  const L = lanes();
+  await cleanLane(db, 'stale');
+  await approvedTemplate(db);
+  const a = await seedLane(db, 'staleA');
+  const b = await seedLane(db, 'staleB');
+  const first = await L.draftFor(db, a.id, 'EMAIL');
+  const second = await L.draftFor(db, b.id, 'EMAIL');
+  await db.outreachMessage.update({ where: { id: first.id }, data: { body: 'wording from an earlier night' } });
+  await db.outreachMessage.update({ where: { id: second.id }, data: { body: 'what Russ typed himself', editedAt: new Date() } });
+  const refreshed = await L.draftFor(db, a.id, 'EMAIL');
+  const untouched = await L.draftFor(db, b.id, 'EMAIL');
+  const ok = refreshed.body !== 'wording from an earlier night'
+    && /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(refreshed.body)
+    && untouched.body === 'what Russ typed himself';
+  await cleanLane(db, 'stale');
+  return { ok, detail: ok
+    ? 'the stale draft came back in the current wording; the one he had rewritten was left exactly as he left it'
+    : `stale=${refreshed.body.slice(0, 40)} edited=${untouched.body.slice(0, 40)}` };
+}), 'lanes');
+
+def('approval_stops_counting_once_the_message_moves_on', () => withDb(async (db) => {
+  // An approval saved against one wording cannot cover a different one. The
+  // stored copy went stale under a running app and read as approved, so the
+  // approve button was hidden and there was no way back to the real words.
+  const L = lanes();
+  const fc = firstContact();
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  await L.upsertTemplate(db, { subject: fc.SUBJECTS.default, body: fc.BODY });
+  await L.approveTemplate(db, L.FIRST_CONTACT, 'russ');
+  const approvedNow = await L.templateIsApproved(db);
+  // Reach past upsertTemplate, exactly as a row saved by older code would look.
+  await db.messageTemplate.update({ where: { name: L.FIRST_CONTACT }, data: { body: 'a wording from an earlier night' } });
+  const approvedAfter = await L.templateIsApproved(db);
+  await db.messageTemplate.deleteMany({ where: { name: L.FIRST_CONTACT } });
+  const ok = approvedNow === true && approvedAfter === false;
+  return { ok, detail: ok
+    ? 'approved against the real words; the moment the stored copy differed it stopped counting as approved'
+    : `before=${approvedNow} after=${approvedAfter}` };
+}), 'lanes');
+
+def('every_first_message_states_the_guarantee_and_the_year', () => {
+  // Russ read a draft and could not find the guarantee or the hours in it.
+  // Both are load-bearing, both get their own line, and neither is optional.
+  const fc = firstContact();
+  const people = [
+    { name: 'High Desert Dental', trade: 'dental', employeeCount: 9 },
+    { name: 'Cascade Plumbing', trade: 'plumbing', employeeCount: 25 },
+    { name: 'Baxter Law', employeeCount: 60, selfDescription: 'We do not shy away from difficult matters.' },
+    { name: 'Sisters Auto', ownerName: 'Sara Lin' },
+  ];
+  const missing = [];
+  for (const p of people) {
+    for (const signal of ['fax_listed', 'hiring_admin_role', 'no_online_booking']) {
+      const m = fc.draftFirstContact(p, [{ signal }]);
+      if (!m) continue;
+      const guarantee = /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(m.body);
+      const year = /\d[\d,]* hours a year/i.test(m.body);
+      const ownLine = m.body.split('\n\n').some((par) => /(you get your money back|your fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(par) && par.length < 200);
+      if (!guarantee || !year || !ownLine) missing.push(`${p.name}/${signal} guarantee=${guarantee} year=${year} ownLine=${ownLine}`);
+    }
+  }
+  const ok = missing.length === 0;
+  return { ok, detail: ok
+    ? 'every first message says what happens if he finds nothing, on its own line, and puts the hours in years'
+    : missing.join('; ') };
+}, 'message');
+
+def('no_dollar_is_ever_put_on_an_hour', () => {
+  // Russ, 2026-08-26, in caps: he sells HOURS, not dollars. $999 is the floor
+  // and the fee is the only money that exists. A wage basis, an annual value,
+  // or a return multiple all invite an argument about whose wage was used —
+  // and a promise that can be argued is not a guarantee.
+  const fs2 = require('fs');
+  const files = [
+    'src/hoursback/crm/firstContact.js', 'src/hoursback/crm/variants.js',
+    'docs/hoursback/business-model.md', 'docs/hoursback/locked-decisions.md',
+  ];
+  const banned = [/\$100 (?:per|for every)/i, /39\.80/, /\b\d{1,3}x\b(?![a-z])(?=.*(?:return|hour|value))|(?:return|hour|value).*\b\d{1,3}x\b/i, /per guaranteed hour/i];
+  const found = [];
+  for (const f of files) {
+    const text = fs2.readFileSync(path.join(ROOT, f), 'utf8');
+    for (const line of text.split('\n')) {
+      // The lines that RECORD the ban are allowed to name what was banned.
+      if (/retired|is dead|no longer|never divided|overriding|banned|is gone|the earlier/i.test(line)) continue;
+      for (const re of banned) if (re.test(line)) found.push(`${f}: ${line.trim().slice(0, 70)}`);
+    }
+  }
+  // And nothing a prospect reads may carry a dollar figure except a fee.
+  const fc = firstContact();
+  const m = fc.draftFirstContact({ name: 'High Desert Dental', trade: 'dental', employeeCount: 9 }, [{ signal: 'fax_listed' }]);
+  if (m && /\$/.test(m.body)) found.push(`first message carries a dollar sign: ${m.body.match(/.{0,40}\$.{0,20}/)[0]}`);
+  const ok = found.length === 0;
+  return { ok, detail: ok
+    ? 'no hour anywhere is given a dollar value, and no first message carries a dollar figure at all'
+    : found.slice(0, 4).join(' | ') };
+}, 'message');
 
 def('personalisation_changes_only_prospect_values', () => {
   // Every sentence that goes out has to come from the wordings Russ approved.

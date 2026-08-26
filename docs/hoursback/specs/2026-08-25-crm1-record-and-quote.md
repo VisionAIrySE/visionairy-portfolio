@@ -39,7 +39,7 @@ Build
 
 Understand
 
-- [x] The band table the quote is frozen from is the one in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $100 for every hour a week you get back. -->
+- [x] The band table the quote is frozen from is the one in the business model. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | $999 is the floor. Above it, the fee is set by band -->
 - [x] The list-builder record this extends declares the fields it inherits. <!-- type:Comprehend --> <!-- check: file_exists | docs/hoursback/specs/2026-08-24-lb2-record-shape.md |  -->
 - [x] The code layout names where the quote module lives. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/code-layout.md | src/hoursback/crm/quote.js -->
 

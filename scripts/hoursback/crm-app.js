@@ -44,6 +44,23 @@ const EMAIL_STATUS_LABELS = {
   UNAVAILABLE_SITE_UNREACHABLE: 'site would not load',
 };
 
+// What a business IS, in one line, for every list. Russ asked why the lists
+// showed a price and a band label but never the trade or the team size — the
+// two things that actually tell him who he is looking at (2026-08-26).
+const TRADE_OPTIONS = Object.keys(require('../../src/hoursback/industryTiers.js').ADMIN_SHARE).sort();
+function tradeOfName(p) {
+  const { tradeOf } = require('../../src/hoursback/crm/queues.js');
+  return tradeOf(resolveField(p, 'name'));
+}
+
+function whoTheyAre(p) {
+  const { tradeOf } = require('../../src/hoursback/crm/queues.js');
+  const trade = p.trade || tradeOf(resolveField(p, 'name'));
+  const n = resolveField(p, 'employeeCount');
+  const size = n ? `${n} people` : 'team size unknown';
+  return `${trade} · ${size}`;
+}
+
 const esc = (v) => String(v === null || v === undefined ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const digits = (v) => String(v || '').replace(/\D/g, '');
@@ -205,7 +222,7 @@ async function pipelineScreen() {
     return `<div class="card ${alarm ? 'warn' : ''}">
       <div class="row">
         <div><a href="/business/${p.id}"><b>${esc(resolveField(p, 'name'))}</b></a> ${scoreBadge(p.automationScore, p.id)}
-          <div class="mini">${p.auditFee ? `$${p.quotedAuditFee || p.auditFee} for ${p.quotedGuaranteedHours || p.guaranteedHours} hours` : 'no price yet'}${quiet !== null ? ` · last touched ${quiet} days ago` : ''}</div>
+          <div class="mini">${esc(whoTheyAre(p))}${quiet !== null ? ` · last touched ${quiet} days ago` : ''}</div>
           <div class="mini">${p.nextAction ? `next: ${esc(p.nextAction)}${p.nextActionDate ? ` on ${new Date(p.nextActionDate).toLocaleDateString()}` : ''}` : ''}</div></div>
         <div class="row">
           ${alarm ? `<b style="color:#b45309">${alarm}</b>` : ''}
@@ -248,7 +265,7 @@ async function moneyScreen() {
 
   const row = (p, when) => `<tr>
     <td><a href="/business/${p.id}">${esc(resolveField(p, 'name'))}</a>
-      <div class="mini">${esc(p.segment || '')}${p.quotedGuaranteedHours ? ` · ${p.quotedGuaranteedHours} hours guaranteed` : ''}</div></td>
+      <div class="mini">${esc(whoTheyAre(p))}</div></td>
     <td class="w">$${(p.quotedAuditFee || p.auditFee || 0).toLocaleString()}</td>
     <td class="mini">${when && p[when] ? new Date(p[when]).toLocaleDateString() : ''}</td>
     <td>${p.paidAt ? '' : `<form method="POST" action="/money/paid/${p.id}"><button>They paid</button></form>`}</td>
@@ -346,7 +363,7 @@ async function scoreScreen(id) {
   </div>
 
   <h2>How the scoring works</h2>
-  <p class="mini">Every tell is worth a fixed number of points, listed below. Team size counts for nothing on purpose: it sets the price, never the call order. Weights were rebalanced against the real list because two of them fired on three businesses in four and could not sort anybody.</p>
+  <p class="mini">Every tell is worth a fixed number of points, listed below. Team size counts for nothing on purpose: every business is quoted the same, so size never moves the call order. Weights were rebalanced against the real list because two of them fired on three businesses in four and could not sort anybody.</p>
   <table class="why">${Object.entries(weights).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(SIGNAL_LABELS[k] || k)}</td><td></td><td class="w">${v}</td></tr>`).join('')}</table>`);
 }
 
@@ -400,7 +417,7 @@ function addForm(message) {
       <div><label>Email</label><input name="email" type="email"></div>
       <div><label>Website</label><input name="website" placeholder="https://"></div>
       <div><label>Address</label><input name="address"></div>
-      <div><label>Team size <span class="muted">(sets the price)</span></label><input name="employeeCount" type="number" min="1"></div>
+      <div><label>Team size <span class="muted">(for the call, not the price)</span></label><input name="employeeCount" type="number" min="1"></div>
       <div><label>Owner's name</label><input name="ownerName"></div>
       <div><label>Who you spoke to</label><input name="contactName"></div>
     </div>
@@ -471,7 +488,11 @@ async function addBusiness(form) {
 // after that every message is that same wording with their own facts in it.
 async function emailScreen(params) {
   const template = await db.messageTemplate.findUnique({ where: { name: L.FIRST_CONTACT } });
-  const approved = Boolean(template && template.approvedAt);
+  // What is shown is always the message as it stands NOW, never the copy
+  // saved the last time it was approved — and an approval from before a
+  // rewrite does not count, so the approve button comes back.
+  const drifted = Boolean(template && template.approvedAt && template.body !== TEMPLATE_BODY);
+  const approved = Boolean(template && template.approvedAt) && !drifted;
   const weeks = Number(params.get('weeks') || 0);
   const [left, ready, sent, batch] = await Promise.all([
     L.emailsLeftToday(db, weeks),
@@ -490,8 +511,10 @@ async function emailScreen(params) {
   <p class="muted">Written once in your voice. Approve it once and every business gets this exact wording with only their own name and the thing you found on their site changed.</p>
   ${approved
     ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">Approved ${new Date(template.approvedAt).toLocaleDateString()} by ${esc(template.approvedBy)} — version ${template.version}. Change a word and it needs approving again.</div>`
-    : '<div class="card warn"><b>Not approved yet.</b> Nothing can be sent until you read this and approve it.</div>'}
-  <pre class="msg">${esc(template ? template.body : TEMPLATE_BODY)}</pre>
+    : drifted
+      ? '<div class="card warn"><b>The message has changed since you approved it.</b> What you approved is no longer what would go out. Read the wording below and approve it again — nothing sends until you do.</div>'
+      : '<div class="card warn"><b>Not approved yet.</b> Nothing can be sent until you read this and approve it.</div>'}
+  <pre class="msg">${esc(TEMPLATE_BODY)}</pre>
   ${approved ? '' : `<form method="POST" action="/email/approve"><button class="primary">I've read it — approve it</button></form>`}`;
 
   const one = (m) => `<div class="card"><div class="row">
@@ -575,7 +598,7 @@ async function businessCard(id, saved) {
   const priceLine = p.quotedAt
     ? `<b>$${p.quotedAuditFee} for ${p.quotedGuaranteedHours} hours a week</b> — quoted ${new Date(p.quotedAt).toLocaleDateString()}, locked.`
     : (p.auditFee
-      ? `<b>$${p.auditFee} for ${p.guaranteedHours} hours a week</b> (band ${esc(p.segment)}) — not yet quoted.`
+      ? `<b>$${p.auditFee} for ${p.guaranteedHours} hours a week</b> — the same offer for every business. Not yet quoted.`
       : '<span class="muted">No team size known, so no price yet. Type one in below and it prices itself.</span>');
 
   const emailLine = resolveField(p, 'email')
@@ -597,7 +620,7 @@ async function businessCard(id, saved) {
 
   <h2>The price</h2>
   <p>${priceLine}</p>
-  <p class="muted">Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
+  <p class="muted"><b>${esc(p.trade || tradeOfName(p))}</b> · Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
 
   <h2>Who works there (${p.contacts.length})</h2>
   ${p.contacts.length ? `<table>
@@ -630,7 +653,10 @@ async function businessCard(id, saved) {
       ${editable(p, 'email', 'Email')}
       ${editable(p, 'website', 'Website')}
       ${editable(p, 'address', 'Address')}
-      ${editable(p, 'employeeCount', 'Team size (sets the price)', 'number')}
+      ${editable(p, 'employeeCount', 'Team size (for the call, not the price)', 'number')}
+      <div><label>Industry</label><select name="trade">${TRADE_OPTIONS
+        .map((t) => `<option value="${esc(t)}"${(p.trade || tradeOfName(p)) === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+        ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
       <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
       <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
       <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
@@ -690,7 +716,7 @@ async function callForm(id) {
     <label>2 — What happens next?</label><input name="nextWhat" placeholder="e.g. Call back, ask for Sarah / send one-pager" required>
     <label>3 — When?</label><input type="datetime-local" name="nextWhen" required>
     <label>Who did you talk to? <span class="muted">(optional)</span></label><input name="contactName" placeholder="name and role">
-    <label>Their team size, if learned <span class="muted">(optional — sets the price)</span></label><input name="headcount" type="number" min="1">
+    <label>Their team size, if learned <span class="muted">(optional — for the call)</span></label><input name="headcount" type="number" min="1">
     <p><button class="primary">Save call</button> <a class="btn" href="/business/${p.id}">Back to the card</a></p>
   </form>`);
 }
@@ -796,7 +822,8 @@ const server = http.createServer(async (req, res) => {
             const { captureRewrite } = require('../../src/hoursback/crm/voiceCapture.js');
             captureRewrite({ before: m.body, after: body, business: m.prospect.name, lane: m.lane, subject });
           }
-          await db.outreachMessage.update({ where: { id: arg }, data: { body, subject } });
+          // Stamped so no later rewrite of the wording overwrites his words.
+          await db.outreachMessage.update({ where: { id: arg }, data: { body, subject, editedAt: new Date() } });
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
         if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');
