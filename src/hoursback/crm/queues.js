@@ -53,17 +53,37 @@ function capPerBrand(rows, cap = MAX_PER_BRAND_PER_DAY) {
 // The trade a business is in, read off its own name. Rough on purpose — it
 // only has to be good enough to show that, say, every dental practice says no.
 const TRADES = [
-  ['dental', /dental|dentist|orthodon|endodon/i], ['medical', /clinic|medical|health|physical therapy|chiroprac|veterinar|vet\b/i],
-  ['legal', /law|attorney|legal|counsel/i], ['accounting', /account|cpa|tax|bookkeep|payroll/i],
-  ['insurance', /insur|state farm|allstate|farmers/i], ['real estate', /realty|real estate|properties|property manage/i],
-  ['construction', /construct|builder|contract|excavat|concrete|roofing|framing/i],
-  ['trades', /plumb|electric|hvac|heating|cooling|mechanical|septic|well drilling/i],
-  ['auto', /auto|motor|tire|collision|transmission|repair shop/i],
-  ['landscaping', /landscap|lawn|irrigation|tree service|nursery/i],
-  ['storage & logistics', /storage|moving|logistic|freight|carrier|transport/i],
-  ['staffing', /staffing|employment|recruit|personnel/i],
-  ['retail & food', /restaurant|cafe|coffee|brewing|market|store|shop|bakery/i],
-  ['manufacturing', /manufactur|millwork|fabricat|machine|products inc/i],
+  // Ordered: the most specific wins. A "Dental Group LLP" is dental, not legal.
+  ['dental', /dental|dentist|orthodon|endodon|periodon|smiles?\b|oral surg/i],
+  ['medical', /clinic|medical|health|physical therapy|chiroprac|veterinar|\bvet\b|pediatr|derma|optometr|optical|eye care|hearing|audiolog|pharmac|urgent care|wellness|counsel(?:ing|or)|therapy|psych|nursing|hospice|home care|imaging|radiolog|podiatr|midwif|acupunct|massage therap/i],
+  ['dental', /\bDDS\b|\bDMD\b/],
+  ['legal', /\blaw\b|attorney|legal|\bLLP\b|counsel at|litigat|paralegal|estate planning|title (?:co|company|insurance)|escrow/i],
+  ['accounting', /account|\bCPA\b|\btax\b|bookkeep|payroll|financial (?:service|planning|advis)|wealth|audit|controller/i],
+  ['insurance', /insur|state farm|allstate|farmers agen|american family|country financial|\bagency\b.*(?:insur|risk)|risk management/i],
+  ['real estate', /realty|realtor|real estate|properties|property manage|brokerage|\bhomes?\b.*(?:group|team|pros)|land (?:co|company)|\bREMAX\b|re\/max|coldwell|keller williams|windermere|sotheby/i],
+  ['construction', /construct|builder|\bcontract(?:or|ing)|excavat|concrete|roofing|framing|drywall|masonry|paving|foundation|remodel|carpentr|siding|window(?:s)? (?:and|&) door|general contract|home build|custom home/i],
+  ['trades', /plumb|electric|\bHVAC\b|heating|cooling|air condition|mechanical contract|septic|well drilling|sheet ?metal|welding|refrigerat|fire protection|garage door|overhead door|glass (?:co|company|service)|locksmith|pest control|pool (?:and|&)? ?spa service/i],
+  ['auto', /\bauto\b|automotive|\bmotor(?:s|works)?\b|\btire\b|collision|transmission|muffler|exhaust|brakes?\b|repair (?:co|company|shop|service)|garage\b|body shop|detailing|\bRV\b|powersports|diesel|smog|lube|windshield|towing|fleet service|import specialt|mobile mechanic|service center/i],
+  ['landscaping', /landscap|lawn|irrigation|tree (?:service|care)|nursery|greenhouse|garden cent|sprinkler|hardscap|snow removal/i],
+  ['storage & logistics', /storage|moving|logistic|freight|carrier|transport|trucking|hauling|dumpster|\bdump\b|waste|disposal|recycling|courier|delivery service|warehous|distribut/i],
+  ['staffing', /staffing|employment|recruit|personnel|temp(?:orary)? (?:agency|service)|workforce|human resource/i],
+  ['retail & food', /restaurant|cafe|coffee|brew(?:ing|ery)|market\b|\bstore\b|bakery|butcher|deli\b|catering|food(?:s)?\b|grocer|pizza|taproom|winery|distiller|boutique|books?\b|gift|florist|jewel|furniture|apparel|outfitter|sporting goods|feed (?:and|&|store)|hardware/i],
+  ['manufacturing', /manufactur|millwork|fabricat|machine (?:shop|works)|\bmill\b|products (?:inc|llc)|industries|specialt(?:y|ies)\b|custom (?:metal|wood|cabinet)|cabinet|sign(?:s| co| shop)|print(?:ing|er)|upholster/i],
+  ['personal care', /salon|barber|\bcuts?\b|hair\b|spa\b|nail|beauty|aesthetic|lash|brow|tanning|tattoo|grooming/i],
+  ['fitness & recreation', /fitness|gym\b|yoga|pilates|crossfit|martial arts|dance (?:studio|academy)|golf|climbing|guide service|rafting|outfitt|recreation/i],
+  ['lodging & hospitality', /hotel|motel|\binn\b|lodge|resort|vacation rental|bed (?:and|&) breakfast|rv park|campground|event (?:center|venue)/i],
+  ['education & childcare', /school|academy|montessori|preschool|childcare|child care|day ?care|tutor|learning cent|driving school|training cent/i],
+  ['cleaning & facilities', /cleaning|janitorial|maid|housekeep|carpet clean|window clean|pressure wash|restoration|\bmaintenance\b|facilit(?:y|ies) (?:service|management)/i],
+  ['professional services', /consult|marketing|advertis|design (?:studio|group|co)|architect|engineer(?:ing)?\b|survey(?:ing|or)|\bIT\b|technolog|software|web (?:design|develop)|media|photograph|videograph|public relations|translat/i],
+  ['nonprofit & community', /foundation|nonprofit|non-profit|charit|ministr|church|fellowship|chapel|parish|community (?:cent|action)|habitat for humanity|\bclub\b|association|society|council|coalition/i],
+  ['agriculture', /\bfarm\b|ranch|orchard|vineyard|cattle|livestock|agricultur|seed\b|hay\b|feed (?:lot|mill)/i],
+  ['funeral & memorial', /funeral|mortuary|crematory|cemeter|memorial (?:gard|park)/i],
+  // The partnership pattern — "Elliott, Riquelme & Wilson" or "Ward, Grover
+  // & Thomas" — is nearly always a professional firm: law, accounting or
+  // consulting. Checked last so a named trade always wins.
+  ['professional services', /^[A-Z][a-z]+(?:,\s*[A-Z][a-z]+)+\s*(?:,|&|and)\s*[A-Z][a-z]+/],
+  ['professional services', /\b(?:LLP|L\.L\.P\.)\b/],
+  ['professional services', /^[A-Z][a-z]+\s+(?:&|and)\s+[A-Z][a-z]+(?:,?\s*(?:LLC|Inc|PC))?$/],
 ];
 function tradeOf(name) {
   const n = String(name || '');

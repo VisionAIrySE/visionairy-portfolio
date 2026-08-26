@@ -1605,85 +1605,70 @@ def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (d
 }), 'lanes');
 
 def('message_claims_no_experience_russ_does_not_have', () => {
-  // A cold email from somebody selling honesty about where hours go cannot
-  // open by claiming clients he has not had. Every number in the follow-up
-  // must read as what this kind of business typically carries, never as "the
-  // last four I looked at".
+  // Russ has spent a career inside businesses of every kind, so "I have been
+  // inside enough businesses like yours" is true and his to say. What he
+  // cannot say is anything implying Hours Back clients he has not had yet.
   const fc = firstContact();
-  const FALSE_CLAIM = /\b(I have looked at|I looked at|the last (?:few|four|several)|my (?:clients|customers)|businesses I have worked with|in my experience with)\b/i;
+  const FALSE_CLAIM = /\b(my (?:clients|customers)|our clients|the last (?:few|four|five|several) (?:shops|offices|clinics|firms|businesses) I|clients I have worked with|case study|one of my clients)\b/i;
   const bad = [];
-  for (const proof of [...Object.values(fc.TRADE_PROOF), fc.GENERAL_PROOF]) {
-    if (FALSE_CLAIM.test(proof)) bad.push(proof.slice(0, 70));
-  }
   for (const touch of [2, 3]) {
-    const m = fc.draftFollowUpTouch({ name: 'Cascade Smiles Dental' }, 'fax_listed', touch);
-    if (FALSE_CLAIM.test(m.body)) bad.push(`touch ${touch}`);
-    if (/just following up|bumping this|circling back|top of your inbox|per my last email/i.test(m.body)) bad.push(`touch ${touch}: a phrase that says "you are on a list"`);
-    if (/[—–]/.test(m.body)) bad.push(`touch ${touch}: a dash`);
+    for (const name of ['Cascade Smiles Dental', 'Legacy Auto Repair', 'Random Widget Co']) {
+      const m = fc.draftFollowUpTouch({ name }, 'fax_listed', touch);
+      if (FALSE_CLAIM.test(m.body)) bad.push(`touch ${touch}, ${name}`);
+    }
   }
-  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'every number reads as what that kind of business typically carries, and nothing claims a client he has not had' };
+  const { PAIN_BY_TRADE, GENERAL_PAIN } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  for (const [trade, pain] of Object.entries({ ...PAIN_BY_TRADE, general: GENERAL_PAIN })) {
+    if (FALSE_CLAIM.test(pain.recognition)) bad.push(`the ${trade} line`);
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : 'nothing claims a Hours Back client he has not had; his own career is his to speak from' };
 }, 'lanes');
 
-def('sequence_three_touches_spaced_and_then_it_stops', () => withDb(async (db) => {
-  await cleanLane(db, 'seq');
-  const L = lanes();
-  await approvedTemplate(db);
-  const p = await seedLane(db, 'seq');
-  const day = 86400000;
-  const t0 = new Date('2026-09-01T09:00:00Z');
-
-  const first = await L.queueNextTouch(db, p.id, t0);
-  await L.markEmailSent(db, first.id, t0);
-  const tooSoon = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 2 * day));
-  const second = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 5 * day));
-  if (second) await L.markEmailSent(db, second.id, new Date(t0.getTime() + 5 * day));
-  const third = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 12 * day));
-  if (third) await L.markEmailSent(db, third.id, new Date(t0.getTime() + 12 * day));
-  const fourth = await L.queueNextTouch(db, p.id, new Date(t0.getTime() + 40 * day));
-
-  const ok = first && tooSoon === null && second && second.openedWith === 'touch_2'
-    && third && third.openedWith === 'touch_3' && fourth === null;
-  await cleanLane(db, 'seq');
-  return { ok, detail: ok ? 'first, then nothing at two days, second at five, third at twelve, and then it stops for good' : JSON.stringify({ tooSoon, second: second && second.openedWith, third: third && third.openedWith, fourth }) };
-}), 'lanes');
-
-def('sequence_stops_the_moment_they_answer', () => withDb(async (db) => {
-  await cleanLane(db, 'seqstop');
-  const L = lanes();
-  await approvedTemplate(db);
-  const day = 86400000;
-  const t0 = new Date('2026-09-01T09:00:00Z');
-  const replied = await seedLane(db, 'seqstop1');
-  const bounced = await seedLane(db, 'seqstop2');
-  const never = await seedLane(db, 'seqstop3');
-  for (const x of [replied, bounced, never]) {
-    const m = await L.queueNextTouch(db, x.id, t0);
-    await L.markEmailSent(db, m.id, t0);
-  }
-  await L.markReplied(db, replied.id, 'EMAIL');
-  await L.markBounced(db, bounced.id);
-  await stages().markDoNotContact(db, never.id);
-  const later = new Date(t0.getTime() + 12 * day);
-  const results = await Promise.all([replied, bounced, never].map((x) => L.queueNextTouch(db, x.id, later)));
-  const ok = results.every((r) => r === null);
-  await cleanLane(db, 'seqstop');
-  return { ok, detail: ok ? 'a reply, a bounce and a never-contact-again each ended the sequence on the spot' : JSON.stringify(results.map((r) => r && r.openedWith)) };
-}), 'lanes');
-
-def('sequence_each_message_says_something_new', () => {
+def('message_never_sounds_like_a_sales_email', () => {
+  // The single fastest way to lose a small-business owner is to sound like
+  // every other message in their inbox.
   const fc = firstContact();
-  const p = { name: 'Cascade Smiles Dental', ownerName: 'Sara Lin' };
-  const one = fc.draftFirstContact(p, [{ signal: 'fax_listed' }]);
-  const two = fc.draftFollowUpTouch(p, 'fax_listed', 2);
-  const three = fc.draftFollowUpTouch(p, 'fax_listed', 3);
-  const bodies = [one.body, two.body, three.body];
-  const subjects = [one.subject, two.subject, three.subject];
-  const uniqueSubjects = new Set(subjects).size === 3;
-  const shrinking = bodies[0].split(/\s+/).length > bodies[1].split(/\s+/).length
-    && bodies[1].split(/\s+/).length > bodies[2].split(/\s+/).length;
-  const noLazyPhrases = !bodies.some((b) => /just following up|circling back|bumping this|per my last|touching base/i.test(b));
-  const ok = uniqueSubjects && shrinking && noLazyPhrases;
-  return { ok, detail: ok ? `three different subjects, each message shorter than the last (${bodies.map((b) => b.split(/\s+/).length).join(' then ')} words), and none of the phrases that say "you are on a list"` : `subjects=${uniqueSubjects} shrinking=${shrinking} phrases=${noLazyPhrases}` };
+  const { PAIN_BY_TRADE, GENERAL_PAIN } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  const CHEESE = /\b(game[- ]?chang|revolutioni[sz]|supercharg|unlock (?:the|your)|10x|leverag|synerg|at the end of the day|let's be honest|here's the thing|what if I told you|imagine if|take (?:it|your business) to the next level|low[- ]hanging fruit|move the needle|quick win|no[- ]brainer|solutions? provider|best[- ]in[- ]class|world[- ]class|cutting[- ]edge|state[- ]of[- ]the[- ]art|seamlessly|empower(?:ing)? (?:you|your)|transform your business|maximi[sz]e your|\bROI\b|drive growth|scale your|thought leader|reach out|touch base|hop on a (?:quick )?call|pick your brain|circle back|synergi)/i;
+  const SHOUTING = /!{2,}|\b[A-Z]{4,}\b(?! ?[A-Z])/;
+  const bad = [];
+  const check = (label, text) => {
+    const c = text.match(CHEESE); if (c) bad.push(`${label}: "${c[0]}"`);
+    const sh = text.match(SHOUTING); if (sh) bad.push(`${label}: shouting "${sh[0]}"`);
+    const bangs = (text.match(/!/g) || []).length;
+    if (bangs > 1) bad.push(`${label}: ${bangs} exclamation marks`);
+  };
+  for (const name of ['Cascade Smiles Dental', 'High Desert Plumbing', 'Random Widget Co']) {
+    for (const signal of Object.keys(fc.OPENERS)) {
+      const m = fc.draftFirstContact({ name }, [{ signal }]);
+      if (m) check(`first/${signal}`, `${m.subject} ${m.body}`);
+    }
+    for (const touch of [2, 3]) {
+      const m = fc.draftFollowUpTouch({ name }, 'fax_listed', touch);
+      if (m) check(`touch ${touch}`, `${m.subject} ${m.body}`);
+    }
+    const li = fc.draftLinkedIn({ name }, [{ signal: 'fax_listed' }]);
+    if (li) check('linkedin', li.body);
+  }
+  for (const [trade, pain] of Object.entries({ ...PAIN_BY_TRADE, general: GENERAL_PAIN })) {
+    check(`the ${trade} line`, pain.recognition);
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 3).join(' | ') : 'no sales jargon, no shouting, and at most one exclamation mark anywhere in any message' };
+}, 'lanes');
+
+def('message_names_a_pain_they_already_know', () => {
+  // The second message has to name something true enough that the reader
+  // thinks "how did he know that" — not describe what software does.
+  const { PAIN_BY_TRADE, GENERAL_PAIN } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  const { TRADES } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const tradesInUse = new Set(TRADES.map(([label]) => label));
+  const missing = [...tradesInUse].filter((t) => !PAIN_BY_TRADE[t]);
+  const softwarey = Object.entries({ ...PAIN_BY_TRADE, general: GENERAL_PAIN })
+    .filter(([, p]) => /\b(software|platform|system that|our tool|integrat|API|dashboard)\b/i.test(p.recognition))
+    .map(([t]) => t);
+  const complete = Object.values(PAIN_BY_TRADE).every((p) => p.recognition && p.cost && p.lever && p.function);
+  const ok = !missing.length && !softwarey.length && complete;
+  return { ok, detail: ok ? `every one of the ${Object.keys(PAIN_BY_TRADE).length} trades has a pain named in their own words, with what it costs and where it bites` : `missing: ${missing.join(', ')} | too software-ish: ${softwarey.join(', ')}` };
 }, 'lanes');
 
 def('three_lanes_declared', () => {

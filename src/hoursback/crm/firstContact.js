@@ -130,14 +130,14 @@ russ@visionairy.biz`;
 const FOLLOW_UP_DAYS = [0, 4, 11];   // first contact, then four days, then a week later
 
 const SECOND_TOUCH = {
-  subject: 'One number, {business}',
+  subject: 'The bit I should have led with, {business}',
   body: `Hi {greeting},
 
-I wrote last week about {shortTell}. Here is the part I probably should have led with.
+I wrote last week about {shortTell}, and I think I led with the wrong thing.
 
-{proof}
+Here is what I actually meant. {recognition}
 
-That is the whole reason I do this as a week rather than a quote. If the hours are not there, you find out for nothing.
+I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up. That is the whole reason I do this as a week rather than a quote, and why you do not pay if the hours are not there. There is nothing to weigh up, really. You either get the hours back or you find out for nothing.
 
 Russ Wright
 Visionairy
@@ -150,41 +150,14 @@ const THIRD_TOUCH = {
 
 Last one from me, and no hard feelings either way.
 
-If the timing is wrong, say the word and I will put a note in my calendar for the spring rather than keep writing.
+If the timing is wrong, say the word and I will make a note for the spring rather than keep writing.
 
-If it is not the timing but the idea, I would genuinely like to know that too. It is useful either way.
+If it is not the timing but the idea, I would genuinely like to know that too. It is useful either way, and I would rather hear a no than keep guessing.
 
 Russ Wright
 Visionairy
 russ@visionairy.biz`,
 };
-
-// The number that makes the second message worth opening. Only stated where
-// it is honest — a range, from what this kind of shop actually loses.
-// The number that makes the second message worth opening.
-//
-// Written as what this kind of shop typically carries, NOT as "the last four
-// I looked at", because Russ has not looked at four yet and a cold email is
-// the worst possible place to claim experience he does not have. The moment
-// he finishes his first audits, replace these with his own figures — a real
-// number from a real Bend business beats any of this.
-const TRADE_PROOF = {
-  trades: 'For a shop your size, scheduling and service paperwork on its own usually runs somewhere between eight and fourteen hours a week. Not the work itself, just the moving of it around.',
-  construction: 'On a builder your size, chasing submittals, change orders and lien waivers usually comes to somewhere between ten and sixteen hours a week across the office.',
-  'real estate': 'On the property and brokerage side it is usually chasing signatures and re-keying the same details into three systems, and that tends to run nine to fifteen hours a week.',
-  medical: 'In a clinic your size, records requests, referrals and claim follow-up typically run twelve to twenty hours a week across the front office.',
-  dental: 'In a dental office it is usually claims and recall, and those alone tend to run ten to eighteen hours a week before anybody has treated a patient.',
-  legal: 'In a firm your size, intake, engagement letters and filing usually run eight to fourteen hours a week of somebody billable or nearly so.',
-  accounting: 'In an accounting practice it is chasing client documents, and in season that alone tends to run twelve to twenty hours a week.',
-  insurance: 'In an agency it is applications, certificates and renewals, and that usually runs eight to fourteen hours a week of service-team time.',
-  auto: 'In a shop your size it is usually estimates, approvals and parts chasing, and that tends to run seven to twelve hours a week off the service desk.',
-  'storage & logistics': 'On the logistics side it is paperwork moving between dispatch, the driver and the customer, and that is often ten hours a week or more.',
-  landscaping: 'On the landscape and irrigation side it tends to be estimates and seasonal scheduling, and through the busy months that runs around eight hours a week.',
-  staffing: 'In staffing it is applications and timesheets, and that is frequently fifteen hours a week or more of pure re-keying.',
-  'retail & food': 'On the retail and food side it is usually ordering, invoices and staff scheduling, and that tends to land around eight hours a week.',
-  manufacturing: 'On the shop-floor side it is quotes, work orders and shipping paperwork, and that regularly comes to ten hours a week or more.',
-};
-const GENERAL_PROOF = 'In most businesses your size, the paperwork nobody counts as work comes to somewhere between eight and fifteen hours a week. It is almost never where the owner would guess.';
 
 // A short way of naming what was noticed, for the second message.
 const SHORT_TELLS = {
@@ -265,16 +238,20 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   if (touch !== 2 && touch !== 3) return null;
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
   const t = touch === 2 ? SECOND_TOUCH : THIRD_TOUCH;
+  const { painFor } = require('./painPoints.js');
+  const pain = painFor(tradeOf(prospect.name));
   const body = t.body
     .replace('{greeting}', greetingFor(prospect))
     .replace('{shortTell}', SHORT_TELLS[openedWith] || 'the admin hours in your office')
-    .replace('{proof}', TRADE_PROOF[tradeOf(prospect.name)] || GENERAL_PROOF)
+    .replace('{recognition}', pain.recognition)
+    .replace('{cost}', pain.cost)
+    .replace('{lever}', pain.lever)
     .replace(/\{business\}/g, business);
   return { subject: t.subject.replace(/\{business\}/g, business), body, openedWith: `touch_${touch}` };
 }
 
 module.exports = {
-  FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, TRADE_PROOF, GENERAL_PROOF, SHORT_TELLS,
+  FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
