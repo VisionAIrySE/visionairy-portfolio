@@ -35,6 +35,46 @@ const OPENER_ORDER = [
   'no_online_booking', 'no_customer_portal',
 ];
 
+// The paperwork each trade actually does. This is what turns "I noticed you
+// still list a fax number" into a sentence that sounds like somebody looked.
+// A trade we cannot name falls back to the general line, which is still true.
+const TRADE_WORK = {
+  trades: 'service tickets and scheduling between the office and the trucks',
+  construction: 'change orders, submittals and lien waivers',
+  'real estate': 'listing paperwork, disclosures and chasing signatures',
+  medical: 'records requests, referrals and insurance claims',
+  dental: 'insurance claims, treatment plans and recall reminders',
+  legal: 'engagement letters, discovery and filings',
+  accounting: 'client documents, engagement letters and filings',
+  insurance: 'applications, certificates and renewals',
+  auto: 'estimates, approvals and parts ordering',
+  'storage & logistics': 'rental agreements, bills of lading and dispatch paperwork',
+  landscaping: 'estimates, scheduling and seasonal contracts',
+  staffing: 'applications, timesheets and placements',
+  'retail & food': 'orders, invoices and staff scheduling',
+  manufacturing: 'quotes, work orders and shipping paperwork',
+};
+
+// How each opening lands once we know the trade. {work} is their own
+// paperwork, and every line is written so it reads properly with any of them.
+const TRADE_FOLLOW_ONS = {
+  hiring_admin_role:
+    "Before you fill it, it's worth knowing how much of that job is {work} — work that mostly stops needing a person once it is set up properly.",
+  no_website:
+    'Every one of those calls is somebody stopping what they were doing, on top of {work}, and it adds up faster than it feels like it should.',
+  downloadable_forms:
+    // Not "by hand" again — the opening line already said it.
+    'Somebody is then retyping every one of those, on top of {work}, and that is usually hours a week nobody has ever added up.',
+  fax_listed:
+    // Phrased to sit before the list rather than after it — "{work} is still
+    // moving" reads wrong the moment the trade's paperwork is plural.
+    'That usually means paper is still moving somewhere between you and your customers — {work}, most likely — and someone is handling every piece of it by hand.',
+  no_online_booking:
+    "That's fine when it's quiet, but your busiest days are the ones where somebody is tied to the phone on top of {work}.",
+  no_customer_portal:
+    'Every "where are we at" question lands with your front desk rather than answering itself, on top of {work}.',
+};
+
 // What each opening leads into — one sentence, always about what THEY lose,
 // never about what software does.
 const FOLLOW_ONS = {
@@ -100,17 +140,28 @@ function greetingFor(prospect) {
 // Build one message for one business. Returns null when there is nothing
 // specific to open with — a message with no observation in it is a form
 // letter, and those do not get sent.
+// The sentence after the observation. Uses their own trade's paperwork when we
+// can name it, and the general version when we cannot — never a guess.
+function followOnFor(key, prospect) {
+  const { tradeOf } = require('./queues.js');
+  const trade = tradeOf(prospect.name);
+  const work = TRADE_WORK[trade];
+  if (!work || !TRADE_FOLLOW_ONS[key]) return { line: FOLLOW_ONS[key], trade: null };
+  return { line: TRADE_FOLLOW_ONS[key].replace('{work}', work), trade };
+}
+
 function draftFirstContact(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const { line, trade } = followOnFor(key, prospect);
   const subject = (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, business);
   const body = BODY
     .replace('{greeting}', greetingFor(prospect))
     .replace('{opener}', OPENERS[key])
-    .replace('{followOn}', FOLLOW_ONS[key])
+    .replace('{followOn}', line)
     .replace(/\{business\}/g, business);
-  return { subject, body, openedWith: key };
+  return { subject, body, openedWith: key, trade };
 }
 
 // The LinkedIn version: shorter, same observation, same close. Never sent by
@@ -118,9 +169,10 @@ function draftFirstContact(prospect, signals = []) {
 function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
+  const { line } = followOnFor(key, prospect);
   const body = `Hi ${greetingFor(prospect)} — I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.
 
-${OPENERS[key]} ${FOLLOW_ONS[key]}
+${OPENERS[key]} ${line}
 
 I spend a week inside an operation and come back with a list of where the hours are going and what can be fixed. If I can't find at least ten hours a week, you don't pay.
 
@@ -129,6 +181,6 @@ Happy to share more if it's useful!`;
 }
 
 module.exports = {
-  OPENERS, FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY,
+  OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
 };

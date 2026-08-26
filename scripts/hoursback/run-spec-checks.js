@@ -1473,6 +1473,51 @@ def('handadd_greeting_never_guesses_wrong', () => {
   return { ok, detail: ok ? 'a name he was told wins, a name in the address is used, and anything doubtful greets "there"' : [told, worked, unknown].join(' | ') };
 }, 'handadd');
 
+def('message_reads_cleanly_for_every_trade', () => {
+  // Every opening is written for every trade. A plural list of paperwork
+  // followed by a singular verb — "claims, plans and reminders is moving" —
+  // reads as a machine wrote it, which is the one thing a cold email cannot
+  // afford. This walks all of them.
+  const fc = firstContact();
+  const { tradeOf } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const namesByTrade = {
+    trades: 'High Desert Plumbing', construction: 'Sunwest Builders', 'real estate': 'Cascade Realty',
+    medical: 'Highland Veterinary Hospital', dental: 'Cascade Smiles Dental', legal: 'Baxter Law',
+    accounting: 'Tyler Accounting', insurance: 'Guardian Insurance', auto: 'Legacy Auto Repair',
+    'storage & logistics': 'Davis Storage', landscaping: 'Deschutes Landscaping', staffing: 'Express Employment',
+    'retail & food': 'Sunrise Bakery', manufacturing: 'Sisters Millwork', other: 'Random Widget Co',
+  };
+  const bad = [];
+  const AWKWARD = [
+    // A plural list with a singular verb straight after it.
+    /\b(claims|plans|reminders|orders|letters|tickets|agreements|documents|estimates|filings|waivers|invoices|timesheets|applications|disclosures|renewals|certificates|submittals)\s+(is|was|has)\b/i,
+    /moving[^.]{0,60}moving/i,      // the same verb twice in one breath
+    /by hand[^.]{0,140}by hand/i,   // the same phrase twice in one paragraph
+    /\b(\w+) \1\b/i,                // a word repeated back to back
+    /\s,|,,|\.\./,                  // stray punctuation from a bad join
+  ];
+  for (const [wantTrade, name] of Object.entries(namesByTrade)) {
+    if (tradeOf(name) !== wantTrade) { bad.push(`"${name}" reads as ${tradeOf(name)}, not ${wantTrade}`); continue; }
+    for (const signal of Object.keys(fc.OPENERS)) {
+      const m = fc.draftFirstContact({ name }, [{ signal }]);
+      if (!m) { bad.push(`${wantTrade}/${signal}: no message`); continue; }
+      const para = m.body.split('\n\n')[2] || '';
+      for (const re of AWKWARD) if (re.test(para)) { bad.push(`${wantTrade}/${signal}: ${para.slice(0, 90)}`); break; }
+    }
+  }
+  return { ok: !bad.length, detail: bad.length ? bad.slice(0, 3).join(' | ') : `all ${Object.keys(namesByTrade).length * Object.keys(fc.OPENERS).length} trade-and-opening combinations read like a person wrote them` };
+}, 'lanes');
+
+def('message_names_the_trade_when_it_can', () => {
+  const fc = firstContact();
+  const known = fc.draftFirstContact({ name: 'High Desert Plumbing' }, [{ signal: 'fax_listed' }]);
+  const unknown = fc.draftFirstContact({ name: 'Random Widget Co' }, [{ signal: 'fax_listed' }]);
+  const namesWork = known.body.includes('service tickets') && known.trade === 'trades';
+  const fallsBack = unknown.trade === null && unknown.body.includes('paper trail');
+  const ok = namesWork && fallsBack;
+  return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
+}, 'lanes');
+
 def('three_lanes_declared', () => {
   const L = lanes();
   const ok = Array.isArray(L.LANES) && L.LANES.length === 3
