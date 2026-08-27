@@ -212,7 +212,7 @@ Grab a time on my calendar: https://calendly.com/visionairy`;
 // or "circling back", which are the two phrases that tell a reader they are on
 // a list.
 
-const FOLLOW_UP_DAYS = [0, 4, 11];   // first contact, then four days, then a week later
+const FOLLOW_UP_DAYS = [0, 4, 8];   // first contact, four days, then eight (Russ, 2026-08-26)
 
 const SIGN_OFF = `Best regards,
 Russ Wright
