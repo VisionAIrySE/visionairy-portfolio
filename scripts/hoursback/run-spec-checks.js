@@ -3296,11 +3296,63 @@ def('every_guarantee_wording_reads_straight', () => {
   const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
   // Where a guarantee lists hours, the hours must arrive as HOW the tools give
   // them back, not as one more thing in a list of contents.
-  const wrong = V.GUARANTEE.filter((g) => /hours a week/i.test(g) && !/\bhow they\b/i.test(g));
+  // The defect is hours appearing as an item in a list of things a DOCUMENT
+  // holds. Hours as the object of "find" is correct and always was; the first
+  // version of this check was too crude and would have failed a good sentence.
+  const CONTENT_VERB = /\b(report (?:names|lists|sets out)|you get|it names|it lists)\b/i;
+  const HOURS_AS_AN_ITEM = /,\s*and\s+(?:at least\s+)?\{hours\}\s+hours a week\b/i;
+  const wrong = V.GUARANTEE.filter((g) => CONTENT_VERB.test(g) && HOURS_AS_AN_ITEM.test(g));
   return { ok: !wrong.length, detail: wrong.length
-    ? `${wrong.length} wordings list hours as a thing you receive: ${wrong[0]}`
-    : `all ${V.GUARANTEE.length} wordings say how the tools give the time back` };
+    ? `${wrong.length} wordings put hours in a list of things a document holds: ${wrong[0]}`
+    : `all ${V.GUARANTEE.length} wordings treat hours as something found, not something a document contains` };
 }, 'reads');
+
+def('every_linkedin_note_has_an_invitation', () => withLiveDb(async (db) => {
+  // LinkedIn has two doors and they are not the same size. Everything built
+  // first ran 278-678 characters, which fits only the door that opens for
+  // people already connected (2026-08-27).
+  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN' }, select: { inviteBody: true } });
+  if (!notes.length) return { ok: false, detail: 'no LinkedIn notes written yet' };
+  const missing = notes.filter((n) => !n.inviteBody).length;
+  return { ok: !missing, detail: missing
+    ? `${missing} of ${notes.length} notes have nothing to send with the invitation`
+    : `${notes.length} notes, each with an invitation to send first` };
+}), 'linkedin');
+
+def('no_invitation_is_too_long_or_sells', () => withLiveDb(async (db) => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const notes = await db.outreachMessage.findMany({
+    where: { lane: 'LINKEDIN', NOT: { inviteBody: null } }, select: { inviteBody: true },
+  });
+  if (!notes.length) return { ok: false, detail: 'no invitations written yet' };
+  const tooLong = notes.filter((n) => n.inviteBody.length > fc.INVITE_MAX);
+  // An invitation that names the promise reads as a salesperson to somebody
+  // who has not yet looked at you, and gets declined on reflex.
+  const sells = notes.filter((n) => /hours a week|don't pay|do not pay|\$\d|guarantee/i.test(n.inviteBody));
+  const longest = Math.max(...notes.map((n) => n.inviteBody.length));
+  const ok = !tooLong.length && !sells.length;
+  return { ok, detail: ok
+    ? `${notes.length} invitations, longest ${longest} of ${fc.INVITE_MAX} allowed, none carrying the offer`
+    : JSON.stringify({ tooLong: tooLong.length, carryingTheOffer: sells.length, longest }) };
+}), 'linkedin');
+
+def('no_sentence_reads_their_marketing_back', () => withLiveDb(async (db) => {
+  // The sentence about a business has to say what they DO, not repeat the
+  // adjectives they chose for themselves. "You build projects that realise a
+  // client's vision and strengthen the community" is their own brochure read
+  // back to them, and it lands as flattery from a stranger (2026-08-27).
+  const rows = await db.prospect.findMany({
+    where: { theirWork: { not: null } }, select: { name: true, theirWork: true },
+  });
+  // Words that describe how a business feels about itself rather than the work.
+  // "vision" only counts as puffery when it belongs to somebody — "a client's
+  // vision". Vision insurance is a real product (2026-08-27).
+  const PUFF = /(\bpassionate\b|\bdedicated to\b|\bcommitted to\b|\btrusted\b|\bpremier\b|\bexcellence\b|\bintegrity\b|\bproud to\b|\bstrives?\b|\bexpectations\b|\bdeserve\b|\bworld-?class\b|\bunparalleled\b|\bcraftsmanship\b|relationships first|building relationships|['’]s vision)/i;
+  const bad = rows.filter((r) => PUFF.test(r.theirWork));
+  return { ok: !bad.length, detail: bad.length
+    ? `${bad.length} read their own marketing back — e.g. ${bad[0].name}: "${bad[0].theirWork}"`
+    : `${rows.length} sentences, every one saying what they do rather than how they describe themselves` };
+}), 'reads');
 
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is

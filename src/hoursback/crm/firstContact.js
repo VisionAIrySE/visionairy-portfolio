@@ -46,13 +46,17 @@ const OPENERS = {
 // week, which is true everywhere and cannot be wrong. See tradeOpening.js.
 const OPENER_ORDER = [
   'runs_several_businesses', 'hiring_several_office_roles', 'hiring_admin_role',
-  'downloadable_forms', 'no_website', 'fax_listed',
+  'downloadable_forms', 'fax_listed',
 ];
 // Never leave a message with no opening: the trade's week is always available.
 const TRADE_WEEK = 'trade_week';
 // Openings that fire on an ABSENCE rather than on something read. Never allowed
 // to open a message; named here so a check can prove they stay gone.
-const BANNED_OPENERS = ['no_online_booking', 'no_customer_portal'];
+// 'no_website' joined them on 2026-08-27: it fires when no address is on the
+// record, which means nobody found one — not that the business has none. It
+// was telling 302 businesses "you do not have a site up", and a body shop with
+// a perfectly good site reading that stops reading there.
+const BANNED_OPENERS = ['no_online_booking', 'no_customer_portal', 'no_website'];
 
 // The paperwork each trade actually does. This is what turns "I noticed you
 // still list a fax number" into a sentence that sounds like somebody looked.
@@ -188,12 +192,14 @@ function tradeLineFor(trade) {
 // himself, across sales, marketing and operations, in finance, construction
 // and building AI platforms — and having personally hit almost every
 // frustration the person reading this has.
+// The reason to believe a stranger promising money back, in one line, at the
+// moment they decide. Four sentences of biography before the ask is a resume
+// nobody requested; what earns belief is the shortest true thing that explains
+// why he would know. Telling became showing (2026-08-27).
 const CREDIBILITY = {
-  // Reassurance at the end, not a resume in the middle. The long version ran
-  // five lines and Russ read it back to me (2026-08-26).
-  FORMAL: 'My career has been split between senior management and working for myself, across finance, construction and building AI platforms. I have run into almost every frustration a manager runs into, and what I build now comes out of that.',
-  NEUTRAL: "I've spent my career in senior management and running my own businesses, across finance, construction and AI. I've hit most of the frustrations you can hit in a management seat, and what I build now comes out of that.",
-  PLAIN: "I've spent my career in senior management and running my own shops, across finance, construction and AI. I've hit most of the frustrations you can hit, and what I build now comes out of that.",
+  FORMAL: 'I have run the offices I am offering to fix — finance, construction, my own businesses. I am not a software person guessing at how your week works.',
+  NEUTRAL: "I've run the offices I'm offering to fix — finance, construction, my own businesses. I'm not a software person guessing at how your week works.",
+  PLAIN: "I've run the offices I'm offering to fix — finance, construction, my own shops. I'm not a software person guessing at how your week works.",
 };
 
 
@@ -207,13 +213,105 @@ const LINKEDIN_CLOSES = [
   'Glad to explain how, if it is of interest.',
 ];
 
+// The invitation.
+//
+// LinkedIn has two doors and they are not the same size. An invitation to
+// connect stops at 300 characters and goes to a stranger; a message can run
+// longer but only reaches somebody who has already accepted. Every note built
+// here ran 278-678 characters, so 1,235 of 1,283 fitted neither door properly
+// — they only work on people Russ is already connected to (2026-08-27).
+//
+// The invitation has one job: get accepted. A number or an offer in it reads
+// as a salesperson before any attention has been earned, so the promise is
+// deliberately absent. Local, a person, one concrete thing from their trade,
+// and no ask beyond connecting. The pitch waits for the door to open.
+const INVITE_MAX = 300;
+const INVITE_OPENINGS = [
+  '{who}Russ Wright, here in Bend.',
+  '{who}Russ Wright, based in Bend.',
+  '{who}Russ Wright, local to Central Oregon.',
+  '{who}Russ Wright, here in Central Oregon.',
+];
+const INVITE_WHAT_I_DO = [
+  'I take repetitive office work off Central Oregon businesses',
+  'I take the repetitive office work off small businesses around here',
+  'I get repetitive office work off the desks of Central Oregon businesses',
+  'I take repetitive office work off businesses in Central Oregon',
+];
+const INVITE_CLOSES = [
+  "Thought I'd connect with another local.",
+  "Thought I'd say hello.",
+  'Thought it was worth connecting.',
+  "Thought I'd reach out, one local to another.",
+];
+// The bit of their week that names the trade without pitching anything.
+const INVITE_TRADE_DETAIL = {
+  construction: 'the change orders, the chasing signatures',
+  trades: 'the scheduling, the callbacks',
+  'real estate': 'the re-typing, the follow-up that slips',
+  medical: 'the records requests, the time on hold with insurers',
+  dental: 'the reminder calls, the claims that come back',
+  veterinary: 'the reminder calls, the front desk juggling three things',
+  legal: 'the intake, the same details typed three times',
+  accounting: 'the chasing documents, the re-keying',
+  insurance: 'the renewals, the same details in three systems',
+  auto: 'the estimate-chasing, the re-typing',
+  landscaping: 'the scheduling, the three calls every time weather moves it',
+  'storage & logistics': 'the paperwork moving between dispatch and the driver',
+  staffing: 'the applications, the timesheets',
+  'retail & food': 'the ordering, the rebuilt schedule',
+  manufacturing: 'the quote that gets typed again as a work order',
+  'personal care': 'the bookings, the no-shows',
+  'fitness & recreation': 'the memberships, the lapsed members nobody chases',
+  'lodging & hospitality': 'the bookings arriving from three places',
+  'education & childcare': 'the enrollment forms, the billing',
+  'cleaning & facilities': 'the routing, the cancellations',
+  'professional services': 'the proposals that go quiet, the re-typing',
+  agriculture: 'the load tickets, the paperwork after dark',
+  'nonprofit & community': 'the donor follow-up, the grant reporting',
+  'funeral & memorial': 'the same details on a dozen forms',
+};
+
+// The note that goes out WITH the invitation. Never longer than LinkedIn
+// allows, and it never carries the offer.
+function draftLinkedInInvite(prospect) {
+  const V = require('./variants.js');
+  const { tradeOf } = require('./queues.js');
+  const trade = prospect.trade || tradeOf(prospect.name);
+  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const seed = business;
+  const first = greetingFor(prospect);
+  const detail = INVITE_TRADE_DETAIL[trade];
+
+  const open = V.pick(INVITE_OPENINGS, seed, 'invite:open').replace('{who}', first ? `Hi ${first} — ` : '');
+  const what = V.pick(INVITE_WHAT_I_DO, seed, 'invite:what');
+  const close = V.pick(INVITE_CLOSES, seed, 'invite:close');
+
+  let body = detail
+    ? `${open} ${what} — ${detail}. ${close}`
+    : `${open} ${what}. ${close}`;
+  // Never over the limit, whatever the wording does. Drop the trade detail
+  // first, then the close, rather than sending something truncated.
+  if (body.length > INVITE_MAX) body = `${open} ${what}. ${close}`;
+  if (body.length > INVITE_MAX) body = `${open} ${what}.`;
+  return { body, trade, length: body.length };
+}
+
+// The shape, reordered 2026-08-27 after reading it as a stranger would.
+//
+// It ran 265 words in five paragraphs and put the most unusual thing in it —
+// money back if the hours are not there — third, where a scanning reader never
+// reaches. The guarantee now lands immediately after their own week, the
+// credibility is one line at the point of decision rather than a resume in the
+// middle, and the year-line is gone: it was the third number in one paragraph,
+// arguing with somebody who had not disagreed yet. About 230 words.
 const BODY = `Hi {greeting},
 
 {opener} {followOn} {tradeLine}
 
-{whatIDo} For you that probably looks like {valueIn}.
+{guarantee} {floorLine} {costAnchor}
 
-{guarantee} {costAnchor} {yearLine}
+{whatIDo} For you that probably looks like {valueIn}.
 
 {intro} {credibility}
 
@@ -397,14 +495,19 @@ function bandFacts() {
 // The guarantee, in their own hours. No price in a first approach — Russ's own
 // edit struck one out, and a number with no context becomes the whole
 // conversation.
-function guaranteeFor(prospect, seed) {
+function guaranteeFor(prospect, seed, trade) {
   const V = require('./variants.js');
+  const { painFor } = require('./painPoints.js');
   const f = bandFacts(prospect);
   const word = f.hoursWord;
   const Word = word.charAt(0).toUpperCase() + word.slice(1);
+  // What the software actually does, in this trade's own terms. Without it the
+  // promise is abstract to anybody who has never bought automation.
+  const looksLike = painFor(trade || 'other').looksLike;
   return V.pick(V.GUARANTEE, seed, 'guarantee')
     .replace(/\{Hours\}/g, Word)
-    .replace(/\{hours\}/g, word);
+    .replace(/\{hours\}/g, word)
+    .replace(/\{looksLike\}/g, looksLike);
 }
 
 // The hours as a slice of a working life, which cannot be argued with the way
@@ -475,12 +578,22 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
-    .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
+    .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed, trade)))
     .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
     .replace('{tradeLine}', leadsWithTrade ? '' : tradeLineFor(trade))
     .replace(/\bcustomers\b/g, theirPeople(trade))
     .replace(/\bcustomer login\b/g, `${theirPeople(trade).replace(/s$/, '')} login`)
-    .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
+    .replace('{floorLine}', (() => {
+      const f = bandFacts(prospect);
+      const Word = f.hoursWord.charAt(0).toUpperCase() + f.hoursWord.slice(1);
+      const TO2 = require('./tradeOpening.js');
+      const plural = TO2.TRADE_PLURAL[trade];
+      const wordings = plural ? V.FLOOR_LINE : V.FLOOR_LINE_GENERAL;
+      return V.pick(wordings, seed, 'floor')
+        .replace(/\{Hours\}/g, Word)
+        .replace(/\{hours\}/g, f.hoursWord)
+        .replace(/\{plural\}/g, plural || 'offices');
+    })())
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
     .replace(/\{business\}/g, business)
@@ -547,7 +660,10 @@ function draftLinkedIn(prospect, signals = []) {
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
   ].join('\n\n');
 
-  return { subject: null, body, openedWith: key, trade };
+  // The invitation goes with it: LinkedIn's two doors need two different
+  // things, and only one of them reaches a stranger.
+  const invite = draftLinkedInInvite(prospect);
+  return { subject: null, body, openedWith: key, trade, inviteBody: invite.body };
 }
 
 // Build the second or third message for a business, given what the first one
@@ -587,4 +703,5 @@ module.exports = {
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
   TRADE_WEEK, BANNED_OPENERS, LINKEDIN_CLOSES,
+  INVITE_MAX, INVITE_OPENINGS, INVITE_WHAT_I_DO, INVITE_CLOSES, INVITE_TRADE_DETAIL, draftLinkedInInvite,
 };

@@ -34,3 +34,7 @@ dist-ssr
 prisma/dev.db
 prisma/dev.db-journal
 data/
+# ...except the Oregon business register. It is public record, it is what the
+# whole prospect list is built from, and it took a search to find once already.
+!data/hoursback/
+!data/hoursback/*.csv.gz

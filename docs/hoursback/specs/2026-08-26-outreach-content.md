@@ -52,6 +52,13 @@ Build
   - [ ] No wording puts a bare pronoun where it can land on the wrong thing. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_pronoun_points_at_the_wrong_thing | 0 -->
   - [ ] Every guarantee wording says HOW the tools give the time back, rather than listing hours as a thing received. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_guarantee_wording_reads_straight | 0 -->
 
+  the-linkedin-invitation
+  - [ ] Every LinkedIn note has a short invitation to send with the request to connect. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_linkedin_note_has_an_invitation | 0 -->
+  - [ ] No invitation runs past what LinkedIn allows, and none of them carries the offer. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_invitation_is_too_long_or_sells | 0 -->
+
+  what-it-actually-does
+  - [ ] No sentence about a business reads their own marketing back at them. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_sentence_reads_their_marketing_back | 0 -->
+
   queued-for-later
   - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
 

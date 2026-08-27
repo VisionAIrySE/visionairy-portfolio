@@ -34,12 +34,14 @@ function pick(list, key, salt = '') {
 
 // The opening line. Same job, four ways.
 const OPENINGS = {
-  // Reassurance, not the hook, so these run LATE and short. Formal keeps its
-  // contractions out; plain is barest. Shortening them once collapsed formal
-  // and neutral into the same sentence, which killed the register.
-  FORMAL: ["I am local to Central Oregon.", "I am based here in Central Oregon.", "I work with businesses across Central Oregon.", "I am here in Central Oregon myself."],
-  NEUTRAL: ["I'm local to Central Oregon.", "I'm here in Central Oregon.", "I work with businesses around Central Oregon.", "I'm based here in Bend."],
-  PLAIN: ["I'm local.", "I'm right here in Bend.", "I'm local, same as you.", "I'm just up the road."],
+  // This used to be reassurance and nothing else — "I'm local to Central
+  // Oregon." Russ replaced it on 2026-08-27 with what he actually does, and
+  // his sentence is kept verbatim in every register. The line is his, so it
+  // does not vary: every message now carries the same one. Ask him before
+  // adding wordings around it.
+  FORMAL: ['I help businesses around Central Oregon find these opportunities to improve efficiencies, increase profitability and implement and build these tools.'],
+  NEUTRAL: ['I help businesses around Central Oregon find these opportunities to improve efficiencies, increase profitability and implement and build these tools.'],
+  PLAIN: ['I help businesses around Central Oregon find these opportunities to improve efficiencies, increase profitability and implement and build these tools.'],
 };
 
 
@@ -73,10 +75,40 @@ const WHAT_I_DO = [
 // names at least 5 hours?"). The fix is his: the third item is now HOW the
 // tools give the time back, which a report genuinely can set out.
 const GUARANTEE = [
-  "You get the best tools for the job, how to put them in, and how they give you and your team back at least {hours} hours a week. Or you don't pay.",
-  "You get the tools, how to implement them, and how they hand your people back at least {hours} hours a week. If not, you don't pay.",
-  "The report names the tools, how to put them in, and how they give you and your team back at least {hours} hours a week. If it falls short, your money comes back.",
-  "You get the tools, how to implement them, and how they free up at least {hours} hours a week for your team. Or you pay nothing.",
+  // These run BEFORE the paragraph explaining what he does, so they cannot
+  // lean on a report the reader has not heard of. Each stands on its own.
+  //
+  // {looksLike} is what the software actually DOES, in that trade's own terms.
+  // Without it the promise was "I name the tools that free it up" — which
+  // gives somebody who has never bought automation no picture at all of what
+  // changes on Monday (Russ, 2026-08-27).
+  //
+  // Hours are what he FINDS. Never an item in a list of what a document holds.
+  "I find at least {hours} hours a week of your team's time and name the software that does that work instead — {looksLike}. If I can't, you don't pay.",
+  "I find at least {hours} hours a week of your people's time and name the software that takes it on instead — {looksLike}. If I don't, you don't pay.",
+  "I find you at least {hours} hours a week and name the software that handles it instead of a person — {looksLike}. If it falls short, your money comes back.",
+  "At least {hours} hours a week of your team's time, and the software that takes the work on — {looksLike}. Or you pay nothing.",
+];
+
+// Five is the floor, not the finding.
+//
+// Without this the guarantee reads as a cap — as if five hours is all there
+// is. The research puts the average loss to repetitive work at around ten
+// hours a week per worker, and accounting practices at twelve to twenty, so
+// saying there is more than five sitting there is defensible without ever
+// claiming a client he has not had (Russ, 2026-08-27: "it doesn't indicate 5
+// is the floor but it's usually more").
+const FLOOR_LINE = [
+  "{Hours} is the floor I'll guarantee, not the number I expect: in most {plural} there's a good deal more than that sitting there.",
+  "That {hours} is a floor, not a finding — in most {plural} there is more than that waiting to be picked up.",
+  "{Hours} is what I'll guarantee, not what I expect to find. Most {plural} are carrying more than that.",
+  "I guarantee {hours}. In most {plural} the real number is higher than that.",
+];
+const FLOOR_LINE_GENERAL = [
+  "{Hours} is the floor I'll guarantee, not the number I expect: in most small offices there's a good deal more than that sitting there.",
+  "That {hours} is a floor, not a finding — in most offices there is more than that waiting to be picked up.",
+  "{Hours} is what I'll guarantee, not what I expect to find. Most offices are carrying more than that.",
+  "I guarantee {hours}. In most offices the real number is higher than that.",
 ];
 
 // The same, when we know their team size and can put their own number on it.
@@ -143,8 +175,10 @@ const TELL_WORDINGS = {
     // Point at where it is PUBLISHED, never at "at the moment". A careers page
     // can sit untouched for two years, and being wrong in the first line of a
     // cold email is the worst place to be wrong (2026-08-26).
-    'Your site lists an office role.',
-    'I saw an office role listed on your site.',
+    // Russ's own edit, 2026-08-27: "lists an office role" could be read as a
+    // staff page. Saying what the listing IS settles it.
+    "Your site lists an office role you're hiring for.",
+    "I saw an office role you're hiring for listed on your site.",
     'You have an office role up on your careers page, which is what got my attention.',
     'I noticed the office position on your careers page.',
   ],
@@ -219,4 +253,5 @@ const COST_ANCHOR = {
 
 
 module.exports = {
+  FLOOR_LINE, FLOOR_LINE_GENERAL,
   COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };

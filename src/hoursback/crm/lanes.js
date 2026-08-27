@@ -182,11 +182,16 @@ async function draftFor(db, prospectId, lane) {
   // the existing row before it ever looked at the new words, 2026-08-26.
   const existing = await db.outreachMessage.findFirst({ where: { prospectId, lane } });
   if (existing) {
-    const rewritable = existing.state === 'DRAFT' && !existing.editedAt && existing.body !== built.body;
+    const rewritable = existing.state === 'DRAFT' && !existing.editedAt
+      && (existing.body !== built.body
+        || (built.inviteBody && existing.inviteBody !== built.inviteBody));
     if (!rewritable) return existing;
     return db.outreachMessage.update({
       where: { id: existing.id },
-      data: { subject: built.subject, body: built.body, openedWith: built.openedWith },
+      data: {
+        subject: built.subject, body: built.body, openedWith: built.openedWith,
+        ...(built.inviteBody ? { inviteBody: built.inviteBody } : {}),
+      },
     });
   }
 
@@ -195,6 +200,7 @@ async function draftFor(db, prospectId, lane) {
     data: {
       prospectId, lane, state: 'DRAFT',
       subject: built.subject, body: built.body, openedWith: built.openedWith,
+      inviteBody: built.inviteBody || null,
       templateId: template ? template.id : null,
     },
   });

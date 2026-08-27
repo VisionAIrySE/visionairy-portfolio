@@ -224,6 +224,11 @@ model OutreachMessage {
   subject    String?
   body       String
   openedWith String?  // which tell this message led with
+  /// LinkedIn only. The short note that goes out WITH the invitation to
+  /// connect — capped at what LinkedIn allows, and it never carries the offer,
+  /// because a number in an invitation reads as a salesperson to a stranger.
+  /// The body above is what gets sent once they accept.
+  inviteBody String?
   templateId String?
   template   MessageTemplate? @relation(fields: [templateId], references: [id])
   queuedAt   DateTime?

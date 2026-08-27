@@ -582,6 +582,10 @@ async function linkedInScreen() {
     return `<div class="card">
       <div class="row"><div><a href="/business/${m.prospectId}"><b>${esc(name)}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}</div>
         <div><a href="${esc(findThem)}" target="_blank" rel="noopener">Find ${who ? esc(who.split(' ')[0]) : 'them'} on LinkedIn &rarr;</a></div></div>
+      ${m.inviteBody ? `<p class="mini"><b>1. Send this WITH the invitation to connect</b> — short on purpose, and no offer in it. A number in an invitation reads as a salesperson before anybody has looked at you.</p>
+      <pre class="msg" id="inv-${m.id}">${esc(m.inviteBody)}</pre>
+      <p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('inv-${m.id}').innerText).then(()=>{this.textContent='Copied';setTimeout(()=>{this.textContent='Copy the invitation'},1500)})">Copy the invitation</button> <span class="muted">${m.inviteBody.length} characters</span></p>
+      <p class="mini"><b>2. Send this once they accept</b></p>` : ''}
       <pre class="msg" id="li-${m.id}">${esc(m.body)}</pre>
       <p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('li-${m.id}').innerText).then(()=>{this.textContent='Copied';setTimeout(()=>{this.textContent='Copy the message'},1500)})">Copy the message</button></p>
       <form method="POST" action="/linkedin/sent/${m.id}"><button>I sent this one</button></form>
