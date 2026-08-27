@@ -132,16 +132,19 @@ const CLOSES = {
 // businesses in the same trade, so it varies the most.
 const TELL_WORDINGS = {
   hiring_admin_role: [
-    'I noticed you have an opening for an office role at the moment.',
-    'I saw you are hiring for the office.',
-    'You have an office role advertised at the moment, which is what got my attention.',
-    'I noticed the office position you are trying to fill.',
+    // Point at where it is PUBLISHED, never at "at the moment". A careers page
+    // can sit untouched for two years, and being wrong in the first line of a
+    // cold email is the worst place to be wrong (2026-08-26).
+    'Your site lists an office role.',
+    'I saw an office role listed on your site.',
+    'You have an office role up on your careers page, which is what got my attention.',
+    'I noticed the office position on your careers page.',
   ],
   hiring_several_office_roles: [
-    'I noticed you have more than one office role open at the moment.',
-    'I saw you are trying to fill a couple of office positions at once.',
-    'You have more than one office role advertised at the moment, which is what caught my eye.',
-    'I noticed a couple of office roles open at the same time.',
+    'Your site lists more than one office role.',
+    'I saw a couple of office positions listed on your site.',
+    'You have more than one office role up on your careers page, which is what caught my eye.',
+    'I noticed a couple of office roles on your careers page.',
   ],
   runs_several_businesses: [
     'I gather you have more than one business going, which usually means the same office work landing on you twice over.',
