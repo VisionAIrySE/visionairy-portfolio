@@ -62,13 +62,21 @@ const WHAT_I_DO = [
 // Where the team size is known the numbers are theirs: their band's hours and
 // their band's price, straight from the pricing table. Where it is not, the
 // floor of ten hours stands, because that is the promise at every band.
+// The promise is about what the report CONTAINS. Every item in the list has to
+// be a thing a report can actually hold.
+//
+// The earlier wordings hung three items off one verb — "the report names the
+// tools, how to put them in, and at least five hours a week of your team's
+// time" — and the third one is not a thing a report names. It is what the
+// tools DO once they are in. Read plainly it says the report names some hours,
+// which is nonsense (Russ, 2026-08-26: "Does this not read like the report
+// names at least 5 hours?"). The fix is his: the third item is now HOW the
+// tools give the time back, which a report genuinely can set out.
 const GUARANTEE = [
-  // Russ's own rewrite: the promise is about what the report CONTAINS, not an
-  // abstract quantity. Tools, how to put them in, and the time back.
-  "You get the best tools for the job, how to put them in, and at least {hours} hours a week of your team's time back. Or you don't pay.",
-  "You get the tools, how to implement them, and at least {hours} hours a week of your people's time returned. If not, you don't pay.",
-  "The report names the tools, how to put them in, and at least {hours} hours a week of your team's time. If it falls short, your money comes back.",
-  "Tools, how to implement them, and at least {hours} hours a week back for your team. Or you pay nothing.",
+  "You get the best tools for the job, how to put them in, and how they give you and your team back at least {hours} hours a week. Or you don't pay.",
+  "You get the tools, how to implement them, and how they hand your people back at least {hours} hours a week. If not, you don't pay.",
+  "The report names the tools, how to put them in, and how they give you and your team back at least {hours} hours a week. If it falls short, your money comes back.",
+  "You get the tools, how to implement them, and how they free up at least {hours} hours a week for your team. Or you pay nothing.",
 ];
 
 // The same, when we know their team size and can put their own number on it.

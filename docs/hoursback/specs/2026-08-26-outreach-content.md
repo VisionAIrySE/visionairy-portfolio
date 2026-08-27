@@ -47,6 +47,11 @@ Build
   - [ ] No LinkedIn note carries a link, which is what gets an account restricted. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_linkedin_note_carries_a_link | 0 -->
   - [ ] No LinkedIn note runs longer than what actually gets read. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_notes_stay_short | 0 -->
 
+  the-sentence-has-to-read-straight
+  - [ ] No message claims a document holds something a document cannot hold. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_sentence_promises_what_a_report_cannot_hold | 0 -->
+  - [ ] No wording puts a bare pronoun where it can land on the wrong thing. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_pronoun_points_at_the_wrong_thing | 0 -->
+  - [ ] Every guarantee wording says HOW the tools give the time back, rather than listing hours as a thing received. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_guarantee_wording_reads_straight | 0 -->
+
   queued-for-later
   - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
 

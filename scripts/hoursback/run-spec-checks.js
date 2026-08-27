@@ -3250,6 +3250,58 @@ def('email_sends_without_a_click', () => {
     : 'not built yet — Russ sends by hand and asked for this to be queued' };
 }, 'linkedin');
 
+// Sentences that are individually true and collectively wrong.
+//
+// Every item in "the report names the tools, how to put them in, and at least
+// five hours a week" is real, so nothing flagged it — but a report does not
+// name hours, and read plainly the sentence says it does. It sat in a draft
+// that had been printed, read and passed (2026-08-26). Wanting to catch it was
+// not enough with it on screen, so it is checked here instead.
+
+def('no_sentence_promises_what_a_report_cannot_hold', () => withLiveDb(async (db) => {
+  const drafts = await db.outreachMessage.findMany({ select: { body: true, prospect: { select: { name: true } } } });
+  // A verb of CONTENT — names, lists, sets out, you get — may only govern
+  // things a document can hold. Hours are an outcome, so they have to arrive
+  // through "how they ...", never as another item in the list.
+  const CONTENT_VERB = /\b(report (?:names|lists|sets out)|you get|you'll get|it names|it lists)\b/i;
+  const HOURS_AS_AN_ITEM = /,\s*and\s+(?:at least\s+)?(?:\w+|\d+)\s+hours a week\b/i;
+  const bad = [];
+  for (const d of drafts) {
+    for (const sentence of String(d.body).split(/(?<=[.!?])\s+/)) {
+      if (CONTENT_VERB.test(sentence) && HOURS_AS_AN_ITEM.test(sentence)) {
+        bad.push(`${d.prospect.name}: ${sentence.trim().slice(0, 110)}`);
+        break;
+      }
+    }
+  }
+  return { ok: !bad.length, detail: bad.length
+    ? `${bad.length} drafts say a report contains hours — e.g. ${bad[0]}`
+    : `${drafts.length} drafts, none claiming a document holds hours` };
+}), 'reads');
+
+def('no_pronoun_points_at_the_wrong_thing', () => {
+  const V = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  // "You treat dogs, cats and horses, and my guess is a version of THAT is
+  // sitting on somebody" — "that" lands on the animals rather than on the week
+  // described before it. Any wording that puts a bare "that" straight after
+  // the business's own words is ambiguous by construction.
+  const risky = V.THEIR_WORK_GUESS.filter((w) => /\{work\}[^.]*\ba version of that\b/i.test(w)
+    || /\{work\}[^.]*\bbit of that\b/i.test(w));
+  return { ok: !risky.length, detail: risky.length
+    ? `ambiguous: ${risky.join(' | ')}`
+    : 'no wording puts a bare "that" against the clause about their business' };
+}, 'reads');
+
+def('every_guarantee_wording_reads_straight', () => {
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  // Where a guarantee lists hours, the hours must arrive as HOW the tools give
+  // them back, not as one more thing in a list of contents.
+  const wrong = V.GUARANTEE.filter((g) => /hours a week/i.test(g) && !/\bhow they\b/i.test(g));
+  return { ok: !wrong.length, detail: wrong.length
+    ? `${wrong.length} wordings list hours as a thing you receive: ${wrong[0]}`
+    : `all ${V.GUARANTEE.length} wordings say how the tools give the time back` };
+}, 'reads');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
