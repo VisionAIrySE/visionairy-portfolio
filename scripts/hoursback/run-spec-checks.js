@@ -3354,6 +3354,37 @@ def('no_sentence_reads_their_marketing_back', () => withLiveDb(async (db) => {
     : `${rows.length} sentences, every one saying what they do rather than how they describe themselves` };
 }), 'reads');
 
+def('both_channels_say_what_the_software_does', () => withLiveDb(async (db) => {
+  // The email and the LinkedIn note carry the same promise in different
+  // wording, so a fix to one can silently miss the other. It did: the note
+  // kept "name the tools that give it back" — the abstract line Russ rejected
+  // — for a while after the email had dropped it (2026-08-27).
+  const abstract = /name the tools that (give|free) it (back|up)/i;
+  const all = await db.outreachMessage.findMany({ select: { lane: true, body: true } });
+  const badEmail = all.filter((m) => m.lane === 'EMAIL' && abstract.test(m.body)).length;
+  const badNote = all.filter((m) => m.lane === 'LINKEDIN' && abstract.test(m.body)).length;
+  const emails = all.filter((m) => m.lane === 'EMAIL').length;
+  const notes = all.filter((m) => m.lane === 'LINKEDIN').length;
+  const ok = !badEmail && !badNote;
+  return { ok, detail: ok
+    ? `${emails} emails and ${notes} notes, both saying what the software actually does`
+    : `still abstract: ${badEmail} emails, ${badNote} notes` };
+}), 'reads');
+
+def('nothing_is_written_to_an_unverified_business', () => withLiveDb(async (db) => {
+  // A business straight out of the state register has a name, a city and an
+  // owner — no website, nothing read, nobody confirmed it still trades. It is
+  // a lead, not a prospect, and nothing may be drafted for it until a site has
+  // been found and read (2026-08-27).
+  const bad = await db.outreachMessage.count({
+    where: { prospect: { fieldSource: 'oregon-business-register', siteStatus: null } },
+  });
+  const total = await db.outreachMessage.count();
+  return { ok: !bad, detail: bad
+    ? `${bad} messages drafted for businesses nobody has looked at yet`
+    : `${total} messages, none written to a business that has not been read` };
+}), 'reads');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.

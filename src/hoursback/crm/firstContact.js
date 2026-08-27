@@ -380,7 +380,9 @@ If it's the timing, say so and I'll make a note to check back rather than keep w
 
 If it's the idea, I'd genuinely like to know. I'd rather hear a no than keep guessing.
 
-And if you'd rather just see it than read about it: the tools, how to put them in, and at least {hours} hours a week back for your team, or your money returns. The calendar is below.
+And if you'd rather just see it than read about it: I find at least {hours} hours a week of your team's time and name the software that takes that work on, or your money returns. The calendar is below.
+
+One more thing, since this is the last note. If what you actually need is something built rather than bought, I do that too — and at a fraction of what a development shop would quote.
 
 ${SIGN_OFF}`,
 };
@@ -656,7 +658,11 @@ function draftLinkedIn(prospect, signals = []) {
   const body = [
     `${who ? `Hi ${who} —` : 'Hello —'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
     guess ? `${opening}\n\n${guess}` : opening,
-    `I find at least ${hours} hours a week of your team's time and name the tools that give it back. If I can't, you don't pay.`,
+    // The same promise the email makes, and it has to carry the same plain
+    // description of what the software DOES. This note kept the old abstract
+    // wording for a while after the email dropped it, which meant the channel
+    // Russ sends by hand was the weaker of the two (2026-08-27).
+    `I find at least ${hours} hours a week of your team's time and name the software that does that work instead — ${painFor(trade || 'other').looksLike}. If I can't, you don't pay.`,
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
   ].join('\n\n');
 

@@ -21,8 +21,16 @@ try {
   const { greetingFor } = require('../../src/hoursback/crm/firstContact.js');
   const db = new PrismaClient();
 
+  // Only businesses that have actually been looked at. The state register
+  // added 31,669 with an owner's name and nothing else — no website, no
+  // verification, nothing read. Left unguarded this wrote notes for 30,407
+  // businesses instead of 1,283, filling the hand-send queue with prospects
+  // nobody has confirmed exist as going concerns (2026-08-27).
   const rows = await db.prospect.findMany({
-    where: { doNotContact: false, repliedAt: null },
+    where: {
+      doNotContact: false, repliedAt: null,
+      NOT: { fieldSource: 'oregon-business-register' },
+    },
     select: { id: true, name: true, ownerName: true, contactName: true, email: true, emailManualValue: true },
     orderBy: { automationScore: 'desc' },
   });

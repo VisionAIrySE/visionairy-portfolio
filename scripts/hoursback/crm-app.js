@@ -651,7 +651,11 @@ async function businessCard(id, saved) {
   ${p.contacts.length ? `<table>
     <tr><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th></th></tr>
     ${p.contacts.map((c) => `<tr${c.bouncedAt ? ' style="opacity:.5"' : ''}>
-      <td><b>${esc(c.name || '—')}</b>${c.isPrimary ? ' <span class="pill">gets a message</span>' : ''}</td>
+      <td><b>${esc(c.name || '—')}</b>${c.isPrimary
+        ? (c.email
+          ? ' <span class="pill">gets their own message</span>'
+          : ' <span class="pill" style="background:#fde68a;color:#78350f">marked, but no address for them</span>')
+        : ''}</td>
       <td class="muted">${esc(c.role || '—')}</td>
       <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">—</span>'}${c.bouncedAt ? ' <span class="muted">(bounced)</span>' : ''}</td>
       <td>${c.phone ? `<a class="phone" href="tel:${digits(c.phone)}">${esc(c.phone)}</a>` : '<span class="muted">—</span>'}</td>
@@ -670,6 +674,19 @@ async function businessCard(id, saved) {
   <p class="muted" style="margin-top:14px">Owner on record: ${esc(p.ownerName || '—')} · Spoke to: ${esc(p.contactName || '—')}${p.contactRole ? ` (${esc(p.contactRole)})` : ''}
      · Decision maker: ${p.isDecisionMaker === null ? 'unknown' : (p.isDecisionMaker ? 'yes' : 'no')}<br>
      Sending to: ${emailLine}${p.linkedInUrl ? ` · <a href="${esc(p.linkedInUrl)}" target="_blank">their company page on LinkedIn</a>` : ''}</p>
+  ${(() => {
+    // Say where the message is actually going and why, rather than leaving it
+    // to be worked out from a marked name with no address beside it.
+    const own = p.contacts.filter((c) => c.isPrimary && c.email);
+    const markedNoAddress = p.contacts.filter((c) => c.isPrimary && !c.email);
+    if (own.length) {
+      return `<p class="mini">${own.length === 1 ? 'One message' : `${own.length} messages`}, each to the person's own address. Marking somebody else here adds another.</p>`;
+    }
+    if (markedNoAddress.length) {
+      return `<p class="mini">Nobody here has an address of their own, so the message goes to the business inbox above and is greeted by name. Marking somebody changes nothing until an address is added beside them.</p>`;
+    }
+    return '<p class="mini">The message goes to the business inbox above. Add an address beside a person to write to them directly.</p>';
+  })()}
 
   <h2>Everything, editable</h2>
   <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
