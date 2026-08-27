@@ -460,7 +460,7 @@ function draftFirstContact(prospect, signals = []) {
     .replace('Hi {greeting},', who ? `Hi ${who},` : 'Hello,')
     .replace('{intro}', V.pick(V.OPENINGS[register], seed, 'intro'))
     .replace('{opener}', leadsWithTrade
-      ? longevityLine(prospect) + TO.openingFor(trade, business, seed)
+      ? longevityLine(prospect) + TO.openingFor(trade, business, seed, prospect.theirWork)
       : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
@@ -497,7 +497,7 @@ function draftLinkedIn(prospect, signals = []) {
   // Where the opening IS the trade's week, saying it twice reads like a fault.
   const leadsWithTrade = key === TRADE_WEEK;
   const lead = leadsWithTrade
-    ? TO.openingFor(trade, business, business)
+    ? TO.openingFor(trade, business, business, prospect.theirWork)
     : `${OPENERS[key]} ${line}\n\n${painFor(trade || 'other').recognition}`;
   // This had gone stale: it still said "I spend a week inside an operation"
   // and promised ten hours, months after both were retired (2026-08-26). And

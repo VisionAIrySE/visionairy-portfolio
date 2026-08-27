@@ -70,10 +70,71 @@ function nameFromEmail(email) {
 }
 
 // A first name out of a full name, for the same greeting.
+// Words that never appear inside a person's name. The website reader saves
+// anything on a team page that is shaped like a name, and about four in ten of
+// those turn out to be a heading or a menu item — which produced "Hi Why,"
+// (from "Why Wood?"), "Hi Vaccination," and "Hi Property," when the greeting
+// simply took the first word (2026-08-26). An awkward "Hello," costs nothing;
+// "Hi Vaccination," ends the conversation.
+const NEVER_IN_A_NAME = new RegExp([
+  'products?', 'services?', 'management', 'manager', 'consultant', 'association',
+  'insurance', 'schedule', 'scheduling', 'shipping', 'estimate', 'estimates',
+  'installation', 'maintenance', 'repair', 'repairs', 'units?', 'storage',
+  'dwelling', 'accessory', 'reconstructive', 'surgery', 'landscape', 'landscaping',
+  'builders?', 'construction', 'contractors?', 'plant', 'ranch', 'lotus', 'coffee',
+  'wood', 'graphic', 'artist', 'design', 'approach', 'accuracy', 'restore',
+  'mounts?', 'hobby', 'closed', 'vaccination', 'personalized', 'care', 'clinic',
+  'dental', 'medical', 'realty', 'properties', 'company', 'group', 'center',
+  'centre', 'oregon', 'bend', 'redmond', 'sisters', 'prineville', 'madras',
+  'multiple', 'favorite', 'other', 'general', 'commercial', 'residential',
+  'financial', 'agency', 'agent', 'office', 'team', 'staff', 'owner', 'director',
+  'president', 'principal', 'partner', 'associate', 'specialist', 'technician',
+  'assistant', 'coordinator', 'supervisor', 'engineer', 'hot', 'tub', 'shop',
+].join('|'), 'i');
+
+// Structural tells that a string is a heading rather than a person.
+const NOT_A_NAME_SHAPE = [
+  /[?:;!]/,                   // "Why Wood?"  "Expert Services:"
+  /\.$/,                      // "Property Management Consultant."
+  /\b[A-Z]{2,}\b/,            // "DESIGN IT"  "TV Mounts"
+  /\d/,                       // a number never belongs in one
+  /\b(the|and|our|your|we|for|with|about|from|that|this|more|all)\b/i,
+];
+
+// Is this string safe to greet somebody by? The bar is deliberately high.
+function plausiblePersonName(raw) {
+  const n = String(raw || '').trim();
+  if (!n) return false;
+  const words = n.split(/\s+/);
+  if (words.length < 2 || words.length > 4) return false;   // "Fri Closed" is 2, caught below
+  if (NEVER_IN_A_NAME.test(n)) return false;
+  if (NOT_A_NAME_SHAPE.some((re) => re.test(n))) return false;
+  // Every word starts with a capital and is otherwise lower case, allowing a
+  // middle initial, a hyphenated surname, an apostrophe and a suffix.
+  const wordOk = /^[A-Z][a-z'’-]*[a-z'’]?\.?$/;
+  const initial = /^[A-Z]\.?$/;
+  const suffix = /^(Jr|Sr|II|III|IV)\.?$/i;
+  if (!words.every((w) => wordOk.test(w) || initial.test(w) || suffix.test(w))) return false;
+  // First and last both have to be real words, not initials or suffixes.
+  const first = words[0];
+  const last = words[words.length - 1];
+  const lastReal = suffix.test(last) ? words[words.length - 2] : last;
+  // "As Co" passes every shape test above and greets somebody "Hi As,". A
+  // given name under three letters is rare enough that blocking it costs
+  // almost nothing and saves a message that reads as broken.
+  if (!first || initial.test(first) || first.length < 3) return false;
+  if (!lastReal || initial.test(lastReal) || lastReal.length < 2) return false;
+  if (/^(co|llc|inc|pc|llp|ltd)\.?$/i.test(lastReal)) return false;
+  return true;
+}
+
+// The name to greet by, or nothing. Taking the first word of whatever was
+// saved is how "Hi Why," happened; the whole string has to look like a person
+// before any part of it is used.
 function firstNameOf(fullName) {
-  if (!fullName) return null;
+  if (!plausiblePersonName(fullName)) return null;
   const first = String(fullName).trim().split(/\s+/)[0];
   return first && first.length > 1 ? first : null;
 }
 
-module.exports = { NOT_A_PERSON, FIRST_NAMES, nameFromEmail, firstNameOf };
+module.exports = { NOT_A_PERSON, FIRST_NAMES, NEVER_IN_A_NAME, nameFromEmail, firstNameOf, plausiblePersonName };

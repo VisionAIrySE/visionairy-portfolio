@@ -152,7 +152,25 @@ async function draftFor(db, prospectId, lane) {
   // Write to whoever it is actually going to, not to whoever owns the place.
   // The greeting used to name the owner while the message went to info@.
   const person = lane === 'EMAIL' ? await personFor(db, prospectId) : null;
-  const writeTo = person && person.name ? { ...p, contactName: person.name } : p;
+  let writeTo = person && person.name ? { ...p, contactName: person.name } : p;
+  // At a small shop the "general" inbox is the owner's inbox. 404 businesses
+  // had a person's name on file and only a general address, and every one of
+  // them was greeted "Hello,". Where three or fewer people are named on the
+  // whole site, that address almost certainly reaches one of them, so the
+  // greeting uses their name. Above that there is a real front desk and it
+  // does not. The name still has to pass the person test, which is what stops
+  // "Hi Vaccination," (2026-08-26).
+  if (lane === 'EMAIL' && !writeTo.contactName && !writeTo.ownerName) {
+    const named = await db.contact.findMany({
+      where: { prospectId, name: { not: null } },
+      select: { name: true }, orderBy: { createdAt: 'asc' },
+    });
+    if (named.length && named.length <= 3) {
+      const { firstNameOf } = require('./names.js');
+      const usable = named.find((c) => firstNameOf(c.name));
+      if (usable) writeTo = { ...writeTo, contactName: usable.name };
+    }
+  }
   const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
   if (!built) return null;
   if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return null;

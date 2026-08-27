@@ -64,6 +64,12 @@ model Prospect {
   siteReadAt      DateTime?
   linkedInUrl     String?   // the business's own LinkedIn page, from their site
   selfDescription String?   // the one line they wrote about themselves
+  /// What this particular business does, read off their own published words and
+  /// written as a clause that completes "You ___". Only ever their own claim
+  /// reflected back — never an inference, never praise. Empty where nothing
+  /// could be written honestly, and those messages keep the trade line, which
+  /// is true of everybody.
+  theirWork       String?
   trade           String?   // settled from their own words when the name could not
   yearsInBusiness Int?      // how many years, already counted from "since 1994"
   toolsInUse      String?   // what they already pay for, which says what is missing

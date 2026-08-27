@@ -670,6 +670,9 @@ async function businessCard(id, saved) {
         ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
       <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
       <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
+      <div style="grid-column:1/-1"><label>What they do, in the email</label>
+        <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
+        <div class="was">Goes into the message as &ldquo;You ${esc(p.theirWork) || '&hellip;'}, so I'd guess&hellip;&rdquo;. Read off their own site. Leave it empty and the message falls back to their industry, which is always safe.</div></div>
       <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
       <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
         <option value="">unknown</option>
@@ -701,7 +704,7 @@ async function saveBusiness(id, form) {
     await setOverride(db, id, field, value, 'russ');
   }
   const plain = {};
-  for (const f of ['ownerName', 'contactName', 'contactRole']) {
+  for (const f of ['ownerName', 'contactName', 'contactRole', 'theirWork']) {
     if (f in form) plain[f] = String(form[f]).trim() || null;
   }
   if ('isDecisionMaker' in form) {

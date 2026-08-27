@@ -80,9 +80,22 @@ const WHERE_TRUE_GENERAL = [
   "That's how most offices around here run.",
 ];
 
-// Sentence three: a GUESS, and it has to stay one. Every wording below is
-// hedged, because the whole message is honest right up until this sentence
-// claims to know something about their particular office.
+// Sentence three, when their own words told us what they actually do.
+//
+// The clause is theirs — read off what they published, written to complete
+// "You ___", never inferred and never flattering. Reflecting it back is what
+// separates a message written for them from a message written for their
+// category. The hedge is unchanged: it still guesses, it never claims.
+const THEIR_WORK_GUESS = [
+  "You {work}, so I'd guess a fair bit of that lands on whoever runs your office.",
+  'You {work}, and my guess is a version of that is sitting on somebody there.',
+  "You {work} — I'd guess some of the above comes with it.",
+  'You {work}, so odds are some of that is familiar.',
+];
+
+// Sentence three, when we only know their trade. A GUESS, and it has to stay
+// one. Every wording below is hedged, because the whole message is honest
+// right up until this sentence claims to know something about their office.
 const SOFT_GUESS = [
   "I'd guess some of it is true at {business}.",
   'Some of that probably lands at {business} as well.',
@@ -133,16 +146,24 @@ function pick(list, key, salt = '') {
 
 // The whole opening paragraph. Three sentences, in order: their week, where it
 // is true, and a guess about them.
-function openingFor(trade, businessName, seed) {
+function openingFor(trade, businessName, seed, theirWork) {
   const week = painFor(trade || 'other').recognition;
   const plural = TRADE_PLURAL[trade];
   const where = plural
     ? pick(WHERE_TRUE, seed, 'where').replace('{plural}', plural)
     : pick(WHERE_TRUE_GENERAL, seed, 'where');
   const name = shortName(businessName);
-  const guess = name
-    ? pick(SOFT_GUESS, seed, 'guess').replace('{business}', name)
-    : pick(SOFT_GUESS_NO_NAME, seed, 'guess');
+  // Their own work beats their name every time — it is the difference between
+  // "I'd guess some of it is true at Reinhardt Homes" and "You design and build
+  // custom homes in Redmond, so I'd guess a fair bit of that lands on whoever
+  // runs your office." Only ever used where somebody read their words and wrote
+  // the clause by hand (Russ approved this on the condition it stays a guess
+  // and comes solely from their own site, 2026-08-26).
+  const guess = theirWork
+    ? pick(THEIR_WORK_GUESS, seed, 'guess').replace('{work}', String(theirWork).trim())
+    : name
+      ? pick(SOFT_GUESS, seed, 'guess').replace('{business}', name)
+      : pick(SOFT_GUESS_NO_NAME, seed, 'guess');
   return `${week} ${where} ${guess}`;
 }
 
@@ -152,6 +173,6 @@ function subjectFor(trade, seed) {
 
 module.exports = {
   TRADE_SUBJECT, GENERAL_SUBJECT, TRADE_PLURAL,
-  WHERE_TRUE, WHERE_TRUE_GENERAL, SOFT_GUESS, SOFT_GUESS_NO_NAME,
+  WHERE_TRUE, WHERE_TRUE_GENERAL, SOFT_GUESS, SOFT_GUESS_NO_NAME, THEIR_WORK_GUESS,
   shortName, openingFor, subjectFor, pick,
 };
