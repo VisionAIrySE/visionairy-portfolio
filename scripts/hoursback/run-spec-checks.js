@@ -2406,7 +2406,11 @@ def('lane_message_leads_with_something_true_about_them', () => {
   const fc = firstContact();
   const withTell = fc.draftFirstContact({ name: 'Alpha Co' }, [{ signal: 'hiring_admin_role' }]);
   const noTell = fc.draftFirstContact({ name: 'Alpha Co' }, []);
-  const ok = withTell.body.includes(fc.OPENERS.hiring_admin_role) && noTell === null;
+  // Any of the four wordings for that tell counts — which one a business gets
+  // varies by name, so pinning it to the fixed one was always fragile.
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const wordings = [fc.OPENERS.hiring_admin_role, ...(V.TELL_WORDINGS.hiring_admin_role || [])];
+  const ok = wordings.some((w) => withTell.body.includes(w)) && noTell === null;
   return { ok, detail: ok ? 'it opens on what was actually found on their site; with nothing found, no message is written' : 'a message was written with no observation in it' };
 }, 'lanes');
 
