@@ -61,9 +61,11 @@ Build
 
   noticing-a-reply-and-a-bounce
   - [ ] A person answering stops every remaining message; a holiday responder changes nothing. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_reply_is_told_apart_from_a_holiday_responder | 0 -->
-  - [ ] A bounce gives up the address that failed, whatever shape it arrives in. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_bounce_names_the_address_that_failed | 0 -->
   - [ ] A bounced address goes back into the list of addresses to find, and the business stays callable. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_bounced_address_is_queued_to_be_found_again | 0 -->
-  - [ ] Nothing that reads Russ's inbox is able to send from it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=reading_the_inbox_never_sends_anything | 0 -->
+  - [ ] Only a properly signed, recent message from the mail service is acted on. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=an_unsigned_mail_event_is_refused | 0 -->
+  - [ ] A bounce, a spam complaint, a reply and a holiday responder each mean exactly one thing. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=each_mail_event_means_one_thing | 0 -->
+  - [ ] Being marked as spam stops every channel, phone included. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=being_marked_as_spam_stops_everything | 0 -->
+  - [ ] The mail service is heard without a password, and only because it signed the message. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=the_mail_service_is_heard_without_a_password | 0 -->
 
   queued-for-later
   - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->

@@ -822,6 +822,42 @@ const server = http.createServer(async (req, res) => {
       return Object.fromEntries(new URLSearchParams(raw));
     };
 
+    // Where the sending service tells us what happened. It sits before the
+    // password check because it is not Russ knocking — it is the mail service,
+    // and it proves who it is by signing every message rather than logging in.
+    if (route === 'mail-events' && req.method === 'POST') {
+      const ME = require('../../src/hoursback/crm/mailEvents.js');
+      const L = require('../../src/hoursback/crm/lanes.js');
+      let raw = '';
+      for await (const c of req) raw += c;
+      if (!ME.signatureIsValid(raw, req.headers, process.env.RESEND_WEBHOOK_SECRET)) {
+        res.writeHead(401); return res.end('not signed by the mail service');
+      }
+      let event;
+      try { event = JSON.parse(raw); } catch { res.writeHead(400); return res.end('not readable'); }
+
+      const { act } = ME.meaning(event);
+      const address = ME.addressFrom(event);
+      if (act === 'ignore' || !address) { res.writeHead(200); return res.end('noted'); }
+
+      const I = require('../../src/hoursback/crm/inbox.js');
+      const prospectId = await I.businessFor(db, address);
+      if (!prospectId) { res.writeHead(200); return res.end('not one of ours'); }
+
+      if (act === 'replied') await L.markReplied(db, prospectId, 'EMAIL');
+      if (act === 'bounced') {
+        await L.markBounced(db, prospectId);
+        await I.markContactBounced(db, prospectId, address);
+      }
+      if (act === 'complained') {
+        // Being marked as spam is worse than a bounce. They do not want to
+        // hear from Russ at all, so nothing reaches them again on any channel.
+        await L.markBounced(db, prospectId);
+        await db.prospect.update({ where: { id: prospectId }, data: { doNotContact: true } });
+      }
+      res.writeHead(200); return res.end('done');
+    }
+
     if (route === 'login' && req.method === 'POST') {
       const form = await body();
       if (PASSWORD && form.pw === PASSWORD) {

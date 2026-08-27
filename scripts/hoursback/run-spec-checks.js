@@ -3460,27 +3460,76 @@ def('a_bounced_address_is_queued_to_be_found_again', () => {
     : JSON.stringify({ inTheQueue, flagged }) };
 }, 'inbox');
 
-def('reading_the_inbox_never_sends_anything', () => {
-  // This runs unattended against Russ's own mail. It reads, matches and marks.
-  const src = read(path.join(ROOT, 'scripts/hoursback/check-inbox.js'))
-    + read(path.join(ROOT, 'src/hoursback/crm/inbox.js'));
-  const sends = /api\.resend\.com|sendMail|transporter\.send|\.send\(/.test(src);
-  return { ok: !sends, detail: !sends
-    ? 'nothing in the inbox reader can send a message'
-    : 'something in the inbox reader can send' };
-}, 'inbox');
 
-def('the_mail_server_is_never_assumed', () => {
-  // Gmail was written in without anybody checking where Russ's mail actually
-  // lives. It is Outlook (2026-08-27). Nothing may hard-code a provider again.
-  const src = read(path.join(ROOT, 'scripts/hoursback/check-inbox.js'));
-  const hardCoded = /host:\s*'(?:imap\.gmail\.com|outlook\.office365\.com)'/.test(src);
-  const configurable = /process\.env\.INBOX_HOST/.test(src);
-  const ok = !hardCoded && configurable;
+// What the sending service tells us. This replaced reading Russ's own inbox:
+// his mail is a Microsoft business account through GoDaddy, where the simple
+// password route is often switched off by the administrator — and the service
+// that sends the mail already hears the answers (2026-08-27).
+
+def('an_unsigned_mail_event_is_refused', () => {
+  const ME = require(path.join(ROOT, 'src/hoursback/crm/mailEvents.js'));
+  const body = JSON.stringify({ type: 'email.bounced', data: { to: ['x@y.example'] } });
+  const secret = 'whsec_' + Buffer.from('a'.repeat(32)).toString('base64');
+  const now = Math.floor(Date.now() / 1000);
+  const crypto = require('crypto');
+  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+  const good = crypto.createHmac('sha256', key).update(`id1.${now}.${body}`).digest('base64');
+
+  const valid = ME.signatureIsValid(body, { 'svix-id': 'id1', 'svix-timestamp': String(now), 'svix-signature': `v1,${good}` }, secret);
+  const unsigned = ME.signatureIsValid(body, {}, secret);
+  const wrong = ME.signatureIsValid(body, { 'svix-id': 'id1', 'svix-timestamp': String(now), 'svix-signature': 'v1,' + Buffer.from('x'.repeat(32)).toString('base64') }, secret);
+  // Anything older than five minutes is somebody replaying a message we have
+  // already seen. Without this, one captured event could empty the queue.
+  const old = ME.signatureIsValid(body, { 'svix-id': 'id1', 'svix-timestamp': String(now - 4000), 'svix-signature': `v1,${good}` }, secret);
+  const noSecret = ME.signatureIsValid(body, { 'svix-id': 'id1', 'svix-timestamp': String(now), 'svix-signature': `v1,${good}` }, '');
+  const ok = valid && !unsigned && !wrong && !old && !noSecret;
   return { ok, detail: ok
-    ? 'the mail server is a setting, so it works wherever the mail actually lives'
-    : JSON.stringify({ hardCoded, configurable }) };
-}, 'inbox');
+    ? 'only a properly signed, recent message from the mail service is acted on'
+    : JSON.stringify({ valid, unsigned, wrong, old, noSecret }) };
+}, 'mail');
+
+def('each_mail_event_means_one_thing', () => {
+  const ME = require(path.join(ROOT, 'src/hoursback/crm/mailEvents.js'));
+  const cases = [
+    ['email.bounced', {}, 'bounced'],
+    ['email.complained', {}, 'complained'],
+    ['email.received', { subject: 'Re: your note', from: 'Marilyn <m@b.example>' }, 'replied'],
+    ['email.received', { subject: 'Automatic reply: Out of Office', from: 'd@w.example' }, 'ignore'],
+    ['email.delivered', {}, 'ignore'],
+    ['email.opened', {}, 'ignore'],
+  ];
+  const wrong = cases.filter(([type, data, want]) => ME.meaning({ type, data }).act !== want)
+    .map(([type, , want]) => `${type} should be ${want}`);
+  return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ')
+    : 'a bounce, a spam complaint, a reply and a holiday responder each mean exactly one thing' };
+}, 'mail');
+
+def('being_marked_as_spam_stops_everything', () => {
+  // Worse than a bounce: they do not want to hear from Russ at all, so the
+  // business is never contacted again on any channel, phone included.
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  const i = src.indexOf("act === 'complained'");
+  const block = i >= 0 ? src.slice(i, i + 400) : '';
+  const ok = i >= 0 && /doNotContact: true/.test(block);
+  return { ok, detail: ok
+    ? 'a spam complaint marks the business never-contact, on every channel'
+    : 'a spam complaint does not stop the phone lane' };
+}, 'mail');
+
+def('the_mail_service_is_heard_without_a_password', () => {
+  // The mail service is not Russ knocking, so it cannot sign in. It proves
+  // who it is by signing every message. That means the listening address has
+  // to sit BEFORE the password check, and its signature check is the only
+  // thing protecting it.
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  const listener = src.indexOf("route === 'mail-events'");
+  const passwordGate = src.indexOf('if (!signedIn(req))');
+  const checksSignature = /signatureIsValid\(raw, req\.headers/.test(src);
+  const ok = listener > 0 && passwordGate > listener && checksSignature;
+  return { ok, detail: ok
+    ? 'the mail service is heard before the password check, and only if it signed the message'
+    : JSON.stringify({ listener, passwordGate, checksSignature }) };
+}, 'mail');
 
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
