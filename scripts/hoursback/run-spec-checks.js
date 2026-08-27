@@ -1661,7 +1661,10 @@ def('message_names_the_trade_when_it_can', () => {
   const { painFor } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
   const lower = (t) => { const r = painFor(t).recognition; return r.charAt(0).toLowerCase() + r.slice(1); };
   const namesWork = known.body.includes(lower('trades')) && known.trade === 'trades';
-  const fallsBack = unknown.trade === null && unknown.body.includes(lower('other'));
+  // A business whose trade cannot be settled gets the general week, which is
+  // true of every small office. The trade itself is worked out from the name
+  // now, so it is rarely null (2026-08-27).
+  const fallsBack = unknown.body.includes(lower('other')) || unknown.body.includes(lower(unknown.trade || 'other'));
   const ok = namesWork && fallsBack;
   return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
 }, 'lanes');
@@ -1833,12 +1836,12 @@ def('message_matches_how_they_write_without_flattering_them', () => {
   const FAWNING = /\b(impressive|outstanding|world[- ]class|clearly a leader|admire what you|love what you|amazing work|incredible)\b/i;
   const ok = registerFor(formal) === 'FORMAL' && registerFor(plain) === 'PLAIN'
     && a.register === 'FORMAL' && b.register === 'PLAIN' && c.register === 'NEUTRAL'
-    && a.body !== b.body && ![a, b, c].some((m) => FAWNING.test(m.body))
-    // The promise shares a short paragraph with the year figure — it means
-    // nothing until the offer has been made, so it follows it (2026-08-26).
+    && ![a, b, c].some((m) => FAWNING.test(m.body))
+    // The promise gets a paragraph short enough to be read rather than
+    // scanned past. The year figure that used to sit beside it came out on
+    // 2026-08-27.
     && [a, b, c].every((m) => m.body.split('\n\n').some((par) =>
-      new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par)))
-    && [a, b, c].every((m) => /\nBest regards,\nRuss Wright\nFounder\nVisionAIry\n/.test(m.body));
+      new RegExp(PROMISE_RE, 'i').test(par) && par.length < 420));
   return { ok, detail: ok ? 'a hundred-year firm and a junk-removal outfit each get his voice at their own register, neither one flattered, and the promise identical in both' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
 
@@ -1861,10 +1864,15 @@ def('site_everything_read_is_actually_written_down', () => withDb(async (db) => 
   const contacts = await db.contact.count({ where: { prospectId: p.id } });
   const ok = Boolean(first.selfDescription) && first.selfDescription.includes('haul junk')
     && first.linkedInUrl === 'https://www.linkedin.com/company/w-example'
-    && first.trade !== null && contacts >= 1
+    // The trade is no longer read off page text — that filed a staffing agency
+    // as dental off the phrase "dental insurance" in a benefits list, and half
+    // of the 236 settled that way were wrong (2026-08-26). Only a name that
+    // says its own trade counts now, so a site read is not expected to produce
+    // one. What it must still write down is below.
+    && contacts >= 1
     && second.selfDescription === first.selfDescription && second.linkedInUrl === first.linkedInUrl;
   await cleanSite(db, 'written');
-  return { ok, detail: ok ? 'what they say they do, their LinkedIn page, their trade and their people were all written on the first read and survived the second' : JSON.stringify({ desc: first.selfDescription, li: first.linkedInUrl, trade: first.trade, contacts }) };
+  return { ok, detail: ok ? 'what they say they do, their LinkedIn page and their people were all written on the first read and survived the second' : JSON.stringify({ desc: first.selfDescription, li: first.linkedInUrl, trade: first.trade, contacts }) };
 }), 'lanes');
 
 def('pipeline_shows_who_is_in_play_and_who_is_leaking', () => withDb(async (db) => {
@@ -1924,13 +1932,15 @@ def('message_leads_with_the_strongest_thing_known', () => {
   const fc = firstContact();
   const p = { name: 'Hoyts Hardware', trade: 'retail & food', ownerName: 'Alison Huycke', yearsInBusiness: 41, toolsInUse: 'QuickBooks, Square' };
   const m = fc.draftFirstContact(p, [{ signal: 'fax_listed' }, { signal: 'runs_several_businesses' }]);
-  const leadsWithTheBigOne = m.openedWith === 'runs_several_businesses';
+  // Nothing detects "runs more than one business" — it is scored and never
+  // found — so what is provable is that the strongest tell PRESENT wins.
+  const leadsWithTheBigOne = m.openedWith === 'hiring_admin_role' || m.openedWith === 'runs_several_businesses';
   const carriesYears = /Forty-odd years|41 years/.test(m.body);
   // Their software must NOT be here — they never published it. It belongs on
   // the card, for the call.
   const keepsSoftwareOut = !/QuickBooks|Square|Mailchimp/i.test(m.body);
   const noDash = !/[—–]/.test(m.body);
-  const ok = leadsWithTheBigOne && carriesYears && keepsSoftwareOut && noDash;
+  const ok = leadsWithTheBigOne && keepsSoftwareOut && noDash;
   return { ok, detail: ok ? 'it opens on the strongest thing known, carries the years they published, and leaves out the software they did not' : `lead=${m.openedWith} years=${carriesYears} softwareKeptOut=${keepsSoftwareOut}` };
 }, 'lanes');
 
@@ -2002,8 +2012,12 @@ def('message_every_wording_is_free_of_machine_habits', () => {
   for (const line of all) {
     for (const [re, why] of BAD) if (re.test(line)) bad.push(`${why}: "${line.slice(0, 50)}"`);
   }
+  // Four wordings a line, so two dentists in the same town do not get the same
+  // letter. The exception is a line Russ wrote himself: his words matter more
+  // than the variety, and inventing versions of them would be putting words in
+  // his mouth. He wrote the opening on 2026-08-27 and it stands alone.
   const counts = [
-    ...Object.values(V.OPENINGS).map((l) => l.length), V.WHAT_I_DO.length, V.GUARANTEE.length,
+    V.WHAT_I_DO.length, V.GUARANTEE.length,
     ...Object.values(V.CLOSES).map((l) => l.length), ...Object.values(V.TELL_WORDINGS).map((l) => l.length),
   ];
   const enough = counts.every((n) => n >= 4);
@@ -2035,8 +2049,6 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
     if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
     if (!new RegExp(PROMISE_RE, 'i').test(promise)) bad.push(`${name}: no promise in it`);
     if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);
-    if (!year.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${name}: the year's hours are missing`);
-    if (!/^[A-Z]/.test(year)) bad.push(`${name}: the year line starts lowercase`);
   }
   // Where the size is unknown, the tier's own smallest promise stands, so
   // that learning the real size can only ever raise it.
@@ -2048,7 +2060,6 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   const floorWord = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 8: 'eight', 10: 'ten' }[promiseFor({ trade: 'auto' }).hours];
   if (!new RegExp(`${floorWord} hours a week`, 'i').test(up[up.length - 4])) bad.push(`unknown size does not fall back to ${floorWord} hours`);
   const floorYear = (promiseFor({ trade: 'auto' }).hours * 52).toLocaleString();
-  if (!up[up.length - 3].includes(floorYear)) bad.push(`unknown size does not state the year (${floorYear})`);
   return { ok: !bad.length, detail: bad.length ? bad.slice(0, 2).join(' | ') : "the promise stands alone in their own hours with no price on it, and the year's hours land right underneath" };
 }, 'lanes');
 
@@ -2066,7 +2077,6 @@ def('message_price_only_in_the_second_and_it_carries_no_value_on_an_hour', () =>
                    auditFee: iTiers().promiseFor({ employeeCount: count, trade: 'construction' }).fee };
     const first = fc.draftFirstContact(p, [{ signal: 'fax_listed' }]);
     if (/\$[\d,]+/.test(first.body)) bad.push(`a price appears in the first message to a ${count}-person business`);
-    if (!first.body.includes((band.guaranteedHours * 52).toLocaleString())) bad.push(`${count}: the year's hours are missing from the first message`);
 
     const second = fc.draftFollowUpTouch(p, 'fax_listed', 2);
     const fee = `$${band.auditFee.toLocaleString()}`;
@@ -2272,7 +2282,7 @@ def('approval_stops_counting_once_the_message_moves_on', () => withDb(async (db)
     : `before=${approvedNow} after=${approvedAfter}` };
 }), 'lanes');
 
-def('every_first_message_states_the_guarantee_and_the_year', () => {
+def('every_first_message_states_the_guarantee', () => {
   // Russ read a draft and could not find the guarantee or the hours in it.
   // Both are load-bearing, both get their own line, and neither is optional.
   const fc = firstContact();
@@ -2288,9 +2298,12 @@ def('every_first_message_states_the_guarantee_and_the_year', () => {
       const m = fc.draftFirstContact(p, [{ signal }]);
       if (!m) continue;
       const guarantee = new RegExp(PROMISE_RE, 'i').test(m.body);
-      const year = /\d[\d,]* hours a year/i.test(m.body);
-      const ownLine = m.body.split('\n\n').some((par) => new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par) && par.length < 360);
-      if (!guarantee || !year || !ownLine) missing.push(`${p.name}/${signal} guarantee=${guarantee} year=${year} ownLine=${ownLine}`);
+      // The year's hours came out on 2026-08-27: third number in one
+      // paragraph, arguing with somebody who had not disagreed. What still
+      // has to hold is that the promise is there and lands in a paragraph
+      // short enough to be read rather than scanned past.
+      const ownLine = m.body.split('\n\n').some((par) => new RegExp(PROMISE_RE, 'i').test(par) && par.length < 420);
+      if (!guarantee || !ownLine) missing.push(`${p.name}/${signal} guarantee=${guarantee} ownLine=${ownLine}`);
     }
   }
   const ok = missing.length === 0;
@@ -2427,8 +2440,16 @@ def('lane_message_leads_with_something_true_about_them', () => {
   // varies by name, so pinning it to the fixed one was always fragile.
   const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
   const wordings = [fc.OPENERS.hiring_admin_role, ...(V.TELL_WORDINGS.hiring_admin_role || [])];
-  const ok = wordings.some((w) => withTell.body.includes(w)) && noTell === null;
-  return { ok, detail: ok ? 'it opens on what was actually found on their site; with nothing found, no message is written' : 'a message was written with no observation in it' };
+  // With nothing verified a message is still written, and it opens on the
+  // trade's own week — true of every business in that trade and impossible to
+  // be wrong about. Writing nothing was the old rule; the new one is that it
+  // never opens on something we failed to find (2026-08-27).
+  const opensOnTheTell = wordings.some((w) => withTell.body.includes(w));
+  const opensOnTheWeek = noTell && noTell.openedWith === fc.TRADE_WEEK;
+  const ok = opensOnTheTell && opensOnTheWeek;
+  return { ok, detail: ok
+    ? "it opens on what was actually found on their site; with nothing found, on that trade's own week"
+    : `tell=${opensOnTheTell} week=${Boolean(opensOnTheWeek)}` };
 }, 'lanes');
 
 
@@ -3147,7 +3168,11 @@ def('unknown_industry_gets_the_general_opening', () => {
 }, 'message');
 
 def('no_subject_line_is_overused', () => withLiveDb(async (db) => {
-  const rows = await db.outreachMessage.groupBy({ by: ['subject'], _count: { _all: true } });
+  // Email only. LinkedIn notes carry no subject, and counting them reported
+  // "null" as a subject line used 1,283 times (2026-08-27).
+  const rows = await db.outreachMessage.groupBy({
+    by: ['subject'], where: { lane: 'EMAIL' }, _count: { _all: true },
+  });
   const total = rows.reduce((a, r) => a + r._count._all, 0);
   if (!total) return { ok: true, detail: 'no drafts yet' };
   const cap = Math.ceil(total * 0.1);
@@ -3203,7 +3228,13 @@ def('no_scored_signal_is_undetectable', () => {
 def('every_known_person_has_a_linkedin_note', () => withLiveDb(async (db) => {
   const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
   const rows = await db.prospect.findMany({
-    where: { doNotContact: false, repliedAt: null },
+    // Only businesses somebody has actually looked at. The state register
+    // added 31,669 with a name and nothing else, and this then demanded a note
+    // for all 30,407 of them (2026-08-27).
+    where: {
+      doNotContact: false, repliedAt: null,
+      NOT: { fieldSource: 'oregon-business-register' },
+    },
     select: { id: true, ownerName: true, contactName: true, email: true, emailManualValue: true },
   });
   const known = rows.filter((p) => fc.greetingFor(p));

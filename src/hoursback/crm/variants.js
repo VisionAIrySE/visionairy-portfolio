@@ -84,10 +84,10 @@ const GUARANTEE = [
   // changes on Monday (Russ, 2026-08-27).
   //
   // Hours are what he FINDS. Never an item in a list of what a document holds.
-  "I find at least {hours} hours a week of your team's time and name the software that does that work instead — {looksLike}. If I can't, you don't pay.",
-  "I find at least {hours} hours a week of your people's time and name the software that takes it on instead — {looksLike}. If I don't, you don't pay.",
-  "I find you at least {hours} hours a week and name the software that handles it instead of a person — {looksLike}. If it falls short, your money comes back.",
-  "At least {hours} hours a week of your team's time, and the software that takes the work on — {looksLike}. Or you pay nothing.",
+  "I find at least {hours} hours a week of your team's time and name the software that does that work instead: {looksLike}. If I can't, you don't pay.",
+  "I find at least {hours} hours a week of your people's time and name the software that takes it on instead: {looksLike}. If I don't, you don't pay.",
+  "I find you at least {hours} hours a week and name the software that handles it instead of a person: {looksLike}. If it falls short, your money comes back.",
+  "At least {hours} hours a week of your team's time, and the software that takes the work on: {looksLike}. Or you pay nothing.",
 ];
 
 // Five is the floor, not the finding.
@@ -100,13 +100,13 @@ const GUARANTEE = [
 // is the floor but it's usually more").
 const FLOOR_LINE = [
   "{Hours} is the floor I'll guarantee, not the number I expect: in most {plural} there's a good deal more than that sitting there.",
-  "That {hours} is a floor, not a finding — in most {plural} there is more than that waiting to be picked up.",
+  "That {hours} is a floor, not a finding. In most {plural} there is more than that waiting to be picked up.",
   "{Hours} is what I'll guarantee, not what I expect to find. Most {plural} are carrying more than that.",
   "I guarantee {hours}. In most {plural} the real number is higher than that.",
 ];
 const FLOOR_LINE_GENERAL = [
   "{Hours} is the floor I'll guarantee, not the number I expect: in most small offices there's a good deal more than that sitting there.",
-  "That {hours} is a floor, not a finding — in most offices there is more than that waiting to be picked up.",
+  "That {hours} is a floor, not a finding. In most offices there is more than that waiting to be picked up.",
   "{Hours} is what I'll guarantee, not what I expect to find. Most offices are carrying more than that.",
   "I guarantee {hours}. In most offices the real number is higher than that.",
 ];

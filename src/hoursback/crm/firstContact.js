@@ -197,9 +197,9 @@ function tradeLineFor(trade) {
 // nobody requested; what earns belief is the shortest true thing that explains
 // why he would know. Telling became showing (2026-08-27).
 const CREDIBILITY = {
-  FORMAL: 'I have run the offices I am offering to fix — finance, construction, my own businesses. I am not a software person guessing at how your week works.',
-  NEUTRAL: "I've run the offices I'm offering to fix — finance, construction, my own businesses. I'm not a software person guessing at how your week works.",
-  PLAIN: "I've run the offices I'm offering to fix — finance, construction, my own shops. I'm not a software person guessing at how your week works.",
+  FORMAL: 'I have run the offices I am offering to fix: finance, construction, my own businesses. I am not a software person guessing at how your week works.',
+  NEUTRAL: "I've run the offices I'm offering to fix: finance, construction, my own businesses. I'm not a software person guessing at how your week works.",
+  PLAIN: "I've run the offices I'm offering to fix: finance, construction, my own shops. I'm not a software person guessing at how your week works.",
 };
 
 
@@ -283,12 +283,12 @@ function draftLinkedInInvite(prospect) {
   const first = greetingFor(prospect);
   const detail = INVITE_TRADE_DETAIL[trade];
 
-  const open = V.pick(INVITE_OPENINGS, seed, 'invite:open').replace('{who}', first ? `Hi ${first} — ` : '');
+  const open = V.pick(INVITE_OPENINGS, seed, 'invite:open').replace('{who}', first ? `Hi ${first}, ` : '');
   const what = V.pick(INVITE_WHAT_I_DO, seed, 'invite:what');
   const close = V.pick(INVITE_CLOSES, seed, 'invite:close');
 
   let body = detail
-    ? `${open} ${what} — ${detail}. ${close}`
+    ? `${open} ${what}: ${detail}. ${close}`
     : `${open} ${what}. ${close}`;
   // Never over the limit, whatever the wording does. Drop the trade detail
   // first, then the close, rather than sending something truncated.
@@ -309,7 +309,9 @@ const BODY = `Hi {greeting},
 
 {opener} {followOn} {tradeLine}
 
-{guarantee} {floorLine} {costAnchor}
+{guarantee}
+
+{floorLine} {costAnchor}
 
 {whatIDo} For you that probably looks like {valueIn}.
 
@@ -382,7 +384,7 @@ If it's the idea, I'd genuinely like to know. I'd rather hear a no than keep gue
 
 And if you'd rather just see it than read about it: I find at least {hours} hours a week of your team's time and name the software that takes that work on, or your money returns. The calendar is below.
 
-One more thing, since this is the last note. If what you actually need is something built rather than bought, I do that too — and at a fraction of what a development shop would quote.
+One more thing, since this is the last note. If what you actually need is something built rather than bought, I do that too, and at a fraction of what a development shop would quote.
 
 ${SIGN_OFF}`,
 };
@@ -656,13 +658,13 @@ function draftLinkedIn(prospect, signals = []) {
     : firstSentence;
 
   const body = [
-    `${who ? `Hi ${who} —` : 'Hello —'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
+    `${who ? `Hi ${who},` : 'Hello,'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
     guess ? `${opening}\n\n${guess}` : opening,
     // The same promise the email makes, and it has to carry the same plain
     // description of what the software DOES. This note kept the old abstract
     // wording for a while after the email dropped it, which meant the channel
     // Russ sends by hand was the weaker of the two (2026-08-27).
-    `I find at least ${hours} hours a week of your team's time and name the software that does that work instead — ${painFor(trade || 'other').looksLike}. If I can't, you don't pay.`,
+    `I find at least ${hours} hours a week of your team's time and name the software that does that work instead: ${painFor(trade || 'other').looksLike}. If I can't, you don't pay.`,
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
   ].join('\n\n');
 
