@@ -47,15 +47,13 @@ const OPENINGS = {
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  // What he SELLS, concretely, in one breath: hours of their time in, a
-  // written report out, naming the tool and the hours for every job on it.
-  // Earlier drafts said "what existing tools would take care of, and what
-  // would need building", which tells a reader nothing they can picture
-  // (Russ, 2026-08-26).
-  "Here's what I do. A couple of hours with you and whoever runs your office, then a written report: every job AI or automation can take over, which tool does it, what it costs to set up, and the hours a week it gives you back.",
-  "Here's what I do. I spend a couple of hours watching how your office really works, then hand you a written report naming every job AI or automation could do instead of a person, the tool for each one, what it costs to set up, and the hours it returns.",
-  "What I do is simple. A couple of hours with you and your team, then a written report: the jobs a machine can take over, which tool does each, the setup cost, and the hours a week you get back.",
-  "Here's the work. A couple of hours with whoever runs your office, then a written report listing every job AI or automation can handle, the tool that does it, what setting it up costs, and the time it hands back each week.",
+  // What he sells, in one breath: hours of their time in, a written report
+  // out, naming the tool and the hours for every job on it. No jargon, and
+  // nothing a reader has to already understand.
+  "Here is what I do about that. I spend a couple of hours with you and whoever runs your office, watching how the work actually gets done, then hand you a written report: every task AI or automation can take over, the tool that does it, what it costs to set up, and the hours a week it gives back.",
+  "What I do about it starts with a couple of hours in your office, watching how the work really moves. Then a written report: every task AI or automation could handle instead of a person, which tool does it, the setup cost, and the hours a week it returns.",
+  "What I do about it is this. A couple of hours with you and the people doing the work, seeing how it actually happens, then a written report: every task AI or automation can take off them, the tool for each, what setting it up costs, and the hours a week you get back.",
+  "Here is what I do about it. A couple of hours with whoever runs the office, watching how the work gets done, then a written report: every task AI or automation can handle, the tool that does it, the cost to set up, and the hours a week it frees.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
@@ -108,27 +106,27 @@ const PRICE_FRAMING = [
 
 // The close, four ways, at each register.
 const CLOSES = {
-  // Two ways to answer, one of them a single click. The close used to leave a
-  // reader with nothing to do but compose a reply (2026-08-26).
+  // Two ways to answer and one of them is a single click.
   FORMAL: [
     "If that is worth a look, reply here or take a time from my calendar below.",
-    "If it is of use, a reply or a time from my calendar below is all it takes.",
-    "Should that be worth exploring, reply or pick a time from the calendar below.",
-    "If it is worth a conversation, reply here or choose a time below.",
+    "Worth exploring? Reply, or choose a time from the calendar below.",
+    "If it is of use, a reply or a time from the calendar below is all it takes.",
+    "If that merits a conversation, reply here or pick a time below.",
   ],
   NEUTRAL: [
-    "If that's worth a look, hit reply or grab a time from my calendar below.",
-    "Worth a look? Reply, or pick a time from the calendar below.",
-    "If it's useful, reply or take a time off my calendar below.",
-    "If that's of interest, reply here or grab a slot below.",
+    "Worth a look? Reply here, or grab a time on my calendar below.",
+    "If that's worth a look, reply or take a time off my calendar below.",
+    "Sound useful? Reply, or pick a time from the calendar below.",
+    "If it's of interest, reply here or grab a slot below.",
   ],
   PLAIN: [
-    "If that's worth a look, just reply or grab a time below.",
-    "Worth a look? Reply, or pick a time below.",
-    "If it's useful, hit reply or take a time off my calendar below.",
-    "Sound useful? Reply or grab a time below.",
+    "Worth a look? Reply, or grab a time below.",
+    "If that's useful, just reply or pick a time below.",
+    "Sound worth it? Reply here or take a time off my calendar below.",
+    "If it helps, reply or grab a time below.",
   ],
 };
+
 
 
 // The observation itself. This is the line most likely to repeat between two

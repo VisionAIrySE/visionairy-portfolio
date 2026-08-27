@@ -64,26 +64,29 @@ const TRADE_WORK = {
 // How each opening lands once we know the trade. {work} is their own
 // paperwork, and every line is written so it reads properly with any of them.
 const TRADE_FOLLOW_ONS = {
+  // These used to name the trade's paperwork, and then the line underneath
+  // named it again two sentences later. Each part does one job now: this one
+  // says what the tell COSTS them, and the line below shows he knows their
+  // world (Russ, 2026-08-26 — "each message should resonate with them in
+  // their individual business and industry").
   runs_several_businesses:
-    'Each one has its own {work} and its own version of the same admin, and the hours do not add up so much as double.',
+    'Each one carries its own version of the same admin, so the hours do not add up so much as double.',
   hiring_several_office_roles:
-    'Before you fill either, it is worth knowing how much of both jobs is {work}, because that part mostly stops needing a person once it is set up properly.',
+    'Before you fill either, it is worth knowing how much of both jobs stops needing a person once it is set up properly.',
   hiring_admin_role:
-    "Before you fill it, it's worth knowing how much of that job is {work}, and how much of that stops needing a person at all once it is set up properly.",
+    "Before you fill it, it's worth knowing how much of that job stops needing a person at all once it is set up properly.",
   no_website:
-    'Every one of those calls is somebody stopping what they were doing, on top of {work}, and it adds up faster than it feels like it should.',
+    'Every one of those calls is somebody stopping what they were doing, and it adds up faster than it feels like it should.',
   downloadable_forms:
-    // Not "by hand" again — the opening line already said it.
-    'Somebody is then retyping every one of those, on top of {work}, and that is usually hours a week nobody has ever added up.',
+    'Somebody is then retyping every one of those, and that is usually hours a week nobody has ever added up.',
   fax_listed:
-    // Phrased to sit before the list rather than after it — "{work} is still
-    // moving" reads wrong the moment the trade's paperwork is plural.
-    'That usually means paper is still moving somewhere between you and your customers, most likely {work}, and someone is handling every piece of it by hand.',
+    'That usually means paper is still moving somewhere between you and your customers, and someone is handling every piece of it by hand.',
   no_online_booking:
-    "That's fine when it's quiet, but your busiest days are the ones where somebody is tied to the phone on top of {work}.",
+    "That's fine when it's quiet. Your busiest days are the ones where somebody is tied to the phone instead of the work.",
   no_customer_portal:
-    'Every "where are we at" question lands with your front desk rather than answering itself, on top of {work}.',
+    'Every "where are we at" question lands with your front desk rather than answering itself.',
 };
+
 
 // What each opening leads into — one sentence, always about what THEY lose,
 // never about what software does.
@@ -118,6 +121,15 @@ const SUBJECTS = {
   default: 'A thought about the admin hours at {business}',
 };
 
+// The one line that proves this was written for THEM and not for a list.
+function tradeLineFor(trade) {
+  // The line that shows he knows THEIR business, not businesses in general.
+  // It used to repeat the same paperwork list the opener had just given,
+  // two paragraphs apart, which read as padding (Russ, 2026-08-26).
+  const { painFor } = require('./painPoints.js');
+  return painFor(trade || 'other').recognition;
+}
+
 // The fixed body. {greeting}, {opener}, {followOn} and {business} are the only
 // things that move.
 // Who he is, in one line, without a resume. The point is that he has run the
@@ -142,7 +154,9 @@ const BODY = `Hi {greeting},
 
 {opener} {followOn}
 
-{whatIDo} In your case that would probably look like {valueIn}.
+{tradeLine}
+
+{whatIDo} For you that probably looks like {valueIn}.
 
 {guarantee} {costAnchor} {yearLine}
 
@@ -375,6 +389,7 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
     .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
     .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
+    .replace('{tradeLine}', tradeLineFor(trade))
     .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)

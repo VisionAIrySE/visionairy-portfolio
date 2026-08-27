@@ -1600,8 +1600,12 @@ def('message_names_the_trade_when_it_can', () => {
   const fc = firstContact();
   const known = fc.draftFirstContact({ name: 'High Desert Plumbing' }, [{ signal: 'fax_listed' }]);
   const unknown = fc.draftFirstContact({ name: 'Random Widget Co' }, [{ signal: 'fax_listed' }]);
-  const namesWork = known.body.includes('service tickets') && known.trade === 'trades';
-  const fallsBack = unknown.trade === null && unknown.body.includes('paper trail');
+  // A plumber hears about the schedule living in somebody's head; the trade's
+  // own paperwork moved out of the opening line and into the recognition line
+  // below it, because the two were naming the same list twice (2026-08-26).
+  const { painFor } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  const namesWork = known.body.includes(painFor('trades').recognition) && known.trade === 'trades';
+  const fallsBack = unknown.trade === null && unknown.body.includes(painFor('other').recognition);
   const ok = namesWork && fallsBack;
   return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
 }, 'lanes');
