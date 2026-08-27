@@ -19,7 +19,7 @@ const CONTACT = {
   email: 'russ@visionairy.biz',
   site: 'https://www.visionairy.biz',
   siteLabel: 'VisionAIry.biz',
-  linkedIn: 'https://www.linkedin.com/in/russ-wright-00575030b/',
+  linkedIn: 'https://www.linkedin.com/in/russ-wright-b504823',   // corrected by Russ, 2026-08-26
   // In the sign-off, never in the body. The message closes on "no meeting
   // needed and no obligation", and a booking link in the same breath takes
   // that back. Down here it is simply available to anyone already decided
