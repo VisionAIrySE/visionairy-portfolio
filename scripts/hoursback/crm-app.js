@@ -570,11 +570,23 @@ async function linkedInScreen() {
   return page(`<h1>LinkedIn — by hand only</h1>
   <p class="muted">The engine never sends these. Copy one, send it yourself, then mark it. Your name goes on it.</p>
   <p><form method="POST" action="/linkedin/write"><button class="primary">Write the next 25</button></form></p>
-  ${queue.map((m) => `<div class="card">
-      <div class="row"><div><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}</div></div>
-      <pre class="msg">${esc(m.body)}</pre>
+  ${queue.map((m) => {
+    const name = resolveField(m.prospect, 'name');
+    const who = m.prospect.contactName || m.prospect.ownerName || '';
+    // Twenty-five of these a day by hand. Finding each person and selecting
+    // the text are the two things that actually take the time, so both are one
+    // click: their own page if we have it, otherwise a LinkedIn search already
+    // filled in with their name and their business.
+    const findThem = m.prospect.linkedInUrl
+      || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${who} ${name}`.trim())}`;
+    return `<div class="card">
+      <div class="row"><div><a href="/business/${m.prospectId}"><b>${esc(name)}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}</div>
+        <div><a href="${esc(findThem)}" target="_blank" rel="noopener">Find ${who ? esc(who.split(' ')[0]) : 'them'} on LinkedIn &rarr;</a></div></div>
+      <pre class="msg" id="li-${m.id}">${esc(m.body)}</pre>
+      <p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('li-${m.id}').innerText).then(()=>{this.textContent='Copied';setTimeout(()=>{this.textContent='Copy the message'},1500)})">Copy the message</button></p>
       <form method="POST" action="/linkedin/sent/${m.id}"><button>I sent this one</button></form>
-    </div>`).join('') || '<p class="muted">Nothing written yet.</p>'}`);
+    </div>`;
+  }).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -42,6 +42,14 @@ Build
   the-dead-signals
   - [ ] Every opening the scoring system pays for is one something can actually detect. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_scored_signal_is_undetectable | 0 -->
 
+  the-linkedin-note
+  - [ ] Every business where a person is actually known has a LinkedIn note waiting to be pasted. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=every_known_person_has_a_linkedin_note | 0 -->
+  - [ ] No LinkedIn note carries a link, which is what gets an account restricted. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_linkedin_note_carries_a_link | 0 -->
+  - [ ] No LinkedIn note runs longer than what actually gets read. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_notes_stay_short | 0 -->
+
+  queued-for-later
+  - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
+
 Understand
 
 - [x] The single offer — five hours a week, $999 — is what the business model document states, with no other number standing. <!-- type:Comprehend --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** five hours a week back, or you don't pay -->
@@ -51,6 +59,7 @@ Specify
 
 - [ ] Why an absence must never open a message is written down where the next person will read it. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/crm/tradeOpening.js | Not finding is not the same as not having -->
 - [ ] The rule that a general truth beats a specific error is recorded against the industry decision. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/enrich.js | General and true beats specific and wrong -->
+
 
 Operate
 

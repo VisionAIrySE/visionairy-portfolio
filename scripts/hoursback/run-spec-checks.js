@@ -3195,6 +3195,61 @@ def('no_scored_signal_is_undetectable', () => {
     : `all ${Object.keys(weights).length} scored signals have something that detects them` };
 }, 'message');
 
+// The LinkedIn note. A different thing from the email, not a shorter one: no
+// links, no signature, short enough to be read in a message window. Russ
+// pastes every one by hand, so the only thing that can go wrong here is the
+// words themselves.
+
+def('every_known_person_has_a_linkedin_note', () => withLiveDb(async (db) => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const rows = await db.prospect.findMany({
+    where: { doNotContact: false, repliedAt: null },
+    select: { id: true, ownerName: true, contactName: true, email: true, emailManualValue: true },
+  });
+  const known = rows.filter((p) => fc.greetingFor(p));
+  const have = await db.outreachMessage.findMany({
+    where: { lane: 'LINKEDIN', prospectId: { in: known.map((p) => p.id) } },
+    select: { prospectId: true },
+  });
+  const covered = new Set(have.map((m) => m.prospectId));
+  const missing = known.filter((p) => !covered.has(p.id)).length;
+  return { ok: missing === 0, detail: missing === 0
+    ? `${known.length} businesses name a person, and every one has a note waiting`
+    : `${missing} of ${known.length} known people have no note` };
+}), 'linkedin');
+
+def('no_linkedin_note_carries_a_link', () => withLiveDb(async (db) => {
+  // A link in a first LinkedIn message is what gets an account restricted, and
+  // this lane exists precisely so the account is never risked.
+  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN' }, select: { body: true } });
+  const withLink = notes.filter((n) => /https?:\/\/|www\.|calendly|\b[a-z0-9-]+\.(com|biz|org|net)\b/i.test(n.body));
+  return { ok: !withLink.length, detail: withLink.length
+    ? `${withLink.length} of ${notes.length} notes carry a link`
+    : `${notes.length} notes, not one with a link in it` };
+}), 'linkedin');
+
+def('linkedin_notes_stay_short', () => withLiveDb(async (db) => {
+  // Past about 900 characters a message window stops being read.
+  const CAP = 900;
+  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN' }, select: { body: true } });
+  if (!notes.length) return { ok: false, detail: 'no LinkedIn notes written yet' };
+  const long = notes.filter((n) => n.body.length > CAP);
+  const longest = Math.max(...notes.map((n) => n.body.length));
+  return { ok: !long.length, detail: long.length
+    ? `${long.length} notes over ${CAP} characters, longest ${longest}`
+    : `${notes.length} notes, longest ${longest} characters` };
+}), 'linkedin');
+
+def('email_sends_without_a_click', () => {
+  // Queued, not built. Russ sends by hand for now and asked for this to be
+  // remembered rather than done (2026-08-26).
+  const L = read(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+  const scheduled = /function sendDueEmails|dailySendRun|cron/i.test(L);
+  return { ok: scheduled, detail: scheduled
+    ? 'email goes out on a schedule'
+    : 'not built yet — Russ sends by hand and asked for this to be queued' };
+}, 'linkedin');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.

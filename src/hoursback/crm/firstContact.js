@@ -197,6 +197,16 @@ const CREDIBILITY = {
 };
 
 
+// How the LinkedIn note ends. No calendar link — a link in a first message on
+// LinkedIn is what gets an account restricted, and the whole point of this
+// lane is that it never risks the account.
+const LINKEDIN_CLOSES = [
+  'Worth a conversation?',
+  'Happy to say more if it is useful.',
+  'Worth a short conversation?',
+  'Glad to explain how, if it is of interest.',
+];
+
 const BODY = `Hi {greeting},
 
 {opener} {followOn} {tradeLine}
@@ -483,33 +493,61 @@ function draftFirstContact(prospect, signals = []) {
 
 // The LinkedIn version: shorter, same observation, same close. Never sent by
 // the engine — this is what Russ pastes by hand.
+// The LinkedIn version.
+//
+// Not a shorter email — a different thing. Nobody reads six paragraphs in a
+// message window, links get the account flagged, and a signature block on
+// LinkedIn reads as a mailshot. So: the same true opening, the same promise,
+// no price, no link, no sign-off. Under about 700 characters, which is what
+// actually gets read.
+//
+// Never sent by the engine. Russ pastes each one by hand, because automating
+// LinkedIn risks the account everything else runs on.
 function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
-  const { line } = followOnFor(key, prospect);
   const { painFor } = require('./painPoints.js');
   const { THE_OFFER } = require('../industryTiers.js');
   const TO = require('./tradeOpening.js');
+  const V = require('./variants.js');
   const { tradeOf } = require('./queues.js');
   const trade = prospect.trade || tradeOf(prospect.name);
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const seed = business;
   const who = greetingFor(prospect);
-  // Where the opening IS the trade's week, saying it twice reads like a fault.
-  const leadsWithTrade = key === TRADE_WEEK;
-  const lead = leadsWithTrade
-    ? TO.openingFor(trade, business, business, prospect.theirWork)
-    : `${OPENERS[key]} ${line}\n\n${painFor(trade || 'other').recognition}`;
-  // This had gone stale: it still said "I spend a week inside an operation"
-  // and promised ten hours, months after both were retired (2026-08-26). And
-  // with no name on file it opened "Hi null," (2026-08-26).
-  const body = `${who ? `Hi ${who}, I'm` : "Hello — I'm"} local to Central Oregon and I build software that takes repetitive office work off people.
 
-${lead}
+  // Sentence one: what was actually read off their page, or their trade's own
+  // week. Same rule as the email — never something we failed to find.
+  // The corrected wording, the same one the email uses. Taking OPENERS
+  // directly reintroduced "you have an opening for an office role at the
+  // moment" — the exact claim Russ had struck out, because a careers page can
+  // sit untouched for two years (2026-08-26).
+  const observed = key !== TRADE_WEEK
+    ? (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key])
+    : null;
+  const week = painFor(trade || 'other').recognition;
+  // On LinkedIn the week has to be one sentence, not three.
+  const firstSentence = String(week).split(/(?<=\.)\s+/)[0];
 
-A conversation with you and whoever runs your office, then a written report: every task AI or automation can take over, the tool that does it, what it costs, and the hours a week it gives back. The list adds up to at least ${THE_OFFER.hoursWord} hours a week or you don't pay.
+  // Sentence two: what they themselves say they do, where somebody read it.
+  const work = String(prospect.theirWork || '').trim();
+  const guess = work
+    ? `You ${work}, so I'd guess some of that lands on whoever runs your office.`
+    : null;
 
-Happy to say more if it's useful.`;
-  return { subject: null, body, openedWith: key };
+  const hours = THE_OFFER.hoursWord;
+  const opening = observed
+    ? `${observed} ${firstSentence}`
+    : firstSentence;
+
+  const body = [
+    `${who ? `Hi ${who} —` : 'Hello —'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
+    guess ? `${opening}\n\n${guess}` : opening,
+    `I find at least ${hours} hours a week of your team's time and name the tools that give it back. If I can't, you don't pay.`,
+    V.pick(LINKEDIN_CLOSES, seed, 'li'),
+  ].join('\n\n');
+
+  return { subject: null, body, openedWith: key, trade };
 }
 
 // Build the second or third message for a business, given what the first one
@@ -548,5 +586,5 @@ module.exports = {
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
-  TRADE_WEEK, BANNED_OPENERS,
+  TRADE_WEEK, BANNED_OPENERS, LINKEDIN_CLOSES,
 };

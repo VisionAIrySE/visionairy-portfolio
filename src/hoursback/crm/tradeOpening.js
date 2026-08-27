@@ -86,11 +86,16 @@ const WHERE_TRUE_GENERAL = [
 // "You ___", never inferred and never flattering. Reflecting it back is what
 // separates a message written for them from a message written for their
 // category. The hedge is unchanged: it still guesses, it never claims.
+// "that" has to point at the week in sentence one and nothing else. An
+// earlier wording — "and my guess is a version of that is sitting on somebody
+// there" — wobbled the moment the clause was a list rather than an action:
+// "You treat dogs, cats, horses, cattle, sheep and alpacas, and my guess is a
+// version of that..." reads as a guess about the animals (2026-08-26).
 const THEIR_WORK_GUESS = [
-  "You {work}, so I'd guess a fair bit of that lands on whoever runs your office.",
-  'You {work}, and my guess is a version of that is sitting on somebody there.',
+  "You {work}, so I'd guess a fair bit of the above lands on whoever runs your office.",
+  'You {work}, and my guess is somebody there is carrying a good part of it.',
   "You {work} — I'd guess some of the above comes with it.",
-  'You {work}, so odds are some of that is familiar.',
+  'You {work}, so odds are some of it is familiar.',
 ];
 
 // Sentence three, when we only know their trade. A GUESS, and it has to stay
