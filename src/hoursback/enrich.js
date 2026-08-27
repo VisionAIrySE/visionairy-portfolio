@@ -676,12 +676,16 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
   const mail = enrichEmail(finding);
   const scored = scoreAutomationFit({ signals: finding.signals || [], category: options.category || null });
 
+  // The score is NOT written here any more. It is a function of the whole
+  // record, so it is computed below from what this reading leaves behind. It
+  // used to be written here from the site tells alone, which meant reading the
+  // same site twice never settled: the first pass wrote the site-only score,
+  // the rescore replaced it, and the second pass saw a difference and wrote
+  // again, forever.
   const data = {
     ...head,
     ...mail,
     siteStatus: finding.status,
-    automationScore: scored.score,
-    scoreEvidence: JSON.stringify(scored.evidence),
     fieldSource: options.fieldSource || 'website',
   };
   // An owner's name is filled in only where we have none — a name learned on
@@ -747,12 +751,36 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
   // written down — and skipping them because nothing else moved meant almost
   // nobody was saved at all.
   await saveContacts(db, prospectId, finding);
-  if (same) return { changed: false, prospect: before, score: scored.score };
+
+  // The score is a function of the RECORD, not of this reading. What the site
+  // said is only part of it — the team size, the owner's name, how long they
+  // have been going and whether the same person runs other businesses all
+  // count, and a reading that changed nothing on the page can still leave the
+  // record scoring differently because a person typed something in yesterday.
+  // So this runs on both paths. Putting it after the "nothing moved" return
+  // would silently throw the work away, which is a mistake already made once.
+  const rescore = async (record) => {
+    try {
+      const { rescoreOne } = require('./refresh.js');
+      const moved = await rescoreOne(db, record);
+      return moved === null ? record.automationScore : moved;
+    } catch { return record.automationScore; }
+  };
+
+  // Both paths return the record as it stands AFTER scoring, or reading twice
+  // hands back two different-looking records for the same unchanged business.
+  if (same) {
+    const s = await rescore({ ...before, ...data });
+    const settled = await db.prospect.findUnique({ where: { id: prospectId } });
+    return { changed: false, prospect: settled, score: s };
+  }
 
   data.siteReadAt = options.now || new Date();
   data.fetchedAt = options.now || new Date();
   const after = await db.prospect.update({ where: { id: prospectId }, data });
-  return { changed: true, prospect: after, score: scored.score };
+  const s = await rescore(after);
+  const settled = await db.prospect.findUnique({ where: { id: prospectId } });
+  return { changed: true, prospect: settled, score: s };
 }
 
 // ---------------------------------------------------------------------------

@@ -29,7 +29,21 @@ const { freezeQuote } = require('../../src/hoursback/crm/quote.js');
 const { setOverride, resolveField, OVERRIDABLE } = require('../../src/hoursback/overrides.js');
 const L = require('../../src/hoursback/crm/lanes.js');
 const { draftFirstContact, draftLinkedIn, BODY: TEMPLATE_BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
+const { refreshProspect } = require('../../src/hoursback/refresh.js');
 const db = new PrismaClient();
+
+// Businesses whose website is being read right now. Reading a site takes up to
+// forty seconds, so a save never waits on it — it starts the work, redirects
+// straight away, and the card shows that it is happening and refreshes itself
+// when it is done.
+const BUSY = new Set();
+function refreshInBackground(id) {
+  if (BUSY.has(id)) return;
+  BUSY.add(id);
+  refreshProspect(db, id)
+    .catch((e) => console.error('refresh failed for', id, e.message))
+    .finally(() => BUSY.delete(id));
+}
 
 const OUTCOME_LABELS = {
   NO_ANSWER: 'No answer', VOICEMAIL: 'Left voicemail', GATEKEEPER: 'Gatekeeper',
@@ -329,7 +343,11 @@ async function scoreScreen(id) {
     <td></td><td class="w neg">0 of ${weights[k]}</td></tr>`).join('');
 
   const total = evidence.reduce((a, e) => a + (e.weight || 0), 0);
-  const ceiling = Object.values(weights).reduce((a, b) => a + b, 0);
+  // A score out of 100: up to 60 for how many hours are probably sitting in
+  // the business, up to 40 for how ready they look. It used to be the sum of
+  // every signal weight, which no business could ever reach.
+  const { OPPORTUNITY_MAX, READINESS_MAX } = require('../../src/hoursback/refresh.js');
+  const ceiling = OPPORTUNITY_MAX + READINESS_MAX;
   const trade = p.trade || tradeOf(p.name);
   const pain = painFor(trade);
   const strong = evidence.filter((e) => e.weight >= 12).map((e) => e.label || e.signal);
@@ -490,6 +508,8 @@ async function addBusiness(form) {
     const b = bandForEmployeeCount(count);
     await db.prospect.update({ where: { id: created.id }, data: { segment: b.band, auditFee: b.auditFee, guaranteedHours: b.guaranteedHours } });
   }
+  // A business typed in by hand gets the same chain as one corrected by hand.
+  refreshInBackground(created.id);
   return { id: created.id, name };
 }
 
@@ -641,8 +661,15 @@ async function businessCard(id, saved) {
     : `<span class="muted">${esc(EMAIL_STATUS_LABELS[p.emailStatus] || 'not looked for yet')}</span>`;
 
   const site = resolveField(p, 'website');
+  // Their own words only go into the message if they read as a clause that
+  // finishes "You ___". Where they do not, say so here rather than silently
+  // dropping them — Russ typed a paragraph in and had no way to know it was
+  // being ignored (2026-08-27).
+  const workProblem = require('../../src/hoursback/crm/tradeOpening.js').whyWorkClauseIsUnusable(p.theirWork);
   return page(`
   ${saved ? '<div class="card" style="background:#dcfce7;border-color:#16a34a">Saved.</div>' : ''}
+  ${BUSY.has(p.id) ? `<div class="card" style="background:#fef9c3;border-color:#ca8a04">Reading their website now — this page will update itself in a moment.</div>
+    <script>setTimeout(function(){location.reload()}, 6000)</script>` : ''}
   <h1>${esc(resolveField(p, 'name'))} ${scoreBadge(p.automationScore, p.id)}</h1>
   <p><a class="phone" href="tel:${digits(resolveField(p, 'phone'))}">${esc(resolveField(p, 'phone') || 'no phone')}</a><br>
     <span class="muted">${esc((resolveField(p, 'address') || '').replace(/, USA$/, ''))}</span><br>
@@ -715,6 +742,7 @@ async function businessCard(id, saved) {
       <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
       <div style="grid-column:1/-1"><label>What they do, in the email</label>
         <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
+        ${workProblem ? `<div class="was" style="color:#b91c1c"><b>Not being used:</b> ${esc(workProblem)}</div>` : ''}
         <div class="was">Goes into the message as &ldquo;You ${esc(p.theirWork) || '&hellip;'}, so I'd guess&hellip;&rdquo;. Read off their own site. Leave it empty and the message falls back to their industry, which is always safe.</div></div>
       <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
       <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
@@ -754,6 +782,10 @@ async function saveBusiness(id, form) {
     plain.isDecisionMaker = form.isDecisionMaker === 'yes' ? true : (form.isDecisionMaker === 'no' ? false : null);
   }
   if (Object.keys(plain).length) await db.prospect.update({ where: { id }, data: plain });
+  // Everything that follows from what was just typed: read their site, score
+  // the record, settle the trade, clear "needs a look", write the message.
+  // Started, not waited on — a site read can take most of a minute.
+  refreshInBackground(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -790,6 +822,8 @@ async function handleCall(id, form) {
   // The follow-up writes itself from what he just promised, and waits in the
   // batch until he releases it. A failure here never loses the call.
   try { await L.queueFollowUp(db, id, { nextWhat: form.nextWhat }); } catch { /* the call is what matters */ }
+  // A team size or a name learned on the phone is new evidence like any other.
+  refreshInBackground(id);
 }
 
 // --- the lock. When CRM_PASSWORD is set (it always is in production), every
@@ -986,6 +1020,9 @@ const server = http.createServer(async (req, res) => {
           });
           if (first && first.email) await setOverride(db, c.prospectId, 'email', first.email, 'russ');
           if (first && first.name) await db.prospect.update({ where: { id: c.prospectId }, data: { contactName: first.name, contactRole: first.role } });
+          // Choosing who to write to changes who the message greets, so the
+          // draft is rebuilt. Nothing Russ has already edited is touched.
+          refreshInBackground(c.prospectId);
           res.writeHead(303, { Location: `/business/${c.prospectId}?saved=1` }); return res.end();
         }
         if (what === 'add' && arg) {
@@ -1002,6 +1039,9 @@ const server = http.createServer(async (req, res) => {
               : await db.contact.findFirst({ where: { prospectId: arg, name } });
             if (existing) await db.contact.update({ where: { id: existing.id }, data });
             else await db.contact.create({ data: { prospectId: arg, ...data } });
+            // A person added by hand is a name you can ask for, which the score
+            // counts, and a possible greeting the message does not have yet.
+            refreshInBackground(arg);
           }
           res.writeHead(303, { Location: `/business/${arg}?saved=1` }); return res.end();
         }

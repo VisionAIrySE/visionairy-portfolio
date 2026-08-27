@@ -149,6 +149,46 @@ function pick(list, key, salt = '') {
   return list[n % list.length];
 }
 
+// Can this be dropped straight into "You ___"?
+//
+// The field holds a short clause somebody wrote by hand: "do windshield work
+// both mobile and in the shop". Russ pasted a company's whole About paragraph
+// into it instead, and the message would have read "You Founded in 2004, we
+// are Central Oregon's premier crane and rigging company. With over 50 years
+// of experience... , so I'd guess a fair bit of the above lands on whoever
+// runs your office." Broken grammar wrapped around their own brochure
+// (2026-08-27).
+//
+// Five ways it fails, and every one of the 505 clauses already written passes
+// all five:
+//   - it starts with a capital, so it was written as a sentence, not a clause
+//   - it says "we" or "our", so it is their voice, not a description of them
+//   - it runs to more than one sentence
+//   - it is longer than a clause can be and still read as one
+//   - it is marketing: "premier", "dedicated to", "we take great pride"
+//
+// Failing does not lose anything. The message falls back to the opening built
+// from their name, which is true of them either way.
+const MARKETING = /(\bpassionate\b|\bdedicated to\b|\bcommitted to\b|\btrusted\b|\bpremier\b|\bexcellence\b|\bintegrity\b|\bproud to\b|\bstrives?\b|\bexpectations\b|\bdeserve\b|\bworld-?class\b|\bunparalleled\b|\bcraftsmanship\b|relationships first|building relationships|['\u2019]s vision)/i;
+const WORK_CLAUSE_MAX = 120;
+
+function whyWorkClauseIsUnusable(text) {
+  const w = String(text || '').trim();
+  if (!w) return null;
+  if (/^[A-Z]/.test(w)) return 'it starts as a sentence — it has to finish "You ___", so start it lowercase with a verb, like "do windshield work in Redmond"';
+  if (/\b(we|our|us)\b/i.test(w)) return 'it is written in their voice ("we", "our") — write what they DO, as if finishing "You ___"';
+  if (/[.!?]\s+\S/.test(w)) return 'it is more than one sentence — one short clause only';
+  if (w.length > WORK_CLAUSE_MAX) return `it is ${w.length} characters — keep it under ${WORK_CLAUSE_MAX} so it reads as one clause`;
+  if (MARKETING.test(w)) return 'it reads their own marketing back at them — say what they do, not how they describe themselves';
+  return null;
+}
+
+function usableWorkClause(text) {
+  const w = String(text || '').trim();
+  if (!w) return null;
+  return whyWorkClauseIsUnusable(w) ? null : w;
+}
+
 // The whole opening paragraph. Three sentences, in order: their week, where it
 // is true, and a guess about them.
 function openingFor(trade, businessName, seed, theirWork) {
@@ -164,8 +204,9 @@ function openingFor(trade, businessName, seed, theirWork) {
   // runs your office." Only ever used where somebody read their words and wrote
   // the clause by hand (Russ approved this on the condition it stays a guess
   // and comes solely from their own site, 2026-08-26).
-  const guess = theirWork
-    ? pick(THEIR_WORK_GUESS, seed, 'guess').replace('{work}', String(theirWork).trim())
+  const work = usableWorkClause(theirWork);
+  const guess = work
+    ? pick(THEIR_WORK_GUESS, seed, 'guess').replace('{work}', work)
     : name
       ? pick(SOFT_GUESS, seed, 'guess').replace('{business}', name)
       : pick(SOFT_GUESS_NO_NAME, seed, 'guess');
@@ -177,6 +218,7 @@ function subjectFor(trade, seed) {
 }
 
 module.exports = {
+  WORK_CLAUSE_MAX, whyWorkClauseIsUnusable, usableWorkClause,
   TRADE_SUBJECT, GENERAL_SUBJECT, TRADE_PLURAL,
   WHERE_TRUE, WHERE_TRUE_GENERAL, SOFT_GUESS, SOFT_GUESS_NO_NAME, THEIR_WORK_GUESS,
   shortName, openingFor, subjectFor, pick,

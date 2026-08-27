@@ -55,5 +55,10 @@ try {
     written += Math.min(CHUNK, found.length - i);
   }
   console.log(`\nowner names written: ${written}`);
+  // An owner's name is a scored tell — "the same person runs several of these"
+  // — so the records just touched are re-scored. No website is read.
+  const { rescoreMany } = require('../../src/hoursback/refresh.js');
+  const r = await rescoreMany(db, found.map((f) => f.id));
+  console.log(`scores moved: ${r.moved} of ${r.scored}`);
   await db.$disconnect();
 })().catch((e) => { console.error(e); process.exit(1); });

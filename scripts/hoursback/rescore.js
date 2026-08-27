@@ -16,49 +16,12 @@ try {
   }
 } catch { /* no local settings file */ }
 
-// The tells a record carries, rebuilt from what was recorded plus everything
-// that can be read straight off the record itself.
-function signalsFor(p, ownerCounts) {
-  let stored = [];
-  try { stored = JSON.parse(p.scoreEvidence || '[]'); } catch { stored = []; }
-  const DERIVED = ['category_tilt', 'no_website', 'no_email_published', 'runs_several_businesses',
-    'hiring_several_office_roles', 'long_established', 'team_size_known', 'disconnected_tools', 'named_decision_maker'];
-  const signals = stored
-    .filter((e) => e.signal && !DERIVED.includes(e.signal))
-    .map((e) => ({ signal: e.signal, url: e.url || null, quote: e.quote || null }));
-
-  if (p.siteStatus === 'NO_WEBSITE') {
-    return [{ signal: 'no_website', url: null, quote: 'no website anywhere, so every enquiry they get has to be a phone call' }];
-  }
-  if (p.siteStatus === 'READ' && !p.email) {
-    signals.push({ signal: 'no_email_published', url: p.website || null, quote: 'no email address published anywhere on the site' });
-  }
-
-  // The same person registered behind more than one business on the list.
-  if (p.ownerName && (ownerCounts.get(p.ownerName) || 0) > 1) {
-    signals.push({
-      signal: 'runs_several_businesses', url: null,
-      quote: `${p.ownerName} is registered behind ${ownerCounts.get(p.ownerName)} businesses on this list`,
-    });
-  }
-  if (p.openRoles && p.openRoles > 1) {
-    signals.push({ signal: 'hiring_several_office_roles', url: p.website || null, quote: `${p.openRoles} office roles open at once` });
-  }
-  if (p.yearsInBusiness && p.yearsInBusiness >= 20) {
-    signals.push({ signal: 'long_established', url: null, quote: `${p.yearsInBusiness} years in business` });
-  }
-  if (p.employeeCount || p.employeeCountManualValue) {
-    signals.push({ signal: 'team_size_known', url: p.headcountSourceUrl || null, quote: `${p.employeeCountManualValue || p.employeeCount} people, so the price is settled before you dial` });
-  }
-  const tools = String(p.toolsInUse || '').split(',').map((t) => t.trim()).filter(Boolean);
-  if (tools.length >= 2) {
-    signals.push({ signal: 'disconnected_tools', url: p.website || null, quote: `already paying for ${tools.slice(0, 3).join(', ')}` });
-  }
-  if (p.ownerName || p.contactName) {
-    signals.push({ signal: 'named_decision_maker', url: null, quote: `you can ask for ${p.contactName || p.ownerName}` });
-  }
-  return signals;
-}
+// The tells a record carries live in one place now — src/hoursback/refresh.js
+// — so the score a hand edit produces and the score this run produces are the
+// same answer from the same rules. They used to be two copies, and only this
+// script ever ran the fuller one, which is why a record could sit unscored
+// forever unless somebody remembered to run it (Russ, 2026-08-27).
+const { signalsFor } = require('../../src/hoursback/refresh.js');
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');

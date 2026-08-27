@@ -1418,9 +1418,29 @@ def('no_signals_scores_zero_not_dropped', () => withDb(async (db) => {
   const p = await seedSite(db, 'zeroscore', { website: 'https://cascadesmiles.com/' });
   const after = (await enrich().applySiteRead(db, p.id, readFixture('automatedDental'))).prospect;
   const stillThere = await db.prospect.findFirst({ where: { placeId: 'site-zeroscore', doNotContact: false } });
-  const ok = after.automationScore === 0 && Boolean(stillThere);
+  // A business with no tells on its site is no longer a zero. The score now
+  // says how many hours are probably sitting there, and a dental practice is
+  // full of them whether or not its website is modern — that reversal was the
+  // whole point of the rework (Russ, 2026-08-27). What still must hold is that
+  // it keeps its place on the list and scores only on opportunity, with
+  // nothing added for tells it does not have.
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const onlyOpportunity = R.opportunityPart(after).points;
+  // Points may still come from what the RECORD knows — a team size, a named
+  // owner — because those are true whatever the website looks like. What must
+  // never appear is a point earned from a website tell this business does not
+  // have.
+  const SITE_TELLS = ['no_online_booking', 'no_customer_portal', 'no_website',
+    'fax_listed', 'downloadable_forms', 'no_email_published', 'hiring_admin_role'];
+  let evidence = [];
+  try { evidence = JSON.parse(after.scoreEvidence || '[]'); } catch { evidence = []; }
+  const invented = evidence.filter((e) => SITE_TELLS.includes(e.signal));
+  const ok = !invented.length && after.automationScore >= onlyOpportunity && Boolean(stillThere);
   await cleanSite(db, 'zeroscore');
-  return { ok, detail: ok ? 'nothing found: scores zero and stays on the list' : `score=${after.automationScore} kept=${Boolean(stillThere)}` };
+  return { ok, detail: ok
+    ? `nothing found on the site: scores ${after.automationScore}, of which ${onlyOpportunity} is the hours sitting there, and stays on the list`
+    : invented.length ? `credited with tells it does not have: ${invented.map((e) => e.signal).join(', ')}`
+      : `score=${after.automationScore} below opportunity=${onlyOpportunity}, kept=${Boolean(stillThere)}` };
 }));
 
 def('weights_revisable_from_outcomes', () => {
@@ -1659,12 +1679,18 @@ def('message_names_the_trade_when_it_can', () => {
   // own paperwork moved out of the opening line and into the recognition line
   // below it, because the two were naming the same list twice (2026-08-26).
   const { painFor } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
-  const lower = (t) => { const r = painFor(t).recognition; return r.charAt(0).toLowerCase() + r.slice(1); };
-  const namesWork = known.body.includes(lower('trades')) && known.trade === 'trades';
+  // The trade's week now OPENS the message, so it starts a sentence and keeps
+  // its capital. It used to follow an observed tell and run on mid-sentence,
+  // which is why this only ever looked for the lower-cased version.
+  const either = (body, t) => {
+    const r = painFor(t).recognition;
+    return body.includes(r) || body.includes(r.charAt(0).toLowerCase() + r.slice(1));
+  };
+  const namesWork = either(known.body, 'trades') && known.trade === 'trades';
   // A business whose trade cannot be settled gets the general week, which is
   // true of every small office. The trade itself is worked out from the name
   // now, so it is rarely null (2026-08-27).
-  const fallsBack = unknown.body.includes(lower('other')) || unknown.body.includes(lower(unknown.trade || 'other'));
+  const fallsBack = either(unknown.body, 'other') || either(unknown.body, unknown.trade || 'other');
   const ok = namesWork && fallsBack;
   return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
 }, 'lanes');
@@ -2354,7 +2380,10 @@ def('personalisation_changes_only_prospect_values', () => {
   ]);
   const strays = [];
   for (const name of ['Alpha Co', 'Beta Co', 'Cascade Smiles Dental', 'Sisters Dental', 'Legacy Auto Repair']) {
-    const m = fc.draftFirstContact({ name, ownerName: 'Dale Hutchins' }, [{ signal: 'fax_listed' }]);
+    // The tell has to be one that is still allowed to open a message. A fax
+    // number is scored but never spoken now, so a message built from one
+    // carries no fax wording at all and never could (2026-08-27).
+    const m = fc.draftFirstContact({ name, ownerName: 'Dale Hutchins' }, [{ signal: 'hiring_admin_role' }]);
     // The introduction, the tell and the close must each be a line he has
     // read. Found by content, not position — the introduction moved below the
     // observation and the guarantee on 2026-08-26.
@@ -2364,7 +2393,7 @@ def('personalisation_changes_only_prospect_values', () => {
     if (!intros.some((t) => m.body.includes(t))) strays.push(`no approved introduction in the message to ${name}`);
     const close = paras[paras.length - 2];
     if (!closes.includes(close)) strays.push(`close: ${close.slice(0, 40)}`);
-    if (![...V.TELL_WORDINGS.fax_listed].some((t) => m.body.includes(t))) strays.push(`tell for ${name}`);
+    if (![...V.TELL_WORDINGS.hiring_admin_role].some((t) => m.body.includes(t))) strays.push(`tell for ${name}`);
   }
   return { ok: !strays.length, detail: strays.length ? strays.slice(0, 2).join(' | ') : 'every sentence that goes out is one Russ has read; only which one varies' };
 }, 'lanes');
@@ -3211,7 +3240,11 @@ def('no_scored_signal_is_undetectable', () => {
   const scoring = require(path.join(ROOT, 'src/hoursback/scoring.js'));
   // A signal can be spotted on their website OR worked out from the record
   // itself, so both places count as something looking for it.
+  // The record-derived signals moved into refresh.js when the score became a
+  // function of the record; this used to read only the website reader and the
+  // run-everything script and reported six real signals as undetectable.
   const looksHere = read(path.join(ROOT, 'src/hoursback/enrich.js'))
+    + read(path.join(ROOT, 'src/hoursback/refresh.js'))
     + read(path.join(ROOT, 'scripts/hoursback/rescore.js'));
   const weights = scoring.SIGNAL_WEIGHTS || scoring.WEIGHTS || {};
   const undetectable = Object.keys(weights).filter((sig) => !new RegExp(`signal: ?'${sig}'`).test(looksHere));
@@ -3379,10 +3412,18 @@ def('no_sentence_reads_their_marketing_back', () => withLiveDb(async (db) => {
   // "vision" only counts as puffery when it belongs to somebody — "a client's
   // vision". Vision insurance is a real product (2026-08-27).
   const PUFF = /(\bpassionate\b|\bdedicated to\b|\bcommitted to\b|\btrusted\b|\bpremier\b|\bexcellence\b|\bintegrity\b|\bproud to\b|\bstrives?\b|\bexpectations\b|\bdeserve\b|\bworld-?class\b|\bunparalleled\b|\bcraftsmanship\b|relationships first|building relationships|['’]s vision)/i;
-  const bad = rows.filter((r) => PUFF.test(r.theirWork));
-  return { ok: !bad.length, detail: bad.length
-    ? `${bad.length} read their own marketing back — e.g. ${bad[0].name}: "${bad[0].theirWork}"`
-    : `${rows.length} sentences, every one saying what they do rather than how they describe themselves` };
+  // What matters is whether it reaches a message. A business can hold anything
+  // in that field — Russ pasted a whole About paragraph into one — and the
+  // guard refuses it before it can be spoken, telling him why on the card.
+  // This used to fail on the field itself, which reported a message fault
+  // where none existed (2026-08-27).
+  const T = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  const reaching = rows.filter((r) => PUFF.test(r.theirWork) && T.usableWorkClause(r.theirWork));
+  const heldButRefused = rows.filter((r) => PUFF.test(r.theirWork)).length - reaching.length;
+  return { ok: !reaching.length, detail: reaching.length
+    ? `${reaching.length} read their own marketing back — e.g. ${reaching[0].name}: "${reaching[0].theirWork}"`
+    : `${rows.length} sentences, none of them marketing copy that could reach a message`
+      + (heldButRefused ? ` (${heldButRefused} on file are marketing and are refused before they can be spoken)` : '') };
 }), 'reads');
 
 def('both_channels_say_what_the_software_does', () => withLiveDb(async (db) => {
@@ -3530,6 +3571,218 @@ def('the_mail_service_is_heard_without_a_password', () => {
     ? 'the mail service is heard before the password check, and only if it signed the message'
     : JSON.stringify({ listener, passwordGate, checksSignature }) };
 }, 'mail');
+
+// What happens after a record changes. Russ typed a phone, a website, an
+// email, a team size and a trade onto one business and the record stayed
+// unscored, stayed flagged "needs a look" and never got a message written,
+// because each of those was a separate thing somebody had to remember to run
+// (2026-08-27).
+
+def('a_hand_edit_runs_the_whole_chain', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  // Every path where a person changes a record: correcting the card, logging a
+  // call, and typing a new business in.
+  const inSave = /async function saveBusiness[\s\S]{0,2000}?refreshInBackground\(id\)/.test(src);
+  const inCall = /queueFollowUp[\s\S]{0,240}?refreshInBackground\(id\)/.test(src);
+  const inAdd = /refreshInBackground\(created\.id\)/.test(src);
+  const ok = inSave && inCall && inAdd;
+  return { ok, detail: ok
+    ? 'correcting a card, logging a call and adding a business all run the same chain'
+    : `missing on: ${[!inSave && 'the card', !inCall && 'a call', !inAdd && 'a new business'].filter(Boolean).join(', ')}` };
+});
+
+def('the_chain_does_every_step', () => {
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const has = ['signalsFor', 'rescoreOne', 'settleTrade', 'clearReviewFlag', 'writeMessages', 'refreshProspect']
+    .filter((f) => typeof R[f] !== 'function');
+  return { ok: !has.length, detail: has.length
+    ? `missing: ${has.join(', ')}`
+    : 'read the site, score the record, settle the trade, clear the review flag, write the message' };
+});
+
+def('the_score_is_one_set_of_rules', () => {
+  // The fuller scoring logic used to live only inside the run-everything
+  // script, so a record could sit unscored forever unless somebody remembered
+  // to run it by hand. There must be exactly one copy.
+  const rescore = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/rescore.js'), 'utf8');
+  const shares = /require\(['"]\.\.\/\.\.\/src\/hoursback\/refresh\.js['"]\)/.test(rescore);
+  const duplicated = /function signalsFor/.test(rescore);
+  const ok = shares && !duplicated;
+  return { ok, detail: ok
+    ? 'the run-everything script and a hand edit score from the same rules'
+    : duplicated ? 'the scoring rules are copied in two places and will drift' : 'the script does not share the rules' };
+});
+
+def('a_bulk_import_never_fires_website_reads', () => {
+  // Thirty thousand register businesses arriving at once must not start thirty
+  // thousand website reads nobody asked for.
+  const add = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/registry-add.js'), 'utf8');
+  const importsChain = /refreshProspect/.test(add);
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const bulkReadsNothing = typeof R.rescoreMany === 'function'
+    && !/runSiteEnrichment|readSite/.test(R.rescoreMany.toString());
+  const ok = !importsChain && bulkReadsNothing;
+  return { ok, detail: ok
+    ? 'the register import reads no websites, and the bulk re-score reads none either'
+    : importsChain ? 'the register import runs the per-record chain' : 'the bulk re-score can reach a website' };
+});
+
+def('a_pasted_paragraph_never_reaches_a_message', () => {
+  const TO = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  const good = 'do windshield work both mobile and in the shop';
+  const pasted = "Founded in 2004, we are Central Oregon's premier crane and rigging company. "
+    + 'With over 50 years of experience, we have lifted everything from hot tubs to whole houses.';
+  const cases = [
+    ['a clause written by hand', TO.usableWorkClause(good) === good],
+    ['a whole About paragraph', TO.usableWorkClause(pasted) === null],
+    ['their own voice', TO.usableWorkClause('we build custom homes') === null],
+    ['their own marketing', TO.usableWorkClause('are the premier roofer in Bend') === null],
+    ['two sentences', TO.usableWorkClause('do roofing. We also do gutters') === null],
+    ['a reason is given back', typeof TO.whyWorkClauseIsUnusable(pasted) === 'string'],
+  ];
+  const bad = cases.filter(([, passed]) => !passed).map(([w]) => w);
+  return { ok: !bad.length, detail: bad.length
+    ? `lets through: ${bad.join(', ')}`
+    : 'only a short clause in the third person is used; anything else falls back to their industry, and the card says why' };
+});
+
+def('their_own_marketing_is_refused_on_both_channels', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/hoursback/crm/firstContact.js'), 'utf8');
+  const toSrc = fs.readFileSync(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'), 'utf8');
+  const linkedIn = /usableWorkClause\(prospect\.theirWork\)/.test(src);
+  const email = /usableWorkClause\(theirWork\)/.test(toSrc);
+  const ok = linkedIn && email;
+  return { ok, detail: ok
+    ? 'the email and the LinkedIn note both refuse a paragraph pasted into their own words'
+    : `unguarded: ${[!email && 'the email', !linkedIn && 'the LinkedIn note'].filter(Boolean).join(', ')}` };
+});
+
+def('the_review_flag_clears_itself', () => withLiveDb(async (db) => {
+  // "Needs a look" means there was no way to reach them. Once there is a phone
+  // or a website, the reason is gone and it should not wait on Russ.
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const tag = `reviewflag-${Date.now()}`;
+  const p = await db.prospect.create({ data: { placeId: tag, name: 'Flag Test Co', stage: 'NEEDS_REVIEW' } });
+  const stuck = await R.clearReviewFlag(db, p);
+  await db.prospect.update({ where: { id: p.id }, data: { phoneManualValue: '541-555-0111' } });
+  const withPhone = await db.prospect.findUnique({ where: { id: p.id } });
+  const cleared = await R.clearReviewFlag(db, withPhone);
+  const after = await db.prospect.findUnique({ where: { id: p.id } });
+  await db.prospect.delete({ where: { id: p.id } });
+  const ok = stuck === null && cleared === 'NO_CONTACT' && after.stage === 'NO_CONTACT';
+  return { ok, detail: ok
+    ? 'unreachable stays flagged; a phone or a website clears it without anybody clicking'
+    : `stayed ${after.stage} with a phone on file` };
+}), 'writes');
+
+def('nothing_is_written_to_somebody_who_answered', () => {
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const base = { doNotContact: false, repliedAt: null, emailBouncedAt: null, siteStatus: 'READ', email: 'a@b.example' };
+  const cases = [
+    ['a business that replied', R.cannotBeWrittenTo({ ...base, repliedAt: new Date() })],
+    ['an address that bounced', R.cannotBeWrittenTo({ ...base, emailBouncedAt: new Date() })],
+    ['one marked leave-alone', R.cannotBeWrittenTo({ ...base, doNotContact: true })],
+    ['a site nobody has read', R.cannotBeWrittenTo({ ...base, siteStatus: null })],
+    ['no address at all', R.cannotBeWrittenTo({ ...base, email: null })],
+  ];
+  const through = cases.filter(([, reason]) => !reason).map(([w]) => w);
+  const writable = R.cannotBeWrittenTo(base);
+  const ok = !through.length && writable === null;
+  return { ok, detail: ok
+    ? 'a reply, a bounce, a leave-alone mark, an unread site and a missing address each stop a message being written'
+    : through.length ? `would still write to: ${through.join(', ')}` : `refuses a business it should write to: ${writable}` };
+});
+
+def('no_small_website_detail_opens_a_message', () => {
+  // A fax number and a page of downloadable forms led 122 of 736 messages.
+  // Both are true, both still count towards the score, and neither is worth
+  // opening on — they were beating the one thing actually known about the
+  // business, which is what its whole trade's week looks like (Russ,
+  // 2026-08-27: "The fax machine seems way too heavily weighted to lead with").
+  const F = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const leaked = F.NEVER_LEADS.filter((k) => F.OPENER_ORDER.includes(k));
+  const ok = !leaked.length && F.NEVER_LEADS.includes('fax_listed') && F.NEVER_LEADS.includes('downloadable_forms');
+  return { ok, detail: ok
+    ? `${F.OPENER_ORDER.length} openings allowed, all of them facts about the business itself; ${F.NEVER_LEADS.join(' and ')} are scored but never spoken`
+    : `still allowed to open a message: ${leaked.join(', ')}` };
+});
+
+def('no_live_draft_opens_on_a_small_detail', () => withLiveDb(async (db) => {
+  const F = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const bad = await db.outreachMessage.count({
+    where: { lane: 'EMAIL', openedWith: { in: F.NEVER_LEADS } },
+  });
+  const total = await db.outreachMessage.count({ where: { lane: 'EMAIL' } });
+  return { ok: !bad, detail: bad
+    ? `${bad} of ${total} still open on a fax number or a page of forms`
+    : `${total} emails, none opening on a small website detail` };
+}), 'reads');
+
+def('the_score_means_hours_not_scraping', () => {
+  // The old score answered "how much did we scrape off their website", so a
+  // modern dental practice with a clean site scored below a one-person shop
+  // with a fax number. It now answers "roughly how many hours a week of
+  // repetitive office work sit here", which is what the offer promises to find
+  // (Russ, 2026-08-27).
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const dental = R.opportunityPart({ trade: 'dental', employeeCountManualValue: 6 }).points;
+  const faxShop = R.opportunityPart({ trade: 'other' }).points;
+  const ok = dental > faxShop && R.OPPORTUNITY_MAX > R.READINESS_MAX;
+  return { ok, detail: ok
+    ? `a six-person dental practice scores ${dental} on opportunity against ${faxShop} for an unknown one-person trade, and opportunity (${R.OPPORTUNITY_MAX}) outweighs what was observed (${R.READINESS_MAX})`
+    : `opportunity is not the bigger half: dental ${dental}, unknown ${faxShop}` };
+});
+
+def('every_industry_clears_the_guarantee', () => {
+  // Five hours a week is promised to everybody, so no industry may sit below
+  // it even in a typical small shop, or the guarantee is not safe there.
+  const O = require(path.join(ROOT, 'src/hoursback/opportunity.js'));
+  const { THE_OFFER } = require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
+  const short = O.industryTable(O.TYPICAL_TEAM).filter((r) => r.hours < THE_OFFER.hours);
+  return { ok: !short.length, detail: short.length
+    ? `below the ${THE_OFFER.hours}-hour guarantee: ${short.map((r) => `${r.trade} (${r.hours})`).join(', ')}`
+    : `all ${O.industryTable().length} industries clear ${THE_OFFER.hours} hours in a typical ${O.TYPICAL_TEAM}-person shop, the lowest being ${O.industryTable().slice(-1)[0].hours}` };
+});
+
+def('the_score_is_scored_the_same_way_everywhere', () => {
+  // A hand edit and a bulk run must produce the same number. They did not for
+  // about an hour: the bulk path kept its own copy and scored 1,984
+  // businesses on the old rules, which showed up as scores above 100.
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const src = fs.readFileSync(path.join(ROOT, 'src/hoursback/refresh.js'), 'utf8');
+  const bulkShares = /const scored = scoreFor\(p, counts\)/.test(src);
+  const oneShares = /const scored = scoreFor\(prospect,/.test(src);
+  const capped = R.OPPORTUNITY_MAX + R.READINESS_MAX === 100;
+  const ok = bulkShares && oneShares && capped;
+  return { ok, detail: ok
+    ? 'one scorer, used by a hand edit and by a bulk run, capped at 100'
+    : `not shared: ${[!oneShares && 'the single-record path', !bulkShares && 'the bulk path', !capped && 'the total is not 100'].filter(Boolean).join(', ')}` };
+});
+
+def('no_score_exceeds_its_ceiling', () => withLiveDb(async (db) => {
+  const R = require(path.join(ROOT, 'src/hoursback/refresh.js'));
+  const ceiling = R.OPPORTUNITY_MAX + R.READINESS_MAX;
+  const over = await db.prospect.count({ where: { automationScore: { gt: ceiling } } });
+  const scored = await db.prospect.count({ where: { automationScore: { not: null } } });
+  return { ok: !over, detail: over
+    ? `${over} of ${scored} score above ${ceiling}, which means they were scored by the old rules`
+    : `${scored} scored, none above ${ceiling}` };
+}), 'reads');
+
+def('no_business_holds_two_messages_on_one_channel', () => withLiveDb(async (db) => {
+  // One draft per business per channel. Two appeared on 2026-08-27 when the
+  // new automatic chain ran at the same moment as a bulk rewrite: both looked
+  // for an existing draft, both found none, both wrote one. Nothing enforces
+  // this in the database itself yet, so this is the thing that notices.
+  const dupes = await db.outreachMessage.groupBy({
+    by: ['prospectId', 'lane'], _count: true,
+    having: { prospectId: { _count: { gt: 1 } } },
+  });
+  const total = await db.outreachMessage.count();
+  return { ok: !dupes.length, detail: dupes.length
+    ? `${dupes.length} businesses hold more than one message on the same channel`
+    : `${total} messages, one per business per channel` };
+}), 'reads');
 
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is

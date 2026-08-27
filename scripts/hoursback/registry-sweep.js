@@ -44,6 +44,7 @@ const arg = (name, fallback) => {
 
   const out = { looked: 0, named: 0, people: 0, nothing: 0 };
   let cursor = 0;
+  const touched = [];
   const worker = async () => {
     for (;;) {
       const i = cursor; cursor += 1;
@@ -60,6 +61,7 @@ const arg = (name, fallback) => {
         const fresh = await db.prospect.findUnique({ where: { id: p.id } });
         if (fresh && !fresh.ownerName) {
           await db.prospect.update({ where: { id: p.id }, data: { ownerName: got.people[0] } });
+          touched.push(p.id);
         }
         // Everyone named goes on the card as a person, kept apart from the
         // people found on their website.
@@ -88,5 +90,9 @@ const arg = (name, fallback) => {
   console.log(`  people found in total  ${out.people}`);
   console.log(`  no record found        ${out.nothing}`);
   console.log(`  owners on file now     ${await db.prospect.count({ where: { ownerName: { not: null } } })}`);
+  // An owner's name changes the score, so what was touched is re-scored here.
+  const { rescoreMany } = require('../../src/hoursback/refresh.js');
+  const rs = await rescoreMany(db, touched);
+  console.log(`  scores moved           ${rs.moved} of ${rs.scored}`);
   await db.$disconnect();
 })().catch((e) => { console.error('lookup failed:', e.message); process.exit(1); });

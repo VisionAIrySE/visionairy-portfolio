@@ -59,6 +59,11 @@ async function main() {
     });
     console.log(`${rows.length} businesses with a website to read`);
 
+    // Everything this sweep changes is a scored tell — a team size, a named
+    // person you can ask for. The records it touched are re-scored at the end
+    // rather than left for somebody to remember (2026-08-27).
+    const touched = [];
+
     for (const b of rows) {
       done += 1;
       try {
@@ -68,6 +73,7 @@ async function main() {
         if (people.length) {
           withPeople += 1;
           peopleSaved += await savePeople(db, b.id, people);
+          touched.push(b.id);
           if (people.some((p) => p.phone)) withPhones += 1;
         }
         const size = ps.teamSizeFrom(people);
@@ -77,6 +83,7 @@ async function main() {
           const current = await db.prospect.findUnique({
             where: { id: b.id }, select: { employeeCount: true, employeeCountManualValue: true },
           });
+          touched.push(b.id);
           if (current.employeeCountManualValue === null && current.employeeCount === null) {
             await db.prospect.update({
               where: { id: b.id },
@@ -107,6 +114,9 @@ async function main() {
     console.log(`  with a direct number:   ${withPhones}`);
     console.log(`  people saved:           ${peopleSaved}`);
     console.log(`  unreadable:             ${failed}`);
+    const { rescoreMany } = require('../../src/hoursback/refresh.js');
+    const r = await rescoreMany(db, touched);
+    console.log(`  scores moved:           ${r.moved} of ${r.scored}`);
   } finally {
     await db.$disconnect();
   }

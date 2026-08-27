@@ -44,10 +44,25 @@ const OPENERS = {
 // two thirds of the list, much of it at businesses nobody books in the first
 // place. Where nothing was verified the message now opens with the trade's own
 // week, which is true everywhere and cannot be wrong. See tradeOpening.js.
+// What is allowed to open a message, strongest first. Every one of these is a
+// timely fact about the business itself — they are hiring for a desk right
+// now, or the same person is running several of these.
+//
+// A fax number and a page of downloadable forms used to be on this list and
+// led 122 of 736 messages. Both are real tells about how a business runs, and
+// both still count towards the score — but as an opening line they are a small
+// observation scraped off a page, and they were beating the one thing we
+// actually know: what that whole trade's week looks like. "You have a fax
+// number up on your site" reads as a gotcha. "Submittals go out, change orders
+// come back, and somebody spends their week chasing signatures" reads as
+// somebody who has been in the room (Russ, 2026-08-27: "The fax machine seems
+// way too heavily weighted to lead with").
 const OPENER_ORDER = [
   'runs_several_businesses', 'hiring_several_office_roles', 'hiring_admin_role',
-  'downloadable_forms', 'fax_listed',
 ];
+// Scored, but never spoken. These say something about the business worth
+// knowing when deciding who to call first; they say nothing worth opening on.
+const NEVER_LEADS = ['fax_listed', 'downloadable_forms'];
 // Never leave a message with no opening: the trade's week is always available.
 const TRADE_WEEK = 'trade_week';
 // Openings that fire on an ABSENCE rather than on something read. Never allowed
@@ -647,7 +662,9 @@ function draftLinkedIn(prospect, signals = []) {
   const firstSentence = String(week).split(/(?<=\.)\s+/)[0];
 
   // Sentence two: what they themselves say they do, where somebody read it.
-  const work = String(prospect.theirWork || '').trim();
+  // Same guard as the email: a paragraph pasted into this field would read
+  // "You Founded in 2004, we are..." and hand a stranger their own brochure.
+  const work = TO.usableWorkClause(prospect.theirWork);
   const guess = work
     ? `You ${work}, so I'd guess some of that lands on whoever runs your office.`
     : null;
@@ -710,6 +727,6 @@ module.exports = {
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
-  TRADE_WEEK, BANNED_OPENERS, LINKEDIN_CLOSES,
+  TRADE_WEEK, BANNED_OPENERS, NEVER_LEADS, OPENER_ORDER, LINKEDIN_CLOSES,
   INVITE_MAX, INVITE_OPENINGS, INVITE_WHAT_I_DO, INVITE_CLOSES, INVITE_TRADE_DETAIL, draftLinkedInInvite,
 };
