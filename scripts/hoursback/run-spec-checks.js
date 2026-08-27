@@ -3416,6 +3416,60 @@ def('nothing_is_written_to_an_unverified_business', () => withLiveDb(async (db) 
     : `${total} messages, none written to a business that has not been read` };
 }), 'reads');
 
+// Noticing a reply and noticing a bounce. Both were Russ's job by hand, and a
+// missed reply means the engine writes again to somebody who already said yes.
+
+def('a_reply_is_told_apart_from_a_holiday_responder', () => {
+  const I = require(path.join(ROOT, 'src/hoursback/crm/inbox.js'));
+  const reply = I.classify({ from: 'Marilyn <m@b.example>', subject: 'Re: your note', body: 'Give me a call Thursday.' });
+  const away = I.classify({ from: 'Dale <d@w.example>', subject: 'Automatic reply: Out of Office', body: 'I am currently away until the 9th.' });
+  const leave = I.classify({ from: 'Sam <s@x.example>', subject: 'Re: your note', body: 'I am on maternity leave until March.' });
+  const ok = reply.kind === 'reply' && away.kind === 'auto' && leave.kind === 'auto';
+  return { ok, detail: ok
+    ? 'a person answering stops the sequence; a holiday responder changes nothing'
+    : JSON.stringify({ reply: reply.kind, away: away.kind, leave: leave.kind }) };
+}, 'inbox');
+
+def('a_bounce_names_the_address_that_failed', () => {
+  const I = require(path.join(ROOT, 'src/hoursback/crm/inbox.js'));
+  // A bounce comes FROM the mail system, so the sender says nothing about
+  // which address was wrong. It has to be dug out of the body.
+  const shapes = [
+    'Your message to office@sisters.example could not be delivered.',
+    'Final-Recipient: rfc822; office@sisters.example',
+    '<office@sisters.example> does not exist',
+    'Original-Recipient: rfc822; office@sisters.example',
+  ];
+  const wrong = shapes.filter((b) => I.addressThatFailed(b) !== 'office@sisters.example');
+  const c = I.classify({ from: 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>', subject: 'Delivery Status Notification (Failure)', body: shapes[0] });
+  const ok = !wrong.length && c.kind === 'bounce';
+  return { ok, detail: ok
+    ? 'every common bounce shape gives up the address that failed'
+    : JSON.stringify({ kind: c.kind, missed: wrong.length }) };
+}, 'inbox');
+
+def('a_bounced_address_is_queued_to_be_found_again', () => {
+  // A bounce is a wrong address, not a refusal. The business stays callable
+  // and appears in the list of addresses that need finding (Russ, 2026-08-27).
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  const inTheQueue = /emailBouncedAt: \{ not: null \}/.test(src);
+  const flagged = /the address bounced/.test(src);
+  const ok = inTheQueue && flagged;
+  return { ok, detail: ok
+    ? 'a bounced address goes back into the list of addresses to find, marked as bounced'
+    : JSON.stringify({ inTheQueue, flagged }) };
+}, 'inbox');
+
+def('reading_the_inbox_never_sends_anything', () => {
+  // This runs unattended against Russ's own mail. It reads, matches and marks.
+  const src = read(path.join(ROOT, 'scripts/hoursback/check-inbox.js'))
+    + read(path.join(ROOT, 'src/hoursback/crm/inbox.js'));
+  const sends = /api\.resend\.com|sendMail|transporter\.send|\.send\(/.test(src);
+  return { ok: !sends, detail: !sends
+    ? 'nothing in the inbox reader can send a message'
+    : 'something in the inbox reader can send' };
+}, 'inbox');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.

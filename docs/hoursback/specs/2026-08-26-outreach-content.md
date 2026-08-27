@@ -59,6 +59,12 @@ Build
   what-it-actually-does
   - [ ] No sentence about a business reads their own marketing back at them. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=no_sentence_reads_their_marketing_back | 0 -->
 
+  noticing-a-reply-and-a-bounce
+  - [ ] A person answering stops every remaining message; a holiday responder changes nothing. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_reply_is_told_apart_from_a_holiday_responder | 0 -->
+  - [ ] A bounce gives up the address that failed, whatever shape it arrives in. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_bounce_names_the_address_that_failed | 0 -->
+  - [ ] A bounced address goes back into the list of addresses to find, and the business stays callable. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=a_bounced_address_is_queued_to_be_found_again | 0 -->
+  - [ ] Nothing that reads Russ's inbox is able to send from it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=reading_the_inbox_never_sends_anything | 0 -->
+
   queued-for-later
   - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
 

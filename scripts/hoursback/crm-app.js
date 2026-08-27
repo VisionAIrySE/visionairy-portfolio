@@ -373,11 +373,19 @@ async function scoreScreen(id) {
 async function needEmailScreen(params) {
   const page_ = Math.max(1, Number(params.get('page') || 1));
   const per = 40;
+  // Two kinds of business belong here, and the second one is easy to lose:
+  // those that never had an address, and those whose address BOUNCED. A bounce
+  // is a wrong address, not a refusal — the business is still worth talking to
+  // and still worth calling, it just needs an address that works (Russ,
+  // 2026-08-27: "they need to be queued for follow up to get accurate info").
   const where = {
     doNotContact: false, repliedAt: null,
-    email: null, emailManualValue: null,
     website: { not: null },              // no site, nothing for Hunter to search
     automationScore: { gt: 0 },          // worth the effort
+    OR: [
+      { email: null, emailManualValue: null },
+      { emailBouncedAt: { not: null } },
+    ],
   };
   const [rows, total] = await Promise.all([
     db.prospect.findMany({ where, orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }], take: per, skip: (page_ - 1) * per }),
@@ -386,7 +394,9 @@ async function needEmailScreen(params) {
   const host = (u) => { try { return new URL(u.startsWith('http') ? u : `https://${u}`).host.replace(/^www\./, ''); } catch { return u; } };
   const body = rows.map((p) => `<tr>
     <td>${scoreBadge(p.automationScore, p.id)}</td>
-    <td><a href="/business/${p.id}"><b>${esc(resolveField(p, 'name'))}</b></a></td>
+    <td><a href="/business/${p.id}"><b>${esc(resolveField(p, 'name'))}</b></a>${p.emailBouncedAt
+      ? ` <span class="pill" style="background:#fecaca;color:#7f1d1d">the address bounced ${new Date(p.emailBouncedAt).toLocaleDateString()}</span>`
+      : ''}</td>
     <td><a href="https://hunter.io/search/${esc(host(resolveField(p, 'website')))}" target="_blank">${esc(host(resolveField(p, 'website')))}</a></td>
     <td><a class="btn" href="/business/${p.id}">Type it in</a></td>
   </tr>`).join('');
