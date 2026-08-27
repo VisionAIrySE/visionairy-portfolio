@@ -31,7 +31,12 @@ const FIRST_CONTACT = 'first_contact';
 
 // A brand new sending address that suddenly sends hundreds of messages gets
 // treated as a spammer. This rises week by week from the first send.
-const EMAIL_RAMP = [10, 20, 30, 40, 50, 75, 100];
+// A new sending address that blasts gets marked as spam, so it warms up. The
+// first version crawled — 10 a day over seven weeks, which is 69 days to reach
+// 691 businesses once, by which time the follow-ups have crowded out every new
+// message. Russ set week one at 30 (2026-08-26). All 691 first messages clear
+// in about ten days at this pace, and it is still a gentle warm-up.
+const EMAIL_RAMP = [30, 60, 120, 200];
 function dailyEmailCap(weeksSending = 0) {
   return EMAIL_RAMP[Math.min(Math.max(0, Math.floor(weeksSending)), EMAIL_RAMP.length - 1)];
 }
@@ -86,18 +91,30 @@ async function templateIsApproved(db, name = FIRST_CONTACT) {
 // 1,610 of them with their own addresses, never received anything. Russ found
 // that (2026-08-26). Order: the person he marked, then a named person with an
 // address, then the general inbox last.
-async function addressFor(db, prospectId, prospect) {
+async function addressFor(db, prospectId, prospect, exclude = []) {
   const chosen = await db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+    where: { prospectId, isPrimary: true, email: { not: null, notIn: exclude }, bouncedAt: null },
+    orderBy: { createdAt: 'asc' },
   });
   if (chosen) return chosen.email;
   const named = await db.contact.findFirst({
-    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null },
+    where: { prospectId, name: { not: null }, email: { not: null, notIn: exclude }, bouncedAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (named) return named.email;
+  if (exclude.length) return null;   // everyone marked has already had one
   const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
   return p ? (p.emailManualValue || p.email) : null;
+}
+
+// Everyone Russ marked at one business. He can mark the owner and the office
+// manager both — reaching two people at one firm is ordinary practice — and
+// each gets their own message rather than sharing one (2026-08-26).
+async function everyoneMarked(db, prospectId) {
+  return db.contact.findMany({
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
 }
 
 // The person that address belongs to, for the greeting and the screen.
@@ -178,10 +195,26 @@ async function emailsLeftToday(db, weeksSending = 0, now = new Date()) {
   return Math.max(0, dailyEmailCap(weeksSending) - sentToday);
 }
 
-async function markEmailSent(db, messageId, now = new Date()) {
+// The next person Russ marked who has not heard from him yet. He can mark as
+// many as he likes at one business and they all get their own message, same
+// day if that is how the queue falls — two different people at one company on
+// one day is ordinary outreach (Russ, 2026-08-26). The only thing forbidden is
+// writing to the same address twice.
+async function nextUnwrittenPerson(db, prospectId) {
+  const marked = await everyoneMarked(db, prospectId);
+  if (marked.length < 2) return null;
+  const already = await db.outreachMessage.findMany({
+    where: { prospectId, lane: 'EMAIL', sentTo: { not: null } },
+    select: { sentTo: true },
+  });
+  const written = new Set(already.map((x) => x.sentTo));
+  return marked.find((c) => !written.has(c.email)) || null;
+}
+
+async function markEmailSent(db, messageId, now = new Date(), sentTo = null) {
   return db.outreachMessage.update({
     where: { id: messageId },
-    data: { state: 'SENT', sentAt: now, sentBy: 'engine' },
+    data: { state: 'SENT', sentAt: now, sentBy: 'engine', ...(sentTo ? { sentTo } : {}) },
   });
 }
 
@@ -342,6 +375,25 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
     where: { prospectId, lane: 'EMAIL', state: { in: ['SENT', 'REPLIED'] }, openedWith: { not: 'after_the_call' } },
     orderBy: { sentAt: 'asc' },
   });
+  // Anyone else Russ marked who has not heard from him gets their own first
+  // message, before the sequence moves on for the people who have.
+  const waiting = await nextUnwrittenPerson(db, prospectId);
+  if (waiting) {
+    const built = draftFirstContact({ ...p, contactName: waiting.name || p.contactName }, signalsOf(p));
+    if (built) {
+      const existing = await db.outreachMessage.findFirst({
+        where: { prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentTo: waiting.email },
+      });
+      if (existing) return existing;
+      return db.outreachMessage.create({
+        data: {
+          prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now, sentTo: waiting.email,
+          subject: built.subject, body: built.body, openedWith: built.openedWith,
+        },
+      });
+    }
+  }
+
   const due = touchDue(sent.length, sent[0] ? sent[0].sentAt : null, now);
   if (due === null) return null;
   if (due === 1) return queueEmail(db, prospectId);
@@ -413,7 +465,7 @@ async function sendQueuedEmails(db, options = {}) {
 
   for (const m of queued) {
     if (result.sent >= ceiling) { result.stoppedBecause = `stopped at the ceiling of ${ceiling}`; break; }
-    const to = await addressFor(db, m.prospectId, m.prospect);
+    const to = m.sentTo || await addressFor(db, m.prospectId, m.prospect);
     if (!to) continue;
     result.attempted += 1;
     try {
@@ -422,7 +474,7 @@ async function sendQueuedEmails(db, options = {}) {
         html: toHtmlEmail(m.body),
         text: `${m.body.split(/\n\nRuss Wright\n/)[0]}\n\n${signatureText()}`,
       });
-      await markEmailSent(db, m.id, options.now);
+      await markEmailSent(db, m.id, options.now, to);
       result.sent += 1;
     } catch (e) {
       result.failed += 1;   // one refusal never stops the rest
@@ -452,6 +504,6 @@ module.exports = {
   sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor,
+  signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, markReplied, markBounced, reachableOn,
 };

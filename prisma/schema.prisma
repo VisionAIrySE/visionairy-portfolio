@@ -223,6 +223,9 @@ model OutreachMessage {
   queuedAt   DateTime?
   sentAt     DateTime?
   sentBy     String?  // a person's name for LinkedIn; "engine" for email
+  /// The address this one actually went to. Russ can mark several people at a
+  /// business and each gets their own message, so the record has to say which.
+  sentTo     String?
   repliedAt  DateTime?
   suppressedReason String?
   /// Set the moment Russ rewrites a draft by hand. A message he has touched is

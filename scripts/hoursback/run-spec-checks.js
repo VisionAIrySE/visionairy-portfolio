@@ -2129,10 +2129,13 @@ def('linkedin_hand_send_queue', () => withDb(async (db) => {
 
 def('email_ramp_caps_daily_volume', () => {
   const { dailyEmailCap, EMAIL_RAMP } = lanes();
-  const caps = [0, 1, 2, 3, 4, 5, 6].map(dailyEmailCap);
+  // Week one is 30 (Russ, 2026-08-26). The old ceiling of 20 came from a ramp
+  // that crawled for seven weeks and would have taken 69 days to reach 691
+  // businesses once.
+  const caps = EMAIL_RAMP.map((_, i) => dailyEmailCap(i));
   const rising = caps.every((c, i) => i === 0 || c > caps[i - 1]);
   const flatAfter = dailyEmailCap(99) === EMAIL_RAMP[EMAIL_RAMP.length - 1];
-  const ok = rising && flatAfter && caps[0] <= 20;
+  const ok = rising && flatAfter && caps[0] <= 30;
   return { ok, detail: ok ? `starts at ${caps[0]} a day and climbs to ${caps[caps.length - 1]}, then holds` : caps.join(',') };
 }, 'lanes');
 

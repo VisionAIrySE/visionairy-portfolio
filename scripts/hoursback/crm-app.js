@@ -635,12 +635,12 @@ async function businessCard(id, saved) {
   ${p.contacts.length ? `<table>
     <tr><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th></th></tr>
     ${p.contacts.map((c) => `<tr${c.bouncedAt ? ' style="opacity:.5"' : ''}>
-      <td><b>${esc(c.name || '—')}</b>${c.isPrimary ? ' <span class="pill">writes to</span>' : ''}</td>
+      <td><b>${esc(c.name || '—')}</b>${c.isPrimary ? ' <span class="pill">gets a message</span>' : ''}</td>
       <td class="muted">${esc(c.role || '—')}</td>
       <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">—</span>'}${c.bouncedAt ? ' <span class="muted">(bounced)</span>' : ''}</td>
       <td>${c.phone ? `<a class="phone" href="tel:${digits(c.phone)}">${esc(c.phone)}</a>` : '<span class="muted">—</span>'}</td>
       <td>${c.linkedIn ? `<a href="${esc(c.linkedIn)}" target="_blank">profile</a>` : '<span class="muted">—</span>'}</td>
-      <td>${c.isPrimary ? '' : `<form method="POST" action="/contact/primary/${c.id}"><button>Write to them</button></form>`}</td>
+      <td><form method="POST" action="/contact/primary/${c.id}"><button>${c.isPrimary ? 'Stop writing to them' : 'Write to them'}</button></form></td>
     </tr>`).join('')}
   </table>` : '<p class="muted">Nobody found on their site yet.</p>'}
   <form method="POST" action="/contact/add/${p.id}" class="row" style="margin-top:10px">
@@ -892,12 +892,18 @@ const server = http.createServer(async (req, res) => {
         const [, , what, arg] = url.pathname.split('/');
         // Choosing who to write to sets the business's address to theirs, so
         // the message goes to a person rather than a shared inbox.
+        // Marking somebody no longer un-marks everyone else. Russ can write to
+        // the owner AND the office manager; each gets their own message, and
+        // never two to one business on the same day (2026-08-26).
         if (what === 'primary' && arg) {
           const c = await db.contact.findUniqueOrThrow({ where: { id: arg } });
-          await db.contact.updateMany({ where: { prospectId: c.prospectId }, data: { isPrimary: false } });
-          await db.contact.update({ where: { id: arg } , data: { isPrimary: true } });
-          if (c.email) await setOverride(db, c.prospectId, 'email', c.email, 'russ');
-          if (c.name) await db.prospect.update({ where: { id: c.prospectId }, data: { contactName: c.name, contactRole: c.role } });
+          await db.contact.update({ where: { id: arg }, data: { isPrimary: !c.isPrimary } });
+          const first = await db.contact.findFirst({
+            where: { prospectId: c.prospectId, isPrimary: true, email: { not: null } },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (first && first.email) await setOverride(db, c.prospectId, 'email', first.email, 'russ');
+          if (first && first.name) await db.prospect.update({ where: { id: c.prospectId }, data: { contactName: first.name, contactRole: first.role } });
           res.writeHead(303, { Location: `/business/${c.prospectId}?saved=1` }); return res.end();
         }
         if (what === 'add' && arg) {
