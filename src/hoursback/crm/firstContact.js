@@ -36,10 +36,23 @@ const OPENERS = {
     "I noticed your customers don't have a login of their own, so every status question lands with your front desk.",
 };
 // Preference order when a business shows more than one.
+//
+// Only something somebody actually READ off their page belongs here. Two
+// openings were dropped on 2026-08-26 — "no way to book online" and "no
+// customer login" — because both fired when the website reader failed to FIND
+// the words, not when the thing was genuinely absent. Between them they opened
+// two thirds of the list, much of it at businesses nobody books in the first
+// place. Where nothing was verified the message now opens with the trade's own
+// week, which is true everywhere and cannot be wrong. See tradeOpening.js.
 const OPENER_ORDER = [
   'runs_several_businesses', 'hiring_several_office_roles', 'hiring_admin_role',
-  'downloadable_forms', 'no_website', 'fax_listed', 'no_online_booking', 'no_customer_portal',
+  'downloadable_forms', 'no_website', 'fax_listed',
 ];
+// Never leave a message with no opening: the trade's week is always available.
+const TRADE_WEEK = 'trade_week';
+// Openings that fire on an ABSENCE rather than on something read. Never allowed
+// to open a message; named here so a check can prove they stay gone.
+const BANNED_OPENERS = ['no_online_booking', 'no_customer_portal'];
 
 // The paperwork each trade actually does. This is what turns "I noticed you
 // still list a fax number" into a sentence that sounds like somebody looked.
@@ -50,6 +63,7 @@ const TRADE_WORK = {
   'real estate': 'listing paperwork, disclosures and chasing signatures',
   medical: 'records requests, referrals and insurance claims',
   dental: 'insurance claims, treatment plans and recall reminders',
+  veterinary: 'records, reminders and everything landing on the front desk',
   legal: 'engagement letters, discovery and filings',
   accounting: 'client documents, engagement letters and filings',
   insurance: 'applications, certificates and renewals',
@@ -134,7 +148,7 @@ const SUBJECTS = {
 const THEIR_PEOPLE = {
   legal: 'clients', accounting: 'clients', 'professional services': 'clients',
   insurance: 'clients', 'real estate': 'clients', staffing: 'clients',
-  dental: 'patients', medical: 'patients',
+  dental: 'patients', medical: 'patients', veterinary: 'clients',
   'personal care': 'clients', 'fitness & recreation': 'members',
   'nonprofit & community': 'the people you serve', 'lodging & hospitality': 'guests',
 };
@@ -150,7 +164,7 @@ const TRADE_PLURAL = {
   'professional services': 'firms like yours', 'cleaning & facilities': 'cleaning companies',
   'lodging & hospitality': 'places like yours', 'personal care': 'salons and studios',
   'fitness & recreation': 'gyms and studios', 'nonprofit & community': 'nonprofits',
-  agriculture: 'farm offices',
+  agriculture: 'farm offices', veterinary: 'veterinary clinics',
 };
 
 // What he knows about their TRADE, said as exactly that. Unattributed, it read
@@ -309,11 +323,13 @@ function toolsNoteForRuss(prospect) {
   return `They already run ${tools.slice(0, 3).join(', ')}. Worth raising on the call, not in writing — they never published it.`;
 }
 
-// Pick the tell this message should lead with.
+// Pick the tell this message should lead with. Something read off their own
+// page wins; otherwise the trade's week, which is always available and always
+// true. Nothing that fires on an absence can ever be chosen.
 function chooseOpener(signals = []) {
   const names = signals.map((s) => (typeof s === 'string' ? s : s.signal));
   for (const key of OPENER_ORDER) if (names.includes(key)) return key;
-  return null;
+  return TRADE_WEEK;
 }
 
 // "Hi Dale," when we know who owns it. When we do not, the greeting drops the
@@ -411,11 +427,28 @@ function draftFirstContact(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
   const { registerFor, OPENING_BY_REGISTER, CLOSING_BY_REGISTER } = require('./register.js');
+  const TO = require('./tradeOpening.js');
   const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
-  const { line, trade } = followOnFor(key, prospect);
+  const { line } = followOnFor(key, prospect);
+  // Settle the trade here rather than taking it from the follow-on, which
+  // reports null whenever the chosen opening has no trade-specific wording —
+  // and that made every trade-led message fall back to the general line
+  // (2026-08-26).
+  const { tradeOf } = require('./queues.js');
+  const trade = prospect.trade || tradeOf(prospect.name);
   // Meet them where they write. His tone never moves; only the ceremony does.
   const register = registerFor(prospect.selfDescription);
-  const subject = (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, business);
+  // Where the opening is the trade's own week, the whole first paragraph is
+  // that: their week, where it is true, and a guess about them. The follow-on
+  // and the trade line both belong to the verified openings and would repeat
+  // it word for word here.
+  const leadsWithTrade = key === TRADE_WEEK;
+  const subject = leadsWithTrade
+    ? TO.subjectFor(trade, business)
+    // A third of the list carries a web page heading instead of a name, so a
+    // subject built from it was unreadable: "The paperwork coming into Hanson
+    // & Co PC | CPA Bend Oregon | Accountant Bend Oregon" (2026-08-26).
+    : (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, TO.shortName(business) || 'your office');
   // Two dentists both still listing a fax number were getting near-identical
   // letters, and in a town this size they might know each other. Each fixed
   // line has four wordings, chosen by the business's own name so it is the
@@ -426,19 +459,25 @@ function draftFirstContact(prospect, signals = []) {
   const body = BODY
     .replace('Hi {greeting},', who ? `Hi ${who},` : 'Hello,')
     .replace('{intro}', V.pick(V.OPENINGS[register], seed, 'intro'))
-    .replace('{opener}', longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
-    .replace('{followOn}', line + toolsLine(prospect))
+    .replace('{opener}', leadsWithTrade
+      ? longevityLine(prospect) + TO.openingFor(trade, business, seed)
+      : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
+    .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
     .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
     .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
-    .replace('{tradeLine}', tradeLineFor(trade))
+    .replace('{tradeLine}', leadsWithTrade ? '' : tradeLineFor(trade))
     .replace(/\bcustomers\b/g, theirPeople(trade))
     .replace(/\bcustomer login\b/g, `${theirPeople(trade).replace(/s$/, '')} login`)
     .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
-    .replace(/\{business\}/g, business);
+    .replace(/\{business\}/g, business)
+    // The trade opening fills one slot and leaves two empty, which would show
+    // as a double space mid-paragraph.
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/([^\n]) {2,}/g, '$1 ');
   return { subject, body, openedWith: key, trade, register };
 }
 
@@ -447,16 +486,25 @@ function draftFirstContact(prospect, signals = []) {
 function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
-  const { line, trade } = followOnFor(key, prospect);
+  const { line } = followOnFor(key, prospect);
   const { painFor } = require('./painPoints.js');
   const { THE_OFFER } = require('../industryTiers.js');
+  const TO = require('./tradeOpening.js');
+  const { tradeOf } = require('./queues.js');
+  const trade = prospect.trade || tradeOf(prospect.name);
+  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const who = greetingFor(prospect);
+  // Where the opening IS the trade's week, saying it twice reads like a fault.
+  const leadsWithTrade = key === TRADE_WEEK;
+  const lead = leadsWithTrade
+    ? TO.openingFor(trade, business, business)
+    : `${OPENERS[key]} ${line}\n\n${painFor(trade || 'other').recognition}`;
   // This had gone stale: it still said "I spend a week inside an operation"
-  // and promised ten hours, months after both were retired (2026-08-26).
-  const body = `Hi ${greetingFor(prospect)}, I'm local to Central Oregon and I build software that takes repetitive office work off people.
+  // and promised ten hours, months after both were retired (2026-08-26). And
+  // with no name on file it opened "Hi null," (2026-08-26).
+  const body = `${who ? `Hi ${who}, I'm` : "Hello — I'm"} local to Central Oregon and I build software that takes repetitive office work off people.
 
-${OPENERS[key]} ${line}
-
-${painFor(trade || 'other').recognition}
+${lead}
 
 A conversation with you and whoever runs your office, then a written report: every task AI or automation can take over, the tool that does it, what it costs, and the hours a week it gives back. The list adds up to at least ${THE_OFFER.hoursWord} hours a week or you don't pay.
 
@@ -500,4 +548,5 @@ module.exports = {
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
+  TRADE_WEEK, BANNED_OPENERS,
 };

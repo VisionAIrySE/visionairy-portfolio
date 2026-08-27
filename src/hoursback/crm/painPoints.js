@@ -175,6 +175,13 @@ const PAIN_BY_TRADE = {
     lever: 'donor follow-up and grant reporting',
     valueIn: 'more time on the mission and less on reporting it',
   },
+  veterinary: {
+    function: 'follow-up',
+    recognition: 'Reminder calls for shots and check-ups fall to whoever has a spare minute, and the front desk is booking the next visit, taking payment and finishing a chart at the same counter.',
+    cost: 'eight to fourteen hours a week',
+    lever: 'reminders, and what lands on the front desk',
+    valueIn: 'a full book without somebody spending an afternoon on the phone to fill it',
+  },
   'funeral & memorial': {
     function: 'paper',
     recognition: 'Every arrangement generates the same details on a dozen forms, and they get written out by hand each time, for families who should not be waiting.',

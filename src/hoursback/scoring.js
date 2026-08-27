@@ -28,7 +28,6 @@ const SIGNAL_WEIGHTS = {
   no_online_booking: 14,          // every appointment costs a phone call
   fax_listed: 12,                 // a fax number in this decade
   no_email_published: 8,          // no way to reach them but the phone
-  high_reviews_for_headcount: 8,  // busy, and small — the squeeze point
   no_customer_portal: 7,          // every status question is a phone call
 
   // Everything below comes from what was learned about the business rather
@@ -50,7 +49,6 @@ const SIGNAL_LABELS = {
   no_online_booking: 'No way to book online',
   fax_listed: 'Still lists a fax number',
   no_email_published: 'Publishes no email address',
-  high_reviews_for_headcount: 'Lots of reviews for their size',
   no_customer_portal: 'No customer login',
   runs_several_businesses: 'The same owner runs other businesses here',
   hiring_several_office_roles: 'Advertising more than one office role',

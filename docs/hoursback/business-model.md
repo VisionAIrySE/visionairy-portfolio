@@ -22,7 +22,7 @@ The pain this practice addresses is **the week that never opens up**. The owner 
 
 So the offer is stated as a gain, not a loss:
 
-> **You get five to ten hours a week back. What would you do with them — sell more, be with your family, build the next thing? This is an investment in getting your life back.**
+> **You get at least five hours a week back. What would you do with them — sell more, be with your family, build the next thing? This is an investment in getting your life back.**
 
 This framing is a **settled decision, not a stylistic preference**. Loss framing — "you're wasting hours," "you're bleeding time" — was considered and **rejected**, for two reasons. Loss framing makes the purchase a cost decision, and cost decisions get compared against other costs and deferred. Gain framing makes it a personal decision, and personal decisions get made. Second, loss framing puts the owner on the defensive about how they run their own company, which is the wrong footing for someone about to let you inside it.
 

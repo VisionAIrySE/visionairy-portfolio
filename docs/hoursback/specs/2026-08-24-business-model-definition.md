@@ -18,7 +18,7 @@ Build
 - [x] The document reproduces the 25-staff row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $51,740 -->
 - [x] The document reproduces the 50-staff row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $103,480 -->
 - [x] The document reproduces the 10-staff flat-rate row of the fee table. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $20,696 -->
-- [x] Both outreach messages are written out as quotable text, not described — the small-owner subject line is present. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** ten hours a week back, or you don't pay -->
+- [x] Both outreach messages are written out as quotable text, not described — the small-owner subject line is present. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** five hours a week back, or you don't pay -->
 - [x] The larger-company outreach message is written out as quotable text — its subject line is present. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | **Subject:** [N] hours a week back at [Company], guaranteed -->
 - [x] The capacity model is a table with one row per level carrying audits per week and revenue. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $84,950 -->
 - [x] The capacity table carries the practiced-solo level row. <!-- type:Build --> <!-- check: text_presence | docs/hoursback/business-model.md | $254,850 -->

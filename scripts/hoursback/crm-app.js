@@ -325,7 +325,7 @@ async function scoreScreen(id) {
     <td class="w">+${e.weight}</td></tr>`).join('');
 
   const notFound = Object.keys(SIGNAL_WEIGHTS).filter((k) => !fired.has(k)).map((k) => `<tr>
-    <td class="neg">${esc(SIGNAL_LABELS[k] || k)}<div class="mini">not found${k === 'high_reviews_for_headcount' ? ' — review counts were never captured' : ''}</div></td>
+    <td class="neg">${esc(SIGNAL_LABELS[k] || k)}<div class="mini">not found</div></td>
     <td></td><td class="w neg">0 of ${weights[k]}</td></tr>`).join('');
 
   const total = evidence.reduce((a, e) => a + (e.weight || 0), 0);

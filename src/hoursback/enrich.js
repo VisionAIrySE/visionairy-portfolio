@@ -713,16 +713,26 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
     const band = bandForEmployeeCount(finding.teamCount);
     data.segment = band.band; data.auditFee = band.auditFee; data.guaranteedHours = band.guaranteedHours;
   }
-  if (finding.tradeWords) {
+  // The industry.
+  //
+  // This used to run the trade matcher over 3,000 characters of their page
+  // text and keep the first keyword that hit. A staffing agency came out
+  // "dental" because its careers page lists dental insurance; a freight
+  // carrier came out "auto"; a handyman came out "insurance" off the words
+  // "licensed and insured". Around half of the 236 industries decided that way
+  // were wrong, and the industry now decides the whole opening line, so a
+  // wrong one sends a freight company an email about filling a dental
+  // schedule (Russ caught it, 2026-08-26).
+  //
+  // Page text is no longer allowed to decide anything. A name that clearly
+  // names its own trade still counts, because that is the business telling you
+  // what it is. Everything else stays unknown until a person reads it, and an
+  // unknown industry gets the general opening, which is true of everybody.
+  // General and true beats specific and wrong.
+  if (finding.tradeWords && !before.trade) {
     const { tradeOf } = require('./crm/queues.js');
     const fromName = tradeOf(before.name);
-    if (fromName === 'other') {
-      // The line they wrote about themselves is the richest signal there is,
-      // and it lives in the page header where the plain-text read cannot see
-      // it — so it has to be added back explicitly.
-      const fromSite = tradeOf(`${before.name} ${finding.selfDescription || ''} ${finding.tradeWords.slice(0, 3000)}`);
-      if (fromSite !== 'other') data.trade = fromSite;
-    } else { data.trade = fromName; }
+    if (fromName !== 'other') data.trade = fromName;
   }
 
   // Nothing new to say? Write nothing at all, so reading twice leaves the

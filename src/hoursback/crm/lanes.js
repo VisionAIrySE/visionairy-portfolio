@@ -118,9 +118,22 @@ async function everyoneMarked(db, prospectId) {
 }
 
 // The person that address belongs to, for the greeting and the screen.
+//
+// These two used to be joined by `||` with no await between them. A database
+// query returns a promise, and a promise is always truthy, so the first branch
+// won every time and the fallback was dead code — which is why 328 of 691
+// drafts opened "Hello," while a name sat on the record (2026-08-26). Anyone
+// whose first-found person was marked primary without an email, or was never
+// marked primary at all, fell straight through to nobody.
 async function personFor(db, prospectId) {
-  return db.contact.findFirst({ where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null } })
-    || db.contact.findFirst({ where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null }, orderBy: { createdAt: 'asc' } });
+  const marked = await db.contact.findFirst({
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+  });
+  if (marked) return marked;
+  return db.contact.findFirst({
+    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
 }
 
 // ---------------------------------------------------------------------------

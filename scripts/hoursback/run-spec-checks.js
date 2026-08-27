@@ -439,6 +439,23 @@ function sharedDb() {
   return _db;
 }
 async function withDb(fn) { return fn(sharedDb()); }
+
+// The real list, read-only.
+//
+// Most checks run against a throwaway local database so fixture rows never
+// touch Russ's store. But a check about what is ACTUALLY sitting in his drafts
+// has to look at his drafts — run against the empty test store it passes on
+// nothing at all, which is worse than no check (2026-08-26). Nothing below
+// ever writes here.
+let _live;
+function liveDb() {
+  if (!_live) {
+    const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
+    _live = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+  }
+  return _live;
+}
+async function withLiveDb(fn) { return fn(liveDb()); }
 async function closeDb() { if (_db) { await _db.$disconnect(); _db = null; } }
 
 // Every column on the Prospect model, populated. Read back must return each
@@ -1359,7 +1376,7 @@ def('rare_signals_outweigh_the_near_universal_ones', () => {
 
 def('manual_work_signals_declared', () => {
   const { SIGNAL_WEIGHTS } = scoring();
-  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'high_reviews_for_headcount', 'no_website', 'no_email_published'];
+  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'no_website', 'no_email_published'];
   const missing = want.filter((w) => !(w in SIGNAL_WEIGHTS));
   return { ok: !missing.length, detail: missing.length ? `not scored: ${missing.join(', ')}` : 'all six tells are declared in one table' };
 });
@@ -3001,6 +3018,182 @@ def('readout_breaks_down_by_category', () => withDb(async (db) => {
   return { ok, detail: ok ? 'the score splits by trade, so a vein that never converts shows rather than hides in the average' : JSON.stringify(r.byCategory) };
 }), 'day');
 
+
+// ---------------------------------------------------------------------------
+// What a message is allowed to say.
+//
+// Two thirds of the list once opened with "there's no way to book with you
+// online" — a sentence the website reader produced by FAILING to find booking
+// words on the few pages it read, sent to freight yards and cabinet shops that
+// nobody books. Not finding is not the same as not having. These checks exist
+// so that cannot come back (Russ, 2026-08-26).
+
+def('no_message_opens_on_an_absence', () => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const banned = fc.BANNED_OPENERS || [];
+  const inOrder = banned.filter((b) => fc.OPENER_ORDER.includes(b));
+  // Every one still has to be unreachable through the chooser, whatever the
+  // website reader hands over.
+  const chosen = banned.map((b) => fc.chooseOpener([{ signal: b }]));
+  const leaked = chosen.filter((c) => banned.includes(c));
+  const ok = banned.length > 0 && !inOrder.length && !leaked.length;
+  return { ok, detail: ok
+    ? `${banned.length} absence-based openings are named and none can be chosen`
+    : JSON.stringify({ inOrder, leaked }) };
+}, 'message');
+
+def('every_business_has_an_honest_opening', () => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  // With no signals at all — the commonest case — there must still be an
+  // opening, and it must be the trade's own week rather than nothing.
+  const ok = fc.chooseOpener([]) === fc.TRADE_WEEK;
+  return { ok, detail: ok ? 'a business with nothing verified still opens on its own trade' : 'no opening chosen' };
+}, 'message');
+
+def('every_trade_has_its_own_week_and_subject', () => {
+  const { tradeOf, TRADES } = require(path.join(ROOT, 'src/hoursback/crm/queues.js'));
+  const TO = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  const { PAIN_BY_TRADE } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
+  const labels = Array.from(new Set(TRADES.map(([label]) => label)));
+  const missing = [];
+  for (const t of labels) {
+    if (!PAIN_BY_TRADE[t]) missing.push(`${t}: no week written`);
+    if (!TO.TRADE_SUBJECT[t]) missing.push(`${t}: no subject line`);
+    if (!TO.TRADE_PLURAL[t]) missing.push(`${t}: no plural name`);
+  }
+  return { ok: !missing.length, detail: missing.length ? missing.join('; ') : `all ${labels.length} trades carry a week, a subject and a plural` };
+}, 'message');
+
+def('the_guess_about_them_stays_a_guess', () => {
+  const TO = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  // Sentence three is the only place the opening can overstep. Every wording
+  // has to be hedged — never a statement about their particular office.
+  const HEDGED = /(I'd guess|probably|My guess|Odds are)/;
+  const bad = TO.SOFT_GUESS.concat(TO.SOFT_GUESS_NO_NAME).filter((w) => !HEDGED.test(w));
+  return { ok: !bad.length, detail: bad.length ? bad.join(' | ') : 'every wording is a guess, none asserts anything about their office' };
+}, 'message');
+
+def('no_subject_line_carries_an_unreadable_name', () => {
+  const TO = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  // A third of the list carries a web page heading instead of a name.
+  const cases = [
+    ['Hanson & Co PC | CPA Bend Oregon | Accountant Bend Oregon', 'Hanson & Co'],
+    ['Adair Homes - Redmond, Oregon', 'Adair Homes'],
+    ['Utopia Property Management | Bend, OR', 'Utopia Property Management'],
+    ['willowpediatrics', null],
+    ['Ponderosa Properties, LLC', 'Ponderosa Properties'],
+  ];
+  const wrong = cases.filter(([raw, want]) => TO.shortName(raw) !== want)
+    .map(([raw, want]) => `${raw} -> ${TO.shortName(raw)} (wanted ${want})`);
+  return { ok: !wrong.length, detail: wrong.length ? wrong.join('; ') : 'headings, city suffixes and run-together names are all handled' };
+}, 'message');
+
+def('page_text_never_decides_the_industry', () => {
+  const src = read(path.join(ROOT, 'src/hoursback/enrich.js'));
+  // The industry now drives the whole opening line, so a wrong one sends a
+  // freight company an email about filling a dental schedule. Nothing may set
+  // it from a keyword found in page text again.
+  const scansPageText = /tradeOf\(`?\$\{[^`]*tradeWords/.test(src) || /tradeWords\.slice\(0, ?\d+\)/.test(src.split('data.trade')[0] || '');
+  const guarded = /finding\.tradeWords && !before\.trade/.test(src);
+  const ok = !scansPageText && guarded;
+  return { ok, detail: ok
+    ? 'only a business naming its own trade sets the industry; page text sets nothing, and an industry already on file is never overwritten'
+    : JSON.stringify({ scansPageText, guarded }) };
+}, 'message');
+
+// The same rules, checked against what is actually sitting in the database
+// rather than against the code that writes it. Code that is right and drafts
+// that are stale is the failure this whole spec exists to catch.
+
+def('no_live_draft_opens_on_an_absence', () => withLiveDb(async (db) => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const bad = await db.outreachMessage.count({ where: { openedWith: { in: fc.BANNED_OPENERS } } });
+  const total = await db.outreachMessage.count();
+  return { ok: bad === 0, detail: bad === 0
+    ? `${total} drafts, none opening on something we failed to find`
+    : `${bad} of ${total} drafts still open on an absence` };
+}), 'message');
+
+def('every_emailable_business_has_a_read_industry', () => withLiveDb(async (db) => {
+  // "Read" means a person or the business's own name settled it. What is NOT
+  // allowed is an industry conjured from a keyword in page text, which is why
+  // the writer is now the only thing that may set one it cannot get from a name.
+  const reachable = await db.prospect.count({
+    where: { doNotContact: false, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
+  });
+  const withTrade = await db.prospect.count({
+    where: { doNotContact: false, trade: { not: null },
+      OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
+  });
+  const unknown = reachable - withTrade;
+  // A handful genuinely cannot be settled from what they publish. Those get the
+  // general opening, which is true of everybody, so they are not a failure.
+  const ok = reachable > 0 && unknown <= Math.ceil(reachable * 0.02);
+  return { ok, detail: ok
+    ? `${withTrade} of ${reachable} carry a read industry; ${unknown} stay unknown and get the general opening`
+    : `${unknown} of ${reachable} have no industry — too many to fall back` };
+}), 'message');
+
+def('unknown_industry_gets_the_general_opening', () => {
+  const TO = require(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'));
+  const opening = TO.openingFor(null, 'Some Business', 'Some Business');
+  const subject = TO.subjectFor(null, 'Some Business');
+  const ok = /^The same information gets typed/.test(opening)
+    && TO.GENERAL_SUBJECT.includes(subject)
+    && /small offices|small businesses|most offices/.test(opening);
+  return { ok, detail: ok
+    ? 'a business with no industry opens on what is true of every small office'
+    : JSON.stringify({ opening: opening.slice(0, 90), subject }) };
+}, 'message');
+
+def('no_subject_line_is_overused', () => withLiveDb(async (db) => {
+  const rows = await db.outreachMessage.groupBy({ by: ['subject'], _count: { _all: true } });
+  const total = rows.reduce((a, r) => a + r._count._all, 0);
+  if (!total) return { ok: true, detail: 'no drafts yet' };
+  const cap = Math.ceil(total * 0.1);
+  const over = rows.filter((r) => r._count._all > cap)
+    .map((r) => `${r._count._all}x "${String(r.subject).slice(0, 40)}"`);
+  return { ok: !over.length, detail: over.length
+    ? `over the ${cap} cap: ${over.join('; ')}`
+    : `${rows.length} distinct subjects across ${total} drafts, none over ${cap}` };
+}), 'message');
+
+def('every_known_name_is_greeted', () => withLiveDb(async (db) => {
+  // A message saying "Hello," to a business whose owner is on file is a wasted
+  // name. 328 of 691 drafts did exactly that (2026-08-26).
+  const drafts = await db.outreachMessage.findMany({
+    where: { lane: 'EMAIL' },
+    select: { body: true, prospect: { select: { contactName: true, ownerName: true, email: true, emailManualValue: true } } },
+  });
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const wasted = drafts.filter((d) => /^Hello,/m.test(d.body) && fc.greetingFor(d.prospect));
+  return { ok: !wasted.length, detail: wasted.length
+    ? `${wasted.length} of ${drafts.length} greet nobody while a name is on file`
+    : `${drafts.length} drafts, every known name used` };
+}), 'message');
+
+def('no_stand_in_greeting', () => {
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const m = fc.draftFirstContact({ name: 'Nameless Co', trade: 'construction' }, []);
+  const ok = /^Hello,/m.test(m.body) && !/Hi there|Dear (Sir|Madam|Owner|Business)|Hi Owner|Hi null/i.test(m.body);
+  return { ok, detail: ok ? 'with no name on file the message opens "Hello," and never with a stand-in' : m.body.split('\n')[0] };
+}, 'message');
+
+def('no_scored_signal_is_undetectable', () => {
+  // A signal worth points that nothing can find is worth nothing. Two of them
+  // were scored as the strongest tells on the list and never fired once
+  // (Russ, 2026-08-26): either something detects it, or it earns no points.
+  const scoring = require(path.join(ROOT, 'src/hoursback/scoring.js'));
+  // A signal can be spotted on their website OR worked out from the record
+  // itself, so both places count as something looking for it.
+  const looksHere = read(path.join(ROOT, 'src/hoursback/enrich.js'))
+    + read(path.join(ROOT, 'scripts/hoursback/rescore.js'));
+  const weights = scoring.SIGNAL_WEIGHTS || scoring.WEIGHTS || {};
+  const undetectable = Object.keys(weights).filter((sig) => !new RegExp(`signal: ?'${sig}'`).test(looksHere));
+  return { ok: !undetectable.length, detail: undetectable.length
+    ? `scored but nothing looks for them: ${undetectable.join(', ')}`
+    : `all ${Object.keys(weights).length} scored signals have something that detects them` };
+}, 'message');
 
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
