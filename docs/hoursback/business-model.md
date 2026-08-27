@@ -292,7 +292,7 @@ Researched 2026-08-24. Every rate below is attributed.
 
 Hours only. No dollar figure in the body. One price, $999, the same for everyone.
 
-**Subject:** ten hours a week back, or you don't pay
+**Subject:** five hours a week back, or you don't pay
 
 > Hi [Name],
 >

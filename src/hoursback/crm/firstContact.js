@@ -406,14 +406,20 @@ function draftFirstContact(prospect, signals = []) {
 function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
-  const { line } = followOnFor(key, prospect);
-  const body = `Hi ${greetingFor(prospect)}, I'm local to Central Oregon and I build software that takes repetitive office work off people's plates.
+  const { line, trade } = followOnFor(key, prospect);
+  const { painFor } = require('./painPoints.js');
+  const { THE_OFFER } = require('../industryTiers.js');
+  // This had gone stale: it still said "I spend a week inside an operation"
+  // and promised ten hours, months after both were retired (2026-08-26).
+  const body = `Hi ${greetingFor(prospect)}, I'm local to Central Oregon and I build software that takes repetitive office work off people.
 
 ${OPENERS[key]} ${line}
 
-I spend a week inside an operation and come back with a list of where the hours are going and what can be fixed. If I can't find at least ten hours a week, you don't pay.
+${painFor(trade || 'other').recognition}
 
-Happy to share more if it's useful!`;
+A conversation with you and whoever runs your office, then a written report: every task AI or automation can take over, the tool that does it, what it costs, and the hours a week it gives back. The list adds up to at least ${THE_OFFER.hoursWord} hours a week or you don't pay.
+
+Happy to say more if it's useful.`;
   return { subject: null, body, openedWith: key };
 }
 

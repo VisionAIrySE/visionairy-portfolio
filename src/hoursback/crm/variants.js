@@ -47,13 +47,13 @@ const OPENINGS = {
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  // What he sells, in one breath: hours of their time in, a written report
-  // out, naming the tool and the hours for every job on it. No jargon, and
-  // nothing a reader has to already understand.
-  "Here is what I do about that. I spend a couple of hours with you and whoever runs your office, watching how the work actually gets done, then hand you a written report: every task AI or automation can take over, the tool that does it, what it costs to set up, and the hours a week it gives back.",
-  "What I do about it starts with a couple of hours in your office, watching how the work really moves. Then a written report: every task AI or automation could handle instead of a person, which tool does it, the setup cost, and the hours a week it returns.",
-  "What I do about it is this. A couple of hours with you and the people doing the work, seeing how it actually happens, then a written report: every task AI or automation can take off them, the tool for each, what setting it up costs, and the hours a week you get back.",
-  "Here is what I do about it. A couple of hours with whoever runs the office, watching how the work gets done, then a written report: every task AI or automation can handle, the tool that does it, the cost to set up, and the hours a week it frees.",
+  // A CONVERSATION, not a visit. Russ works over a call, and he has said this
+  // twice: nobody wants a stranger camped in their office, and "watching how
+  // the work gets done" describes something he does not do (2026-08-26).
+  "Here is what I do about that. A conversation with you and whoever runs your office, enough to understand how the work really moves. Then a written report: every task AI or automation can take over, the tool that does it, what it costs to set up, and the hours a week it gives back.",
+  "What I do about it is this. We talk, you and whoever does the work, long enough for me to follow how it actually happens. Then a written report: every task AI or automation could handle instead of a person, which tool does it, the setup cost, and the hours a week it returns.",
+  "Here is what I do. A conversation with you and your team, enough to see where the time really goes. Then a written report: every task AI or automation can take off them, the tool for each, what setting it up costs, and the hours a week you get back.",
+  "What I do about that starts with a conversation. You, whoever runs the office, and me, until I understand how the work moves. Then a written report listing every task AI or automation can handle, the tool that does it, the cost to set it up, and the time it hands back each week.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
