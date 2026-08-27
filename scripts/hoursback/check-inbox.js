@@ -10,11 +10,13 @@
 // queue of addresses that need finding again. A holiday responder changes
 // nothing.
 //
-// Reads russ@visionairy.biz over IMAP, which is Gmail's own read-only door and
-// needs one app password rather than a whole sign-in flow. Set:
+// Reads russ@visionairy.biz. His mail is Outlook, not Gmail — I assumed Gmail
+// and wrote the wrong server in, which he caught (2026-08-27). The host is a
+// setting now, so it works wherever the mail actually lives.
 //
 //   INBOX_USER=russ@visionairy.biz
-//   INBOX_PASSWORD=<the 16-character app password from Google>
+//   INBOX_PASSWORD=<an app password, never the real one>
+//   INBOX_HOST=outlook.office365.com     (the default; imap.gmail.com for Gmail)
 //
 // Nothing here sends. It reads, matches, and marks.
 
@@ -45,6 +47,7 @@ const arg = (name, fallback) => {
   if (!user || !pass) {
     console.error('INBOX_USER and INBOX_PASSWORD are not set, so there is no inbox to read.');
     console.error('Add them to .env locally and to the site settings for the live one.');
+    console.error(`The mail server it will use: ${process.env.INBOX_HOST || 'outlook.office365.com'}`);
     process.exit(2);
   }
 
@@ -54,8 +57,9 @@ const arg = (name, fallback) => {
   const { simpleParser } = require('mailparser');
 
   const db = new PrismaClient();
+  const host = process.env.INBOX_HOST || 'outlook.office365.com';
   const client = new ImapFlow({
-    host: 'imap.gmail.com', port: 993, secure: true,
+    host, port: Number(process.env.INBOX_PORT || 993), secure: true,
     auth: { user, pass }, logger: false,
   });
 

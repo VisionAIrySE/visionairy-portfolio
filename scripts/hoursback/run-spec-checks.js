@@ -3470,6 +3470,18 @@ def('reading_the_inbox_never_sends_anything', () => {
     : 'something in the inbox reader can send' };
 }, 'inbox');
 
+def('the_mail_server_is_never_assumed', () => {
+  // Gmail was written in without anybody checking where Russ's mail actually
+  // lives. It is Outlook (2026-08-27). Nothing may hard-code a provider again.
+  const src = read(path.join(ROOT, 'scripts/hoursback/check-inbox.js'));
+  const hardCoded = /host:\s*'(?:imap\.gmail\.com|outlook\.office365\.com)'/.test(src);
+  const configurable = /process\.env\.INBOX_HOST/.test(src);
+  const ok = !hardCoded && configurable;
+  return { ok, detail: ok
+    ? 'the mail server is a setting, so it works wherever the mail actually lives'
+    : JSON.stringify({ hardCoded, configurable }) };
+}, 'inbox');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
