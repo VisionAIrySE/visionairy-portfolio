@@ -144,7 +144,7 @@ const BODY = `Hi {greeting},
 
 {whatIDo} In your case that would probably look like {valueIn}.
 
-{guarantee} {yearLine}
+{guarantee} {costAnchor} {yearLine}
 
 {intro} {credibility}
 
@@ -374,6 +374,7 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{credibility}', CREDIBILITY[register])
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
     .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
+    .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
     .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)

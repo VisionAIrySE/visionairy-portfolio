@@ -1971,7 +1971,7 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
     // The promise comes from the INDUSTRY now, scaled by size — not from
     // headcount alone (Russ, 2026-08-26).
     const band = { guaranteedHours: promiseFor({ employeeCount: count, trade: tradeOf(name) }).hours };
-    if (promise.split(/\s+/).length > 45) bad.push(`${name}: the promise is too long to land`);
+    if (promise.split(/\s+/).length > 60) bad.push(`${name}: the promise is too long to land`);
     if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
     if (!new RegExp(PROMISE_RE, 'i').test(promise)) bad.push(`${name}: no promise in it`);
     if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);
@@ -2226,7 +2226,7 @@ def('every_first_message_states_the_guarantee_and_the_year', () => {
       if (!m) continue;
       const guarantee = new RegExp(PROMISE_RE, 'i').test(m.body);
       const year = /\d[\d,]* hours a year/i.test(m.body);
-      const ownLine = m.body.split('\n\n').some((par) => new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par) && par.length < 260);
+      const ownLine = m.body.split('\n\n').some((par) => new RegExp(PROMISE_RE, 'i').test(par) && /hours a year/i.test(par) && par.length < 360);
       if (!guarantee || !year || !ownLine) missing.push(`${p.name}/${signal} guarantee=${guarantee} year=${year} ownLine=${ownLine}`);
     }
   }

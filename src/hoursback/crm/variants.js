@@ -47,12 +47,15 @@ const OPENINGS = {
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  // The offer, said once and short. It used to run two long sentences across a
-  // whole paragraph of its own, and it landed after a wall about his career.
-  "That's what I do. I sit down with you and whoever does the work, follow how it actually moves, and come back with a plain list: where your hours are going, what existing tools would fix, and what would need building.",
-  "That's what I do. A conversation with you and your team, close enough to see how the work really moves, then a plain list of where the hours go, what off-the-shelf tools would handle, and what would need making.",
-  "That's my work. I spend the time to follow how things actually move in your office, then hand you a plain list: the hours, what existing tools would take care of, and what would need building.",
-  "That's what I do. I talk to you and the people doing the work, see how it moves, and come back with a plain list of where your hours are going and what would fix each one.",
+  // What he SELLS, concretely, in one breath: hours of their time in, a
+  // written report out, naming the tool and the hours for every job on it.
+  // Earlier drafts said "what existing tools would take care of, and what
+  // would need building", which tells a reader nothing they can picture
+  // (Russ, 2026-08-26).
+  "Here's what I do. A couple of hours with you and whoever runs your office, then a written report: every job AI or automation can take over, which tool does it, what it costs to set up, and the hours a week it gives you back.",
+  "Here's what I do. I spend a couple of hours watching how your office really works, then hand you a written report naming every job AI or automation could do instead of a person, the tool for each one, what it costs to set up, and the hours it returns.",
+  "What I do is simple. A couple of hours with you and your team, then a written report: the jobs a machine can take over, which tool does each, the setup cost, and the hours a week you get back.",
+  "Here's the work. A couple of hours with whoever runs your office, then a written report listing every job AI or automation can handle, the tool that does it, what setting it up costs, and the time it hands back each week.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
@@ -86,7 +89,7 @@ const YEAR_FRAMING = [
   // the figure that lands. The return is stated in TIME: a percentage would be
   // a dollar claim wearing a hat, and Russ took dollars out of the message.
   "{Hours} a week is {yearHours} hours a year, about {months} of somebody's life handed back.",
-  "That comes to {yearHours} hours a year, roughly {months} of one person's time, for the price of an afternoon of yours.",
+  "That comes to {yearHours} hours a year, roughly {months} of one person's time.",
   "{Hours} a week is {yearHours} hours a year, near enough {months} of somebody's working life.",
   "{Hours} a week comes to {yearHours} hours a year, which is about {months} of a working life.",
 ];
@@ -105,25 +108,28 @@ const PRICE_FRAMING = [
 
 // The close, four ways, at each register.
 const CLOSES = {
+  // Two ways to answer, one of them a single click. The close used to leave a
+  // reader with nothing to do but compose a reply (2026-08-26).
   FORMAL: [
-    "No need for a meeting, and no obligation either way. If it is useful, I would welcome the chance to share more.",
-    "There is no meeting to sit through and no obligation. If any of that is useful, I would be glad to say more.",
-    "Nothing formal needed, and no obligation on your side. If it is worth a look, I would welcome the chance to share more.",
-    "No meeting required and nothing owed either way. If it is of use, I would be glad to go further.",
+    "If that is worth a look, reply here or take a time from my calendar below.",
+    "If it is of use, a reply or a time from my calendar below is all it takes.",
+    "Should that be worth exploring, reply or pick a time from the calendar below.",
+    "If it is worth a conversation, reply here or choose a time below.",
   ],
   NEUTRAL: [
-    "No meeting needed and no obligation, I'd just welcome the chance to share more if it's useful!",
-    "No meeting and nothing owed either way, I'd just be glad to say more if it's useful!",
-    "There's no meeting to sit through and nothing to sign, I'd just welcome the chance to share more if it helps!",
-    "No obligation and no meeting needed, I'd be glad to go further if any of that is useful!",
+    "If that's worth a look, hit reply or grab a time from my calendar below.",
+    "Worth a look? Reply, or pick a time from the calendar below.",
+    "If it's useful, reply or take a time off my calendar below.",
+    "If that's of interest, reply here or grab a slot below.",
   ],
   PLAIN: [
-    "No meeting, no obligation. If it's useful, happy to share more!",
-    "No meeting and nothing owed. If any of that's useful, happy to say more!",
-    "Nothing to sit through, nothing to sign. If it helps, happy to go further!",
-    "No meeting needed, no obligation. Glad to say more if it's useful!",
+    "If that's worth a look, just reply or grab a time below.",
+    "Worth a look? Reply, or pick a time below.",
+    "If it's useful, hit reply or take a time off my calendar below.",
+    "Sound useful? Reply or grab a time below.",
   ],
 };
+
 
 // The observation itself. This is the line most likely to repeat between two
 // businesses in the same trade, so it varies the most.
@@ -178,4 +184,25 @@ const TELL_WORDINGS = {
   ],
 };
 
-module.exports = { pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
+// What the audit costs, said as something they already pay for rather than as
+// a number. Russ asked for a "for less than the cost of..." line, which turns
+// out to be better than naming $999: the reader learns the scale, the price
+// stays out of a first approach, and there is no figure to argue with. Matched
+// to whatever was noticed about them, so it lands as part of the same thought
+// (2026-08-26). A "pays for itself 5x in month one" claim was considered and
+// rejected — five hours a week is about 21 hours in month one, which is worth
+// less than the fee, so the claim was both a dollar claim and untrue.
+const COST_ANCHOR = {
+  hiring_admin_role: 'It costs less than the first week of the person you are about to hire.',
+  hiring_several_office_roles: 'It costs less than the first week of any one of the people you are about to hire.',
+  fax_listed: 'It costs less than the paper, postage and toner that fax line will run through this quarter.',
+  downloadable_forms: 'It costs less than the hours somebody spends this month retyping those forms.',
+  no_online_booking: 'It costs less than the jobs a month of missed calls quietly takes off you.',
+  no_customer_portal: 'It costs less than a month of the phone calls a portal would have answered.',
+  no_website: 'It costs less than a month of the calls nobody is there to pick up.',
+  runs_several_businesses: 'It costs less than a month of doing the same paperwork twice.',
+  default: 'It costs less than one month of a part-time office assistant.',
+};
+
+module.exports = {
+  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
