@@ -62,13 +62,14 @@ const WHAT_I_DO = [
 // their band's price, straight from the pricing table. Where it is not, the
 // floor of ten hours stands, because that is the promise at every band.
 const GUARANTEE = [
-  // Two sentences. The fee is paid up front so the promise is a REFUND, and
-  // five is a floor. An earlier version ran three sentences and sat beside a
-  // two-sentence year line, which made a paragraph nobody would read.
-  "I find you at least {hours} hours a week or you get your money back. Most come in higher.",
-  "At least {hours} hours a week, or your fee comes back to you. Most offices have well more.",
-  "If there aren't {hours} hours a week in it, I refund you in full. Most land higher than that.",
-  "You get {hours} hours a week back or your money back. {Hours} is the floor, not the ceiling.",
+  // "You get five hours a week back" floats: back from what, given to whom.
+  // The paragraph above has just told them the report is a LIST of tasks with
+  // hours beside each. So the promise is about that list, which they can now
+  // picture, and which can be counted in a room (Russ, 2026-08-26).
+  "I guarantee that list adds up to at least {hours} hours a week. If it doesn't, you get your money back.",
+  "That list is guaranteed to reach {hours} hours a week of your team's time. If it falls short, your money comes back.",
+  "If everything on that list doesn't come to {hours} hours a week, you pay nothing.",
+  "The list adds up to at least {hours} hours a week or you don't pay. That is the whole arrangement.",
 ];
 
 // The same, when we know their team size and can put their own number on it.
@@ -83,13 +84,12 @@ const GUARANTEE_PRICED = [
 // with no context becomes the whole conversation; the same hours as a slice of
 // somebody's working life cannot be argued with.
 const YEAR_FRAMING = [
-  // One sentence, and every one says "hours a year" out loud, because that is
-  // the figure that lands. The return is stated in TIME: a percentage would be
-  // a dollar claim wearing a hat, and Russ took dollars out of the message.
-  "{Hours} a week is {yearHours} hours a year, about {months} of somebody's life handed back.",
-  "That comes to {yearHours} hours a year, roughly {months} of one person's time.",
-  "{Hours} a week is {yearHours} hours a year, near enough {months} of somebody's working life.",
-  "{Hours} a week comes to {yearHours} hours a year, which is about {months} of a working life.",
+  // Say whose hours they are and what they go back to. A bare "260 hours a
+  // year" is a number nobody pictures.
+  "{Hours} hours a week is {yearHours} hours a year, about {months} of somebody's time back on the work that actually pays.",
+  "That is {yearHours} hours a year, roughly {months} of one person's time returned to the job they were hired for.",
+  "{Hours} a week comes to {yearHours} hours a year, near enough {months} of somebody's working life given back to the business.",
+  "That is {yearHours} hours a year, about {months} of a person's time no longer spent on paperwork.",
 ];
 
 // The SECOND message is where the price belongs. It names the fee and the
@@ -193,7 +193,7 @@ const TELL_WORDINGS = {
 const COST_ANCHOR = {
   hiring_admin_role: 'It costs less than the first week of the person you are about to hire.',
   hiring_several_office_roles: 'It costs less than the first week of any one of the people you are about to hire.',
-  fax_listed: 'It costs less than the paper, postage and toner that fax line will run through this quarter.',
+  fax_listed: 'It costs less than the hours somebody spends this quarter re-keying what comes in on that line.',
   downloadable_forms: 'It costs less than the hours somebody spends this month retyping those forms.',
   no_online_booking: 'It costs less than the jobs a month of missed calls quietly takes off you.',
   no_customer_portal: 'It costs less than a month of the phone calls a portal would have answered.',

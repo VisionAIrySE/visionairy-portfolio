@@ -311,7 +311,7 @@ def('contract_no_per_employee_fee', () => {
 
 // --- meta checks over the spec files themselves ---------------------------
 const TERMINAL_RE = /^\s*-\s*\[[ x]\]\s/;
-const PROMISE_RE = "(money back|fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)";
+const PROMISE_RE = "(money back|money comes back|fee comes back|refund|you don't pay|you pay nothing|owe me nothing|nothing to pay)";
 def('every_requirement_carries_a_check', () => {
   // A spec written BEFORE its code exists cannot carry real checks — a check
   // has nothing to aim at yet. Those specs mark themselves unverified and are
@@ -2185,7 +2185,7 @@ def('a_stale_draft_is_rewritten_but_a_hand_edited_one_is_not', () => withDb(asyn
   const refreshed = await L.draftFor(db, a.id, 'EMAIL');
   const untouched = await L.draftFor(db, b.id, 'EMAIL');
   const ok = refreshed.body !== 'wording from an earlier night'
-    && /(money back|fee comes back|refund you in full|you don't pay|owe me nothing|nothing to pay)/i.test(refreshed.body)
+    && /(money back|money comes back|fee comes back|refund|you don't pay|you pay nothing|owe me nothing|nothing to pay)/i.test(refreshed.body)
     && untouched.body === 'what Russ typed himself';
   await cleanLane(db, 'stale');
   return { ok, detail: ok

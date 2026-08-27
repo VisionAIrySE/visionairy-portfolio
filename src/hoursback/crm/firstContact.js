@@ -80,7 +80,11 @@ const TRADE_FOLLOW_ONS = {
   downloadable_forms:
     'Somebody is then retyping every one of those, and that is usually hours a week nobody has ever added up.',
   fax_listed:
-    'That usually means paper is still moving somewhere between you and your customers, and someone is handling every piece of it by hand.',
+    // NOT "paper is still moving" — plenty of businesses run a digital fax
+    // service and there is no paper anywhere. What holds either way is that a
+    // faxed document arrives as a picture of a page, which nothing can read
+    // and somebody has to type in (Russ caught this, 2026-08-26).
+    'Machine or digital service, what lands on it is a picture of a page. Nothing else can read that, so somebody types it in by hand.',
   no_online_booking:
     "That's fine when it's quiet. Your busiest days are the ones where somebody is tied to the phone instead of the work.",
   no_customer_portal:
