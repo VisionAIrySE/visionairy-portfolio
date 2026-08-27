@@ -3,6 +3,16 @@ Generated: 2026-08-25 (rewritten — the generated version aimed 64 checks at a 
 Intent: Make Russ's corrections outrank anything the machine fetched, and make them survive every later sweep. Score each business on how manual it still looks, with a live job posting for an admin role as the strongest signal. Then hand out a plain call sheet so calling can start before the CRM exists.
 <!-- xfxa-status: unverified -->
 
+## The export lane is abandoned, on purpose
+
+Russ dropped the spreadsheet export on 2026-08-25 when the CRM went live: a call sheet you print
+is a worse version of a screen you can work from, and it would have been a second place for the
+truth to live. The ten requirements below are marked ABANDONED rather than deleted, so the record
+of the decision survives.
+
+They no longer count as unbuilt work (2026-08-26).
+
+
 ## Roots
 
 - docs/hoursback/code-layout.md
@@ -37,15 +47,15 @@ Build
   - [x] The weights can be revised from logged call outcomes without editing the scoring code. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=weights_revisable_from_outcomes | 0 -->
 
   call-sheet-export
-  - [ ] The export module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/export.js |  -->
-  - [ ] The export includes only businesses that qualify and carry a band, a fee and guaranteed hours. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_only_fully_priced_qualified | 0 -->
-  - [ ] Duplicates and do-not-contact businesses never appear in the export. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_excludes_duplicates_and_suppressed | 0 -->
-  - [ ] Exported values are the resolved ones, so a hand-correction shows rather than the fetched value. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_uses_resolved_values | 0 -->
-  - [ ] Each row carries company, phone, website, headcount, band, fee, guaranteed hours, email status, score and evidence. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_column_roster | 0 -->
-  - [ ] Businesses with no email or a low-confidence email still export, marked, because the phone lane does not need email. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_keeps_emailless_rows | 0 -->
-  - [ ] The export carries a header row and a stamp naming the run it came from. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_has_header_and_run_stamp | 0 -->
-  - [ ] Exporting unchanged data twice produces an identical file. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_is_reproducible | 0 -->
-  - [ ] The export sorts by score, highest first, so the sheet is callable top to bottom. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_sorts_by_score | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — The export module exists at its declared path. <!-- type:Build --> <!-- check: file_exists | src/hoursback/export.js |  -->
+  - [x] ABANDONED (Russ, 2026-08-25) — The export includes only businesses that qualify and carry a band, a fee and guaranteed hours. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_only_fully_priced_qualified | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — Duplicates and do-not-contact businesses never appear in the export. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_excludes_duplicates_and_suppressed | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — Exported values are the resolved ones, so a hand-correction shows rather than the fetched value. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_uses_resolved_values | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — Each row carries company, phone, website, headcount, band, fee, guaranteed hours, email status, score and evidence. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_column_roster | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — Businesses with no email or a low-confidence email still export, marked, because the phone lane does not need email. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_keeps_emailless_rows | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — The export carries a header row and a stamp naming the run it came from. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_has_header_and_run_stamp | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — Exporting unchanged data twice produces an identical file. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_is_reproducible | 0 -->
+  - [x] ABANDONED (Russ, 2026-08-25) — The export sorts by score, highest first, so the sheet is callable top to bottom. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_sorts_by_score | 0 -->
 
 Understand
 
@@ -55,7 +65,7 @@ Understand
 
 Specify
 
-- [ ] The export runs before the CRM exists, needing nothing from it. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_has_no_crm_dependency | 0 -->
+- [x] ABANDONED (Russ, 2026-08-25) — The export runs before the CRM exists, needing nothing from it. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=export_has_no_crm_dependency | 0 -->
 - [x] Every check here runs with no network access. <!-- type:Specify --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=checks_run_offline | 0 -->
 
 Operate

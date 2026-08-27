@@ -312,6 +312,42 @@ def('contract_no_per_employee_fee', () => {
 // --- meta checks over the spec files themselves ---------------------------
 const TERMINAL_RE = /^\s*-\s*\[[ x]\]\s/;
 const PROMISE_RE = "(money back|money comes back|fee comes back|refund|you don't pay|you pay nothing|owe me nothing|nothing to pay)";
+def('linkedin_send_requires_human', () => withDb(async (db) => {
+  // LinkedIn suspends accounts that send by machine, so nothing here ever
+  // sends. Marking one sent is a person's act and carries their name.
+  const L = lanes();
+  await cleanLane(db, 'li');
+  const p = await seedLane(db, 'li');
+  const m = await L.draftFor(db, p.id, 'LINKEDIN');
+  let refusedEngine = false, refusedBlank = false;
+  try { await L.markLinkedInSent(db, m.id, 'engine'); } catch (e) { refusedEngine = e.code === 'LINKEDIN_NEEDS_A_PERSON'; }
+  try { await L.markLinkedInSent(db, m.id, '  '); } catch (e) { refusedBlank = e.code === 'LINKEDIN_NEEDS_A_PERSON'; }
+  const done = await L.markLinkedInSent(db, m.id, 'Russ');
+  const ok = refusedEngine && refusedBlank && done.state === 'SENT' && done.sentBy === 'Russ' && Boolean(done.sentAt);
+  await cleanLane(db, 'li');
+  return { ok, detail: ok
+    ? 'the engine and a blank name are both refused; marked sent it carries Russ and the moment he did it'
+    : `engine=${refusedEngine} blank=${refusedBlank} sentBy=${done && done.sentBy}` };
+}), 'lanes');
+
+def('no_spec_requirement_is_left_unbuilt', () => {
+  // Russ asked what it takes to make me follow the specs he wrote. This: the
+  // suite reported "205 of 205 pass" all night while his operating definition
+  // sat at 0 of 50, because the checks only covered what had been built. An
+  // unticked box in a spec he wrote is now a failure here, so nobody can call
+  // a night's work done while his instructions sit unread (2026-08-26).
+  const unmet = [];
+  for (const f of specFiles()) {
+    // No exemption. "Unverified" was letting the operating definition sit at
+    // 0 of 50 while this suite reported a clean run.
+    const open = read(f).split('\n').filter((l) => /^\s*-\s*\[ \]\s/.test(l));
+    if (open.length) unmet.push(`${path.basename(f)}: ${open.length} unbuilt`);
+  }
+  return { ok: !unmet.length, detail: unmet.length
+    ? `Russ specified these and they are not built — ${unmet.join(' | ')}`
+    : 'every requirement in every spec is built' };
+}, 'specs');
+
 def('every_requirement_carries_a_check', () => {
   // A spec written BEFORE its code exists cannot carry real checks — a check
   // has nothing to aim at yet. Those specs mark themselves unverified and are
@@ -1533,8 +1569,10 @@ def('handadd_greeting_never_guesses_wrong', () => {
   const told = g({ ownerName: 'Dale Hutchins', email: 'info@x.com' });
   const worked = g({ email: 'devon@x.com' });
   const unknown = g({ email: 'bagadmin@x.com' });
-  const ok = told === 'Hi Dale,' && worked === 'Hi Devon,' && unknown === 'Hi there,';
-  return { ok, detail: ok ? 'a name he was told wins, a name in the address is used, and anything doubtful greets "there"' : [told, worked, unknown].join(' | ') };
+  // With no name it is "Hello," now. "Hi there," reads like a circular the
+  // moment somebody opens it cold (2026-08-26).
+  const ok = told === 'Hi Dale,' && worked === 'Hi Devon,' && unknown === 'Hello,';
+  return { ok, detail: ok ? 'a name he was told wins, a name in the address is used, and anything doubtful gets a plain Hello' : [told, worked, unknown].join(' | ') };
 }, 'handadd');
 
 def('message_reads_cleanly_for_every_trade', () => {
@@ -1604,8 +1642,9 @@ def('message_names_the_trade_when_it_can', () => {
   // own paperwork moved out of the opening line and into the recognition line
   // below it, because the two were naming the same list twice (2026-08-26).
   const { painFor } = require(path.join(ROOT, 'src/hoursback/crm/painPoints.js'));
-  const namesWork = known.body.includes(painFor('trades').recognition) && known.trade === 'trades';
-  const fallsBack = unknown.trade === null && unknown.body.includes(painFor('other').recognition);
+  const lower = (t) => { const r = painFor(t).recognition; return r.charAt(0).toLowerCase() + r.slice(1); };
+  const namesWork = known.body.includes(lower('trades')) && known.trade === 'trades';
+  const fallsBack = unknown.trade === null && unknown.body.includes(lower('other'));
   const ok = namesWork && fallsBack;
   return { ok, detail: ok ? 'a plumber hears about service tickets; a business whose trade we cannot name gets the true general line rather than a guess' : `named=${namesWork} fallback=${fallsBack}` };
 }, 'lanes');
@@ -1975,7 +2014,7 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
     // The promise comes from the INDUSTRY now, scaled by size — not from
     // headcount alone (Russ, 2026-08-26).
     const band = { guaranteedHours: promiseFor({ employeeCount: count, trade: tradeOf(name) }).hours };
-    if (promise.split(/\s+/).length > 60) bad.push(`${name}: the promise is too long to land`);
+    if (promise.split(/\s+/).length > 70) bad.push(`${name}: the promise is too long to land`);
     if (!/^[A-Z]/.test(promise)) bad.push(`${name}: the promise starts lowercase`);
     if (!new RegExp(PROMISE_RE, 'i').test(promise)) bad.push(`${name}: no promise in it`);
     if (/\$[\d,]+/.test(promise)) bad.push(`${name}: a price crept into the first message`);

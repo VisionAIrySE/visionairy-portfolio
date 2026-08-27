@@ -487,6 +487,7 @@ async function addBusiness(form) {
 // The email screen. Nothing goes out until the wording is approved once, and
 // after that every message is that same wording with their own facts in it.
 async function emailScreen(params) {
+  if (await L.templateIsApproved(db)) await L.queueDueTouches(db, { limit: 60 });
   const template = await db.messageTemplate.findUnique({ where: { name: L.FIRST_CONTACT } });
   // What is shown is always the message as it stands NOW, never the copy
   // saved the last time it was approved — and an approval from before a
@@ -632,11 +633,12 @@ async function businessCard(id, saved) {
 
   <h2>Who works there (${p.contacts.length})</h2>
   ${p.contacts.length ? `<table>
-    <tr><th>Name</th><th>Role</th><th>Email</th><th>LinkedIn</th><th></th></tr>
+    <tr><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th></th></tr>
     ${p.contacts.map((c) => `<tr${c.bouncedAt ? ' style="opacity:.5"' : ''}>
       <td><b>${esc(c.name || '—')}</b>${c.isPrimary ? ' <span class="pill">writes to</span>' : ''}</td>
       <td class="muted">${esc(c.role || '—')}</td>
       <td>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">—</span>'}${c.bouncedAt ? ' <span class="muted">(bounced)</span>' : ''}</td>
+      <td>${c.phone ? `<a class="phone" href="tel:${digits(c.phone)}">${esc(c.phone)}</a>` : '<span class="muted">—</span>'}</td>
       <td>${c.linkedIn ? `<a href="${esc(c.linkedIn)}" target="_blank">profile</a>` : '<span class="muted">—</span>'}</td>
       <td>${c.isPrimary ? '' : `<form method="POST" action="/contact/primary/${c.id}"><button>Write to them</button></form>`}</td>
     </tr>`).join('')}
@@ -645,6 +647,7 @@ async function businessCard(id, saved) {
     <input name="name" placeholder="Name" style="flex:1">
     <input name="role" placeholder="Role" style="flex:1">
     <input name="email" placeholder="Email" style="flex:1.4">
+    <input name="phone" placeholder="Direct line" style="flex:1">
     <input name="linkedIn" placeholder="LinkedIn link" style="flex:1.4">
     <button>Add a person</button>
   </form>
@@ -898,13 +901,19 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(303, { Location: `/business/${c.prospectId}?saved=1` }); return res.end();
         }
         if (what === 'add' && arg) {
-          const email = String(form.email || '').trim() || null;
-          if (email) {
-            await db.contact.upsert({
-              where: { prospectId_email: { prospectId: arg, email } },
-              update: { name: String(form.name || '').trim() || null, role: String(form.role || '').trim() || null, linkedIn: String(form.linkedIn || '').trim() || null, source: 'RUSS' },
-              create: { prospectId: arg, email, name: String(form.name || '').trim() || null, role: String(form.role || '').trim() || null, linkedIn: String(form.linkedIn || '').trim() || null, source: 'RUSS' },
-            });
+          // A person with a name and a phone but no email is still a person.
+          // The old form dropped them, which is the same fault that lost every
+          // phone number from the website reading (2026-08-26).
+          const val = (k) => String(form[k] || '').trim() || null;
+          const email = val('email');
+          const name = val('name');
+          if (email || name) {
+            const data = { name, role: val('role'), email, phone: val('phone'), linkedIn: val('linkedIn'), source: 'RUSS' };
+            const existing = email
+              ? await db.contact.findFirst({ where: { prospectId: arg, email } })
+              : await db.contact.findFirst({ where: { prospectId: arg, name } });
+            if (existing) await db.contact.update({ where: { id: existing.id }, data });
+            else await db.contact.create({ data: { prospectId: arg, ...data } });
           }
           res.writeHead(303, { Location: `/business/${arg}?saved=1` }); return res.end();
         }

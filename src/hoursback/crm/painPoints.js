@@ -23,7 +23,7 @@ const FUNCTIONS = ['paper', 'scheduling', 'follow-up', 'billing', 'inventory', '
 const PAIN_BY_TRADE = {
   trades: {
     function: 'scheduling',
-    recognition: 'Somebody in your office is the schedule. They know which truck is where, who is running late, and which customer has already called twice, and none of it is written down anywhere that would survive them taking a week off.',
+    recognition: 'One person in the office is the schedule. They know which truck is where, who is running late and which customer has already called twice, and none of it is written down anywhere that would survive them taking a week off.',
     cost: 'eight to fourteen hours a week',
     lever: 'dispatch and the callbacks that come out of it',
     valueIn: 'another job on the board instead of an evening doing paperwork',
@@ -37,7 +37,7 @@ const PAIN_BY_TRADE = {
   },
   'real estate': {
     function: 'follow-up',
-    recognition: 'The same client details get typed into your listing system, your transaction system and your email, and the deals that go quiet mostly go quiet because nobody had time to follow up, not because the client lost interest.',
+    recognition: 'The same client details get typed into the listing system, the transaction system and an email, and the deals that go quiet mostly go quiet because nobody had time to follow up, not because the client lost interest.',
     cost: 'nine to fifteen hours a week',
     lever: 'the follow-up that keeps deals from going quiet',
     valueIn: 'more time in front of clients and fewer deals going quiet',
@@ -51,17 +51,17 @@ const PAIN_BY_TRADE = {
   },
   dental: {
     function: 'follow-up',
-    recognition: 'Recall is the whole business and it is somebody calling down a list. Claims come back rejected for a missing field and get re-sent by hand, and nobody has ever counted the hours that takes.',
+    recognition: 'Somebody spends part of every week phoning patients to book their next cleaning, and re-sending claims that came back over a single missing field.',
     cost: 'ten to eighteen hours a week',
     lever: 'recall and the claims that come back',
-    valueIn: 'chairs full instead of somebody working down a recall list',
+    valueIn: 'chairs full without somebody spending their afternoon on the phone to fill them',
   },
   legal: {
     function: 'paper',
     recognition: 'Intake, engagement letters and conflict checks land on whoever is nearest, and the same client information gets typed three times before anybody bills an hour.',
     cost: 'eight to fourteen hours a week',
     lever: 'intake, and getting the file open faster',
-    valueIn: 'more billable hours, and files opening the day they come in',
+    valueIn: 'more billable hours and files opening the day they come in',
   },
   accounting: {
     function: 'follow-up',

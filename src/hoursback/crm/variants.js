@@ -47,13 +47,14 @@ const OPENINGS = {
 
 // What he does, four ways. The promise is identical in all of them.
 const WHAT_I_DO = [
-  // A CONVERSATION, not a visit. Russ works over a call, and he has said this
-  // twice: nobody wants a stranger camped in their office, and "watching how
-  // the work gets done" describes something he does not do (2026-08-26).
-  "Here is what I do about that. A conversation with you and whoever runs your office, enough to understand how the work really moves. Then a written report: every task AI or automation can take over, the tool that does it, what it costs to set up, and the hours a week it gives back.",
-  "What I do about it is this. We talk, you and whoever does the work, long enough for me to follow how it actually happens. Then a written report: every task AI or automation could handle instead of a person, which tool does it, the setup cost, and the hours a week it returns.",
-  "Here is what I do. A conversation with you and your team, enough to see where the time really goes. Then a written report: every task AI or automation can take off them, the tool for each, what setting it up costs, and the hours a week you get back.",
-  "What I do about that starts with a conversation. You, whoever runs the office, and me, until I understand how the work moves. Then a written report listing every task AI or automation can handle, the tool that does it, the cost to set it up, and the time it hands back each week.",
+  // Complete sentences. An earlier version ran two fragments back to back:
+  // "A conversation with you and whoever runs your office, enough to
+  // understand how the work really moves. Then a written report: ..." Neither
+  // had a verb, and Russ caught it (2026-08-26).
+  "Here's what I do about that. We talk, you and me and whoever runs your office, long enough for me to understand how the work really moves. Then I write it up: every task AI or automation can take over, the best tools on the market for each one, what they cost to set up, and how to put them in.",
+  "What I do about it is simple. I talk to you and whoever does the work until I can follow how it actually happens. Then I send you a written report naming every task AI or automation could handle instead of a person, the best tools out there for each, what they cost, and how to put them in.",
+  "Here's what I do. We have a conversation, you and your team and me, until I can see where the time really goes. Then I write you a report listing every task AI or automation can take off them, the best tools available for each, what they cost, and how to put them in.",
+  "What I do about that starts with a conversation. I talk to you and whoever runs the office until I understand how the work moves. Then I put it in writing: every task AI or automation can handle, the best tools on the market for each, what they cost, and how to put them in.",
 ];
 
 // The guarantee, on its own line, where it cannot be missed. Four ways.
@@ -62,14 +63,12 @@ const WHAT_I_DO = [
 // their band's price, straight from the pricing table. Where it is not, the
 // floor of ten hours stands, because that is the promise at every band.
 const GUARANTEE = [
-  // "You get five hours a week back" floats: back from what, given to whom.
-  // The paragraph above has just told them the report is a LIST of tasks with
-  // hours beside each. So the promise is about that list, which they can now
-  // picture, and which can be counted in a room (Russ, 2026-08-26).
-  "I guarantee that list adds up to at least {hours} hours a week. If it doesn't, you get your money back.",
-  "That list is guaranteed to reach {hours} hours a week of your team's time. If it falls short, your money comes back.",
-  "If everything on that list doesn't come to {hours} hours a week, you pay nothing.",
-  "The list adds up to at least {hours} hours a week or you don't pay. That is the whole arrangement.",
+  // Russ's own rewrite: the promise is about what the report CONTAINS, not an
+  // abstract quantity. Tools, how to put them in, and the time back.
+  "You get the best tools for the job, how to put them in, and at least {hours} hours a week of your team's time back. Or you don't pay.",
+  "You get the tools, how to implement them, and at least {hours} hours a week of your people's time returned. If not, you don't pay.",
+  "The report names the tools, how to put them in, and at least {hours} hours a week of your team's time. If it falls short, your money comes back.",
+  "Tools, how to implement them, and at least {hours} hours a week back for your team. Or you pay nothing.",
 ];
 
 // The same, when we know their team size and can put their own number on it.
@@ -134,7 +133,7 @@ const CLOSES = {
 const TELL_WORDINGS = {
   hiring_admin_role: [
     'I noticed you have an opening for an office role at the moment.',
-    'I saw you are looking for someone for the office at the moment.',
+    'I saw you are hiring for the office.',
     'You have an office role advertised at the moment, which is what got my attention.',
     'I noticed the office position you are trying to fill.',
   ],
@@ -191,16 +190,22 @@ const TELL_WORDINGS = {
 // rejected — five hours a week is about 21 hours in month one, which is worth
 // less than the fee, so the claim was both a dollar claim and untrue.
 const COST_ANCHOR = {
+  // Every one of these compares MONEY to MONEY. An earlier set said "it costs
+  // less than the hours somebody spends", which does not parse: a price cannot
+  // be less than an amount of time (2026-08-26). A "pays for itself 5x in
+  // month one" line was also rejected — five hours a week is about 21 hours in
+  // month one, worth less than the fee at any real wage.
   hiring_admin_role: 'It costs less than the first week of the person you are about to hire.',
   hiring_several_office_roles: 'It costs less than the first week of any one of the people you are about to hire.',
-  fax_listed: 'It costs less than the hours somebody spends this quarter re-keying what comes in on that line.',
-  downloadable_forms: 'It costs less than the hours somebody spends this month retyping those forms.',
-  no_online_booking: 'It costs less than the jobs a month of missed calls quietly takes off you.',
-  no_customer_portal: 'It costs less than a month of the phone calls a portal would have answered.',
-  no_website: 'It costs less than a month of the calls nobody is there to pick up.',
-  runs_several_businesses: 'It costs less than a month of doing the same paperwork twice.',
+  fax_listed: "It costs less than a week's wages for whoever is doing that typing.",
+  downloadable_forms: "It costs less than a week's wages for whoever is retyping those forms.",
+  no_online_booking: 'It costs less than one month of the jobs that go elsewhere when nobody picks up.',
+  no_customer_portal: "It costs less than a week's wages for your front desk.",
+  no_website: 'It costs less than one month of the work that goes elsewhere when nobody picks up.',
+  runs_several_businesses: 'It costs less than one month of doing the same paperwork twice.',
   default: 'It costs less than one month of a part-time office assistant.',
 };
+
 
 module.exports = {
   COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };

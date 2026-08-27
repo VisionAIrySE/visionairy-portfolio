@@ -25,7 +25,7 @@ Build
   linkedin-never-auto-sent
   - [x] No LinkedIn message is ever written to the sent state by the engine, under any condition. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_never_auto_sent | 0 -->
   - [x] LinkedIn messages appear in a hand-send queue, one action each. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_hand_send_queue | 0 -->
-  - [ ] Marking a LinkedIn message sent requires a human action and records who did it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_send_requires_human | 0 -->
+  - [x] Marking a LinkedIn message sent requires a human action and records who did it. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=linkedin_send_requires_human | 0 -->
 
   email-warm-up-ramp
   - [x] Daily email volume is capped by a configured ramp that rises week by week from a new sending address. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_ramp_caps_daily_volume | 0 -->

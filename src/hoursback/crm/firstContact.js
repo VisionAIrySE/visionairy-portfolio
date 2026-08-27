@@ -84,7 +84,9 @@ const TRADE_FOLLOW_ONS = {
     // service and there is no paper anywhere. What holds either way is that a
     // faxed document arrives as a picture of a page, which nothing can read
     // and somebody has to type in (Russ caught this, 2026-08-26).
-    'Machine or digital service, what lands on it is a picture of a page. Nothing else can read that, so somebody types it in by hand.',
+    // Russ's own wording: a faxed page is an IMAGE, so it either gets typed in
+    // by hand or filed away as a picture nobody can search (2026-08-26).
+    'Machine or digital service, what arrives is a picture of a page, so somebody types it in by hand or it gets filed where nobody can search it.',
   no_online_booking:
     "That's fine when it's quiet. Your busiest days are the ones where somebody is tied to the phone instead of the work.",
   no_customer_portal:
@@ -119,21 +121,48 @@ const SUBJECTS = {
   hiring_admin_role: 'About the office role you are hiring for',
   no_website: 'A thought about the calls coming into {business}',
   downloadable_forms: 'The forms on your site',
-  fax_listed: 'A question about how {business} handles paperwork',
+  fax_listed: 'The paperwork coming into {business}',
   no_online_booking: 'About the phone at {business}',
   no_customer_portal: 'A thought about your front desk',
   default: 'A thought about the admin hours at {business}',
 };
 
 // The one line that proves this was written for THEM and not for a list.
-function tradeLineFor(trade) {
-  // The line that shows he knows THEIR business, not businesses in general.
-  // It used to repeat the same paperwork list the opener had just given,
-  // two paragraphs apart, which read as padding (Russ, 2026-08-26).
-  const { painFor } = require('./painPoints.js');
-  return painFor(trade || 'other').recognition;
-}
+// A law firm has clients, a dental practice has patients, a garage has
+// customers. Getting this wrong is the fastest way to look like a circular
+// (Russ read one addressed to a law firm about its "customers", 2026-08-26).
+const THEIR_PEOPLE = {
+  legal: 'clients', accounting: 'clients', 'professional services': 'clients',
+  insurance: 'clients', 'real estate': 'clients', staffing: 'clients',
+  dental: 'patients', medical: 'patients',
+  'personal care': 'clients', 'fitness & recreation': 'members',
+  'nonprofit & community': 'the people you serve', 'lodging & hospitality': 'guests',
+};
+function theirPeople(trade) { return THEIR_PEOPLE[trade] || 'customers'; }
 
+const TRADE_PLURAL = {
+  dental: 'dental practices', medical: 'medical offices', legal: 'law firms',
+  accounting: 'accounting firms', insurance: 'insurance agencies',
+  'real estate': 'real estate offices', staffing: 'staffing offices',
+  construction: 'construction offices', trades: 'trade shops', auto: 'repair shops',
+  landscaping: 'landscaping outfits', 'storage & logistics': 'logistics offices',
+  'retail & food': 'shops and kitchens', manufacturing: 'manufacturing offices',
+  'professional services': 'firms like yours', 'cleaning & facilities': 'cleaning companies',
+  'lodging & hospitality': 'places like yours', 'personal care': 'salons and studios',
+  'fitness & recreation': 'gyms and studios', 'nonprofit & community': 'nonprofits',
+  agriculture: 'farm offices',
+};
+
+// What he knows about their TRADE, said as exactly that. Unattributed, it read
+// as a claim about their particular office, which he cannot know and which
+// lands as a non-sequitur two lines into a cold email (2026-08-26).
+function tradeLineFor(trade) {
+  const { painFor } = require('./painPoints.js');
+  const said = painFor(trade || 'other').recognition;
+  const who = TRADE_PLURAL[trade];
+  const lower = said.charAt(0).toLowerCase() + said.slice(1);
+  return who ? `In most ${who}, ${lower}` : `In most offices, ${lower}`;
+}
 // The fixed body. {greeting}, {opener}, {followOn} and {business} are the only
 // things that move.
 // Who he is, in one line, without a resume. The point is that he has run the
@@ -156,9 +185,7 @@ const CREDIBILITY = {
 
 const BODY = `Hi {greeting},
 
-{opener} {followOn}
-
-{tradeLine}
+{opener} {followOn} {tradeLine}
 
 {whatIDo} For you that probably looks like {valueIn}.
 
@@ -187,45 +214,55 @@ Grab a time on my calendar: https://calendly.com/visionairy`;
 
 const FOLLOW_UP_DAYS = [0, 4, 11];   // first contact, then four days, then a week later
 
-const SECOND_TOUCH = {
-  subject: 'The bit I should have led with, {business}',
-  body: `Hi {greeting},
-
-I wrote last week about {shortTell}, and I think I led with the wrong thing.
-
-Here is what I actually meant. {recognition}
-
-I have been inside enough businesses like yours over the years to know that costs somewhere around {cost}, and that almost nobody has ever added it up.
-
-{priceLine}
-
-There is not much to weigh up, really. Either you get the hours back, or you find out for nothing.
-
-Best regards,
+const SIGN_OFF = `Best regards,
 Russ Wright
 Founder
 VisionAIry
 503-621-8000 · russ@visionairy.biz
-VisionAIry.biz · LinkedIn`,
+VisionAIry.biz · LinkedIn
+Grab a time on my calendar: https://calendly.com/visionairy`;
+
+// Four days after the first, not a week — an earlier version said "I wrote
+// last week" on day four. It also opened with "I think I led with the wrong
+// thing", which is a sales trick and undercuts the message it follows, and
+// claimed he goes "inside" businesses, which contradicts the first message
+// (Russ read the sequence, 2026-08-26).
+const SECOND_TOUCH = {
+  subject: 'The part that matters, {business}',
+  body: `Hi {greeting},
+
+I wrote a few days ago about {shortTell}. Here's the part that matters.
+
+{recognition}
+
+In places like yours that's usually {cost}, and almost nobody has ever added it up.
+
+{priceLine}
+
+Either you get the hours, or you find out for nothing.
+
+Worth a look? Reply, or grab a time on my calendar below.
+
+${SIGN_OFF}`,
 };
 
+// The last one. It still carries the offer in a line, because plenty of people
+// only ever read the third email.
 const THIRD_TOUCH = {
   subject: 'Closing the loop, {business}',
   body: `Hi {greeting},
 
 Last one from me, and no hard feelings either way.
 
-If the timing is wrong, say the word and I will make a note for the spring rather than keep writing.
+If it's the timing, say so and I'll make a note to check back rather than keep writing.
 
-If it is not the timing but the idea, I would genuinely like to know that too. It is useful either way, and I would rather hear a no than keep guessing.
+If it's the idea, I'd genuinely like to know. I'd rather hear a no than keep guessing.
 
-Best regards,
-Russ Wright
-Founder
-VisionAIry
-503-621-8000 · russ@visionairy.biz
-VisionAIry.biz · LinkedIn`,
+And if you'd rather just see it than read about it: the tools, how to put them in, and at least {hours} hours a week back for your team, or your money returns. The calendar is below.
+
+${SIGN_OFF}`,
 };
+
 
 // A short way of naming what was noticed, for the second message.
 const SHORT_TELLS = {
@@ -279,8 +316,9 @@ function chooseOpener(signals = []) {
   return null;
 }
 
-// "Hi Dale," when we know who owns it, "Hi there," when we don't. Never a
-// bare name — Russ's own edit put the greeting back in.
+// "Hi Dale," when we know who owns it. When we do not, the greeting drops the
+// name rather than saying "Hi there," which reads like a circular the moment
+// somebody reads it cold (2026-08-26).
 function greetingFor(prospect) {
   const { nameFromEmail, firstNameOf } = require('./names.js');
   // A name we were told beats a name we worked out.
@@ -288,7 +326,7 @@ function greetingFor(prospect) {
   if (known) return known;
   // "dale@..." is Dale, but only when it is genuinely a name.
   const fromAddress = nameFromEmail(prospect.emailManualValue || prospect.email);
-  return fromAddress || 'there';
+  return fromAddress || null;
 }
 
 // Build one message for one business. Returns null when there is nothing
@@ -384,8 +422,9 @@ function draftFirstContact(prospect, signals = []) {
   // same for them every time and different across the list.
   const V = require('./variants.js');
   const seed = business;
+  const who = greetingFor(prospect);
   const body = BODY
-    .replace('{greeting}', greetingFor(prospect))
+    .replace('Hi {greeting},', who ? `Hi ${who},` : 'Hello,')
     .replace('{intro}', V.pick(V.OPENINGS[register], seed, 'intro'))
     .replace('{opener}', longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', line + toolsLine(prospect))
@@ -394,6 +433,8 @@ function draftFirstContact(prospect, signals = []) {
     .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed)))
     .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
     .replace('{tradeLine}', tradeLineFor(trade))
+    .replace(/\bcustomers\b/g, theirPeople(trade))
+    .replace(/\bcustomer login\b/g, `${theirPeople(trade).replace(/s$/, '')} login`)
     .replace('{yearLine}', sentenceCase(yearLineFor(prospect, seed)))
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
     .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
@@ -443,11 +484,12 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
     : `The audit is priced off the size of your team, from ${'$999'} up. At the smallest band it buys back ${f.yearHours.toLocaleString()} hours a year.`;
   const body = t.body
     .replace('{priceLine}', priceLine)
-    .replace('{greeting}', greetingFor(prospect))
+    .replace('Hi {greeting},', greetingFor(prospect) ? `Hi ${greetingFor(prospect)},` : 'Hello,')
     .replace('{shortTell}', SHORT_TELLS[openedWith] || 'the admin hours in your office')
     .replace('{recognition}', pain.recognition)
     .replace('{cost}', pain.cost)
     .replace('{lever}', pain.lever)
+    .replace(/\{hours\}/g, f.hoursWord)
     .replace(/\{business\}/g, business);
   return { subject: t.subject.replace(/\{business\}/g, business), body, openedWith: `touch_${touch}` };
 }

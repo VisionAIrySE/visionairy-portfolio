@@ -79,6 +79,33 @@ async function templateIsApproved(db, name = FIRST_CONTACT) {
   return true;
 }
 
+// Who a message actually goes to.
+//
+// It used to be the address on the business record, which is the info@ or
+// office@ found on their site — so 7,601 people found on those same sites,
+// 1,610 of them with their own addresses, never received anything. Russ found
+// that (2026-08-26). Order: the person he marked, then a named person with an
+// address, then the general inbox last.
+async function addressFor(db, prospectId, prospect) {
+  const chosen = await db.contact.findFirst({
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+  });
+  if (chosen) return chosen.email;
+  const named = await db.contact.findFirst({
+    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (named) return named.email;
+  const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
+  return p ? (p.emailManualValue || p.email) : null;
+}
+
+// The person that address belongs to, for the greeting and the screen.
+async function personFor(db, prospectId) {
+  return db.contact.findFirst({ where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null } })
+    || db.contact.findFirst({ where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null }, orderBy: { createdAt: 'asc' } });
+}
+
 // ---------------------------------------------------------------------------
 // writing the drafts
 
@@ -92,7 +119,11 @@ function signalsOf(prospect) {
 async function draftFor(db, prospectId, lane) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact) return null;
-  const built = lane === 'EMAIL' ? draftFirstContact(p, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
+  // Write to whoever it is actually going to, not to whoever owns the place.
+  // The greeting used to name the owner while the message went to info@.
+  const person = lane === 'EMAIL' ? await personFor(db, prospectId) : null;
+  const writeTo = person && person.name ? { ...p, contactName: person.name } : p;
+  const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
   if (!built) return null;
   if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return null;
 
@@ -382,7 +413,7 @@ async function sendQueuedEmails(db, options = {}) {
 
   for (const m of queued) {
     if (result.sent >= ceiling) { result.stoppedBecause = `stopped at the ceiling of ${ceiling}`; break; }
-    const to = m.prospect.emailManualValue || m.prospect.email;
+    const to = await addressFor(db, m.prospectId, m.prospect);
     if (!to) continue;
     result.attempted += 1;
     try {
@@ -421,6 +452,6 @@ module.exports = {
   sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent,
+  signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor,
   markLinkedInSent, linkedInQueue, markReplied, markBounced, reachableOn,
 };
