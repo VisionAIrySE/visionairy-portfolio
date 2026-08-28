@@ -125,6 +125,38 @@ function hoursSittingHere({ trade, people } = {}) {
   };
 }
 
+// Turning hours into a score out of 100.
+//
+// There is no sensible fixed ceiling. Measured across the 1,306 businesses on
+// the list on 2026-08-27, the estimates run: median 10.9 hours a week, top
+// quarter above 19.1, top tenth above 26.8, top twentieth above 41.3, and a
+// tail reaching 1,987 for a large employer nobody here is selling to. Any cap
+// picked out of the air either flattens the top or flattens the middle.
+//
+// So the score is a RANK: where this business sits against every other one on
+// the list. A score of 90 means nine in ten have fewer hours sitting there.
+// Nothing is invented — the breakpoints below are the measured distribution,
+// and they should be recomputed whenever the list changes materially.
+const HOURS_AT_PERCENTILE = [
+  // [percentile, hours a week at that point] — measured, not chosen.
+  [10, 5.8], [25, 8.3], [50, 10.9], [75, 19.1], [90, 26.8], [95, 41.3], [99, 222.8],
+];
+const MEASURED_ON = '2026-08-27';
+const MEASURED_ACROSS = 1306;
+
+function scoreFromHours(hours) {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return 0;
+  const pts = HOURS_AT_PERCENTILE;
+  if (h <= pts[0][1]) return Math.round((h / pts[0][1]) * pts[0][0]);
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const [p1, h1] = pts[i];
+    const [p2, h2] = pts[i + 1];
+    if (h <= h2) return Math.round(p1 + ((h - h1) / (h2 - h1)) * (p2 - p1));
+  }
+  return 100;
+}
+
 // Every industry, ordered by how many hours sit in a typical shop. This is the
 // call order Russ asked for, and the table he can argue with.
 function industryTable(people = TYPICAL_TEAM) {
@@ -135,6 +167,7 @@ function industryTable(people = TYPICAL_TEAM) {
 }
 
 module.exports = {
+  HOURS_AT_PERCENTILE, MEASURED_ON, MEASURED_ACROSS, scoreFromHours,
   AUTOMATABLE, OFFICE_SHARE_FLOOR, TYPICAL_TEAM, WEEK_HOURS, CALIBRATION,
   automatableFor, officeShareFor, hoursSittingHere, industryTable,
 };

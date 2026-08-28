@@ -448,7 +448,10 @@ function signalsFromPages(pages) {
     found.push({ signal: 'no_online_booking', url: all[0] ? all[0].url : null, quote: 'no way to book or schedule online anywhere on the site' });
   }
   if (!anyMatch(PORTAL_HINTS)) {
-    found.push({ signal: 'no_customer_portal', url: all[0] ? all[0].url : null, quote: 'no customer or client login anywhere on the site' });
+    // Retired 2026-08-27. Searching page text for the word "login" was wrong
+    // more than a quarter of the time, because a login lives behind a password
+    // box the text search never sees. Nothing emits this any more.
+    void 0;
   }
 
   for (const page of all) {

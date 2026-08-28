@@ -26,9 +26,18 @@ const SIGNAL_WEIGHTS = {
   no_website: 25,                 // nothing online at all: every enquiry is a call
   downloadable_forms: 15,         // paper in, typing out
   no_online_booking: 14,          // every appointment costs a phone call
+  // No way at all for a visitor to get in touch except the phone. Checked
+  // properly across 100 sites on 2026-08-27: 18 of them genuinely had none,
+  // and it is the most commercially useful thing on this list — it is a
+  // rebuild you can quote in a day.
+  no_way_to_enquire: 18,
   fax_listed: 12,                 // a fax number in this decade
   no_email_published: 8,          // no way to reach them but the phone
-  no_customer_portal: 7,          // every status question is a phone call
+  // no_customer_portal was worth 7 and retired on 2026-08-27. Read properly,
+  // 24 of the 85 businesses it had called "no customer login" turned out to
+  // have one — wrong more than a quarter of the time. A signal that unreliable
+  // cannot carry points. Booking was checked the same way and was wrong only 3
+  // times in 85, so it stays.
 
   // Everything below comes from what was learned about the business rather
   // than from a missing feature on its website. Added 2026-08-26 so the call
@@ -49,7 +58,7 @@ const SIGNAL_LABELS = {
   no_online_booking: 'No way to book online',
   fax_listed: 'Still lists a fax number',
   no_email_published: 'Publishes no email address',
-  no_customer_portal: 'No customer login',
+  no_way_to_enquire: 'No way to get in touch but the phone',
   runs_several_businesses: 'The same owner runs other businesses here',
   hiring_several_office_roles: 'Advertising more than one office role',
   long_established: 'Decades in business',

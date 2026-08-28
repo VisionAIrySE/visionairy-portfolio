@@ -103,8 +103,27 @@ async function ownerCountsFor(db, prospect) {
 // THEY LOOK comes from what was observed about them, and is worth up to 40. It
 // used to be entirely the second half, which is why a modern dental practice
 // with a clean website scored below a one-person shop with a fax number.
-const OPPORTUNITY_MAX = 60;
-const READINESS_MAX = 40;
+// Raised from 60/40 on 2026-08-27. Even a correct reading of a website tells
+// you how a business PRESENTS itself, not how it works inside: an insurance
+// agency with a beautiful site can still have somebody re-keying certificates
+// all day. The industry knows that; the website never will (Russ: "shouldn't
+// it be industry type as the biggest indicator, and not counting on the
+// website and what we can or can't read as the prime indicators?").
+// The score answers one question: how many hours a week of repetitive office
+// work are probably sitting in this business. That is what the offer promises
+// to find and it is the only thing worth ranking on.
+//
+// What a website looks like is not evidence of it. A dentist booked to
+// capacity has no use for online booking and every reason not to want it; a
+// business with a beautiful site can still have somebody re-keying invoices
+// all day. Every attempt to score a site here has ended up measuring how
+// modern a business LOOKS, which is a different business entirely and not the
+// one Russ is in (2026-08-27, after three rounds of invented weightings).
+//
+// Website findings stay on the card as something to read before a call. They
+// carry no points.
+const OPPORTUNITY_MAX = 100;
+const READINESS_MAX = 0;
 // Twenty-five hours a week of repetitive office work is a full score. Above
 // that the difference stops mattering: both are excellent prospects and the
 // order between them should be decided by how ready they look.
@@ -114,7 +133,9 @@ function opportunityPart(prospect) {
   const { hoursSittingHere } = require('./opportunity.js');
   const people = resolveField(prospect, 'employeeCount');
   const o = hoursSittingHere({ trade: prospect.trade, people });
-  const points = Math.round(Math.min(1, o.hours / HOURS_AT_FULL_MARKS) * OPPORTUNITY_MAX);
+  // Where this business sits against every other one on the list, measured.
+  const { scoreFromHours } = require('./opportunity.js');
+  const points = scoreFromHours(o.hours);
   return {
     points,
     evidence: {

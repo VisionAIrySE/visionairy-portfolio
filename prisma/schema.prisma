@@ -77,6 +77,14 @@ model Prospect {
   automationScore Int?
   scoreEvidence   String?
 
+  // How their website measures against what a site in THEIR trade could do,
+  // out of 100. A dentist who cannot be booked online scores badly; a
+  // manufacturer loses nothing for the same gap, because nobody books a
+  // fabrication shop through a web page. siteGaps holds what is missing and
+  // what would fill it, cheapest first (2026-08-27).
+  siteScore       Int?
+  siteGaps        String?
+
   // --- derived from the RESOLVED employeeCount via the rules module -------
   // (recomputed on an employeeCount correction; never a per-employee figure)
   segment         String?

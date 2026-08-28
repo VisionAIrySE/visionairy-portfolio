@@ -1430,7 +1430,7 @@ def('no_signals_scores_zero_not_dropped', () => withDb(async (db) => {
   // owner — because those are true whatever the website looks like. What must
   // never appear is a point earned from a website tell this business does not
   // have.
-  const SITE_TELLS = ['no_online_booking', 'no_customer_portal', 'no_website',
+  const SITE_TELLS = ['no_online_booking', 'no_way_to_enquire', 'no_website',
     'fax_listed', 'downloadable_forms', 'no_email_published', 'hiring_admin_role'];
   let evidence = [];
   try { evidence = JSON.parse(after.scoreEvidence || '[]'); } catch { evidence = []; }
@@ -3243,9 +3243,13 @@ def('no_scored_signal_is_undetectable', () => {
   // The record-derived signals moved into refresh.js when the score became a
   // function of the record; this used to read only the website reader and the
   // run-everything script and reported six real signals as undetectable.
+  // The browser-based reader is a fourth place a signal can be found. It is
+  // the only thing that can see a form or a password box, because those are
+  // built after a page arrives and never appear in its raw text.
   const looksHere = read(path.join(ROOT, 'src/hoursback/enrich.js'))
     + read(path.join(ROOT, 'src/hoursback/refresh.js'))
-    + read(path.join(ROOT, 'scripts/hoursback/rescore.js'));
+    + read(path.join(ROOT, 'scripts/hoursback/rescore.js'))
+    + read(path.join(ROOT, 'scripts/hoursback/recheck-sites.js'));
   const weights = scoring.SIGNAL_WEIGHTS || scoring.WEIGHTS || {};
   const undetectable = Object.keys(weights).filter((sig) => !new RegExp(`signal: ?'${sig}'`).test(looksHere));
   return { ok: !undetectable.length, detail: undetectable.length
