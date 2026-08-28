@@ -84,6 +84,152 @@ const CHECKS = {};
 const FAMILY_OF = {};
 function def(name, fn, family) { CHECKS[name] = fn; FAMILY_OF[name] = family || name.split('_')[0]; }
 
+// ---------------------------------------------------------------------------
+// Was tonight's work actually finished? (2026-08-28)
+//
+// Three things were promised: the names read and corrected, the research done
+// with its sources recorded, and the two paired onto the customer card. Each
+// one is checked here rather than reported, because a report of my own work is
+// what put invented numbers into the scoring in the first place.
+
+def('names_were_read_and_corrected', () => {
+  const C = require(path.join(ROOT, 'src/hoursback/nameCorrections.js'));
+  const n = Object.keys(C.BY_DOMAIN).length;
+  const held = Object.keys(C.STILL_UNKNOWN).length;
+  const chains = C.NOT_A_LOCAL_BUSINESS.length;
+  if (n < 90) return { ok: false, detail: `only ${n} names corrected, expected 90+` };
+  if (!held) return { ok: false, detail: 'nothing held back — every unreadable name was guessed at' };
+  if (!chains) return { ok: false, detail: 'no national chains excluded' };
+  // A correction that is itself a search heading has fixed nothing. The shapes
+  // that were actually in the bad data: "Dentist in Redmond OR", "Best Vet
+  // Hospital In Bend, OR", "Award-Winning Staffing Agency in Bend, OR".
+  //
+  // Ending in "Services" is NOT a heading — Bright Services and Midstate
+  // Construction Services are what those businesses are called, and an earlier
+  // version of this check failed them (2026-08-28).
+  const HEADING = /(near ?me|top.rated|award.winning|official site)|\bin (bend|redmond|sisters|prineville|madras|la pine|sunriver|central oregon)\b|^(best|affordable|expert|trusted|premier|cheap)\s/i;
+  const bad = Object.entries(C.BY_DOMAIN).filter(([, v]) => HEADING.test(v));
+  if (bad.length) return { ok: false, detail: `${bad.length} corrections are still headings: ${bad[0][1]}` };
+  return { ok: true, detail: `${n} names read by hand, ${held} held back unconfirmed, ${chains} chains excluded` };
+});
+
+def('name_reader_keeps_the_town_in_the_name', () => {
+  const { properName } = require(path.join(ROOT, 'src/hoursback/businessName.js'));
+  // The bug that sent "Accounting PC" to Bend Accounting PC. A town is only
+  // stripped when a state marker follows it, which is what makes it a heading.
+  const keep = ['Bend Accounting PC', 'Central Oregon Irrigation District', 'La Pine Realty', 'Bend Oral Surgery', 'Prineville Body and Paint'];
+  for (const name of keep) {
+    if (properName(name) !== name) return { ok: false, detail: `"${name}" came back as "${properName(name)}"` };
+  }
+  // And it still throws away a real search heading.
+  if (properName('Bend, OR Dentist Near Me') !== null) return { ok: false, detail: 'a search heading survived' };
+  return { ok: true, detail: `${keep.length} town-named businesses keep their names; headings still dropped` };
+});
+
+def('industries_were_read_and_corrected', () => {
+  const T = require(path.join(ROOT, 'src/hoursback/tradeCorrections.js'));
+  const { ADMIN_SHARE } = require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
+  const S = require(path.join(ROOT, 'src/hoursback/scenarios.js'));
+  const known = new Set([...Object.keys(ADMIN_SHARE), ...S.tradesCovered()]);
+  const fixed = Object.entries(T.TRADE_BY_DOMAIN);
+  if (!fixed.length) return { ok: false, detail: 'no industries corrected' };
+  // A correction to an industry nothing knows about is worse than the error.
+  for (const [d, t] of fixed) {
+    if (!known.has(t)) return { ok: false, detail: `${d} corrected to "${t}", which no scenario list covers` };
+  }
+  // Every dropped business must say WHY in words, not a flag.
+  const dropped = Object.entries(T.NOT_A_PROSPECT);
+  if (!dropped.length) return { ok: false, detail: 'nothing dropped — every record was accepted as a prospect' };
+  for (const [d, why] of dropped) {
+    if (!why || why.length < 12) return { ok: false, detail: `${d} dropped with no reason given` };
+  }
+  return { ok: true, detail: `${fixed.length} industries corrected by hand, ${dropped.length} dropped with a stated reason` };
+});
+
+def('research_carries_a_source_and_a_trust_level', () => {
+  const E = require(path.join(ROOT, 'src/hoursback/evidence.js'));
+  const LEVELS = [E.PRIMARY, E.SECOND_HAND, E.VENDOR, E.NONE];
+  const entries = Object.entries(E.EVIDENCE);
+  if (entries.length < 8) return { ok: false, detail: `only ${entries.length} trades researched` };
+  for (const [trade, e] of entries) {
+    if (!LEVELS.includes(e.trust)) return { ok: false, detail: `${trade}: trust level "${e.trust}" is not one of the four` };
+    if (!e.who) return { ok: false, detail: `${trade}: no source named` };
+    if (!e.what) return { ok: false, detail: `${trade}: nothing recorded about what was found` };
+  }
+  // The gate that matters: only a PRIMARY source may be quoted word for word.
+  for (const [trade, e] of entries) {
+    if (e.sayItLikeThis && e.trust !== E.PRIMARY) {
+      return { ok: false, detail: `${trade}: quotable line on a ${e.trust} source` };
+    }
+  }
+  const quotable = entries.filter(([t]) => E.quotableFor(t)).length;
+  if (!quotable) return { ok: false, detail: 'nothing at all is quotable to a client' };
+  return { ok: true, detail: `${entries.length} trades researched, ${quotable} quotable, ${E.SEARCHED_NOTHING_FOUND.length} searched with nothing found` };
+});
+
+def('every_trade_has_four_scenarios_paired_to_platforms', () => {
+  const S = require(path.join(ROOT, 'src/hoursback/scenarios.js'));
+  const { ADMIN_SHARE } = require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
+  const trades = Object.keys(ADMIN_SHARE).filter((t) => t !== 'other');
+  const thin = [];
+  const unpaired = [];
+  for (const t of trades) {
+    const d = S.forTrade(t);
+    if (d.generic) thin.push(t);
+    if (d.scenarios.length < 4) thin.push(`${t} (${d.scenarios.length})`);
+    // Pairing is the whole point: a scenario with no tool is a complaint.
+    for (const sc of d.scenarios) {
+      if (!sc.buy.length && !sc.build) unpaired.push(`${t}/${sc.type}`);
+    }
+  }
+  if (thin.length) return { ok: false, detail: `no list of four for: ${thin.join(', ')}` };
+  if (unpaired.length) return { ok: false, detail: `${unpaired.length} scenarios have nothing that fixes them: ${unpaired[0]}` };
+  const total = trades.reduce((n, t) => n + S.forTrade(t).scenarios.length, 0);
+  return { ok: true, detail: `${trades.length} trades, ${total} scenarios, every one paired to a tool or a build` };
+});
+
+def('evidence_reaches_every_trade_through_the_work', () => {
+  const S = require(path.join(ROOT, 'src/hoursback/scenarios.js'));
+  const E = require(path.join(ROOT, 'src/hoursback/evidence.js'));
+  const { ADMIN_SHARE } = require(path.join(ROOT, 'src/hoursback/industryTiers.js'));
+  const trades = Object.keys(ADMIN_SHARE).filter((t) => t !== 'other');
+  // Searching trade by trade reached three trades out of twenty-four. The same
+  // question asked by KIND OF WORK reaches nearly all of them, because
+  // following up an enquiry is the same act everywhere (2026-08-28).
+  const bare = trades.filter((t) => !S.forTrade(t).scenarios.some((sc) => sc.evidence || sc.workEvidence));
+  if (bare.length) return { ok: false, detail: `no published evidence reaches: ${bare.join(', ')}` };
+  // And the same gate as before: only a PRIMARY source may be quoted.
+  for (const [type, e] of Object.entries(E.BY_WORK)) {
+    if (e.sayItLikeThis && e.trust !== E.PRIMARY) return { ok: false, detail: `${type}: quotable line on a ${e.trust} source` };
+    if (!e.who || !e.what) return { ok: false, detail: `${type}: source or finding missing` };
+  }
+  let backed = 0; let total = 0;
+  for (const t of trades) for (const sc of S.forTrade(t).scenarios) { total += 1; if (sc.evidence || sc.workEvidence) backed += 1; }
+  const quotable = Object.keys(E.BY_WORK).filter((k) => E.quotableForWork(k)).length;
+  return { ok: true, detail: `all ${trades.length} trades reached, ${backed}/${total} scenarios backed, ${quotable} kinds of work quotable word for word` };
+});
+
+def('no_scenario_invents_how_much_a_tool_removes', () => {
+  const S = require(path.join(ROOT, 'src/hoursback/scenarios.js'));
+  const ALLOWED = [S.MOST, S.HALF, S.UNMEASURED];
+  for (const t of S.tradesCovered()) {
+    for (const sc of S.forTrade(t).scenarios) {
+      if (!ALLOWED.includes(sc.removes)) {
+        return { ok: false, detail: `${t}/${sc.type}: "${sc.removes}" — nobody measured that` };
+      }
+    }
+  }
+  return { ok: true, detail: 'every saving is words, never an unmeasured percentage' };
+});
+
+def('the_card_shows_the_scenarios', () => {
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  if (!src.includes("require('../../src/hoursback/scenarios.js')")) return { ok: false, detail: 'the card does not load the scenarios' };
+  if (!src.includes('Where their five hours are')) return { ok: false, detail: 'no scenarios section on the card' };
+  if (!src.includes('trustWord')) return { ok: false, detail: 'the card shows research without saying how far it can be trusted' };
+  return { ok: true, detail: 'the card loads them, shows them, and labels how far each source can be trusted' };
+});
+
 def('pricing_module_loads_and_exports', () => {
   const p = require(path.join(ROOT, 'src/hoursback/pricing.js'));
   const ok = typeof p.bandForEmployeeCount === 'function' && Array.isArray(p.TEAM_SIZE_BANDS);

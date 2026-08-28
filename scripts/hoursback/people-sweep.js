@@ -36,6 +36,10 @@ async function savePeople(db, prospectId, people) {
       role: person.role || (existing && existing.role) || null,
       email: person.email || (existing && existing.email) || null,
       phone: person.phone || (existing && existing.phone) || null,
+      // Their own LinkedIn profile, printed beside them on the team page. This
+      // was never saved because it was never collected: 0 of 7,352 people had
+      // one (2026-08-28).
+      linkedIn: person.linkedIn || (existing && existing.linkedIn) || null,
       foundOn: person.foundOn || (existing && existing.foundOn) || null,
       source: 'WEBSITE',
       isPrimary: i === 0 && !existing,
@@ -64,7 +68,18 @@ async function main() {
     // rather than left for somebody to remember (2026-08-27).
     const touched = [];
 
-    for (const b of rows) {
+    // Several sites at once. One at a time, 3,174 businesses at eight pages
+    // each is most of a day, and almost all of it is spent waiting on somebody
+    // else's web server with nothing else happening. Six is polite: each site
+    // still gets its own pause between pages, and no single site sees more
+    // than one request at a time (2026-08-28).
+    const LANES = 6;
+    let next = 0;
+    const worker = async () => {
+    for (;;) {
+      const at = next; next += 1;
+      if (at >= rows.length) return;
+      const b = rows[at];
       done += 1;
       try {
         const read = await ps.fetchPeoplePages(b.website, { maxPages: PAGES_PER_SITE });
@@ -105,6 +120,8 @@ async function main() {
       }
       await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_SITES_MS));
     }
+    };
+    await Promise.all(Array.from({ length: Math.min(LANES, rows.length) }, worker));
 
     console.log('');
     console.log(`DONE in ${Math.round((Date.now() - started) / 60000)} minutes`);

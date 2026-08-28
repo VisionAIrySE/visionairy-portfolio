@@ -162,7 +162,11 @@ function closingLine(answers = {}) {
   const leak = hours
     ? `the ${hours} hours a week going into ${what.toLowerCase()}`
     : what.toLowerCase();
-  return `It sounds like the real leak is ${leak}. Give me a couple of days to find the right fix for it, and let's talk again.`;
+  // Russ's own words for how the call ends, 2026-08-28: "I'll research this
+  // and find the best tool for you and return with my free recommendation and
+  // why." The word FREE has to be in it — it is what makes the second call
+  // something they agreed to rather than something they were sold.
+  return `It sounds like the real leak is ${leak}. Let me research this and find the best tool for you, and I'll come back with my recommendation and why — free, either way.`;
 }
 
 // Between the two calls: which kinds of work to look at, given what they said.

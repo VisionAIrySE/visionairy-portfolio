@@ -57,8 +57,16 @@ function properName(raw) {
   if (first && first.length >= 2) s = first;
 
   s = s.replace(SEARCH_TAIL, '').replace(TRAILING_LOCATION, '').trim();
-  // A heading that opened with the town: "Bend, OR Dentist Near Me".
-  s = s.replace(/^(bend|redmond|sisters|prineville|madras|la pine|sunriver|central oregon)\s*,?\s*(or|oregon)?\s+/i, '').trim();
+  // A heading that opened with the town AND THE STATE: "Bend, OR Dentist Near
+  // Me". The state marker is what makes it a heading rather than a name.
+  //
+  // Without it this ate the first word of every business actually called after
+  // its own town: Bend Accounting PC went out as "Accounting PC", Central
+  // Oregon Irrigation District as "Irrigation District", La Pine Realty as
+  // "Realty". 70-odd of 696 emailable businesses, addressed by a fragment
+  // (2026-08-27). The stored names were right the whole time; this line broke
+  // them on the way out.
+  s = s.replace(/^(bend|redmond|sisters|prineville|madras|la pine|sunriver|central oregon)\s*,\s*(or|oregon)\b[\s,]*/i, '').trim();
 
   if (!s || s.length < 2) return null;
   if (NOT_A_NAME.test(s)) return null;

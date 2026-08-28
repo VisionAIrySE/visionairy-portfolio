@@ -188,8 +188,46 @@ function looksLikeAPerson(clean) {
 function tidyPhone(m) { return `${m[1]}-${m[2]}-${m[3]}`; }
 
 // Everyone a page names, with role, and any email or phone sitting near them.
-function peopleOnPage(page) {
+// Every LinkedIn profile link on the page, with where it sat, so a person can
+// be matched to the one printed beside their name.
+//
+// This was never collected. There is a place on every person to keep one and
+// nothing that ever filled it: 0 of 7,352 people had a profile, which is not a
+// low hit rate but an absence (2026-08-28).
+const LINKEDIN_PROFILE = /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[A-Za-z0-9_%-]+/gi;
+
+function linkedInProfilesOn(html) {
+  const out = [];
+  const raw = String(html || '');
+  for (const m of raw.matchAll(LINKEDIN_PROFILE)) out.push({ url: m[0], at: m.index || 0 });
+  return out;
+}
+
+// Which profile link is printed nearest this person's name in the raw page.
+// A team grid puts the name, the title and the profile link inside one card,
+// so nearest-in-the-page is the same as belonging-to-them.
+// `taken` is a Set the caller shares across one page, so a single profile link
+// cannot be handed to three different people — which is what happened on the
+// first run (2026-08-28).
+function profileNear(html, name, profiles, taken = new Set()) {
+  if (!profiles.length) return null;
+  const raw = String(html || '');
+  const at = raw.toLowerCase().indexOf(String(name || '').toLowerCase());
+  if (at < 0) return null;
+  let best = null;
+  for (const p of profiles) {
+    if (taken.has(p.url)) continue;
+    const gap = Math.abs(p.at - at);
+    // A team card is small. Beyond about 600 characters it is somebody else's.
+    if (gap < 600 && (!best || gap < best.gap)) best = { url: p.url, gap };
+  }
+  if (best) taken.add(best.url);
+  return best ? best.url : null;
+}
+
+function peopleOnPage(page, taken = new Set()) {
   const text = textOf(page.html);
+  const profiles = linkedInProfilesOn(page.html);
   const out = new Map();
   const add = (name, role, at) => {
     const clean = String(name).replace(/\s+/g, ' ').trim();
@@ -206,6 +244,7 @@ function peopleOnPage(page) {
       role: (prior && prior.role) || String(role).replace(/\s+/g, ' ').toLowerCase(),
       email: (prior && prior.email) || email,
       phone: (prior && prior.phone) || phone,
+      linkedIn: (prior && prior.linkedIn) || profileNear(page.html, clean, profiles, taken),
       foundOn: page.url,
     });
   };
@@ -224,28 +263,76 @@ function stripCredentials(name) {
   return String(name).replace(CREDENTIALS, '').replace(/\s+/g, ' ').trim();
 }
 
-function rosterRun(page) {
+// Is this piece of text somebody's job title?
+const ROLE_LINE = new RegExp(`\\b(${ROLES})\\b`, 'i');
+function roleFromLine(piece) {
+  const t = String(piece || '').replace(/\s+/g, ' ').trim();
+  if (!t || t.length > 60 || t.split(' ').length > 7) return null;
+  return ROLE_LINE.test(t) ? t.toLowerCase().replace(/[.,;:]+$/, '') : null;
+}
+
+function rosterRun(page, taken = new Set()) {
   const text = textOf(page.html);
+  const profiles = linkedInProfilesOn(page.html);
   // Split on the sentence marks the text reader inserts at block ends.
   const parts = text.split(/\s*[.|\u2022]\s+/);
   const runs = [];
   let run = [];
-  for (const raw of parts) {
-    const candidate = stripCredentials(raw);
-    if (looksLikeAPerson(candidate)) { run.push(candidate); continue; }
+  // A team grid reads "Jane Smith. Operations Manager. John Doe. Sales
+  // Director." — the piece straight after a name is that person's title. It
+  // was thrown away on this path, which is why only 28 people in 100 had a
+  // role while most team pages print one under every photograph
+  // (2026-08-28).
+  // The words a team card puts between a name and a title: the label on a
+  // profile link, an email link, a "read more". Short, and neither a person
+  // nor a job. Treating one of these as the end of the team lost the FIRST
+  // person on every card that had a LinkedIn link (2026-08-28).
+  const isFiller = (piece) => {
+    const t = String(piece || '').replace(/\s+/g, ' ').trim();
+    if (!t || t.split(' ').length > 3) return false;
+    return !looksLikeAPerson(stripCredentials(t)) && !roleFromLine(t);
+  };
+
+  for (let i = 0; i < parts.length; i += 1) {
+    const candidate = stripCredentials(parts[i]);
+    if (looksLikeAPerson(candidate) && !roleFromLine(candidate)) {
+      // The title is the next piece, or the one after a bit of filler.
+      let role = roleFromLine(parts[i + 1]);
+      let skip = role ? 1 : 0;
+      if (!role && isFiller(parts[i + 1])) {
+        role = roleFromLine(parts[i + 2]);
+        if (role) skip = 2;
+      }
+      run.push({ name: candidate, role });
+      // A title between two names does NOT end the run. Requiring names
+      // back-to-back meant a grid that prints a job title under every
+      // photograph — which is most of them — produced nothing at all: no
+      // roles, and no people either (2026-08-28).
+      i += skip;
+      continue;
+    }
+    if (isFiller(parts[i])) continue;
     if (run.length >= 3) runs.push(run);
     run = [];
   }
   if (run.length >= 3) runs.push(run);
   const best = runs.sort((a, b) => b.length - a.length)[0] || [];
-  return best.map((name) => ({ name, role: null, email: null, phone: null, foundOn: page.url }));
+  return best.map((p) => ({
+    name: p.name,
+    role: p.role,
+    email: null,
+    phone: null,
+    linkedIn: profileNear(page.html, p.name, profiles, taken),
+    foundOn: page.url,
+  }));
 }
 
 // Everyone across every page opened, deduplicated by name.
 function peopleFromSite(pages) {
   const all = new Map();
   for (const page of pages) {
-    for (const person of [...peopleOnPage(page), ...rosterRun(page)]) {
+    const taken = new Set();
+    for (const person of [...peopleOnPage(page, taken), ...rosterRun(page, taken)]) {
       const key = person.name.toLowerCase();
       const prior = all.get(key);
       if (!prior) { all.set(key, person); continue; }
@@ -254,6 +341,7 @@ function peopleFromSite(pages) {
         role: prior.role || person.role,
         email: prior.email || person.email,
         phone: prior.phone || person.phone,
+        linkedIn: prior.linkedIn || person.linkedIn,
       });
     }
   }
@@ -271,4 +359,5 @@ module.exports = {
   MAX_PAGES_PER_SITE, PAGE_TIMEOUT_MS, DELAY_BETWEEN_PAGES_MS,
   WORTH_OPENING, rank, linksToPeople, fetchPeoplePages,
   peopleOnPage, peopleFromSite, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, ROLE_WORDS,
+  linkedInProfilesOn, profileNear, roleFromLine,
 };

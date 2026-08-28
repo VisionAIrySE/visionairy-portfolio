@@ -152,16 +152,30 @@ const FOLLOW_ONS = {
 // your businesses, {business}" produced "Both of your businesses, Home" where
 // the business name was a page title, and "Both of your businesses, your
 // office" where it was a heading (2026-08-27).
+// Only three survive: the ones that name something SEEN on their own page.
+// Everything else fell back to a fragment that means nothing in an inbox —
+// "running more than one of these" (of what?), "the paperwork coming in",
+// "A thought about your front desk". Russ read them cold and asked the right
+// question: why would that get opened? It wouldn't (2026-08-28).
+//
+// A null falls through to the trade subject, which is a concrete noun out of
+// that trade's own week — "chasing change orders", "the recall list", "the
+// deals that went quiet" — and the first line of the message pays it off. No
+// bait, nothing to be disappointed by.
 const SUBJECTS = {
-  runs_several_businesses: 'running more than one of these',
   hiring_several_office_roles: 'the office roles you are hiring for',
   hiring_admin_role: 'the office role you are hiring for',
-  no_website: 'the calls coming in',
   downloadable_forms: 'the forms on your site',
-  fax_listed: 'the paperwork coming in',
-  no_online_booking: 'the phone at {business}',
-  no_customer_portal: 'A thought about your front desk',
-  default: 'A thought about the admin hours at {business}',
+  runs_several_businesses: null,
+  no_website: null,
+  fax_listed: null,
+  no_online_booking: null,
+  no_customer_portal: null,
+  // Not a line that gets sent — the wording version stores this as a
+  // description of what the subject now is. Six places record a version and
+  // every one of them needs a string; leaving it empty broke the send checks
+  // (2026-08-28).
+  default: "{the trade's own week}",
 };
 
 // The one line that proves this was written for THEM and not for a list.
@@ -593,7 +607,9 @@ function draftFirstContact(prospect, signals = []) {
     // A third of the list carries a web page heading instead of a name, so a
     // subject built from it was unreadable: "The paperwork coming into Hanson
     // & Co PC | CPA Bend Oregon | Accountant Bend Oregon" (2026-08-26).
-    : (SUBJECTS[key] || SUBJECTS.default).replace(/\{business\}/g, TO.shortName(business) || 'your office');
+    // A signal subject only wins when it names something actually seen on
+    // their page. Otherwise the trade's own week is the better line.
+    : (SUBJECTS[key] || TO.subjectFor(trade, business));
   // Two dentists both still listing a fax number were getting near-identical
   // letters, and in a town this size they might know each other. Each fixed
   // line has four wordings, chosen by the business's own name so it is the

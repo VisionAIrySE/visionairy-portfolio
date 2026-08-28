@@ -153,19 +153,46 @@ const PRICE_FRAMING = [
 // Russ in the room where the guarantee actually lands (Russ chose this over
 // keeping the guarantee up front, 2026-08-27).
 // The ask, in one sentence. It was sixty words across two (2026-08-27).
+// The ask. Fifteen minutes, and they come off the call HOLDING something.
+//
+// Rewritten 2026-08-28 on Russ's instruction: "I want to spec 15 min with them
+// free of charge and will provide a tool they can implement immediately that
+// will save them time and money, then continue with the 'we can find more'
+// conversation."
+//
+// The difference matters. "I'll come back with the one thing I'd fix first" is
+// a promise of advice, and advice from a stranger is worth what it costs. One
+// tool they can switch on the same day is a thing they own by the end of the
+// call, and it is the reason to take the call at all.
+//
+// He can keep this. Every trade on the list has four places its hours go, each
+// paired to platforms he can name and price on the spot (scenarios.js).
+// The ask. Fifteen minutes, and then he goes and finds the right tool and
+// comes back with it, free.
+//
+// Rewritten twice on 2026-08-28. First to "you leave the call holding a tool",
+// then corrected by Russ to how the call actually ends: "I'll research this
+// and find the best tool for you and return with my free recommendation and
+// why."
+//
+// That order is the stronger one and it is also the honest one. Naming a tool
+// inside fifteen minutes, before looking at anything, is what an unqualified
+// person does. Going away, doing the work, and coming back with the reasoning
+// is what somebody worth paying does — and the recommendation is still free,
+// so there is nothing for them to weigh up.
 const FREE_LOOK = [
-  "Give me fifteen minutes on the phone and I'll come back with the one thing I'd fix first, what it takes, and what it costs.",
-  "Fifteen minutes on the phone and I'll come back with the one thing worth fixing first and what it would take.",
-  "Give me a quarter of an hour and I'll come back with the one thing I'd fix first and what it costs.",
+  "Give me fifteen minutes on the phone to see where the time actually goes. Then I go and find the right tool for it and come back with what I would put in, what it costs, and why that one.",
+  "Fifteen minutes on the phone about where your team's week goes. Then I do the research and come back with the tool I would use, the price, and the reasoning behind it.",
+  "A quarter of an hour on the phone, and then I go away and find the best thing for what you have described — and come back with it, what it runs to, and why it is the one.",
 ];
 
-// What happens after, said once and lightly. It is what makes the free look a
-// beginning rather than a favour, and it is the only place the rest of the
-// work is mentioned at all.
+// And then the rest, said once and lightly. This is the only place the bigger
+// piece of work is mentioned at all: the recommendation has to stand on its
+// own, or the call reads as a way in rather than something given.
 const AFTER_THE_LOOK = [
-  "Free, and nothing to sign.",
-  "No charge, nothing to sign.",
-  "Free either way, and nothing to sign.",
+  "The recommendation is free and there is nothing to sign. If it lands, there is usually more where it came from, and we can go looking then.",
+  "No charge for any of that, and nothing to sign. There is normally more than one of these in a business, and that is a conversation for afterwards.",
+  "Free either way, nothing to sign. If the first one is worth having there are usually others, and we can talk about those once you have seen it work.",
 ];
 
 // What Russ does, without the paid audit in it. The old version described a
@@ -181,58 +208,65 @@ const WHAT_I_DO_FREE = [
 
 // One line of proof, from published research rather than from Russ's own
 // clients — he has none yet, and a case study about work he has not done is
-// the one thing he must never write. Every figure here is sourced in
-// industryTiers.js and was gathered 2026-08-26.
+// the one thing he must never write.
 //
-// It answers the question every reader has and nothing else in the message
-// does: has this actually worked for somebody like me? (Russ, 2026-08-27:
-// "there are thousands and thousands of businesses that have implemented
-// automations for benefit or the McKinsey references wouldn't be there".)
+// REBUILT 2026-08-28. What was here before was a McKinsey figure — 57% of US
+// work hours technically automatable — sent to 1,640 businesses. Russ threw it
+// out on sight: "WHAT THE FUCK IS THE MCKINSEY REFERENCE WITH 57%, THAT MEANS
+// NOTHING." He was right. It is an economy-wide statistic and it says nothing
+// to somebody running a crane company.
 //
-// Where a trade has no published figure, the line is left out. A made-up
-// number would undo everything else in the message.
-// Figures specific to one trade, each with the study behind it.
+// Alongside it sat a line beginning "Deloitte found" with no study, no year and
+// no link. There is no such published finding. It came off a vendor blog.
 //
-// A trade only appears here once its number has been found and read. Anything
-// unverified falls back to the McKinsey line below, which is checked and
-// linked. An industry figure quoted from memory is worse than the general one.
-const PROOF_BY_TRADE = {
-  // VERIFIED 2026-08-27. Independent Insurance Agents & Brokers of America:
-  // 45-90 minutes to process a single certificate by hand, and 8-15 hours a
-  // week of a service rep's time on certificates alone at a mid-size agency.
-  insurance: 'The agents\' association puts a single certificate at forty-five to ninety minutes by hand, and eight to fifteen hours a week of somebody\'s time on certificates alone.',
+// What replaced them: research matched to the ONE THING that message opens
+// with, and nothing else. A message about deals going quiet carries the study
+// about answering enquiries. A message about recall calls carries the trial
+// about reminders. A message about unsigned change orders carries nothing,
+// because nobody has measured that — and a message with no line in it is
+// better than a line a reader can catch.
+//
+// Only a source read on the publisher's own page may be quoted word for word.
+// That rule lives in evidence.js and is enforced by a check.
+
+const { quotableFor, quotableForWork } = require('../evidence.js');
+
+// What the message OPENS on, and therefore which study belongs beside it.
+// A trade whose opening is about paperwork gets nothing — that is the honest
+// answer, not a gap to be filled.
+const WORK_BEHIND_THE_OPENING = {
+  'follow-up': 'lead_follow_up',       // Harvard Business Review, 2011
+  scheduling: 'scheduling',            // Cochrane Review, eight randomised trials
+  billing: 'invoicing_and_collections',
+  inventory: 'inventory_and_ordering',
+  paper: null,
+  hiring: null,
 };
 
-// Where a trade has no figure of its own, the general one. It was missing
-// entirely — the message said what Russ would find and never what businesses
-// have already proved, which is the whole upside (Russ, 2026-08-27: "why
-// haven't we been including the McKinsey numbers as the upside").
-//
-// Source: Deloitte, recorded in industryTiers.js on 2026-08-26. Businesses
-// expect automation to cover about a fifth of their capacity; the ones that
-// actually scaled it put the figure at half.
-// The research, quoted and linked so a reader can check it. A number in a cold
-// email with no source behind it is the thing that makes a stranger stop
-// trusting you (Russ, 2026-08-27: "quote the document for the industry and
-// provide a link to the reference as validation. What could be better?").
-//
-// VERIFIED 2026-08-27, found and read rather than remembered:
-//   McKinsey Global Institute, "Agents, Robots, and Us: Skill Partnerships in
-//   the Age of AI", November 2025. Currently demonstrated technology could
-//   automate activities accounting for about 57% of US work hours — 44% of it
-//   non-physical work that software can do.
-//   https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai
-//
-// NOTHING GOES IN HERE WITHOUT A LINK. The old line said "Deloitte found" with
-// no study, no year and no URL, and Russ had been calling it McKinsey. Neither
-// of us could have answered a client who asked where it came from.
-const PROOF_GENERAL = [
-  'McKinsey put a number on it last November: about 57% of US work hours are already technically automatable, and 44% of that is office work software can do today. Their report is here — https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai',
-  "McKinsey's research from November says about 57% of US work hours could already be automated with technology that exists — most of it the office side. Worth a read: https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai",
-];
+// The reminder trial measured people TURNING UP to an appointment they had
+// booked. That is a real fact about dentists, vets and salons. It is not a
+// fact about a landscaping crew, whose customer does not have to be anywhere —
+// and quoting a healthcare trial at a landscaper is the kind of stretch a
+// reader catches, which costs more than the line was worth (2026-08-28).
+const CUSTOMERS_HAVE_TO_TURN_UP = new Set([
+  'dental', 'medical', 'veterinary', 'personal care', 'fitness & recreation',
+  'lodging & hospitality', 'education & childcare', 'trades', 'auto',
+]);
 
-function proofFor(trade, seed = 0) {
-  return PROOF_BY_TRADE[String(trade || '').toLowerCase()] || pick(PROOF_GENERAL, seed, 'proof');
+function proofFor(trade) {
+  const t = String(trade || '').toLowerCase();
+  // 1. Their own trade body measured their own week. Strongest thing there is.
+  const own = quotableFor(t);
+  if (own) return own.line;
+  // 2. Somebody measured the KIND OF WORK this message opens on. Following up
+  //    an enquiry is the same act in a roofing company and a dental practice.
+  const { painFor } = require('./painPoints.js');
+  let work = WORK_BEHIND_THE_OPENING[painFor(t || 'other').function];
+  if (work === 'scheduling' && !CUSTOMERS_HAVE_TO_TURN_UP.has(t)) work = null;
+  const byWork = work ? quotableForWork(work) : null;
+  if (byWork) return byWork.line;
+  // 3. Nothing published fits. The message goes without one.
+  return null;
 }
 
 const CLOSES = {
@@ -346,4 +380,4 @@ const COST_ANCHOR = {
 module.exports = {
   FLOOR_LINE, FLOOR_LINE_GENERAL,
   COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK,
-  PROOF_BY_TRADE, PROOF_GENERAL, proofFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
+  WORK_BEHIND_THE_OPENING, proofFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
