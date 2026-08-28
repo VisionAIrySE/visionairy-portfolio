@@ -717,6 +717,7 @@ async function peopleScreen(params, saved) {
     const msg = c.prospect.messages[0];
     return `<tr style="border-bottom:1px solid #f0eee5">
       <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
+      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"> go</label></td>
       <td>${cell(c.id, 'name', c.name, 'nobody named')}</td>
       <td>${cell(c.id, 'role', c.role, 'what they do')}</td>
       <td>${cell(c.id, 'email', c.email, 'no address')}</td>
@@ -755,8 +756,8 @@ async function peopleScreen(params, saved) {
   </form>
   <form method="POST" action="/people/save?page=${page_}${only ? `&business=${only}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}">
   <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
-    <tr style="text-align:left"><th>Send</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
-    ${people.map(row).join('') || '<tr><td colspan="8" class="muted">Nobody here.</td></tr>'}
+    <tr style="text-align:left"><th>Send</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
+    ${people.map(row).join('') || '<tr><td colspan="9" class="muted">Nobody here.</td></tr>'}
   </table></div>
   <p style="margin-top:14px"><button class="primary">Save everything on this page</button>
     <span class="muted"> — every change above, in one go.</span></p>
@@ -876,9 +877,10 @@ async function businessCard(id, saved) {
     bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
   <form method="POST" action="/people/save?back=${p.id}">
   ${p.contacts.length ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
-    <tr style="text-align:left"><th>Send</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th></tr>
+    <tr style="text-align:left"><th>Send</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th></tr>
     ${p.contacts.map((c) => `<tr style="border-bottom:1px solid #f0eee5${c.bouncedAt ? ';opacity:.5' : ''}">
       <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
+      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"> go</label></td>
       <td><input name="p.${c.id}.name" value="${esc(c.name || '')}" placeholder="nobody named" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.role" value="${esc(c.role || '')}" placeholder="what they do" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.email" value="${esc(c.email || '')}" placeholder="no address" style="padding:5px 7px;font-size:14px">${c.bouncedAt ? '<div class="mini">bounced</div>' : ''}</td>
@@ -1617,17 +1619,54 @@ const server = http.createServer(async (req, res) => {
             bag.get(id)[field] = String(Array.isArray(value) ? value[0] : value).trim() || null;
           }
 
-          let people = 0; let notes = 0; let lined = 0;
+          let people = 0; let notes = 0; let lined = 0; let removed = 0;
+          const clashes = [];
+
+          // Taking somebody off the list. Done FIRST, so a person being removed
+          // never blocks somebody else being given their address. Russ:
+          // "I also need to be able to delete contacts" (2026-08-28).
+          const goners = [].concat(form.remove || []).filter(Boolean);
+          if (goners.length) {
+            try {
+              const r = await db.contact.deleteMany({ where: { id: { in: goners } } });
+              removed = r.count;
+              for (const id of goners) { changedPerson.delete(id); }
+            } catch (e) { clashes.push('somebody could not be removed'); }
+          }
           for (const [id, fields] of changedPerson) {
             const before = await db.contact.findUnique({ where: { id } });
             if (!before) continue;
             const moved = Object.entries(fields).some(([k, v]) => (before[k] || null) !== v);
             if (!moved) continue;
-            // Typed by a person, so no later reading of their website overwrites it.
-            await db.contact.update({ where: { id }, data: { ...fields, source: 'RUSS' } });
-            people += 1;
+            // Two people at one business cannot hold the same address. Say WHO,
+            // keep everything else, and never throw the raw database complaint
+            // at Russ — one clashing row used to lose the whole save
+            // (2026-08-28).
+            if (fields.email) {
+              const taken = await db.contact.findFirst({
+                where: { prospectId: before.prospectId, email: fields.email, NOT: { id } },
+                select: { name: true },
+              });
+              if (taken) {
+                clashes.push(`${fields.name || before.name || 'somebody'} and ${taken.name || 'somebody else'} were both given ${fields.email}`);
+                const { email, ...rest } = fields;
+                if (Object.keys(rest).length) {
+                  await db.contact.update({ where: { id }, data: { ...rest, source: 'RUSS' } });
+                  people += 1;
+                }
+                continue;
+              }
+            }
+            try {
+              // Typed by a person, so no later reading of their website overwrites it.
+              await db.contact.update({ where: { id }, data: { ...fields, source: 'RUSS' } });
+              people += 1;
+            } catch (e) {
+              clashes.push(`${fields.name || before.name || 'one person'} could not be saved${fields.email ? ` — ${fields.email} is already in use here` : ''}`);
+            }
           }
           for (const [id, fields] of changedMessage) {
+            try {
             const before = await db.outreachMessage.findUnique({ where: { id }, include: { prospect: true } });
             if (!before || !fields.body || fields.body === before.body) {
               if (before && fields.subject && fields.subject !== before.subject) {
@@ -1640,12 +1679,14 @@ const server = http.createServer(async (req, res) => {
             captureRewrite({ before: before.body, after: fields.body, business: before.prospect.name, lane: before.lane, subject: fields.subject });
             await db.outreachMessage.update({ where: { id }, data: { body: fields.body, subject: fields.subject ?? before.subject, editedAt: new Date() } });
             notes += 1;
+            } catch (e) { clashes.push('one message could not be saved'); }
           }
 
           // The ticks: who the message is addressed to at each business, and
           // their message lined up. Lining up is not sending — the daily cap,
           // the approved wording and the key all still stand in the way.
           const ticked = [].concat(form.send || []).filter(Boolean);
+          try {
           if (ticked.length) {
             const chosen = await db.contact.findMany({ where: { id: { in: ticked } }, select: { id: true, prospectId: true, email: true } });
             for (const c of chosen) {
@@ -1660,8 +1701,10 @@ const server = http.createServer(async (req, res) => {
               }
             }
           }
+          } catch (e) { clashes.push('who the message goes to could not be set'); }
 
-          const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} lined up to send.`;
+          const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} lined up to send.`
+            + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.
           const fromBusiness = url.searchParams.get('back');
           if (fromBusiness) {
