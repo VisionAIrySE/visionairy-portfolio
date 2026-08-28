@@ -39,13 +39,57 @@ const OUT = outIdx > -1 ? process.argv[outIdx + 1] : null;
 
 const PAGE_TIMEOUT_MS = 9000;
 const LANES = Number(arg('lanes', 8));
-// If fewer than this many of a batch resolve, something is wrong with the
-// guessing and the run stops rather than grinding on.
-const MIN_HIT_RATE = 0.12;
+// The floor exists to stop a BROKEN run, not a modest one. It was set at 12%
+// out of nothing and stopped a working search after 200 businesses: 7% proved
+// correct across 31,459 is around 2,200 real websites, which is a good night's
+// work rather than a failure. Measured on three samples the rate sits at 5-7%,
+// so anything under 4% means the guessing has actually stopped working
+// (2026-08-27).
+const MIN_HIT_RATE = 0.04;
 const CHECK_EVERY = 200;
 
 const lines = [];
 const say = (s) => { console.log(s); lines.push(s); };
+
+// WHICH MARKET THIS IS.
+//
+// The one place a new market is described. Everything that decides whether a
+// website belongs to a local business reads from here, so pointing this at
+// another region is a settings change rather than a rewrite — this is meant to
+// be sold to other people in other places one day (Russ, 2026-08-27).
+//
+// `here` is what a business in this market says on its own home page: a town,
+// a county, the state, or a local phone code.
+const MARKETS = {
+  'central-oregon': {
+    name: 'Central Oregon',
+    towns: ['bend', 'redmond', 'sisters', 'prineville', 'madras', 'la pine', 'sunriver',
+      'terrebonne', 'culver', 'tumalo', 'powell butte', 'warm springs'],
+    counties: ['deschutes', 'crook county', 'jefferson county'],
+    state: 'oregon',
+    areaCode: '541',
+    postcodes: /\bor\b ?9[78]\d{3}/,
+  },
+};
+
+function marketFrom(key) {
+  const m = MARKETS[key] || MARKETS['central-oregon'];
+  const parts = [
+    ...m.towns.map((t) => t.replace(/ /g, ' ?')),
+    ...m.counties,
+    `central ${m.state}`,
+    m.state,
+    `\\(?${m.areaCode}\\)? ?[-. ]?\\d{3}`,
+  ];
+  return {
+    ...m,
+    here: new RegExp(`\\b(${parts.join('|')}|${m.postcodes.source})\\b`, 'i'),
+  };
+}
+
+// Which market this run is for. One setting, and it is the only thing that
+// would change to run this in Boise or Spokane.
+const MARKET = marketFrom(process.env.HOURSBACK_MARKET || 'central-oregon');
 
 // Words that are in a legal name and never in a web address.
 const DROP = /\b(llc|l\.l\.c\.?|inc|inc\.?|incorporated|corp|corp\.?|corporation|co|co\.?|company|ltd|limited|lp|llp|pc|p\.c\.?|the|and|of|a|an)\b/gi;
@@ -94,22 +138,22 @@ function pageIsTheirs(html, name, city) {
   const named = words.filter((w) => text.includes(w)).length;
   const town = String(city || '').toLowerCase().trim();
 
-  // IT HAS TO BE IN OREGON. Matching name words alone put a La Pine church
+  // IT HAS TO BE IN THE MARKET. Matching name words alone put a La Pine church
   // against a national charity at livingwater.com and a Prineville ranch
-  // against any Miller Ranch in America (2026-08-27). A Central Oregon
-  // business says where it is somewhere on its own home page — a phone code, a
-  // town, a state.
-  const HERE = /\b(bend|redmond|sisters|prineville|madras|la ?pine|sunriver|terrebonne|culver|tumalo|powell butte|warm springs|central oregon|deschutes|crook county|jefferson county|oregon|\bor\b ?9[78]\d{3}|\(?541\)? ?[-. ]?\d{3})\b/;
-  const inOregon = HERE.test(text);
+  // against any Miller Ranch in America (2026-08-27). A local business says
+  // where it is somewhere on its own home page — a phone code, a town, a
+  // state. Which towns and which code is a SETTING, because this is meant to
+  // work in another market one day without a rewrite (Russ, 2026-08-27).
+  const inOregon = MARKET.here.test(text);
   const inTown = Boolean(town) && text.includes(town);
 
-  if (!inOregon) return { ok: false, why: 'nothing on the page puts them in Oregon' };
+  if (!inOregon) return { ok: false, why: `nothing on the page puts them in ${MARKET.name}` };
   // In Oregon AND named: most of the distinctive words, or one plus their town.
   if (words.length && named >= Math.max(1, Math.ceil(words.length * 0.6))) {
-    return { ok: true, why: `in Oregon, and names ${named} of ${words.length} words from their name` };
+    return { ok: true, why: `in ${MARKET.name}, and names ${named} of ${words.length} words from their name` };
   }
   if (named >= 1 && inTown) return { ok: true, why: 'names them and their own town' };
-  return { ok: false, why: `in Oregon but only ${named} of ${words.length} name words matched` };
+  return { ok: false, why: `in ${MARKET.name} but only ${named} of ${words.length} name words matched` };
 }
 
 async function tryHost(host) {
