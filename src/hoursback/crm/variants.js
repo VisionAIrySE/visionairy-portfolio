@@ -144,6 +144,39 @@ const PRICE_FRAMING = [
 ];
 
 // The close, four ways, at each register.
+// The free fifteen minutes. This is the ASK now, and it replaces the paid
+// audit in the first message entirely.
+//
+// A guarantee in a cold email from a stranger is a claim, not a reassurance:
+// it has to be believed before it helps, and nothing in a first message earns
+// that. Fifteen minutes to find one thing needs no belief at all, and it puts
+// Russ in the room where the guarantee actually lands (Russ chose this over
+// keeping the guarantee up front, 2026-08-27).
+const FREE_LOOK = [
+  "I'd like to do that part for you for free. Fifteen minutes on the phone, I ask what eats your team's week, and then I come back with the one thing I'd fix first, what it would take, and what it costs.",
+  "I'll do that first part for you for nothing. Fifteen minutes on the phone about where your team's time actually goes, and then I come back with the one thing I would fix first and what it would take.",
+  "That first part I'll do for free. Give me fifteen minutes to hear how the week actually runs, and I'll come back with the one thing I'd fix first, what it costs, and how to start it.",
+  "I'd like to do that bit for you for free. Fifteen minutes, you tell me where the time goes, and I come back with the one thing worth fixing first and what it would take to fix it.",
+];
+
+// What happens after, said once and lightly. It is what makes the free look a
+// beginning rather than a favour, and it is the only place the rest of the
+// work is mentioned at all.
+const AFTER_THE_LOOK = [
+  "No charge and nothing to sign. If it's useful, there's usually a good deal more where that came from and we can talk about the rest.",
+  "No charge and nothing to sign. If it's worth having, there is normally more of it and we can talk about the rest then.",
+  "Nothing to sign and no charge. If it lands, there's usually plenty more in a business like yours and we can go from there.",
+];
+
+// What Russ does, without the paid audit in it. The old version described a
+// written report somebody pays for, which is the wrong thing to describe when
+// the ask is a free call.
+const WHAT_I_DO_FREE = [
+  "I'm local, and I build and implement this kind of thing for businesses around Central Oregon. Sometimes the answer is software that already exists and costs forty dollars a month, sometimes it's something built for how you actually work.",
+  "I'm local to Central Oregon and I build and put in the software that does this work instead. Sometimes what's needed already exists and costs very little, sometimes it has to be built around how you actually run.",
+  "I'm here in Central Oregon, and what I do is find the repetitive work in a business and hand it to software: sometimes something off the shelf, sometimes something built for the way you actually work.",
+];
+
 const CLOSES = {
   // Two ways to answer and one of them is a single click.
   FORMAL: [
@@ -254,4 +287,4 @@ const COST_ANCHOR = {
 
 module.exports = {
   FLOOR_LINE, FLOOR_LINE_GENERAL,
-  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
+  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };

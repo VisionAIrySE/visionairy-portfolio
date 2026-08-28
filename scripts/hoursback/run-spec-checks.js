@@ -2388,7 +2388,10 @@ def('personalisation_changes_only_prospect_values', () => {
     // read. Found by content, not position — the introduction moved below the
     // observation and the guarantee on 2026-08-26.
     const paras = m.body.split('\n\n');
-    const intros = Object.values(V.OPENINGS).flat();
+    // The introduction moved INTO the "what I do" paragraph when the offer
+    // became a free fifteen minutes, so there is no separate intro sentence
+    // to look for any more (2026-08-27).
+    const intros = V.WHAT_I_DO_FREE;
     const closes = Object.values(V.CLOSES).flat();
     if (!intros.some((t) => m.body.includes(t))) strays.push(`no approved introduction in the message to ${name}`);
     const close = paras[paras.length - 2];
@@ -3787,6 +3790,227 @@ def('no_business_holds_two_messages_on_one_channel', () => withLiveDb(async (db)
     ? `${dupes.length} businesses hold more than one message on the same channel`
     : `${total} messages, one per business per channel` };
 }), 'reads');
+
+def('the_first_message_asks_for_fifteen_free_minutes', () => {
+  // The ask is a free fifteen-minute call, not the paid audit. A guarantee in
+  // a cold email from a stranger is a claim that has to be believed before it
+  // helps, and nothing in a first message earns that; fifteen minutes to find
+  // one thing needs no belief at all (Russ chose this, 2026-08-27).
+  const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const m = fc.draftFirstContact({ name: 'Cascade Test Dental', contactName: 'Dale Hutchins', trade: 'dental' }, []);
+  const asks = V.FREE_LOOK.some((t) => m.body.includes(t));
+  const noGuarantee = !V.GUARANTEE.some((t) => m.body.includes(t.replace('{hours}', 'five')));
+  const ok = asks && noGuarantee;
+  return { ok, detail: ok
+    ? 'the first message asks for fifteen free minutes and carries no guarantee'
+    : `${!asks ? 'does not ask for the free look' : ''}${!noGuarantee ? ' still carries the guarantee' : ''}` };
+}, 'lanes');
+
+def('no_first_message_carries_a_price_or_a_promise', () => withLiveDb(async (db) => {
+  // Nothing about money reaches a stranger. The price was never in a first
+  // message; the guarantee is out too now the ask is a free call.
+  const all = await db.outreachMessage.findMany({ select: { body: true, inviteBody: true } });
+  const money = /\$\s?\d|\b999\b|\byou don't pay\b|\bno hours, no invoice\b/i;
+  const bad = all.filter((m) => money.test(m.body) || money.test(m.inviteBody || ''));
+  return { ok: !bad.length, detail: bad.length
+    ? `${bad.length} of ${all.length} mention money or promise hours to a stranger`
+    : `${all.length} messages, none mentioning money or promising hours to a stranger` };
+}), 'reads');
+
+def('both_channels_make_the_same_offer', () => withLiveDb(async (db) => {
+  // The note Russ pastes by hand and the email that sends itself have to ask
+  // for the same thing. The note promised the paid audit for a while after the
+  // email had moved to the free fifteen minutes (2026-08-27).
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const asks = (b) => V.FREE_LOOK.some((t) => String(b).includes(t));
+  const emails = await db.outreachMessage.findMany({ where: { lane: 'EMAIL', editedAt: null }, select: { body: true } });
+  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN', editedAt: null }, select: { body: true } });
+  const badE = emails.filter((m) => !asks(m.body)).length;
+  const badL = notes.filter((m) => !asks(m.body)).length;
+  const ok = !badE && !badL;
+  return { ok, detail: ok
+    ? `${emails.length} emails and ${notes.length} notes, all asking for the same fifteen minutes`
+    : `not asking for the free look: ${badE} emails, ${badL} notes` };
+}), 'reads');
+
+// Stage 1 — the free fifteen minutes, before the paid audit.
+
+def('stage_one_asks_about_their_own_work', () => {
+  // Two of the five questions name THIS trade's work rather than asking the
+  // owner to summarise their week. That is the whole advantage of knowing who
+  // you are calling before you dial, and it is what a stranger reading from a
+  // generic script cannot do (2026-08-27).
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const build = S.questionsFor('construction');
+  const dental = S.questionsFor('dental');
+  const differ = build[1].ask !== dental[1].ask && build[2].ask !== dental[2].ask;
+  const fiveOf = build.length === 5;
+  const asksLever = build[0].answers && build[0].answers.length === 3;
+  const ok = differ && fiveOf && asksLever;
+  return { ok, detail: ok
+    ? 'five questions, the middle two written from the trade itself, and the first one asks what they actually want'
+    : `${!fiveOf ? 'not five questions; ' : ''}${!differ ? 'the same questions for every trade; ' : ''}${!asksLever ? 'no lever question' : ''}` };
+}, 'lanes');
+
+def('stage_one_prescribes_nothing', () => {
+  // Naming a tool live sounds like a guess. The call finds the bottleneck and
+  // books the second conversation; the fix is decided afterwards.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const close = S.closingLine({ hoursPerWeek: 6, friction: 'chasing signatures' });
+  const promisesToComeBack = /couple of days/i.test(close);
+  const noToolNamed = !Object.keys(require(path.join(ROOT, 'src/hoursback/toolLibrary.js')).PLATFORMS)
+    .some((t) => close.includes(t));
+  const screenSaysSo = /Do not name a tool on this call/i.test(src);
+  const ok = promisesToComeBack && noToolNamed && screenSaysSo;
+  return { ok, detail: ok
+    ? 'the call closes by promising to come back with the fix, names no tool, and the screen says so'
+    : `${!promisesToComeBack ? 'no promise to come back; ' : ''}${!noToolNamed ? 'a tool is named live; ' : ''}${!screenSaysSo ? 'the screen does not say not to prescribe' : ''}` };
+}, 'lanes');
+
+def('stage_one_captures_the_hours', () => {
+  // The hours figure is what the guarantee is measured against and what the
+  // paid work is priced against. A call without it is not finished.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const empty = S.whatIsMissing({});
+  const full = S.whatIsMissing({ lever: 'hours', repetition: 'chasing', hoursPerWeek: 6, whoDoesIt: 'Dale' });
+  const ok = empty.length === 4 && full.length === 0
+    && empty.some((m) => /hours/i.test(m)) && empty.some((m) => /who/i.test(m));
+  return { ok, detail: ok
+    ? 'a call is unfinished until the hours and who does them are on the record'
+    : `missing-check wrong: empty=${empty.length}, complete=${full.length}` };
+}, 'lanes');
+
+def('what_they_want_reorders_where_you_look', () => {
+  // Somebody whose phone is not ringing does not want their filing tidied.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const money = S.whereToLook('construction', 'money').map((x) => x.type);
+  const hours = S.whereToLook('construction', 'hours').map((x) => x.type);
+  const ok = money[0] !== hours[0] && money.length > 0 && hours.length > 0;
+  return { ok, detail: ok
+    ? `wanting money in leads with ${money[0]}; wanting hours back leads with ${hours[0]}`
+    : 'the answer to the first question changes nothing' };
+}, 'lanes');
+
+def('stage_one_lives_on_the_record', () => {
+  const schema = read(path.join(ROOT, 'prisma/schema.prisma'));
+  const need = ['stageOneLever', 'stageOneHours', 'stageOneWho', 'stageOneBottleneck', 'stageOneFix'];
+  const absent = need.filter((f) => !schema.includes(f));
+  return { ok: !absent.length, detail: absent.length
+    ? `not on the record: ${absent.join(', ')}`
+    : 'what they said on the free call is kept on their record, not in a note' };
+}, 'lanes');
+
+def('a_promised_callback_gets_a_date', () => {
+  // "Give me a couple of days" with no date on it is how a free call quietly
+  // becomes nothing. Saving one writes the follow-up the rest of the CRM
+  // already watches, so a promised second call shows up on the front screen
+  // like every other promise (2026-08-27).
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const asksForIt = /When are you calling them back\?/.test(src);
+  const feedsNextAction = /stageOneCallBackAt = when;[\s\S]{0,300}?nextActionDate = when/.test(src);
+  const downloadable = /route === 'callback'/.test(src);
+  const ok = asksForIt && feedsNextAction && downloadable;
+  return { ok, detail: ok
+    ? 'the callback is dated, joins the follow-ups the CRM already watches, and downloads into Outlook'
+    : `${!asksForIt ? 'never asked for; ' : ''}${!feedsNextAction ? 'not a tracked follow-up; ' : ''}${!downloadable ? 'not downloadable' : ''}` };
+}, 'lanes');
+
+def('the_second_call_carries_three_things', () => {
+  // What the fix is, what it costs, and the first step this week. Nothing
+  // else, and the door only opens once all three are there.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const empty = S.whatIsMissingForTheFix({});
+  const full = S.whatIsMissingForTheFix({ tool: 'Jobber', cost: '$29/mo', firstStep: 'sign up and import your customers' });
+  const hasDoor = Array.isArray(S.DOOR) && S.DOOR.length >= 1
+    && S.DOOR.every((d) => /set it up with you|put it in for you|price that/i.test(d));
+  const ok = empty.length === 3 && full.length === 0 && hasDoor;
+  return { ok, detail: ok
+    ? 'the second call is not ready until the fix, the cost and the first step are all there, and the door offers two ways to say yes'
+    : `empty=${empty.length}, complete=${full.length}, door=${hasDoor}` };
+}, 'lanes');
+
+def('the_bottleneck_chosen_matches_what_they_asked_for', () => {
+  // More than one problem always surfaces. The one to fix is the one that
+  // hurts most AND matches what they said they cared about — fixing the most
+  // painful thing is worth nothing if it is not what they wanted.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const candidates = [
+    { type: 'data_entry', hoursPerWeek: 5 },
+    { type: 'lead_follow_up', hoursPerWeek: 4 },
+  ];
+  const wantsMoney = S.pickTheOne(candidates, 'money');
+  const wantsHours = S.pickTheOne(candidates, 'hours');
+  const ok = wantsMoney && wantsHours && wantsMoney.type === 'lead_follow_up' && wantsHours.type === 'data_entry';
+  return { ok, detail: ok
+    ? 'a smaller problem wins when it is the one they asked about; the bigger one wins when it is not'
+    : `money picked ${wantsMoney && wantsMoney.type}, hours picked ${wantsHours && wantsHours.type}` };
+}, 'lanes');
+
+def('a_recording_fills_the_form_not_the_other_way_round', () => {
+  // Russ should not be typing while a business owner is talking to him. The
+  // recording already has it (2026-08-27).
+  const T = require(path.join(ROOT, 'src/hoursback/crm/transcript.js'));
+  const call = [
+    'Russ Wright: would you want more money coming in, hours back, or happier customers?',
+    "Dale Hutchins: It's the hours back, we're drowning in paperwork.",
+    'Russ Wright: how many hours a week does that eat, and who is doing it?',
+    "Dale Hutchins: About 6 hours a week. That's Marilyn, our office manager.",
+    'Dale Hutchins: Somebody has to chase every change order by hand and it falls through the cracks.',
+  ].join('\n');
+  const r = T.readTranscript(call);
+  const ok = r.usable && r.hours === 6 && r.lever === 'hours' && r.who === 'Marilyn'
+    && r.moments.length > 0 && !r.moments.some((m) => /would you want|how many hours a week does/i.test(m));
+  return { ok, detail: ok
+    ? 'a pasted call gives up the hours, what they want, who does it, and their own words with none of Russ\'s questions in them'
+    : `hours=${r.hours} lever=${r.lever} who=${r.who} moments=${r.moments && r.moments.length}` };
+}, 'lanes');
+
+def('a_recording_never_guesses', () => {
+  // A wrong answer quietly filled in is worse than a blank one: a blank asks to
+  // be filled and a wrong one does not. "It's the hours back" was being read as
+  // a person called "the hours" (2026-08-27).
+  const T = require(path.join(ROOT, 'src/hoursback/crm/transcript.js'));
+  const vague = "Dale: Honestly it's the hours back. We're drowning in it, every single week.";
+  const r = T.readTranscript(`${vague}\n${vague}\n${vague}`);
+  const noPerson = r.who === null;
+  const saysSo = r.couldNotFind.some((c) => /who does the work/i.test(c));
+  const noHours = r.hours === null && r.couldNotFind.some((c) => /how many hours/i.test(c));
+  const ok = noPerson && saysSo && noHours;
+  return { ok, detail: ok
+    ? 'what it cannot find it leaves blank and names, rather than filling in something that reads true'
+    : `who=${JSON.stringify(r.who)} hours=${r.hours} couldNotFind=${JSON.stringify(r.couldNotFind)}` };
+}, 'lanes');
+
+def('a_recording_never_overwrites_what_russ_said', () => {
+  // He was on the call and the reader was not. Anything already answered stands.
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const guards = [
+    /r\.hours !== null && \(p\.stageOneHours === null \|\| p\.stageOneHours === undefined\)/,
+    /r\.lever && !p\.stageOneLever/,
+    /r\.who && !p\.stageOneWho/,
+  ];
+  const unguarded = guards.filter((re) => !re.test(src)).length;
+  return { ok: !unguarded, detail: unguarded
+    ? `${unguarded} of ${guards.length} fields can be overwritten by the recording`
+    : 'the recording only fills blanks; anything Russ answered himself stands' };
+}, 'lanes');
+
+def('the_hours_figure_carries_the_sentence_it_came_from', () => {
+  // A number quoted to a client has to be answerable. "Two hours a day" is ten
+  // a week, and recording it as two would understate the whole offer.
+  const T = require(path.join(ROOT, 'src/hoursback/crm/transcript.js'));
+  const perDay = T.hoursFrom('It is about 2 hours a day, honestly.');
+  const range = T.hoursFrom('I would say four to six hours a week.');
+  const straight = T.hoursFrom('Probably 6 hours a week.');
+  const ok = perDay.hours === 10 && /per day/i.test(perDay.howRead)
+    && range.hours === 5 && /range/i.test(range.howRead)
+    && straight.hours === 6 && straight.said === '6 hours a week';
+  return { ok, detail: ok
+    ? 'per-day becomes per-week, a range becomes its middle, and each carries the words it was read from'
+    : `perDay=${perDay.hours} range=${range.hours} straight=${straight.hours}` };
+}, 'lanes');
 
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is

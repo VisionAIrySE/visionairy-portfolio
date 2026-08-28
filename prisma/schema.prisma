@@ -121,6 +121,36 @@ model Prospect {
   // --- money, separate from stage (crm1): CUSTOMER can exist unpaid -------
   paidAt DateTime?
 
+  // --- Stage 1: the free fifteen minutes ----------------------------------
+  // A free fact-find, before the paid audit. Nothing is prescribed on the
+  // call; Russ comes back a couple of days later with one thing to fix. The
+  // hours figure is what the guarantee is measured against and what the paid
+  // work is priced against, so it lives on the record rather than in a note.
+  stageOneAt        DateTime?
+  stageOneLever     String?   // money | hours | customers
+  stageOneRepetition String?
+  stageOneFriction  String?
+  stageOneHours     Float?    // hours a week the bottleneck eats
+  stageOneWho       String?   // who is doing it
+  stageOneWand      String?   // what would change if it ran itself
+  stageOneBottleneck String?  // the one sentence said back to them
+  // The SECOND call: the prescription, delivered free as promised. Three
+  // things and no more — what it is, what it costs, and the first step they
+  // take this week. Then the door opens to paid work.
+  stageOneFix       String?   // the one thing to fix, decided AFTER the call
+  stageOneFixCost   String?   // what it costs them
+  stageOneFirstStep String?   // what they do this week
+  stageOneFixSentAt DateTime? // when the prescription was delivered
+  stageOneDoorAt    DateTime? // when the offer of paid help was made
+  // When the second call is happening. The first call ends by promising to
+  // come back in a couple of days, and a promise with no date on it is how a
+  // free call quietly becomes nothing.
+  stageOneCallBackAt DateTime?
+  // The recording itself, pasted in. Kept whole so a later reading can find
+  // something this one missed, and so a number quoted to a client can always
+  // be traced back to the sentence somebody actually said.
+  stageOneTranscript String?
+
   // --- the calling day (crm2/crm3) ----------------------------------------
   attemptCount    Int       @default(0)
   nextAction      String?

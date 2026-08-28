@@ -320,17 +320,19 @@ function draftLinkedInInvite(prospect) {
 // credibility is one line at the point of decision rather than a resume in the
 // middle, and the year-line is gone: it was the third number in one paragraph,
 // arguing with somebody who had not disagreed yet. About 230 words.
+// The ask is now fifteen free minutes, not a nine-hundred-dollar audit.
+//
+// Four paragraphs instead of six. The guarantee, the floor line, the price
+// anchor and the description of a written report are all gone from the first
+// message — they are things to say to somebody who has already spoken to you,
+// not to a stranger deciding in four seconds whether to keep reading.
 const BODY = `Hi {greeting},
 
 {opener} {followOn} {tradeLine}
 
-{guarantee}
+{whatIDo} {credibility}
 
-{floorLine} {costAnchor}
-
-{whatIDo} For you that probably looks like {valueIn}.
-
-{intro} {credibility}
+{freeLook} {afterTheLook}
 
 {close}
 
@@ -590,31 +592,18 @@ function draftFirstContact(prospect, signals = []) {
   const who = greetingFor(prospect);
   const body = BODY
     .replace('Hi {greeting},', who ? `Hi ${who},` : 'Hello,')
-    .replace('{intro}', V.pick(V.OPENINGS[register], seed, 'intro'))
     .replace('{opener}', leadsWithTrade
       ? longevityLine(prospect) + TO.openingFor(trade, business, seed, prospect.theirWork)
       : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
     .replace('{credibility}', CREDIBILITY[register])
-    .replace('{whatIDo}', V.pick(V.WHAT_I_DO, seed, 'what'))
-    .replace('{guarantee}', sentenceCase(guaranteeFor(prospect, seed, trade)))
-    .replace('{costAnchor}', V.COST_ANCHOR[key] || V.COST_ANCHOR.default)
+    .replace('{whatIDo}', V.pick(V.WHAT_I_DO_FREE, seed, 'what'))
+    .replace('{freeLook}', V.pick(V.FREE_LOOK, seed, 'freelook'))
+    .replace('{afterTheLook}', V.pick(V.AFTER_THE_LOOK, seed, 'after'))
     .replace('{tradeLine}', leadsWithTrade ? '' : tradeLineFor(trade))
     .replace(/\bcustomers\b/g, theirPeople(trade))
     .replace(/\bcustomer login\b/g, `${theirPeople(trade).replace(/s$/, '')} login`)
-    .replace('{floorLine}', (() => {
-      const f = bandFacts(prospect);
-      const Word = f.hoursWord.charAt(0).toUpperCase() + f.hoursWord.slice(1);
-      const TO2 = require('./tradeOpening.js');
-      const plural = TO2.TRADE_PLURAL[trade];
-      const wordings = plural ? V.FLOOR_LINE : V.FLOOR_LINE_GENERAL;
-      return V.pick(wordings, seed, 'floor')
-        .replace(/\{Hours\}/g, Word)
-        .replace(/\{hours\}/g, f.hoursWord)
-        .replace(/\{plural\}/g, plural || 'offices');
-    })())
     .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
-    .replace('{valueIn}', require('./painPoints.js').painFor(trade || 'other').valueIn)
     .replace(/\{business\}/g, business)
     // The trade opening fills one slot and leaves two empty, which would show
     // as a double space mid-paragraph.
@@ -677,11 +666,12 @@ function draftLinkedIn(prospect, signals = []) {
   const body = [
     `${who ? `Hi ${who},` : 'Hello,'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
     guess ? `${opening}\n\n${guess}` : opening,
-    // The same promise the email makes, and it has to carry the same plain
-    // description of what the software DOES. This note kept the old abstract
-    // wording for a while after the email dropped it, which meant the channel
-    // Russ sends by hand was the weaker of the two (2026-08-27).
-    `I find at least ${hours} hours a week of your team's time and name the software that does that work instead: ${painFor(trade || 'other').looksLike}. If I can't, you don't pay.`,
+    // The same ask the email makes. Both channels have to carry the same
+    // offer, or the one Russ sends by hand contradicts the one that sends
+    // itself. It used to promise the paid audit here long after the email had
+    // moved to the free fifteen minutes (2026-08-27).
+    `What that usually looks like fixed: ${painFor(trade || 'other').looksLike}.`,
+    V.pick(V.FREE_LOOK, seed, 'freelook'),
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
   ].join('\n\n');
 

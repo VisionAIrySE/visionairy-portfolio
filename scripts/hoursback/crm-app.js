@@ -675,7 +675,8 @@ async function businessCard(id, saved) {
     <span class="muted">${esc((resolveField(p, 'address') || '').replace(/, USA$/, ''))}</span><br>
     ${site ? `<a href="${esc(site)}" target="_blank">${esc(site)}</a>` : '<span class="muted">no website</span>'}
     <span class="muted"> · ${esc(SITE_STATUS_LABELS[p.siteStatus] || 'not read yet')}${p.siteReadAt ? `, ${new Date(p.siteReadAt).toLocaleDateString()}` : ''}</span></p>
-  <p><a class="btn primary" href="/call/${p.id}">Log a call</a>
+  <p><a class="btn primary" href="/stage1/${p.id}">${p.stageOneAt ? 'The free fifteen minutes' : 'Run the free fifteen minutes'}</a>
+     <a class="btn" href="/call/${p.id}">Log a call</a>
      ${!p.quotedAt && p.auditFee ? `<form method="POST" action="/quote/${p.id}" style="display:inline"><button>Lock this quote in</button></form>` : ''}</p>
 
   <h2>Why call them</h2>${tells}
@@ -786,6 +787,184 @@ async function saveBusiness(id, form) {
   // the record, settle the trade, clear "needs a look", write the message.
   // Started, not waited on — a site read can take most of a minute.
   refreshInBackground(id);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1 — the free fifteen minutes, run live on the phone.
+//
+// Five questions, and two of them name this business's own work rather than
+// asking the owner to summarise it. Nothing is prescribed here: the whole point
+// is to hang up, do the homework, and come back with one thing. Prescribing
+// live sounds like a guess (2026-08-27).
+async function stageOneForm(id, saved) {
+  const p = await db.prospect.findUnique({ where: { id } });
+  if (!p) return page('<p>Not found. <a href="/">Back</a></p>');
+  const S = require('../../src/hoursback/crm/stageOne.js');
+  const qs = S.questionsFor(p.trade);
+  const answered = {
+    lever: p.stageOneLever, repetition: p.stageOneRepetition, friction: p.stageOneFriction,
+    hoursPerWeek: p.stageOneHours, whoDoesIt: p.stageOneWho, wand: p.stageOneWand,
+  };
+  const missing = S.whatIsMissing(answered);
+  const field = (q, i) => {
+    if (q.key === 'lever') {
+      return `<label>${i + 1} — ${esc(q.ask)}</label>
+        <select name="lever">
+          <option value="">—</option>
+          ${q.answers.map((a) => `<option value="${a.value}"${p.stageOneLever === a.value ? ' selected' : ''}>${esc(a.label)}</option>`).join('')}
+        </select>`;
+    }
+    if (q.key === 'hours') {
+      return `<label>${i + 1} — ${esc(q.ask)}</label>
+        <div style="display:flex;gap:8px">
+          <input name="hours" type="number" step="0.5" min="0" placeholder="hours a week" value="${p.stageOneHours === null || p.stageOneHours === undefined ? '' : p.stageOneHours}" style="max-width:12rem">
+          <input name="who" placeholder="who does it" value="${esc(p.stageOneWho)}">
+        </div>
+        <div class="was">This is the number the whole offer rests on. Write down what they say, not what you think.</div>`;
+    }
+    const name = { repetition: 'repetition', friction: 'friction', wand: 'wand' }[q.key];
+    const val = { repetition: p.stageOneRepetition, friction: p.stageOneFriction, wand: p.stageOneWand }[q.key];
+    return `<label>${i + 1} — ${esc(q.ask)}</label>
+      <input name="${name}" value="${esc(val)}" placeholder="what they said">
+      ${q.context ? `<div class="was">${esc(q.context)}</div>` : ''}`;
+  };
+
+  // What the recording gave up, shown beside the questions rather than instead
+  // of them: every number carries the sentence it came from.
+  const read = p.stageOneTranscript
+    ? require('../../src/hoursback/crm/transcript.js').readTranscript(p.stageOneTranscript)
+    : null;
+  const close = S.closingLine({ hoursPerWeek: p.stageOneHours, friction: p.stageOneFriction, repetition: p.stageOneRepetition });
+  const look = p.stageOneLever ? S.whereToLook(p.trade, p.stageOneLever) : [];
+
+  return page(`
+  ${saved ? '<div class="card" style="background:#dcfce7;border-color:#16a34a">Saved.</div>' : ''}
+  <h1>${esc(resolveField(p, 'name'))}</h1>
+  <p><a class="phone" href="tel:${digits(resolveField(p, 'phone'))}">${esc(resolveField(p, 'phone') || 'no phone')}</a>
+     <span class="muted"> · ${esc(p.trade || 'industry unknown')} · <a href="/business/${p.id}">the whole card</a></span></p>
+
+  <div class="card"><b>The free fifteen minutes.</b> You are finding ONE bottleneck, not fixing it.
+  Do not name a tool on this call — say you will come back with the right fix in a couple of days.
+  That books the second conversation and it is what makes you sound like a professional rather than a guesser.</div>
+
+  <h2>Paste the recording</h2>
+  <div class="card">
+    <p class="mini">You should not be typing while somebody is talking to you. Paste the transcript from Google Meet
+    (or Fathom, or Otter, or your own notes typed up afterwards) and it fills in what it can find, showing you the
+    sentence behind every answer. It decides nothing — anything it is unsure of it leaves blank and tells you.</p>
+    <form method="POST" action="/stage1transcript/${p.id}">
+      <textarea name="transcript" rows="6" placeholder="Paste the whole thing here">${esc(p.stageOneTranscript)}</textarea>
+      <p><button class="primary">Read it and fill in what you can</button></p>
+    </form>
+    ${read ? `<div class="was">${read.usable
+      ? `Read ${read.words} words. ${read.couldNotFind.length ? `Could not find: <b>${esc(read.couldNotFind.join(', '))}</b> — fill those in yourself.` : 'Found everything.'}`
+      : `Not usable: ${esc(read.why)}`}</div>` : ''}
+    ${read && read.usable && read.moments.length ? `<div style="margin-top:10px"><b class="mini">In their own words</b>
+      ${read.moments.slice(0, 5).map((m) => `<div class="tell"><span class="muted">"${esc(m)}"</span></div>`).join('')}</div>` : ''}
+  </div>
+
+  <form method="POST" action="/stage1/${p.id}">
+    ${qs.map((q, i) => `<div>${field(q, i)}</div>`).join('')}
+    <p><button class="primary">Save what they said</button> <a class="btn" href="/business/${p.id}">Back to the card</a></p>
+  </form>
+
+  <h2>How to close the call</h2>
+  <div class="card">${esc(close)}
+    <form method="POST" action="/stage1/${p.id}" style="margin-top:10px">
+      <label>When are you calling them back?</label>
+      <input type="datetime-local" name="callBack" value="${p.stageOneCallBackAt ? new Date(p.stageOneCallBackAt.getTime() - p.stageOneCallBackAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}" required>
+      <div class="was">Goes straight into your calendar. A promise to come back with nothing dated is how a free call quietly becomes nothing.</div>
+      <p><button class="primary">Save and put it in my calendar</button></p>
+    </form>
+  </div>
+
+  ${p.stageOneCallBackAt ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">
+    <b>Calling back ${new Date(p.stageOneCallBackAt).toLocaleString()}</b> —
+    <a href="/callback/${p.id}.ics">add it to Outlook</a></div>` : ''}
+
+  <h2>The second call — the prescription</h2>
+  <div class="card"><b>Three things and nothing else.</b> What the fix is, what it costs, and the first thing they do this week.
+  Then you open the door.</div>
+  <form method="POST" action="/stage1fix/${p.id}">
+    <div><label>What you would fix</label><input name="fix" value="${esc(p.stageOneFix)}" placeholder="the one thing"></div>
+    <div><label>What it costs them</label><input name="cost" value="${esc(p.stageOneFixCost)}" placeholder="e.g. \$29 a month, or nothing — it is a setting they already pay for"></div>
+    <div><label>The first thing they do this week</label><input name="firstStep" value="${esc(p.stageOneFirstStep)}" placeholder="one step, this week"></div>
+    <p><button class="primary">Save the prescription</button></p>
+  </form>
+  ${(() => {
+    const missing = S.whatIsMissingForTheFix({ tool: p.stageOneFix, cost: p.stageOneFixCost, firstStep: p.stageOneFirstStep });
+    return missing.length
+      ? `<div class="card" style="background:#fef9c3;border-color:#ca8a04"><b>Not ready for the second call:</b> ${esc(missing.join(', '))}</div>`
+      : `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>Ready.</b> Deliver it free, as promised, then say this:
+         <div class="tell" style="margin-top:8px">${esc(S.DOOR[0])}</div></div>`;
+  })()}
+
+  ${missing.length
+    ? `<div class="card" style="background:#fef9c3;border-color:#ca8a04"><b>Still missing:</b> ${esc(missing.join(', '))}. Without the hours figure there is nothing to price the paid work against.</div>`
+    : '<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>Enough to do the homework.</b></div>'}
+
+  ${look.length ? `<h2>Where to look before you call back</h2>
+    ${look.slice(0, 6).map((x, i) => `<div class="tell"><b>${i + 1}. ${esc(x.label)}</b> <span class="muted">${esc(x.department)}</span></div>`).join('')}` : ''}
+  `);
+}
+
+async function saveStageOne(id, form) {
+  const v = (k) => String(form[k] || '').trim() || null;
+  const hours = form.hours === '' || form.hours === undefined ? null : Number(form.hours);
+  const data = { stageOneAt: new Date() };
+  // Two forms write here — the five questions, and the callback date under the
+  // closing line. Each only writes what it was actually given, so saving one
+  // never wipes the other.
+  if ('lever' in form) {
+    Object.assign(data, {
+      stageOneLever: v('lever'),
+      stageOneRepetition: v('repetition'),
+      stageOneFriction: v('friction'),
+      stageOneHours: Number.isFinite(hours) ? hours : null,
+      stageOneWho: v('who'),
+      stageOneWand: v('wand'),
+    });
+  }
+  if (form.callBack) {
+    const when = new Date(form.callBack);
+    if (!Number.isNaN(when.getTime())) {
+      data.stageOneCallBackAt = when;
+      // Also the follow-up the rest of the CRM watches, so a promised second
+      // call shows up on the front screen like every other promise.
+      data.nextAction = 'Call back with the fix';
+      data.nextActionDate = when;
+    }
+  }
+  await db.prospect.update({ where: { id }, data });
+}
+
+// The recording, read once and kept whole.
+//
+// What it finds only fills a BLANK. Anything Russ has already answered stands,
+// because he was on the call and this was not.
+async function saveTranscript(id, form) {
+  const text = String(form.transcript || '').trim();
+  const { readTranscript } = require('../../src/hoursback/crm/transcript.js');
+  const p = await db.prospect.findUniqueOrThrow({ where: { id } });
+  const data = { stageOneTranscript: text || null, stageOneAt: p.stageOneAt || new Date() };
+  const r = readTranscript(text);
+  if (r.usable) {
+    if (r.hours !== null && (p.stageOneHours === null || p.stageOneHours === undefined)) data.stageOneHours = r.hours;
+    if (r.lever && !p.stageOneLever) data.stageOneLever = r.lever;
+    if (r.who && !p.stageOneWho) data.stageOneWho = r.who;
+    // The strongest thing they said, kept as the bottleneck in their own words.
+    if (r.moments.length && !p.stageOneBottleneck) data.stageOneBottleneck = r.moments[0];
+  }
+  await db.prospect.update({ where: { id }, data });
+}
+
+// The prescription, decided between the two calls.
+async function saveStageOneFix(id, form) {
+  const v = (k) => String(form[k] || '').trim() || null;
+  await db.prospect.update({
+    where: { id },
+    data: { stageOneFix: v('fix'), stageOneFixCost: v('cost'), stageOneFirstStep: v('firstStep') },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,6 +1231,9 @@ const server = http.createServer(async (req, res) => {
         if (r.error) return html(res, addForm(r.error + (r.id ? ' — open their card from the list.' : '')));
         res.writeHead(303, { Location: `/business/${r.id}?saved=1` }); return res.end();
       }
+      if (route === 'stage1') { await saveStageOne(id, form); res.writeHead(303, { Location: `/stage1/${id}?saved=1` }); return res.end(); }
+      if (route === 'stage1fix') { await saveStageOneFix(id, form); res.writeHead(303, { Location: `/stage1/${id}?saved=1` }); return res.end(); }
+      if (route === 'stage1transcript') { await saveTranscript(id, form); res.writeHead(303, { Location: `/stage1/${id}?saved=1` }); return res.end(); }
       if (route === 'call') { await handleCall(id, form); res.writeHead(303, { Location: '/' }); return res.end(); }
       if (route === 'business') { await saveBusiness(id, form); res.writeHead(303, { Location: `/business/${id}?saved=1` }); return res.end(); }
       if (route === 'quote') { try { await freezeQuote(db, id); } catch { /* already quoted */ } res.writeHead(303, { Location: `/business/${id}` }); return res.end(); }
@@ -1066,6 +1248,21 @@ const server = http.createServer(async (req, res) => {
     if (route === 'add') return html(res, addForm(null));
     if (route === 'email') return html(res, await emailScreen(url.searchParams));
     if (route === 'linkedin') return html(res, await linkedInScreen());
+    // One appointment, downloadable. Double-clicking it puts the callback in
+    // Outlook. Nothing reads back from the calendar — this is write-only.
+    if (route === 'callback' && id) {
+      const pid = String(id).replace(/\.ics$/, '');
+      const p = await db.prospect.findUnique({ where: { id: pid } });
+      if (!p || !p.stageOneCallBackAt) { res.writeHead(404); return res.end('no callback booked'); }
+      const { icsFor } = require('../../src/hoursback/crm/calendar.js');
+      const { body } = icsFor({ ...p, name: resolveField(p, 'name'), phone: resolveField(p, 'phone') }, p.stageOneCallBackAt);
+      res.writeHead(200, {
+        'content-type': 'text/calendar; charset=utf-8',
+        'content-disposition': `attachment; filename="call-${pid}.ics"`,
+      });
+      return res.end(body);
+    }
+    if (route === 'stage1' && id) return html(res, await stageOneForm(id, url.searchParams.get('saved')));
     if (route === 'call' && id) return html(res, await callForm(id));
     if (route === 'business' && id) return html(res, await businessCard(id, url.searchParams.get('saved')));
     if (route === 'list') return html(res, await list(url.searchParams));

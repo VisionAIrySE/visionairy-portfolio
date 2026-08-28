@@ -36,5 +36,8 @@ function writeCallback(prospect, when) {
   return file;
 }
 
+// The appointment itself, so the CRM can hand one straight to a browser
+// rather than only writing it to disk.
+exports.icsFor = icsFor;
 exports.CALLBACK_DIR = CALLBACK_DIR;
 exports.writeCallback = writeCallback;
