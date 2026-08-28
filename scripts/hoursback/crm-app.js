@@ -827,6 +827,9 @@ async function businessCard(id, saved) {
   <p><a class="btn primary" href="/live/${p.id}">${p.stageOneAt ? 'The free call' : 'Start the free call'}</a>
      <a class="btn" href="/questions/${encodeURIComponent(p.trade || tradeOfName(p) || 'other')}?for=${p.id}">The 15 minutes for ${esc(p.trade || tradeOfName(p) || 'this trade')}</a>
      <a class="btn" href="/stage1/${p.id}">Write-up and transcript</a>
+     <form method="POST" action="/business/${p.id}/archive" style="display:inline"
+       onsubmit="return confirm('${p.doNotContact ? 'Bring them back onto the list?' : 'Archive them? Nothing more goes to them and their unsent messages are removed.'}')">
+       <button>${p.doNotContact ? 'Bring them back' : 'Archive'}</button></form>
      <a class="btn" href="/call/${p.id}">Log a call</a>
      ${!p.quotedAt && p.auditFee ? `<form method="POST" action="/quote/${p.id}" style="display:inline"><button>Lock this quote in</button></form>` : ''}</p>
 
@@ -1605,6 +1608,25 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(303, { Location: back ? `/business/${back}?saved=1` : '/email' }); return res.end();
       }
       // Everything changed on the People screen, saved in one go.
+      // Put a business away, or bring it back. Archiving takes their unsent
+      // messages with it so nothing can go out to somebody set aside
+      // (Russ, 2026-08-28: "I need to be able to archive accounts").
+      if (route === 'business' && id && url.pathname.endsWith('/archive')) {
+        const p = await db.prospect.findUnique({ where: { id }, select: { doNotContact: true } });
+        const putting = !p.doNotContact;
+        await db.prospect.update({ where: { id }, data: { doNotContact: putting, stage: putting ? 'NEEDS_REVIEW' : 'NO_CONTACT' } });
+        let removed = 0;
+        if (putting) {
+          const r = await db.outreachMessage.deleteMany({ where: { prospectId: id, sentAt: null } });
+          removed = r.count;
+        }
+        const said = putting
+          ? `Archived. ${removed} unsent ${removed === 1 ? 'message' : 'messages'} removed — nothing more goes to them.`
+          : 'Back on the list. Their messages will be written again.';
+        res.writeHead(303, { Location: `/business/${id}?saved=${encodeURIComponent(said)}` });
+        return res.end();
+      }
+
       if (route === 'people') {
         const [, , what] = url.pathname.split('/');
         if (what === 'save') {
