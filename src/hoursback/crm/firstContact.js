@@ -330,11 +330,18 @@ function draftLinkedInInvite(prospect) {
 // anchor and the description of a written report are all gone from the first
 // message — they are things to say to somebody who has already spoken to you,
 // not to a stranger deciding in four seconds whether to keep reading.
+// Three paragraphs, not four. A cold email is read on a phone in about four
+// seconds and anything past the first screen is only read if the first screen
+// earned it. The paragraph of credentials sat between the hook and the ask,
+// which is exactly where people stop (2026-08-27).
+//
+// {proof} is one line of published research where the trade has one, and
+// nothing where it does not.
 const BODY = `Hi {greeting},
 
 {opener} {followOn} {tradeLine}
 
-{whatIDo} {credibility}
+{proof} {whatIDo}
 
 {freeLook} {afterTheLook}
 
@@ -600,7 +607,7 @@ function draftFirstContact(prospect, signals = []) {
       ? longevityLine(prospect) + TO.openingFor(trade, business, seed, prospect.theirWork)
       : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
-    .replace('{credibility}', CREDIBILITY[register])
+    .replace('{proof}', V.proofFor(trade, seed))
     .replace('{whatIDo}', V.pick(V.WHAT_I_DO_FREE, seed, 'what'))
     .replace('{freeLook}', V.pick(V.FREE_LOOK, seed, 'freelook'))
     .replace('{afterTheLook}', V.pick(V.AFTER_THE_LOOK, seed, 'after'))
@@ -675,6 +682,9 @@ function draftLinkedIn(prospect, signals = []) {
     // itself. It used to promise the paid audit here long after the email had
     // moved to the free fifteen minutes (2026-08-27).
     `What that usually looks like fixed: ${painFor(trade || 'other').looksLike}.`,
+    // The research, on this channel too. It is the validation for the whole
+    // offer and the note went out without it (Russ, 2026-08-27).
+    V.proofFor(trade, seed),
     V.pick(V.FREE_LOOK, seed, 'freelook'),
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
   ].join('\n\n');

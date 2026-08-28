@@ -152,30 +152,88 @@ const PRICE_FRAMING = [
 // that. Fifteen minutes to find one thing needs no belief at all, and it puts
 // Russ in the room where the guarantee actually lands (Russ chose this over
 // keeping the guarantee up front, 2026-08-27).
+// The ask, in one sentence. It was sixty words across two (2026-08-27).
 const FREE_LOOK = [
-  "I'd like to do that part for you for free. Fifteen minutes on the phone, I ask what eats your team's week, and then I come back with the one thing I'd fix first, what it would take, and what it costs.",
-  "I'll do that first part for you for nothing. Fifteen minutes on the phone about where your team's time actually goes, and then I come back with the one thing I would fix first and what it would take.",
-  "That first part I'll do for free. Give me fifteen minutes to hear how the week actually runs, and I'll come back with the one thing I'd fix first, what it costs, and how to start it.",
-  "I'd like to do that bit for you for free. Fifteen minutes, you tell me where the time goes, and I come back with the one thing worth fixing first and what it would take to fix it.",
+  "Give me fifteen minutes on the phone and I'll come back with the one thing I'd fix first, what it takes, and what it costs.",
+  "Fifteen minutes on the phone and I'll come back with the one thing worth fixing first and what it would take.",
+  "Give me a quarter of an hour and I'll come back with the one thing I'd fix first and what it costs.",
 ];
 
 // What happens after, said once and lightly. It is what makes the free look a
 // beginning rather than a favour, and it is the only place the rest of the
 // work is mentioned at all.
 const AFTER_THE_LOOK = [
-  "No charge and nothing to sign. If it's useful, there's usually a good deal more where that came from and we can talk about the rest.",
-  "No charge and nothing to sign. If it's worth having, there is normally more of it and we can talk about the rest then.",
-  "Nothing to sign and no charge. If it lands, there's usually plenty more in a business like yours and we can go from there.",
+  "Free, and nothing to sign.",
+  "No charge, nothing to sign.",
+  "Free either way, and nothing to sign.",
 ];
 
 // What Russ does, without the paid audit in it. The old version described a
 // written report somebody pays for, which is the wrong thing to describe when
 // the ask is a free call.
+// One line, not three. This sits between the hook and the ask, which is where
+// people stop reading, so it earns exactly one sentence (2026-08-27).
 const WHAT_I_DO_FREE = [
-  "I'm local, and I build and implement this kind of thing for businesses around Central Oregon. Sometimes the answer is software that already exists and costs forty dollars a month, sometimes it's something built for how you actually work.",
-  "I'm local to Central Oregon and I build and put in the software that does this work instead. Sometimes what's needed already exists and costs very little, sometimes it has to be built around how you actually run.",
-  "I'm here in Central Oregon, and what I do is find the repetitive work in a business and hand it to software: sometimes something off the shelf, sometimes something built for the way you actually work.",
+  "I'm local, and I find that kind of work and hand it to software — sometimes something off the shelf, sometimes built around how you actually run.",
+  "I'm here in Central Oregon, and what I do is take that work off businesses: sometimes with something that already exists, sometimes with something built for them.",
+  "I'm local to Central Oregon and I put in the software that does that work instead, whether it already exists or has to be built.",
 ];
+
+// One line of proof, from published research rather than from Russ's own
+// clients — he has none yet, and a case study about work he has not done is
+// the one thing he must never write. Every figure here is sourced in
+// industryTiers.js and was gathered 2026-08-26.
+//
+// It answers the question every reader has and nothing else in the message
+// does: has this actually worked for somebody like me? (Russ, 2026-08-27:
+// "there are thousands and thousands of businesses that have implemented
+// automations for benefit or the McKinsey references wouldn't be there".)
+//
+// Where a trade has no published figure, the line is left out. A made-up
+// number would undo everything else in the message.
+// Figures specific to one trade, each with the study behind it.
+//
+// A trade only appears here once its number has been found and read. Anything
+// unverified falls back to the McKinsey line below, which is checked and
+// linked. An industry figure quoted from memory is worse than the general one.
+const PROOF_BY_TRADE = {
+  // VERIFIED 2026-08-27. Independent Insurance Agents & Brokers of America:
+  // 45-90 minutes to process a single certificate by hand, and 8-15 hours a
+  // week of a service rep's time on certificates alone at a mid-size agency.
+  insurance: 'The agents\' association puts a single certificate at forty-five to ninety minutes by hand, and eight to fifteen hours a week of somebody\'s time on certificates alone.',
+};
+
+// Where a trade has no figure of its own, the general one. It was missing
+// entirely — the message said what Russ would find and never what businesses
+// have already proved, which is the whole upside (Russ, 2026-08-27: "why
+// haven't we been including the McKinsey numbers as the upside").
+//
+// Source: Deloitte, recorded in industryTiers.js on 2026-08-26. Businesses
+// expect automation to cover about a fifth of their capacity; the ones that
+// actually scaled it put the figure at half.
+// The research, quoted and linked so a reader can check it. A number in a cold
+// email with no source behind it is the thing that makes a stranger stop
+// trusting you (Russ, 2026-08-27: "quote the document for the industry and
+// provide a link to the reference as validation. What could be better?").
+//
+// VERIFIED 2026-08-27, found and read rather than remembered:
+//   McKinsey Global Institute, "Agents, Robots, and Us: Skill Partnerships in
+//   the Age of AI", November 2025. Currently demonstrated technology could
+//   automate activities accounting for about 57% of US work hours — 44% of it
+//   non-physical work that software can do.
+//   https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai
+//
+// NOTHING GOES IN HERE WITHOUT A LINK. The old line said "Deloitte found" with
+// no study, no year and no URL, and Russ had been calling it McKinsey. Neither
+// of us could have answered a client who asked where it came from.
+const PROOF_GENERAL = [
+  'McKinsey put a number on it last November: about 57% of US work hours are already technically automatable, and 44% of that is office work software can do today. Their report is here — https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai',
+  "McKinsey's research from November says about 57% of US work hours could already be automated with technology that exists — most of it the office side. Worth a read: https://www.mckinsey.com/mgi/our-research/agents-robots-and-us-skill-partnerships-in-the-age-of-ai",
+];
+
+function proofFor(trade, seed = 0) {
+  return PROOF_BY_TRADE[String(trade || '').toLowerCase()] || pick(PROOF_GENERAL, seed, 'proof');
+}
 
 const CLOSES = {
   // Two ways to answer and one of them is a single click.
@@ -287,4 +345,5 @@ const COST_ANCHOR = {
 
 module.exports = {
   FLOOR_LINE, FLOOR_LINE_GENERAL,
-  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
+  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK,
+  PROOF_BY_TRADE, PROOF_GENERAL, proofFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
