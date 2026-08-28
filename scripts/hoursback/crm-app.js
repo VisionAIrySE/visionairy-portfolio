@@ -517,25 +517,19 @@ async function addBusiness(form) {
 // ---------------------------------------------------------------------------
 // The email screen. Nothing goes out until the wording is approved once, and
 // after that every message is that same wording with their own facts in it.
-// Lining up the follow-ups that are due is a JOB, not part of drawing a page.
-// It walks sixty businesses one at a time, each one a round trip to a database
-// in the cloud, and the page sat there for the whole minute-plus. Russ opened
-// the Email tab and watched it spin (2026-08-28).
+// NOTHING HEAVY HAPPENS BECAUSE SOMEBODY LOOKED AT A PAGE.
 //
-// Now it is started and left to get on with it. The page draws immediately;
-// what it lines up appears the next time the page is opened.
-let touchesRunning = false;
-function lineUpDueTouchesInTheBackground() {
-  if (touchesRunning) return;
-  touchesRunning = true;
-  L.templateIsApproved(db)
-    .then((ok) => (ok ? L.queueDueTouches(db, { limit: 60 }) : null))
-    .catch(() => {})
-    .finally(() => { touchesRunning = false; });
-}
-
+// Lining up the follow-ups that are due walks sixty businesses one at a time,
+// each one a round trip to a database that lives in the cloud. It used to run
+// while the page was being drawn, so opening the Email tab sat there for over
+// a minute. Moving it to the background did not fix it — it just moved the
+// queue, and every page Russ opened after that waited behind the same job for
+// the same database (2026-08-28: "Stop putting band aids on and fix the issues
+// holistically").
+//
+// So it is a button now. It runs when it is asked to and never otherwise, and
+// nothing else in the app is slowed down by it.
 async function emailScreen(params) {
-  lineUpDueTouchesInTheBackground();
   const template = await db.messageTemplate.findUnique({ where: { name: L.FIRST_CONTACT } });
   // What is shown is always the message as it stands NOW, never the copy
   // saved the last time it was approved — and an approval from before a
@@ -621,6 +615,7 @@ async function emailScreen(params) {
   <p class="muted">Three messages, four days then a week apart. Anybody who answers, bounces, or says never again drops out of the sequence on the spot.</p>
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
+    <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Line up the follow-ups that are due</button></form>
     <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send the queue — at most ${Math.min(left, 25)} right now</button></form>
     <button form="pickForm" ${approved ? '' : 'disabled'}>Line up the ticked ones</button>
     <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
@@ -1592,6 +1587,14 @@ const server = http.createServer(async (req, res) => {
             });
           }
           res.writeHead(303, { Location: `/email?sent=${picked.length}&why=${encodeURIComponent('lined up to send. Nothing has left yet.')}` });
+          return res.end();
+        }
+        // Asked for, never automatic. This is the job that used to run itself
+        // every time the page was opened and made everything else wait.
+        if (what === 'followups') {
+          const r = await L.queueDueTouches(db, { limit: 60 });
+          const said = `Lined up ${r.first} first messages, ${r.second} second, ${r.third} third.`;
+          res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent(said)}` });
           return res.end();
         }
         if (what === 'batch') await L.approveBatch(db);
