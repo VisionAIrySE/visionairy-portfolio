@@ -92,6 +92,62 @@ function def(name, fn, family) { CHECKS[name] = fn; FAMILY_OF[name] = family || 
 // one is checked here rather than reported, because a report of my own work is
 // what put invented numbers into the scoring in the first place.
 
+def('a_person_on_the_list_has_something_behind_them', async () => {
+  const { PrismaClient } = require('@prisma/client');
+  const db = new PrismaClient();
+  try {
+    // Relaxing the team-page reader so it could see a job title under a
+    // photograph also let a great deal of the page in with it: "Drainage
+    // Solutions" was the main contact at an excavation company, and
+    // "Flea Treatment" and "Wire Transfers" were people (2026-08-28).
+    //
+    // A person a business published has something attached: an address, a job
+    // title, a direct line, or a profile. A row that is only two capitalised
+    // words has nothing behind it and cannot be written to or rung.
+    const bare = await db.contact.count({
+      where: {
+        AND: [
+          { source: { not: 'RUSS' } },
+          { OR: [{ email: null }, { email: '' }] },
+          { OR: [{ role: null }, { role: '' }] },
+          { OR: [{ phone: null }, { phone: '' }] },
+          { OR: [{ linkedIn: null }, { linkedIn: '' }] },
+        ],
+      },
+    });
+    if (bare > 50) return { ok: false, detail: `${bare} people have nothing behind them at all` };
+    const total = await db.contact.count();
+    return { ok: true, detail: `${total} people, ${bare} of them with nothing behind them` };
+  } finally { await db.$disconnect(); }
+}, 'people');
+
+def('the_fifteen_minutes_belongs_to_a_business', () => {
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  // It was a menu item where a trade is picked, which is a reference sheet
+  // rather than a tool. Russ: "The 15 Minutes was supposed to be a link inside
+  // each Business's card, tied to their specific industry, so it would capture
+  // it IN THEIR RECORD FOR FUTURE USE" (2026-08-28).
+  if (/<a href="\/questions">/.test(src)) return { ok: false, detail: 'still a menu item with no business behind it' };
+  if (!src.includes('The 15 minutes for ${esc(p.trade')) return { ok: false, detail: 'no button on a business that names their trade' };
+  if (!src.includes('questionsScreen(id ? decodeURIComponent(id) : null, url.searchParams.get(\'for\'))')) {
+    return { ok: false, detail: 'the page is not told which business it was opened from' };
+  }
+  return { ok: true, detail: 'opened from a business, knowing their trade, and the call writes back to them' };
+});
+
+def('the_account_page_is_editable_where_you_sit', () => {
+  const src = read(path.join(ROOT, 'scripts/hoursback/crm-app.js'));
+  // Russ: "why wouldn't there just be the list on the account page showing the
+  // people and the emails with the check boxes there?" (2026-08-28)
+  for (const field of ['name', 'role', 'email', 'phone', 'linkedIn']) {
+    if (!src.includes(`name="p.\${c.id}.${field}"`)) return { ok: false, detail: `${field} is not editable on the account page` };
+  }
+  if (!src.includes('name="send" value="${c.id}"')) return { ok: false, detail: 'no tick box beside a person on the account page' };
+  if (!src.includes('Save everything above')) return { ok: false, detail: 'no single save' };
+  if (!src.includes('/people/save?back=${p.id}')) return { ok: false, detail: 'saving does not come back to the business' };
+  return { ok: true, detail: 'name, role, address, direct line, profile, tick box and messages — all editable, one save' };
+});
+
 def('names_were_read_and_corrected', () => {
   const C = require(path.join(ROOT, 'src/hoursback/nameCorrections.js'));
   const n = Object.keys(C.BY_DOMAIN).length;
