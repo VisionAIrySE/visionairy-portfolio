@@ -23,7 +23,7 @@ const FUNCTIONS = ['paper', 'scheduling', 'follow-up', 'billing', 'inventory', '
 const PAIN_BY_TRADE = {
   trades: {
     function: 'scheduling',
-    recognition: 'One person in the office is the schedule. They know which truck is where, who is running late and which customer has already called twice, and none of it is written down anywhere that would survive them taking a week off.',
+    recognition: 'One person knows where every truck is, and none of it is written down anywhere.',
     cost: 'eight to fourteen hours a week',
     lever: 'dispatch and the callbacks that come out of it',
     looksLike: 'the schedule living somewhere other than one person\'s head, and the callbacks going out on their own',
@@ -31,7 +31,7 @@ const PAIN_BY_TRADE = {
   },
   construction: {
     function: 'paper',
-    recognition: 'Submittals go out, change orders come back, and somebody spends their week chasing signatures and re-keying the same numbers into a spreadsheet, a folder, and whatever the accountant wants.',
+    recognition: 'Half the change orders are sitting somewhere unsigned, and somebody has to chase every one.',
     cost: 'ten to sixteen hours a week',
     lever: 'change orders and the paperwork trail behind them',
     looksLike: 'a change order going out and coming back signed without anybody chasing it, and the numbers typed once instead of four times',
@@ -39,7 +39,7 @@ const PAIN_BY_TRADE = {
   },
   'real estate': {
     function: 'follow-up',
-    recognition: 'The same client details get typed into the listing system, the transaction system and an email, and the deals that go quiet mostly go quiet because nobody had time to follow up, not because the client lost interest.',
+    recognition: 'The deals that go quiet mostly go quiet because nobody had time to follow up.',
     cost: 'nine to fifteen hours a week',
     lever: 'the follow-up that keeps deals from going quiet',
     looksLike: 'client details entered once and showing up everywhere, and the follow-up happening whether or not anybody remembers',
@@ -47,7 +47,7 @@ const PAIN_BY_TRADE = {
   },
   medical: {
     function: 'paper',
-    recognition: 'Records requests, referrals and prior authorizations pile up on one desk, and the front office spends its day on the phone with insurers instead of with patients.',
+    recognition: 'The front desk spends its day on hold with insurers instead of with patients.',
     cost: 'twelve to twenty hours a week',
     lever: 'records requests and claim follow-up',
     looksLike: 'records requests answered without a phone call, and a claim checked before it goes rather than after it comes back',
@@ -55,7 +55,7 @@ const PAIN_BY_TRADE = {
   },
   dental: {
     function: 'follow-up',
-    recognition: 'Somebody spends part of every week phoning patients to book their next cleaning, and re-sending claims that came back over a single missing field.',
+    recognition: 'Somebody spends part of every week phoning patients who were due back six months ago.',
     cost: 'ten to eighteen hours a week',
     lever: 'recall and the claims that come back',
     looksLike: 'the reminders going out on their own, and a claim checked for the missing field before it leaves',
@@ -63,7 +63,7 @@ const PAIN_BY_TRADE = {
   },
   legal: {
     function: 'paper',
-    recognition: 'Intake, engagement letters and conflict checks land on whoever is nearest, and the same client information gets typed three times before anybody bills an hour.',
+    recognition: 'The same client details get typed three times before anybody bills an hour.',
     cost: 'eight to fourteen hours a week',
     lever: 'intake, and getting the file open faster',
     looksLike: 'client details typed once instead of three times, and the file open the day it comes in',
@@ -71,7 +71,7 @@ const PAIN_BY_TRADE = {
   },
   accounting: {
     function: 'follow-up',
-    recognition: 'Half the job in season is chasing clients for documents they said they already sent, and the other half is re-keying what they finally send in a format nobody asked for.',
+    recognition: 'Half of January is chasing clients for documents they swear they already sent.',
     cost: 'twelve to twenty hours a week',
     lever: 'chasing documents, and what happens when they arrive',
     looksLike: 'the chasing happening on its own, and what clients finally send landing in your system without anybody typing it',
@@ -79,7 +79,7 @@ const PAIN_BY_TRADE = {
   },
   insurance: {
     function: 'paper',
-    recognition: 'Certificates and renewals arrive as a deadline rather than a plan, and somebody re-types the same client details into the carrier portal, the agency system and an email every single time.',
+    recognition: 'Certificates get typed into the carrier portal and then typed again into your own system.',
     cost: 'eight to fourteen hours a week',
     lever: 'renewals and certificates',
     looksLike: 'renewals surfacing weeks ahead instead of the day they land, and details entered once for every system',
@@ -87,7 +87,7 @@ const PAIN_BY_TRADE = {
   },
   auto: {
     function: 'follow-up',
-    recognition: 'Estimates go out and half of them never come back, not because the customer went elsewhere but because nobody had time to ring them. Meanwhile the service desk is on hold with a parts supplier.',
+    recognition: 'Half the estimates never come back, and not because the customer went somewhere else.',
     cost: 'seven to twelve hours a week',
     lever: 'estimates that never get chased',
     looksLike: 'every estimate chased without anybody having to remember, and parts ordered without sitting on hold',
@@ -95,7 +95,7 @@ const PAIN_BY_TRADE = {
   },
   landscaping: {
     function: 'scheduling',
-    recognition: 'Through the season the schedule lives in somebody\u2019s head and a paper diary, weather moves half of it, and every change is three phone calls.',
+    recognition: 'One rainy Tuesday and the whole week is three phone calls per customer.',
     cost: 'eight to twelve hours a week',
     lever: 'the schedule, and what happens when weather moves it',
     looksLike: 'the schedule moving itself when the weather does, and the crew told without three phone calls',
@@ -103,7 +103,7 @@ const PAIN_BY_TRADE = {
   },
   'storage & logistics': {
     function: 'paper',
-    recognition: 'Paperwork moves between dispatch, the driver and the customer and each handoff is somebody re-typing what the last person already wrote down.',
+    recognition: 'The same ticket gets re-typed at dispatch, in the cab, and again for the customer.',
     cost: 'ten to sixteen hours a week',
     lever: 'the handoffs between dispatch and the driver',
     looksLike: 'the ticket written once and carried through dispatch, driver and customer without being re-typed',
@@ -111,7 +111,7 @@ const PAIN_BY_TRADE = {
   },
   staffing: {
     function: 'paper',
-    recognition: 'Applications come in one format, timesheets in another, and somebody spends their week moving both into whatever runs payroll.',
+    recognition: 'Applications come in one format and timesheets in another, and somebody types both into payroll.',
     cost: 'fifteen hours a week or more',
     lever: 'applications and timesheets',
     looksLike: 'applications and timesheets landing in payroll without anybody moving them across',
@@ -119,7 +119,7 @@ const PAIN_BY_TRADE = {
   },
   'retail & food': {
     function: 'inventory',
-    recognition: 'Ordering runs on somebody walking the shelves and knowing what usually sells, invoices get entered twice, and the schedule gets rebuilt every time one person calls in.',
+    recognition: 'Ordering runs on somebody walking the shelves, and one call-out rebuilds the whole schedule.',
     cost: 'eight to twelve hours a week',
     lever: 'ordering and the schedule',
     looksLike: 'ordering built off what actually sold, and the schedule filling itself when somebody calls in',
@@ -127,7 +127,7 @@ const PAIN_BY_TRADE = {
   },
   manufacturing: {
     function: 'paper',
-    recognition: 'A quote becomes a work order becomes a packing slip, and each of those is typed fresh by somebody rather than carried forward.',
+    recognition: 'The quote becomes a work order becomes a packing slip, and each one is typed fresh.',
     cost: 'ten to sixteen hours a week',
     lever: 'quotes carrying through to work orders',
     looksLike: 'a quote becoming a work order becoming a packing slip without being typed again',
@@ -135,7 +135,7 @@ const PAIN_BY_TRADE = {
   },
   'personal care': {
     function: 'scheduling',
-    recognition: 'Bookings, no-shows and rebooking run through whoever is at the desk, and every gap in the day is money that was already spoken for.',
+    recognition: 'Every gap in the day is money that was already booked, and filling it means phoning round.',
     cost: 'six to ten hours a week',
     lever: 'bookings and no-shows',
     looksLike: 'the gaps in the day filled without somebody at the desk phoning round',
@@ -143,7 +143,7 @@ const PAIN_BY_TRADE = {
   },
   'fitness & recreation': {
     function: 'scheduling',
-    recognition: 'Memberships, bookings and waivers are three separate piles, and chasing lapsed members is the job nobody gets to.',
+    recognition: 'The members who quietly stopped coming are the ones nobody has time to ring.',
     cost: 'six to ten hours a week',
     lever: 'lapsed members nobody has time to chase',
     looksLike: 'lapsed members chased without anybody getting to it, and waivers signed before they arrive',
@@ -151,7 +151,7 @@ const PAIN_BY_TRADE = {
   },
   'lodging & hospitality': {
     function: 'scheduling',
-    recognition: 'Bookings arrive from three places and get copied into one calendar by hand, and every change is a phone call and a correction.',
+    recognition: 'Bookings arrive from three places and somebody copies them into one calendar by hand.',
     cost: 'eight to fourteen hours a week',
     lever: 'bookings arriving from three places at once',
     looksLike: 'bookings from all three places landing in one calendar on their own',
@@ -159,7 +159,7 @@ const PAIN_BY_TRADE = {
   },
   'education & childcare': {
     function: 'paper',
-    recognition: 'Enrollment forms, immunization records and billing all live in different places, and somebody re-types a family\u2019s details into each of them.',
+    recognition: 'One family gets typed into three systems before their child sets foot in the building.',
     cost: 'eight to fourteen hours a week',
     lever: 'enrollment paperwork and billing',
     looksLike: 'a family entered once and appearing in enrollment, records and billing',
@@ -167,7 +167,7 @@ const PAIN_BY_TRADE = {
   },
   'cleaning & facilities': {
     function: 'scheduling',
-    recognition: 'Crews, keys and route changes run through one person\u2019s phone, and a single cancellation costs half an hour of calls.',
+    recognition: 'One cancellation at seven in the morning is half an hour of phone calls.',
     cost: 'seven to twelve hours a week',
     lever: 'routing crews and handling cancellations',
     looksLike: 'one cancellation rerouting the crew without a morning of calls',
@@ -175,7 +175,7 @@ const PAIN_BY_TRADE = {
   },
   'professional services': {
     function: 'follow-up',
-    recognition: 'Proposals go out and the ones that go quiet mostly go quiet for want of a follow-up, while the same client details get typed into a proposal, an invoice and a project tool.',
+    recognition: 'Proposals go out and the ones that go quiet mostly go quiet for want of a follow-up.',
     cost: 'eight to fourteen hours a week',
     lever: 'proposals that go quiet',
     looksLike: 'proposals followed up whether or not anybody remembers, and details entered once',
@@ -183,7 +183,7 @@ const PAIN_BY_TRADE = {
   },
   agriculture: {
     function: 'paper',
-    recognition: 'Compliance records, load tickets and payroll for seasonal crews all get written once on paper and typed again later, usually at night.',
+    recognition: 'The load tickets get written in the field and typed up at nine at night.',
     cost: 'eight to fourteen hours a week',
     lever: 'load tickets and seasonal payroll',
     looksLike: 'load tickets and compliance records captured once in the field, not typed again at night',
@@ -191,7 +191,7 @@ const PAIN_BY_TRADE = {
   },
   'nonprofit & community': {
     function: 'follow-up',
-    recognition: 'Donor records, volunteer sign-ups and grant reporting live in three places, and the thanking and following up is what slips when everything else is urgent.',
+    recognition: 'The thank-you that matters most is the one nobody had time to send.',
     cost: 'eight to twelve hours a week',
     lever: 'donor follow-up and grant reporting',
     looksLike: 'donors thanked without anybody finding the time, and grant reporting assembled rather than written',
@@ -199,7 +199,7 @@ const PAIN_BY_TRADE = {
   },
   veterinary: {
     function: 'follow-up',
-    recognition: 'Reminder calls for shots and check-ups fall to whoever has a spare minute, and the front desk is booking the next visit, taking payment and finishing a chart at the same counter.',
+    recognition: 'The shot reminders go out when somebody at the front desk finds a spare ten minutes.',
     cost: 'eight to fourteen hours a week',
     lever: 'reminders, and what lands on the front desk',
     looksLike: 'the shot and check-up reminders going out on their own, and the chart finished before the next one walks in',
@@ -207,7 +207,7 @@ const PAIN_BY_TRADE = {
   },
   'funeral & memorial': {
     function: 'paper',
-    recognition: 'Every arrangement generates the same details on a dozen forms, and they get written out by hand each time, for families who should not be waiting.',
+    recognition: 'The same family details get written out by hand on a dozen different forms.',
     cost: 'eight to twelve hours a week',
     lever: 'the forms behind every arrangement',
     looksLike: 'the family\'s details entered once and filling every form after that',

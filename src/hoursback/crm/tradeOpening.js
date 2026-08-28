@@ -85,15 +85,18 @@ const TRADE_PLURAL = {
 };
 
 // Sentence two: where the thing is true. Never "at your office".
+// Each of these has to read correctly with a PLURAL, because that is what
+// TRADE_PLURAL holds: "real estate offices", "construction offices". "Nearly
+// every real estate offices" was going out to 1,400 businesses (2026-08-27).
 const WHERE_TRUE = [
   "That's most {plural} around here.",
-  "That's true of most {plural} in Central Oregon.",
-  "That's how most {plural} around here run.",
+  "That's how it runs in most {plural} I talk to.",
+  "That's the shape of it in most {plural}.",
 ];
 const WHERE_TRUE_GENERAL = [
   "That's most small offices around here.",
-  "That's true of most small businesses in Central Oregon.",
-  "That's how most offices around here run.",
+  "True of nearly every business I talk to.",
+  "That's the shape of it in most offices.",
 ];
 
 // Sentence three, when their own words told us what they actually do.
@@ -108,27 +111,24 @@ const WHERE_TRUE_GENERAL = [
 // "You treat dogs, cats, horses, cattle, sheep and alpacas, and my guess is a
 // version of that..." reads as a guess about the animals (2026-08-26).
 const THEIR_WORK_GUESS = [
-  "You {work}, so I'd guess a fair bit of the above lands on whoever runs your office.",
-  'You {work}, and my guess is somebody there is carrying a good part of it.',
-  "You {work} — I'd guess some of the above comes with it.",
-  'You {work}, so odds are some of it is familiar.',
+  "You {work}, so my guess is some of that lands on whoever runs your office.",
+  "You {work}, so odds are a version of it runs there too.",
+  "You {work} — I'd guess some of it is familiar.",
 ];
 
 // Sentence three, when we only know their trade. A GUESS, and it has to stay
 // one. Every wording below is hedged, because the whole message is honest
 // right up until this sentence claims to know something about their office.
 const SOFT_GUESS = [
-  "I'd guess some of it is true at {business}.",
-  'Some of that probably lands at {business} as well.',
-  'My guess is a version of it runs at {business}.',
-  'Odds are some of that is familiar at {business}.',
+  "My guess is a version of it runs at {business}.",
+  "I'd guess {business} is no different.",
+  "Odds are it's familiar at {business}.",
 ];
 // The same, when their name is unusable in a sentence.
 const SOFT_GUESS_NO_NAME = [
-  "I'd guess some of it is true for you.",
-  'Some of that probably lands with you as well.',
-  'My guess is a version of it runs there.',
-  'Odds are some of that is familiar.',
+  "My guess is a version of it runs at yours.",
+  "I'd guess yours is no different.",
+  "Odds are it's familiar.",
 ];
 
 // A business name fit to sit inside a sentence.
