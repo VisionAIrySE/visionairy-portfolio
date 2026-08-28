@@ -24,7 +24,10 @@ const CONTACT = {
   // needed and no obligation", and a booking link in the same breath takes
   // that back. Down here it is simply available to anyone already decided
   // (Russ, 2026-08-26).
-  calendly: 'https://calendly.com/visionairy',
+  // The FREE AI REVIEW, fifteen minutes — checked on the live page 2026-08-27.
+  // The old link booked a thirty-minute meeting, so an email promising fifteen
+  // minutes was quietly asking for double.
+  calendly: 'https://calendly.com/visionairy/new-meeting',
 };
 
 let _logo = null;

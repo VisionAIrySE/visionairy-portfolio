@@ -23,33 +23,49 @@ const { painFor } = require('./painPoints.js');
 // each so the biggest trade group (124 real estate offices) does not send one
 // subject line 124 times. Never the business name — a third of the list has a
 // name that is really a web page heading, and those made unreadable subjects.
+// Subject lines.
+//
+// These used to be headline-cased noun phrases — "Quote, Work Order, Packing
+// Slip", "Ordering And The Schedule" — which read like chapter titles in a
+// report rather than like something a person typed before a meeting. Russ read
+// them and called them horrible, and he was right: a stranger's inbox is full
+// of campaigns, and anything that looks like one is deleted unread
+// (2026-08-27).
+//
+// What replaces them:
+//   · lower case, because that is how people write to each other
+//   · two to five words
+//   · about THEM, not about what Russ does
+//   · never a colon, never a comma-list, never a promise
+//
+// Three per trade so no two neighbours get the same one.
 const TRADE_SUBJECT = {
-  construction: ['The paperwork behind your change orders', 'Chasing signatures', 'Re-keying the same numbers'],
-  trades: ['The schedule that lives in one head', 'Dispatch and the callbacks after it', 'When one person is the schedule'],
-  'real estate': ['The deals that go quiet', 'Typing the same client details twice', 'The follow-up that never happens'],
-  medical: ['Time on the phone with insurers', 'Records requests and prior authorizations', 'Your front office and the phone'],
-  dental: ['Filling the schedule by phone', 'Claims that come back over one field', 'Booking the next cleaning'],
-  legal: ['The same client details, typed three times', 'Intake before anybody bills an hour', 'Getting the file open faster'],
-  accounting: ['Chasing clients for documents', 'Documents they said they already sent', 'Re-keying what clients finally send'],
-  insurance: ['Renewals that arrive as a deadline', 'The carrier portal and the agency system', 'Certificates, typed twice'],
-  auto: ['Estimates that never get chased', 'On hold with a parts supplier', 'The estimates that never come back'],
-  landscaping: ['When weather moves the schedule', 'Three phone calls for every change', 'A season of schedule in a paper diary'],
-  'storage & logistics': ['Re-typing the same ticket', 'Dispatch, driver, customer', 'The handoffs between dispatch and the road'],
-  staffing: ['Applications in one format, timesheets in another', 'Moving both into payroll', 'Between the application and the placement'],
-  'retail & food': ['Ordering and the schedule', 'Invoices entered twice', 'Rebuilding the schedule when one person calls in'],
-  manufacturing: ['A quote becoming a work order', 'Typed fresh instead of carried forward', 'Quote, work order, packing slip'],
-  'personal care': ['Gaps in the day that were already spoken for', 'Bookings, no-shows and rebooking', 'Everything through whoever is at the desk'],
-  'fitness & recreation': ['Lapsed members nobody has time to chase', 'Memberships, bookings and waivers', 'Three piles, one desk'],
-  'lodging & hospitality': ['Bookings arriving from three places', 'Copied into one calendar by hand', 'When every change is a phone call'],
-  'education & childcare': ['One family, typed into three systems', 'Enrollment, records and billing', 'Staff with families instead of forms'],
-  'cleaning & facilities': ['One cancellation, half an hour of calls', 'Crews, keys and route changes', 'Routing crews before the day starts'],
-  'professional services': ['Proposals that go quiet', 'The same details in a proposal, an invoice and a project tool', 'The follow-up on proposals'],
-  agriculture: ['Load tickets written once and typed again', 'The office side, after dark', 'Compliance records and seasonal payroll'],
-  'nonprofit & community': ['The donor follow-up that slips', 'Donors, volunteers and grants in three places', 'Thanking people when everything else is urgent'],
-  'funeral & memorial': ['The same details on a dozen forms', 'Families waiting on paperwork', 'Written out by hand every time'],
-  veterinary: ['The reminder calls', 'Shots and check-ups nobody has chased', 'Booking, payment and charts at one counter'],
+  construction: ['chasing change orders', 'the signatures nobody has back yet', 'submittals and the typing after'],
+  trades: ['when the schedule is in one head', 'the callbacks after dispatch', 'who knows where the trucks are'],
+  'real estate': ['the deals that went quiet', 'typing the same client in twice', 'follow-up nobody had time for'],
+  medical: ['on hold with insurers again', 'records requests piling up', 'the front desk and the phone'],
+  dental: ['claims back over one field', 'phoning patients to rebook', 'the recall list'],
+  legal: ['intake before anybody bills', 'the same details, three times', 'getting the file open'],
+  accounting: ['chasing clients for documents', 'documents they said they sent', 'what clients finally send'],
+  insurance: ['certificates typed twice', 'renewals that arrive as a deadline', 'the portal and your system'],
+  auto: ['estimates nobody chased', 'on hold with parts again', 'the estimates that never came back'],
+  landscaping: ['when weather moves the week', 'three calls for every change', 'the season in a paper diary'],
+  'storage & logistics': ['the same ticket, re-typed', 'dispatch to driver to customer', 'what gets typed at each handoff'],
+  staffing: ['applications and timesheets', 'moving both into payroll', 'between the application and the placement'],
+  'retail & food': ['ordering off what usually sells', 'invoices entered twice', 'when one person calls in'],
+  manufacturing: ['quote to work order', 'typed fresh every time', 'the same numbers, three documents'],
+  'personal care': ['the gaps in the day', 'no-shows and rebooking', 'everything through the front desk'],
+  'fitness & recreation': ['members nobody had time to chase', 'memberships and waivers', 'the admin behind the floor'],
+  'lodging & hospitality': ['bookings from three places', 'copied into one calendar by hand', 'when every change is a call'],
+  'education & childcare': ['one family, three systems', 'enrollment and the paperwork', 'forms instead of families'],
+  'cleaning & facilities': ['one cancellation, an hour of calls', 'crews, keys and route changes', 'routing before the day starts'],
+  'professional services': ['proposals that went quiet', 'the same details in three places', 'follow-up on proposals'],
+  agriculture: ['load tickets typed twice', 'the office side, after dark', 'compliance and seasonal payroll'],
+  'nonprofit & community': ['the donor thank-you that slips', 'donors, volunteers, grants', 'reporting nobody has time for'],
+  'funeral & memorial': ['the same details on a dozen forms', 'families waiting on paperwork', 'written out by hand each time'],
+  veterinary: ['the reminder calls', 'shots nobody has chased', 'booking, payment and charts at one counter'],
 };
-const GENERAL_SUBJECT = ['The same information, typed twice', 'Where the hours actually go', 'Typed into two or three places'];
+const GENERAL_SUBJECT = ['the same thing, typed twice', 'where the hours actually go', 'typed into two or three places'];
 
 // What to call a group of them. Reads as somebody who knows the trade rather
 // than somebody reading off a category list.
@@ -134,6 +150,14 @@ function shortName(raw) {
   if (!/\s/.test(n) && n === n.toLowerCase()) return null; // "willowpediatrics"
   if (n.length > 42) return null;                          // still a heading
   if (!/[a-z]/i.test(n)) return null;
+  // A registered name is often shouted — "VERNAM CRANE SERVICE, INC." — and
+  // reads as anger in the middle of a sentence. Said aloud it is just a name
+  // (2026-08-27).
+  if (n === n.toUpperCase() && n.length > 4) {
+    n = n.toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+      .replace(/\b(Llc|Inc|Pc|Llp|Cpa|Dds|Dmd|Hvac|Rv|Us|Usa|Nw|Or|Ii|Iii)\b/g, (m) => m.toUpperCase());
+  }
   return n;
 }
 

@@ -4012,6 +4012,158 @@ def('the_hours_figure_carries_the_sentence_it_came_from', () => {
     : `perDay=${perDay.hours} range=${range.hours} straight=${straight.hours}` };
 }, 'lanes');
 
+def('the_questions_can_be_read_before_a_call', () => {
+  // Reading them for the first time on a live call is how you get halfway down
+  // and find the order is wrong (Russ, 2026-08-27).
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const hasScreen = /async function questionsScreen/.test(src);
+  const routed = /route === 'questions'/.test(src);
+  const inMenu = /href="\/questions">/.test(src);
+  const ok = hasScreen && routed && inMenu;
+  return { ok, detail: ok
+    ? 'every question for every trade can be read on one page, reachable from the menu, without opening anybody\'s record'
+    : `${!hasScreen ? 'no screen; ' : ''}${!routed ? 'not reachable; ' : ''}${!inMenu ? 'not in the menu' : ''}` };
+}, 'lanes');
+
+def('a_call_can_be_started_over', () => {
+  // Emptying a box and saving leaves it empty, so there was no way to wipe a
+  // call and begin again. The recording is kept: it is what was actually said.
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const clears = src.match(/async function clearStageOne[\s\S]{0,900}?\n\}/);
+  if (!clears) return { ok: false, detail: 'no way to clear a call' };
+  const body = clears[0];
+  const wipes = ['stageOneLever', 'stageOneRepetition', 'stageOneFriction', 'stageOneHours',
+    'stageOneWho', 'stageOneWand', 'stageOneFix', 'stageOneCallBackAt']
+    .filter((f) => new RegExp(`${f}: null`).test(body));
+  const keepsTranscript = !/stageOneTranscript: null/.test(body);
+  const routed = /route === 'stage1clear'/.test(src);
+  const asks = /confirm\('Clear everything from this call/.test(src);
+  const ok = wipes.length === 8 && keepsTranscript && routed && asks;
+  return { ok, detail: ok
+    ? 'a call can be wiped and started again, it asks first, and the recording survives'
+    : `wipes ${wipes.length} of 8, keeps the recording=${keepsTranscript}, routed=${routed}, asks=${asks}` };
+}, 'lanes');
+
+def('fifteen_minutes_has_enough_to_ask', () => {
+  // Five questions is three minutes each and nobody talks like that. A real
+  // fifteen minutes is twelve to fifteen questions, most of them follow-ups to
+  // what was just said (Russ, 2026-08-27, twice).
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const qs = S.questionsFor('construction');
+  const total = qs.reduce((n, q) => n + 1 + ((q.thenAsk || []).length), 0);
+  const spine = qs.length;
+  const withDepth = qs.filter((q) => (q.thenAsk || []).length >= 3).length;
+  const ok = spine === 5 && total >= 15 && withDepth >= 4;
+  return { ok, detail: ok
+    ? `${total} questions available, ${spine} of them compulsory, ${withDepth} carrying three or more follow-ups`
+    : `${total} questions from ${spine} compulsory, only ${withDepth} with real depth` };
+}, 'lanes');
+
+def('going_deeper_is_conditional_not_compulsory', () => {
+  // The follow-ups only get asked where the answer says there is something
+  // there. A business that says "that is handled" gets moved past, which is
+  // what keeps the call from being tedious.
+  const S = require(path.join(ROOT, 'src/hoursback/crm/stageOne.js'));
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  // Only the five decide whether a call is finished.
+  const missing = S.whatIsMissing({});
+  const onlySpine = missing.length === 4;
+  const saysSo = /If they say it is handled, move on/.test(src);
+  const foldedAway = /<details/.test(src);
+  const ok = onlySpine && saysSo && foldedAway;
+  return { ok, detail: ok
+    ? 'only the five count towards a finished call; the rest are folded away and the screen says to move on when there is nothing there'
+    : `compulsory=${missing.length}, screen says move on=${saysSo}, folded=${foldedAway}` };
+}, 'lanes');
+
+// The call, filled in while it happens.
+
+def('a_call_stops_when_a_tool_can_be_named', () => {
+  // Not a question count and not a clock. The stopping point is whether Russ
+  // can name a tool and say why (Russ, 2026-08-27: "getting a sufficient
+  // amount of knowledge, with all known factors in play, to be able to make
+  // appropriate recommendations").
+  const E = require(path.join(ROOT, 'src/hoursback/crm/enoughToRecommend.js'));
+  const nothing = E.whatIsStillNeeded({});
+  const enough = {
+    type: 'approvals_and_signatures', hoursPerWeek: 5, whoDoesIt: 'office',
+    arrivesAs: 'email', connectsTo: 'QuickBooks', triedBefore: 'tool_failed', triedWhat: 'DocuSign',
+  };
+  const ok = nothing.length >= 5 && E.canRecommend(enough) && !E.canRecommend({ ...enough, hoursPerWeek: null });
+  return { ok, detail: ok
+    ? `${nothing.length} things must be known before a tool can be named, and it says which are missing`
+    : `empty=${nothing.length}, full set enough=${E.canRecommend(enough)}` };
+}, 'lanes');
+
+def('time_never_cuts_a_line_of_questions_short', () => {
+  // "To have 2 of 3 lines of questions completed with a third undeveloped
+  // would be unacceptable" (Russ). Time only decides whether to open ANOTHER
+  // problem, never whether to finish the one in hand.
+  const E = require(path.join(ROOT, 'src/hoursback/crm/enoughToRecommend.js'));
+  const half = { type: 'approvals_and_signatures', hoursPerWeek: 5, whoDoesIt: 'office' };
+  const early = E.whereWeAre(half, 3);
+  const late = E.whereWeAre(half, 22);
+  // Over time, it still names what is missing rather than declaring it finished.
+  const ok = !early.done && !late.done && early.roomForAnother && !late.roomForAnother
+    && late.gaps.length === early.gaps.length;
+  return { ok, detail: ok
+    ? 'running late closes the door on a second problem and never on finishing the first'
+    : `early done=${early.done} room=${early.roomForAnother}; late done=${late.done} room=${late.roomForAnother}` };
+}, 'lanes');
+
+def('a_tool_they_already_binned_is_never_recommended_back', () => {
+  // Knowing they tried and failed is worth far less than knowing WHAT. The
+  // button alone kept DocuSign on the list for a business that had already
+  // bought it and abandoned it (2026-08-27).
+  const E = require(path.join(ROOT, 'src/hoursback/crm/enoughToRecommend.js'));
+  const F = require(path.join(ROOT, 'src/hoursback/crm/liveForm.js'));
+  const base = { type: 'approvals_and_signatures', hoursPerWeek: 5, whoDoesIt: 'office', arrivesAs: 'email', connectsTo: 'QuickBooks' };
+  const demandsName = F.stillNeedsTheName('tool_failed', '') && !F.stillNeedsTheName('never', '');
+  const blocked = E.whatIsStillNeeded({ ...base, triedBefore: 'tool_failed' })
+    .some((g) => /name of what they tried/i.test(g.missing));
+  const named = E.shortlist({ ...base, triedBefore: 'tool_failed', triedWhat: 'DocuSign' }, []);
+  const gone = !named.some((t) => t.name === 'DocuSign');
+  const ok = demandsName && blocked && gone;
+  return { ok, detail: ok
+    ? 'the name is demanded before a call counts as finished, and what they binned never comes back on the list'
+    : `demands the name=${demandsName}, blocks without it=${blocked}, drops it=${gone}` };
+}, 'lanes');
+
+def('the_call_asks_in_buttons_not_sentences', () => {
+  // Russ types fast but not that fast. Anything predictable is a button, and
+  // every button set has a way in for when the buttons are wrong.
+  const F = require(path.join(ROOT, 'src/hoursback/crm/liveForm.js'));
+  const biz = { trade: 'construction', toolsInUse: 'QuickBooks Online' };
+  const first = F.nextQuestions(biz, {})[0];
+  const problem = F.nextQuestions(biz, { lever: 'hours' })[0];
+  const hasChoices = first.choices && first.choices.length === 3;
+  const problemFromTrade = problem.choices.some((c) => c.value === 'approvals_and_signatures');
+  const hasEscape = Boolean(problem.freeText);
+  // The hours figure comes from two clicks rather than a number.
+  const hours = F.hoursFromButtons('daily', '1h');
+  const ok = hasChoices && problemFromTrade && hasEscape && hours === 5;
+  return { ok, detail: ok
+    ? 'the first question is three buttons, the problems come from their own trade, every set has a way out, and five hours a week comes from two clicks'
+    : `choices=${hasChoices} fromTrade=${problemFromTrade} escape=${hasEscape} hours=${hours}` };
+}, 'lanes');
+
+def('every_question_says_why_it_appeared', () => {
+  // A call has to be readable back, not just followable.
+  const F = require(path.join(ROOT, 'src/hoursback/crm/liveForm.js'));
+  const biz = { trade: 'dental' };
+  const seen = [];
+  const a = {};
+  for (const [k, v] of [['lever', 'hours'], ['type', 'client_communication'], ['howOften', 'daily']]) {
+    const q = F.nextQuestions(biz, a)[0];
+    if (q) seen.push(q);
+    a[k] = v;
+  }
+  const allExplained = seen.length >= 3 && seen.every((q) => q.why && q.why.length > 20);
+  return { ok: allExplained, detail: allExplained
+    ? `${seen.length} questions checked, every one carrying why it was asked`
+    : `${seen.filter((q) => !q.why).length} of ${seen.length} appear with no reason given` };
+}, 'lanes');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.

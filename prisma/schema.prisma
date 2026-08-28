@@ -150,6 +150,11 @@ model Prospect {
   // something this one missed, and so a number quoted to a client can always
   // be traced back to the sentence somebody actually said.
   stageOneTranscript String?
+  // Everything clicked and typed during the call, as it was answered. Kept
+  // whole so the questions that came next can be worked out again, and so a
+  // call can be read back and understood rather than just followed.
+  stageOneAnswers   String?
+  stageOneStartedAt DateTime?
 
   // --- the calling day (crm2/crm3) ----------------------------------------
   attemptCount    Int       @default(0)

@@ -51,6 +51,61 @@ const LEVERS = {
   },
 };
 
+// What to ask NEXT, once a top-level question has found something.
+//
+// Five questions is three minutes each, and nobody talks like that. A real
+// fifteen minutes is twelve to fifteen questions, and most of them are
+// follow-ups to what was just said (Russ, 2026-08-27: "you think 5 questions
+// fills 15 minutes? 3 minutes per question is ridiculously short").
+//
+// These only get asked where the answer above them said there IS something
+// there. A business that says "no, that's handled" gets moved past
+// immediately, which is what keeps the call from being tedious.
+//
+// Three groups, because what you need to know next depends on what kind of
+// thing they just described.
+const FOLLOW_UPS = {
+  // After they name a piece of repetitive work.
+  work: [
+    { ask: 'Walk me through it — what actually happens, start to finish?', why: 'The steps are where the automatable part hides. Ask for the whole thing, not a summary.' },
+    { ask: 'How often does that happen — every day, every job, once a week?', why: 'Frequency times minutes is the hours figure. You need both halves.' },
+    { ask: 'Who does it, and is it always them?', why: 'One person carrying it is a risk they already feel. Several people means no single fix.' },
+    { ask: 'What does it arrive as — email, paper, a phone call, a form?', why: 'How something arrives decides which tools can even touch it.' },
+    { ask: 'Where does it end up when it is finished?', why: 'The last step is usually somebody typing it into a second system.' },
+    { ask: 'What happens when it goes wrong or somebody forgets?', why: 'The cost of the failure is usually bigger than the cost of the work.' },
+  ],
+  // After they name something that gets stuck or dropped.
+  friction: [
+    { ask: 'How often does that actually happen?', why: 'Something that happens twice a year is a story, not a problem.' },
+    { ask: 'What does it cost you when it does — a day, a job, a customer?', why: 'This is the sentence you quote back to them.' },
+    { ask: 'How do you find out it has happened?', why: 'If the answer is "when the customer rings", that is its own finding.' },
+    { ask: 'Who picks it up when it goes wrong?', why: 'Usually the owner, and usually at night.' },
+    { ask: 'Have you tried to fix it before?', why: 'What failed before tells you what not to recommend and why their guard is up.' },
+  ],
+  // After they say what they want, before you go looking for it.
+  want: [
+    { ask: 'What does that look like if it works — what changes on a Monday?', why: 'Vague wants produce vague recommendations.' },
+    { ask: 'Is that new, or has it been like that a while?', why: 'A new pain has a cause. An old one has been survived and needs a reason to move.' },
+    { ask: 'What have you already got in place for it?', why: 'The cheapest recommendation is often a feature of something already on their bill.' },
+    { ask: 'If nothing changes, what does that cost you over a year?', why: 'Their number, not yours. It is what the paid work is measured against.' },
+  ],
+  // After the hours figure, to make it defensible.
+  hours: [
+    { ask: 'Is that a normal week or a busy one?', why: 'Seasonal businesses quote their worst week. Ask which one you just heard.' },
+    { ask: 'Does anybody else touch it?', why: 'The hours belong to a business, not a person. Two people at three hours is six.' },
+    { ask: 'What would they be doing instead?', why: 'Hours saved are worth what the person would otherwise be doing.' },
+  ],
+};
+
+// Which set of follow-ups belongs under each of the five.
+const FOLLOW_UP_SET = {
+  lever: 'want',
+  repetition: 'work',
+  friction: 'friction',
+  hours: 'hours',
+  wand: null,     // the last question is the close; nothing follows it
+};
+
 // The five questions, in order, broad to specific.
 //
 // Two and three are written FROM THE TRADE, so they name the work rather than
@@ -68,6 +123,7 @@ function questionsFor(trade) {
       ask: 'If I could fix one thing in the next month, would you want it to bring more money in, give you and your team hours back, or make your customers happier?',
       why: 'Decides everything after it. Somebody whose phone is not ringing does not want their filing tidied.',
       answers: Object.entries(LEVERS).map(([k, v]) => ({ value: k, label: v.label })),
+      thenAsk: FOLLOW_UPS.want,
     },
     {
       key: 'repetition',
@@ -75,17 +131,20 @@ function questionsFor(trade) {
       ask: biggest ? `${biggest.question}` : 'What is the task you or your team repeat most every week?',
       context: pain.recognition,
       why: 'Asked about their actual work rather than in the abstract, so the answer is specific and it proves you know the trade.',
+      thenAsk: FOLLOW_UPS.work,
     },
     {
       key: 'friction',
       ask: second ? `${second.question}` : 'Where do things most often slow down, get stuck, or fall through the cracks?',
       why: 'The second-biggest thing in their trade. Where the first question found nothing, this usually does.',
+      thenAsk: FOLLOW_UPS.friction,
     },
     {
       key: 'hours',
       ask: 'How many hours a week does that eat, and who is doing it?',
       why: 'THE number. It is what the guarantee is measured against and what the paid work is priced against. Write it down.',
       capture: ['hoursPerWeek', 'whoDoesIt'],
+      thenAsk: FOLLOW_UPS.hours,
     },
     {
       key: 'wand',
@@ -175,6 +234,6 @@ function whatIsMissingForTheFix(fix = {}) {
 }
 
 module.exports = {
-  LEVERS, DOOR, questionsFor, closingLine, whereToLook, whatIsMissing,
+  LEVERS, DOOR, FOLLOW_UPS, FOLLOW_UP_SET, questionsFor, closingLine, whereToLook, whatIsMissing,
   pickTheOne, whatIsMissingForTheFix,
 };

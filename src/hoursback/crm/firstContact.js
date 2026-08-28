@@ -148,14 +148,18 @@ const FOLLOW_ONS = {
     "Every one of those is a small interruption, and they're the hardest hours to see because no single one of them feels like a problem.",
 };
 
+// Same rule as the trade subjects: lower case, short, about them. "Both of
+// your businesses, {business}" produced "Both of your businesses, Home" where
+// the business name was a page title, and "Both of your businesses, your
+// office" where it was a heading (2026-08-27).
 const SUBJECTS = {
-  runs_several_businesses: 'Both of your businesses, {business}',
-  hiring_several_office_roles: 'The office roles you are hiring for',
-  hiring_admin_role: 'About the office role you are hiring for',
-  no_website: 'A thought about the calls coming into {business}',
-  downloadable_forms: 'The forms on your site',
-  fax_listed: 'The paperwork coming into {business}',
-  no_online_booking: 'About the phone at {business}',
+  runs_several_businesses: 'running more than one of these',
+  hiring_several_office_roles: 'the office roles you are hiring for',
+  hiring_admin_role: 'the office role you are hiring for',
+  no_website: 'the calls coming in',
+  downloadable_forms: 'the forms on your site',
+  fax_listed: 'the paperwork coming in',
+  no_online_booking: 'the phone at {business}',
   no_customer_portal: 'A thought about your front desk',
   default: 'A thought about the admin hours at {business}',
 };
@@ -342,7 +346,7 @@ Founder
 VisionAIry
 503-621-8000 · russ@visionairy.biz
 VisionAIry.biz · LinkedIn
-Grab a time on my calendar: https://calendly.com/visionairy`;
+Grab a time on my calendar: https://calendly.com/visionairy/new-meeting`;
 
 // ---------------------------------------------------------------------------
 // the second and third touch
@@ -361,7 +365,7 @@ Founder
 VisionAIry
 503-621-8000 · russ@visionairy.biz
 VisionAIry.biz · LinkedIn
-Grab a time on my calendar: https://calendly.com/visionairy`;
+Grab a time on my calendar: https://calendly.com/visionairy/new-meeting`;
 
 // Four days after the first, not a week — an earlier version said "I wrote
 // last week" on day four. It also opened with "I think I led with the wrong
