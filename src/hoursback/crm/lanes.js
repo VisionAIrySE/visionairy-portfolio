@@ -182,7 +182,16 @@ async function draftFor(db, prospectId, lane) {
   // the existing row before it ever looked at the new words, 2026-08-26.
   const existing = await db.outreachMessage.findFirst({ where: { prospectId, lane } });
   if (existing) {
-    const rewritable = existing.state === 'DRAFT' && !existing.editedAt
+    // Lined up to send is NOT sent. A message sitting in the queue with old
+    // wording is the DANGEROUS one — it is the closest to somebody's inbox.
+    // Only rewriting drafts froze 32 messages with the McKinsey line and the
+    // "running more than one of these" subject that Russ had already thrown
+    // out, and no amount of rewriting could reach them. He opened the first
+    // account he tried and there it was (2026-08-28).
+    //
+    // Sent is untouchable. Hand-written is untouchable. Everything else tracks
+    // the current wording.
+    const rewritable = !existing.sentAt && !existing.editedAt
       && (existing.body !== built.body
         || (built.inviteBody && existing.inviteBody !== built.inviteBody));
     if (!rewritable) return existing;

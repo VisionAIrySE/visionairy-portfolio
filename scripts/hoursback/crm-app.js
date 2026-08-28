@@ -517,8 +517,25 @@ async function addBusiness(form) {
 // ---------------------------------------------------------------------------
 // The email screen. Nothing goes out until the wording is approved once, and
 // after that every message is that same wording with their own facts in it.
+// Lining up the follow-ups that are due is a JOB, not part of drawing a page.
+// It walks sixty businesses one at a time, each one a round trip to a database
+// in the cloud, and the page sat there for the whole minute-plus. Russ opened
+// the Email tab and watched it spin (2026-08-28).
+//
+// Now it is started and left to get on with it. The page draws immediately;
+// what it lines up appears the next time the page is opened.
+let touchesRunning = false;
+function lineUpDueTouchesInTheBackground() {
+  if (touchesRunning) return;
+  touchesRunning = true;
+  L.templateIsApproved(db)
+    .then((ok) => (ok ? L.queueDueTouches(db, { limit: 60 }) : null))
+    .catch(() => {})
+    .finally(() => { touchesRunning = false; });
+}
+
 async function emailScreen(params) {
-  if (await L.templateIsApproved(db)) await L.queueDueTouches(db, { limit: 60 });
+  lineUpDueTouchesInTheBackground();
   const template = await db.messageTemplate.findUnique({ where: { name: L.FIRST_CONTACT } });
   // What is shown is always the message as it stands NOW, never the copy
   // saved the last time it was approved — and an approval from before a

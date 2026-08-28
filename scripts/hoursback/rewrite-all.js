@@ -40,7 +40,10 @@ const say = (s) => { console.log(s); lines.push(s); };
   say(`wording is now version ${t.version}, ${t.approvedAt ? 'still approved' : 'needs approving again'}`);
 
   const rows = await db.outreachMessage.findMany({
-    where: { state: 'DRAFT', editedAt: null },
+    // Anything not yet sent and not written by hand — including messages
+    // already lined up to send, which is where the old wording was hiding
+    // (2026-08-28).
+    where: { sentAt: null, editedAt: null },
     select: { prospectId: true, lane: true },
   });
   say(`${rows.length} unsent, untouched messages to rewrite`);
