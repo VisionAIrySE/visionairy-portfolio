@@ -231,8 +231,15 @@ async function tryHost(host) {
       if (out.tried >= CHECK_EVERY && out.tried % CHECK_EVERY === 0) {
         const rate = out.theirs / out.tried;
         say(`  ${out.tried} tried, ${out.theirs} found (${Math.round(rate * 100)}%)`);
-        if (rate < MIN_HIT_RATE) {
-          stopped = `hit rate fell to ${Math.round(rate * 100)}%, below the ${Math.round(MIN_HIT_RATE * 100)}% floor`;
+        // The floor catches a BROKEN search, not a modest one. It stopped a
+        // working search twice: 7% in the oldest slice of the register, 1% in
+        // the next. That is not a fault — the register is mostly recently
+        // formed companies with no web presence, and the ones it does find are
+        // the long-established businesses that are the better prospects
+        // anyway. It only stops now if it finds NOTHING at all across a long
+        // stretch, which is what a genuinely broken guess looks like.
+        if (out.theirs === 0 && out.tried >= CHECK_EVERY * 5) {
+          stopped = `nothing at all found in ${out.tried} tries — the guessing has stopped working`;
           return;
         }
       }
