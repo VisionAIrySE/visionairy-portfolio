@@ -4366,6 +4366,212 @@ def('every_question_says_why_it_appeared', () => {
     : `${seen.filter((q) => !q.why).length} of ${seen.length} appear with no reason given` };
 }, 'lanes');
 
+// ---------------------------------------------------------------------------
+// The night the records were read rather than scanned (2026-08-28)
+//
+// Russ, having asked more than once: "Stop doing keyword bullshit and use your
+// semantic language capabilities to UNDERSTAND what is on the pages", and then
+// "you also need to rescore appropriately. No way to contact except phone is
+// not a 100."
+//
+// Each check below is a rule that was broken in the doing, so each one is
+// proof against the specific way it went wrong rather than a general good
+// intention.
+
+const understand = () => require(path.join(ROOT, 'src/hoursback/understand.js'));
+const reachable = () => require(path.join(ROOT, 'src/hoursback/reachable.js'));
+
+def('a_business_you_can_only_phone_never_ranks_at_the_top', () => {
+  // Kernutt Stokes sat at 100 with no website, no address and no number on
+  // file. The 100 was right about the business — fifteen people, an accounting
+  // firm, something like sixty-six hours a week of repetitive office work. It
+  // was silent about there being no way in at all, and Russ ranks his day by
+  // that number.
+  const { howToReachThem, callOrderScore } = reachable();
+  const phoneOnly = howToReachThem({ phone: true });
+  const nothing = howToReachThem({});
+  const named = howToReachThem({ peopleWithEmail: 1, peopleNamed: 1, website: true });
+  const rankedOnPhone = callOrderScore(100, phoneOnly);
+  const rankedOnNothing = callOrderScore(100, nothing);
+  const rankedOnNamed = callOrderScore(100, named);
+  if (rankedOnPhone >= 100) return { ok: false, detail: `a phone-only business still ranks ${rankedOnPhone}` };
+  if (rankedOnNothing >= rankedOnPhone) return { ok: false, detail: 'no way in at all ranks the same as the phone' };
+  if (rankedOnNamed !== 100) return { ok: false, detail: `a business you can write to by name was held at ${rankedOnNamed}` };
+  return {
+    ok: true,
+    detail: `a perfect fit ranks ${rankedOnNamed} when you can write to somebody by name, ${rankedOnPhone} on the phone alone and ${rankedOnNothing} with no way in`,
+  };
+}, 'score');
+
+def('the_fit_survives_being_held_down', () => {
+  // Holding the ranking must never destroy what was known about the business.
+  // A number that quietly becomes 50 with no trace of the 100 behind it is a
+  // black box, and Russ has to be able to argue with every part of it.
+  const { howToReachThem, callOrderScore, explain } = reachable();
+  const reach = howToReachThem({ website: true });
+  const said = explain(95, reach);
+  const ranked = callOrderScore(95, reach);
+  if (ranked >= 95) return { ok: false, detail: 'nothing was held down at all' };
+  if (!said.includes('95')) return { ok: false, detail: `the fit is not visible in the words: ${said}` };
+  return { ok: true, detail: `held down and still readable: "${said}"` };
+}, 'score');
+
+def('a_placeholder_is_never_saved_as_an_address', () => {
+  // Horner Law's record came back with "your@email" as its address — the grey
+  // placeholder inside their own contact form. It was genuinely on the page,
+  // so "did you actually read this" was not enough of a test. A placeholder is
+  // worse than a blank: a blank shows as missing, a placeholder looks like a
+  // working address and quietly bounces everything written to it.
+  const { isARealAddress } = understand();
+  const mustRefuse = ['your@email', 'you@yourcompany.com', 'name@domain.com', 'email@example.com',
+    'info@highdesertpm.com\\', 'a@b', 'test@test', 'someone@yourdomain.com'];
+  const mustKeep = ['dan@firkus.com', 'will@ankenynw.com', 'trish.ackerman@wilco.coop',
+    'yewavestorage@gmail.com', 'info@x.co.uk'];
+  const wronglyKept = mustRefuse.filter((v) => isARealAddress(v));
+  const wronglyRefused = mustKeep.filter((v) => !isARealAddress(v));
+  const ok = !wronglyKept.length && !wronglyRefused.length;
+  return {
+    ok,
+    detail: ok
+      ? `${mustRefuse.length} placeholders refused, ${mustKeep.length} real addresses kept`
+      : `kept: ${wronglyKept.join(', ')} | refused: ${wronglyRefused.join(', ')}`,
+  };
+}, 'people');
+
+def('a_first_name_is_a_person_and_a_company_is_not', () => {
+  // Two mistakes in opposite directions, both made in one hour. Demanding two
+  // words filed Linda, Joan, Mike and 301 others as junk — plenty of team
+  // pages list staff by first name and nothing else. Allowing anything two
+  // words long filed "Outwest Insurance" as an agent and "Dental Assistant"
+  // as an office manager.
+  const { looksLikeAHuman } = understand();
+  const people = ['Linda', 'Megan J. Horner', 'Skip David Shields', "Sean O'Brien", 'Yod Branch'];
+  const notPeople = ['Outwest Insurance', 'Dental Assistant', 'Advanced Medical',
+    'Construction Manager', 'Skip to content', 'Meet Our Team', 'Contact Us'];
+  const missed = people.filter((n) => !looksLikeAHuman(n, true));
+  const letIn = notPeople.filter((n) => looksLikeAHuman(n, true));
+  // And a bare first name with nothing attached is a heading, not a person.
+  const bareWordKept = looksLikeAHuman('Linda', false);
+  const ok = !missed.length && !letIn.length && !bareWordKept;
+  return {
+    ok,
+    detail: ok
+      ? 'a first name with a job beside it is a person; a company name never is; a bare word on its own is a heading'
+      : `missed people: ${missed.join(', ')} | let through: ${letIn.join(', ')} | bare word kept: ${bareWordKept}`,
+  };
+}, 'people');
+
+def('a_shared_inbox_is_never_handed_to_a_person', () => {
+  // info@ belongs to the business. Handing it to a named person makes a
+  // message read as though it were written to them, and makes the business
+  // look reachable by name when it is not.
+  const { keepOnlyWhatWasRead } = understand();
+  const document = 'Our team. Dan Firkus, owner. info@firkus.com. 541-555-0100.';
+  const got = keepOnlyWhatWasRead({
+    trade: 'trades',
+    people: [{ name: 'Dan Firkus', role: 'owner', email: 'info@firkus.com' }],
+  }, document, 'Firkus Plumbing');
+  const dan = got.people.find((p) => p.name === 'Dan Firkus');
+  if (!dan) return { ok: false, detail: 'Dan was dropped entirely' };
+  if (dan.email) return { ok: false, detail: `the shared inbox was given to Dan: ${dan.email}` };
+  if (got.sharedEmail !== 'info@firkus.com') return { ok: false, detail: 'the shared inbox was lost instead of moved' };
+  return { ok: true, detail: 'the general inbox moved to the business and Dan kept his name and his job' };
+}, 'people');
+
+def('nothing_is_written_that_was_not_actually_on_the_page', () => {
+  // The reader is good and it is not a guarantee. An address it constructs
+  // from a naming pattern it noticed — first.last@ — looks exactly like one it
+  // read. Everything kept is checked back against the words that were handed
+  // over, so a fact Russ says out loud on a call came from their own site.
+  const { keepOnlyWhatWasRead } = understand();
+  const document = 'Meet Sarah Kent, our practice manager. Call the office on 541-555-0199.';
+  const got = keepOnlyWhatWasRead({
+    trade: 'dental',
+    people: [{
+      name: 'Sarah Kent',
+      role: 'practice manager',
+      email: 'sarah.kent@brightsmile.com',
+      linkedIn: 'https://linkedin.com/in/sarahkent',
+    }],
+    mainPhone: '541-555-0199',
+  }, document, 'Bright Smile Dental');
+  const sarah = got.people.find((p) => p.name === 'Sarah Kent');
+  if (!sarah) return { ok: false, detail: 'a person who WAS on the page got dropped' };
+  if (sarah.email) return { ok: false, detail: `an invented address was kept: ${sarah.email}` };
+  if (sarah.linkedIn) return { ok: false, detail: 'an invented profile was kept' };
+  if (sarah.role !== 'practice manager') return { ok: false, detail: 'her real job was lost' };
+  if (got.mainPhone !== '541-555-0199') return { ok: false, detail: 'the number that WAS published got dropped' };
+  return { ok: true, detail: 'the invented address and profile were refused; her name, her job and the published number were kept' };
+}, 'people');
+
+def('a_person_who_was_never_there_is_refused', () => {
+  // A name that does not appear in the pages was not read off them.
+  const { keepOnlyWhatWasRead } = understand();
+  const got = keepOnlyWhatWasRead({
+    trade: 'legal',
+    people: [{ name: 'Megan J. Horner', role: 'managing partner' }, { name: 'Nobody Atall', role: 'partner' }],
+  }, 'Horner Law. Megan J. Horner, managing partner.', 'Horner Law');
+  const names = got.people.map((p) => p.name);
+  if (!names.includes('Megan J. Horner')) return { ok: false, detail: 'the real person was dropped' };
+  if (names.includes('Nobody Atall')) return { ok: false, detail: 'a person who was never on the page was kept' };
+  if (!got.dropped.length) return { ok: false, detail: 'nothing was recorded about the refusal' };
+  return { ok: true, detail: `kept the person who was there, refused the one who was not, and said why: "${got.dropped[0]}"` };
+}, 'people');
+
+def('an_unsure_trade_is_left_blank_rather_than_guessed', () => {
+  // A wrong trade costs far more than a blank one: it picks the wrong opening
+  // line, the wrong scenarios and the wrong estimate of the hours. The reader
+  // is allowed to say it cannot tell, which no pattern can ever do.
+  const { keepOnlyWhatWasRead } = understand();
+  const unsure = keepOnlyWhatWasRead({
+    trade: 'accounting',
+    tradeSure: false,
+    cannotTell: 'it could be accounting or bookkeeping software, the page never says',
+  }, 'some words about a business', 'Something Ltd');
+  if (unsure.trade) return { ok: false, detail: 'a trade it was unsure about was written down anyway' };
+  if (!unsure.tradeUnsure) return { ok: false, detail: 'the doubt was not recorded' };
+  if (!unsure.cannotTell) return { ok: false, detail: 'no reason was kept for Russ to read' };
+  const sure = keepOnlyWhatWasRead({ trade: 'accounting', tradeSure: true }, 'words', 'X');
+  if (sure.trade !== 'accounting') return { ok: false, detail: 'a trade it WAS sure about got thrown away' };
+  return { ok: true, detail: 'unsure is left blank with the reason kept; sure is written down' };
+}, 'trade');
+
+def('the_reader_is_asked_to_understand_not_to_match', () => {
+  // The whole point. If this question ever turns back into a word list, every
+  // fault of the last week comes back with it.
+  const { questionAbout, TRADES } = understand();
+  const q = questionAbout('Vernam Crane Service', 'we lift things onto building sites');
+  const mustSay = [
+    ['for MEANING', 'never tells the reader to read for meaning'],
+    ['Never pattern-match', 'never forbids pattern matching'],
+    ['A firm of accountants whose benefits page mentions dental insurance is accounting', 'lost the example that explains the difference'],
+    ['set trade to null', 'never allows "I cannot tell" on the trade'],
+    ['role is null', 'never allows "I cannot tell" on a job title'],
+    ['NOWHERE else', 'no longer keeps a shared inbox off a person'],
+    ['Never guess one from a name', 'no longer forbids guessing a profile'],
+  ];
+  const missing = mustSay.filter(([needle]) => !q.includes(needle)).map(([, why]) => why);
+  if (missing.length) return { ok: false, detail: missing.join('; ') };
+  if (TRADES.length < 20) return { ok: false, detail: `only ${TRADES.length} trades offered` };
+  return { ok: true, detail: `the reader is asked to judge what a business IS, across ${TRADES.length} trades, and is allowed to answer that it cannot tell` };
+}, 'trade');
+
+def('an_address_in_a_link_is_not_lost', () => {
+  // Stripping the tags off a page threw away every address and number that
+  // lived inside a link, which is where small businesses put them. "Email Dan"
+  // became the words "Email Dan" and the one fact worth having was gone.
+  const { readableText } = understand();
+  const html = '<p>Reach <a href="mailto:dan@firkus.com">Dan</a> or ring '
+    + '<a href="tel:5415550100">the office</a>. '
+    + '<a href="https://www.linkedin.com/in/danfirkus">Dan on LinkedIn</a></p>';
+  const text = readableText(html);
+  if (!text.includes('dan@firkus.com')) return { ok: false, detail: 'the address inside the link was thrown away' };
+  if (!text.includes('5415550100')) return { ok: false, detail: 'the number inside the link was thrown away' };
+  if (!/linkedin\.com\/in\/danfirkus/.test(text)) return { ok: false, detail: 'the profile inside the link was thrown away' };
+  if (!text.includes('Dan')) return { ok: false, detail: 'the words around the link were lost' };
+  return { ok: true, detail: 'addresses, numbers and profiles inside links survive into what the reader sees' };
+}, 'people');
+
 def('all_spec_checks_execute_and_pass', async () => {
   // Runs every registered check except itself; names each failure. This is
   // the one-command verdict the lb1 spec's Operate limb asks for.
@@ -4389,6 +4595,104 @@ async function run(name) {
   console.log(`${r.ok ? '✓' : '✗'} ${name} — ${r.detail}`);
   return r.ok ? 0 : 1;
 }
+
+// ── The night of 2026-08-29 ─────────────────────────────────────────
+// Three runs in a row did what was asked and produced nothing Russ
+// wanted. Each of these is one of those failures, written as a check so
+// it cannot come back quietly. Spec: .xf/specs/2026-08-29-website-read.md
+
+def('a_person_with_a_name_but_no_address_is_still_saved', () => {
+  // Most people on a small firm's website are a name and a job and
+  // nothing else. If only the ones with an email survive, the whole
+  // point of reading the page is lost.
+  const { keepOnlyWhatWasRead } = understand();
+  const document = 'Our team. Sandy Caverhill, CPA. Chelan Cameron, Accounting Office Manager. info@mc.com';
+  const got = keepOnlyWhatWasRead({
+    trade: 'accounting',
+    people: [
+      { name: 'Sandy Caverhill', role: 'CPA' },
+      { name: 'Chelan Cameron', role: 'Accounting Office Manager' },
+    ],
+  }, document, 'McGregor Caverhill');
+  if (got.people.length !== 2) {
+    return { ok: false, detail: `${2 - got.people.length} of the two were dropped for having no address` };
+  }
+  return { ok: true, detail: 'both kept their place with a name and a job and no address' };
+}, 'people');
+
+def('the_reader_may_answer_that_it_cannot_tell', () => {
+  // A page that says nothing about the trade must produce silence, not
+  // a guess. Russ: "read the data, don't pattern-match it."
+  const { keepOnlyWhatWasRead } = understand();
+  const got = keepOnlyWhatWasRead(
+    { trade: null, tradeUnsure: true, people: [], cannotTell: 'The site never says what they do.' },
+    'Welcome. Open Monday to Friday. Call us.', 'The Workshop');
+  if (got.trade) return { ok: false, detail: `a trade was invented from a page that never named one: ${got.trade}` };
+  if (!got.cannotTell) return { ok: false, detail: 'the honest sentence about what is missing was thrown away' };
+  return { ok: true, detail: 'no trade invented, and the page\'s silence was written down as a sentence' };
+}, 'people');
+
+def('a_run_that_saves_nobody_is_reported_as_a_failure', () => {
+  // The night's worst one. 887 people were read off the pages, counted,
+  // reported in the tally, and never written to a single record. Every
+  // check passed because every check asked the reader, not the records.
+  const fs = require('fs');
+  const src = fs.readFileSync('scripts/hoursback/read-via-openrouter.js', 'utf8');
+  if (!/THE PEOPLE WERE NOT SAVED/.test(src)) {
+    return { ok: false, detail: 'the run can finish with nobody saved and still call itself a success' };
+  }
+  if (!/db\.prospect\.findMany[\s\S]{0,400}contacts:/.test(src)) {
+    return { ok: false, detail: 'success is still judged from the reader, not from the records' };
+  }
+  return { ok: true, detail: 'the run reads the records back and says so plainly when the people are missing' };
+}, 'people');
+
+def('the_money_ceiling_is_checked_before_the_call_not_after', () => {
+  // Checked afterwards, the ceiling is a receipt. Checked before, it is
+  // a limit. Russ has paid for the difference.
+  const fs = require('fs');
+  const src = fs.readFileSync('scripts/hoursback/read-via-openrouter.js', 'utf8');
+  const stop = src.indexOf('spent + worst > CEILING_USD');
+  const call = src.indexOf('await askTheReader(');
+  if (stop === -1) return { ok: false, detail: 'nothing works out the cost before spending it' };
+  if (call === -1 || stop > call) return { ok: false, detail: 'the money is spent before the ceiling is consulted' };
+  return { ok: true, detail: 'the ceiling is consulted before every call, so it cannot be passed by the call that finds it' };
+}, 'people');
+
+def('the_two_ways_of_reading_a_site_save_it_the_same_way', () => {
+  // Written twice, it was written wrong: one path saved people and the
+  // other silently did not. One saving step, used by both, is the only
+  // arrangement in which that cannot happen again.
+  const fs = require('fs');
+  const src = fs.readFileSync('scripts/hoursback/read-via-openrouter.js', 'utf8');
+  if (!/require\('\.\/understand-businesses\.js'\)/.test(src)) {
+    return { ok: false, detail: 'the second path has its own saving step again' };
+  }
+  if (/db\.prospect\.update\(/.test(src)) {
+    return { ok: false, detail: 'the second path still writes records by hand instead of through the shared step' };
+  }
+  return { ok: true, detail: 'both ways of reading a website save it through the same step' };
+}, 'people');
+
+def('a_person_the_record_refuses_is_never_swallowed', () => {
+  // The saving step used to catch every failure and say nothing. The note
+  // claimed it was only for two staff sharing one inbox — but it never
+  // checked, so ANY failure dropped a person in silence. That is how 887
+  // people were read, counted, reported and never written (2026-08-29).
+  const fs = require('fs');
+  const src = fs.readFileSync('scripts/hoursback/understand-businesses.js', 'utf8');
+  if (/\}\s*catch\s*\{\s*\/\* two people sharing an address/.test(src)) {
+    return { ok: false, detail: 'the saving step still swallows every failure without saying so' };
+  }
+  if (!/lost\.push\(/.test(src)) {
+    return { ok: false, detail: 'a person the record refuses is still not counted anywhere' };
+  }
+  const run = fs.readFileSync('scripts/hoursback/read-via-openrouter.js', 'utf8');
+  if (!/PEOPLE WERE REFUSED BY THE RECORDS/.test(run)) {
+    return { ok: false, detail: 'the run never tells anybody a person was refused' };
+  }
+  return { ok: true, detail: 'a refused person is counted and named in the run summary instead of vanishing' };
+}, 'people');
 
 (async () => {
   const args = process.argv.slice(2);

@@ -833,7 +833,29 @@ async function businessCard(id, saved) {
      <a class="btn" href="/call/${p.id}">Log a call</a>
      ${!p.quotedAt && p.auditFee ? `<form method="POST" action="/quote/${p.id}" style="display:inline"><button>Lock this quote in</button></form>` : ''}</p>
 
+  ${p.stalledBuild ? `<div class="card" style="background:#fef3c7;border-color:#d97706">
+    <b>They may already have wanted something built.</b><br>
+    ${esc(p.stalledBuild)}
+    <br><span class="muted">Russ's biggest deal came from a man quoted $300,000 by a development shop who shelved it — he was waiting for a price he could say yes to. Worth opening on this rather than on tools.</span>
+  </div>` : ''}
+
   <h2>Why call them</h2>${tells}
+
+  ${(() => {
+    // WHAT THE READING COULD NOT FIND, which is worth as much as what it did.
+    //
+    // The reader is allowed to answer "I cannot tell" and it does, honestly, on
+    // most sites — that sentence is the one thing on the card that says what to
+    // ASK on the call. It was being written to the record and never shown, so
+    // the whole point of reading for meaning was invisible here (2026-08-28).
+    let gaps = [];
+    try { gaps = JSON.parse(p.siteGaps || '[]'); } catch { gaps = []; }
+    const bits = [];
+    if (p.yearsInBusiness) bits.push(`<p>Been going <b>${p.yearsInBusiness} years</b>, by their own account.</p>`);
+    if (p.selfDescription) bits.push(`<p class="muted">${esc(p.selfDescription)}</p>`);
+    if (gaps.length) bits.push(`<p class="muted"><b>Their site never says:</b> ${gaps.map((g) => esc(String(g))).join(' ')}</p>`);
+    return bits.length ? `<h2>What their own site told us</h2>${bits.join('')}` : '';
+  })()}
 
   <h2>Where their five hours are</h2>
   ${(() => {
@@ -888,7 +910,10 @@ async function businessCard(id, saved) {
       <td><input name="p.${c.id}.role" value="${esc(c.role || '')}" placeholder="what they do" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.email" value="${esc(c.email || '')}" placeholder="no address" style="padding:5px 7px;font-size:14px">${c.bouncedAt ? '<div class="mini">bounced</div>' : ''}</td>
       <td><input name="p.${c.id}.phone" value="${esc(c.phone || '')}" placeholder="direct line" style="padding:5px 7px;font-size:14px"></td>
-      <td><input name="p.${c.id}.linkedIn" value="${esc(c.linkedIn || '')}" placeholder="their profile" style="padding:5px 7px;font-size:14px"></td>
+      <td><input name="p.${c.id}.linkedIn" value="${esc(c.linkedIn || '')}" placeholder="their profile" style="padding:5px 7px;font-size:14px">
+        ${c.name && !c.linkedIn ? `<a class="mini" target="_blank" rel="noopener"
+          href="https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in "${c.name}" "${resolveField(p, 'name')}"`)}"
+          >find them &rarr;</a>` : ''}</td>
     </tr>`).join('')}
   </table></div>` : '<p class="muted">Nobody found on their site yet.</p>'}
 

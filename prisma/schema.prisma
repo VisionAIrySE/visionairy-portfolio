@@ -84,6 +84,17 @@ model Prospect {
   // what would fill it, cheapest first (2026-08-27).
   siteScore       Int?
   siteGaps        String?
+  // What the page shows of something they already wanted built and did not get.
+  // Russ's biggest deal came from a man who had been quoted $300,000 by a dev
+  // shop and shelved it — he was not persuaded of anything, he was waiting for
+  // a price he could say yes to. Rare, so it is a flag on the card and never a
+  // number in the score (2026-08-30).
+  stalledBuild    String?
+  // How many genuinely different businesses run out of this one company, read
+  // off the page rather than counted from commas. One electrician listing four
+  // services is 1; a contractor doing junk removal, snow, excavation and septic
+  // is 4 (2026-08-30).
+  separateOperations Int?
 
   // --- derived from the RESOLVED employeeCount via the rules module -------
   // (recomputed on an employeeCount correction; never a per-employee figure)
