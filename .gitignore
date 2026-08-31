@@ -38,3 +38,19 @@ data/
 # whole prospect list is built from, and it took a search to find once already.
 !data/hoursback/
 !data/hoursback/*.csv.gz
+
+# Framework session state — machine bookkeeping, regenerated every session.
+# The specs are the exception: they are the written record of what we agreed
+# to build, and they belong with the code they describe.
+.xf/*
+!.xf/specs/
+
+# Scratch: one-off diagnostics, run logs, and safety backups taken before a
+# risky change. Useful on the day, meaningless a week later.
+tmp-*
+scripts/hoursback/tmp-*
+MEMORY.md
+
+# Holds a live API key. Never goes through git — keys belong in the
+# deployment platform's settings, not in the repository.
+.mcp.json
