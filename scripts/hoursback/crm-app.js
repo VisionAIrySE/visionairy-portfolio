@@ -564,10 +564,23 @@ async function emailScreen(params) {
   const approved = await L.templateIsApproved(db);
   const drifted = Boolean(template && template.approvedAt) && !approved;
   const weeks = Number(params.get('weeks') || 0);
+
+  // WORK A BATCH THAT IS ALIKE (Russ, 2026-08-31).
+  //
+  // 869 messages shown 25 at a time, with no way to say "only accounting" or
+  // "only the eighties and up". Reading twenty-five letters that are all the
+  // same trade is how a bad line gets spotted; reading twenty-five unrelated
+  // ones is how it gets missed.
+  const onlyTrade = (params.get('trade') || '').trim();
+  const floor = Number(params.get('floor') || 0);
+  const prospectWhere = { doNotContact: false, repliedAt: null };
+  if (onlyTrade) prospectWhere.trade = onlyTrade;
+  if (floor > 0) prospectWhere.automationScore = { gte: floor };
+
   const [left, ready, sent, batch] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
-      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
+      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: prospectWhere },
       include: { prospect: true },
       // BEST FIRST, AND A BUSINESS WITH NO SCORE IS NOT BEST.
       //
@@ -584,6 +597,9 @@ async function emailScreen(params) {
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
   ]);
+  const waitingTotal = await db.outreachMessage.count({
+    where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
+  });
   const reachable = await db.prospect.count({
     where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
   });
@@ -601,6 +617,10 @@ async function emailScreen(params) {
     ? 'Approve it again' : drifted ? "I've read the new wording — approve it" : "I've read it — approve it"}</button></form>
   <p class="mini">The button never goes away. Approve again any time you want the record to say you have read what is going out now.</p>`;
 
+  // NOT THIS ONE. Until now the only ways off this screen were to tick it for
+  // sending or to open the account and archive the whole business (Russ,
+  // 2026-08-31). Skipping pulls this one message out of the queue, leaves the
+  // business alone, and can be undone from the account page.
   const one = (m) => `<div class="card"><div class="row">
       <div><label style="display:inline;width:auto;margin-right:8px"><input type="checkbox" name="pick" value="${m.id}" form="pickForm"
         style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : ''}></label><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}
@@ -615,6 +635,9 @@ async function emailScreen(params) {
           const greeted = opener ? opener[1] : null;
           return `${who ? `<b>To ${esc(who)}</b> · ` : greeted ? `<b>Greets ${esc(greeted)}</b> · ` : '<b>No name — opens "Hello,"</b> · '}`;
         })()}${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}</div></div>
+      <form method="POST" action="/email/skip/${m.id}" style="margin-left:auto"
+        onsubmit="return confirm('Skip this one? It comes off the list and nothing goes to them. The business stays.')">
+        <button title="take this off the list without archiving the business">Skip</button></form>
       <div class="muted">${esc(m.state)}</div></div>
       <form method="POST" action="/email/edit/${m.id}">
         <input name="subject" value="${esc(m.subject || '')}" style="font-weight:600">
@@ -639,7 +662,18 @@ async function emailScreen(params) {
     <p class="muted">Written from what you promised on the call. None of them go anywhere until you release them.</p>
     ${batch.slice(0, 5).map(one).join('')}
     <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
-  <h2>Written and waiting (${ready.length})</h2>
+  <h2>Written and waiting (${ready.length}${onlyTrade || floor ? ` of ${waitingTotal}` : ''})</h2>
+  <form method="GET" action="/email" class="row" style="margin:8px 0 14px">
+    <select name="trade" style="width:auto">
+      <option value="">every trade</option>
+      ${TRADE_OPTIONS.map((t) => `<option value="${esc(t)}"${onlyTrade === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
+    </select>
+    <select name="floor" style="width:auto">
+      ${[0, 60, 70, 80, 90].map((f) => `<option value="${f}"${floor === f ? ' selected' : ''}>${f ? `score ${f} and up` : 'any score'}</option>`).join('')}
+    </select>
+    <button>Show these</button>
+    ${onlyTrade || floor ? '<a class="btn" href="/email">Clear</a>' : ''}
+  </form>
   <!-- Tick the ones to go out, then one button at the bottom. A button under
        every single message meant 645 separate clicks and no way to see what
        you had chosen (Russ, 2026-08-28: "rather than have a button for each
@@ -1602,6 +1636,15 @@ const server = http.createServer(async (req, res) => {
           const weeks = Number(url.searchParams.get('weeks') || form.weeks || 0);
           const run = await L.sendQueuedEmails(db, { weeksSending: weeks });
           res.writeHead(303, { Location: `/email?sent=${run.sent}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
+          return res.end();
+        }
+        // Not this one — off the list, business untouched, undoable.
+        if (what === 'skip' && arg) {
+          await db.outreachMessage.update({
+            where: { id: arg },
+            data: { state: 'SUPPRESSED', suppressedReason: 'skipped on the email screen' },
+          });
+          res.writeHead(303, { Location: '/email?skipped=1' });
           return res.end();
         }
         // Prove the sending key works without spending a prospect on it.
