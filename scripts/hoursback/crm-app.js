@@ -992,6 +992,9 @@ async function businessCard(id, saved) {
 
   // One per message he has rewritten, or an empty object. Cheap: it only looks
   // at messages carrying an edit, and there are at most two per business.
+  const { waitingFor } = require('../../src/hoursback/overrides.js');
+  const waiting = await waitingFor(db, p.id);
+
   const offers = {};
   for (const m of p.messages) {
     const o = await spreadOffer(m, p);
@@ -1054,6 +1057,18 @@ async function businessCard(id, saved) {
       Email to them is closed and their unsent messages were pulled. They are still on the call list — the phone still works.</div>`;
     return '';
   })()}
+
+  ${waiting.length ? `<div class="card" style="background:#fef3c7;border-color:#d97706">
+    <b>Their website disagrees with something you set.</b>
+    <p class="muted" style="margin:6px 0">Nothing has been changed. Your value stands until you say otherwise.</p>
+    ${waiting.map((w) => `<div class="row" style="align-items:center;gap:10px;margin:8px 0">
+      <div style="flex:1"><b>${esc(w.fieldName)}</b><br>
+        <span class="muted">yours:</span> ${esc(w.valueBefore || '—')}<br>
+        <span class="muted">their site:</span> ${esc(w.valueAfter || '—')}</div>
+      <form method="POST" action="/usetheirs/${w.id}"><button>Use theirs</button></form>
+      <form method="POST" action="/keepmine/${w.id}"><button>Keep mine</button></form>
+    </div>`).join('')}
+  </div>` : ''}
 
   <h2>Everything, editable</h2>
   <p class="muted">One value per field. What you type replaces what is there, and a later reading of their website can replace it again — every change is kept in the history at the bottom of this page.</p>
@@ -1887,6 +1902,19 @@ const server = http.createServer(async (req, res) => {
           rewriteEverythingInBackground();
         }
         res.writeHead(303, { Location: `/business/${m ? m.prospectId : ''}?spread=1` });
+        return res.end();
+      }
+      // Their site wins, or his does. Either way the row stops waiting.
+      if ((route === 'usetheirs' || route === 'keepmine') && id) {
+        const row = await db.prospectFieldEdit.findUnique({ where: { id } });
+        if (row) {
+          if (route === 'usetheirs') {
+            const { setOverride } = require('../../src/hoursback/overrides.js');
+            await setOverride(db, row.prospectId, row.fieldName, row.valueAfter || null, 'their website, you agreed');
+          }
+          await db.prospectFieldEdit.delete({ where: { id } });
+        }
+        res.writeHead(303, { Location: `/business/${row ? row.prospectId : ''}?saved=1` });
         return res.end();
       }
       if (route === 'business' && id && url.pathname.endsWith('/archive')) {

@@ -135,8 +135,20 @@ async function fetchPeoplePages(website, options = {}) {
   const fetchImpl = options.fetch || globalThis.fetch;
   const maxPages = Math.min(options.maxPages || MAX_PAGES_PER_SITE, MAX_PAGES_PER_SITE);
   const delay = options.delayMs === undefined ? DELAY_BETWEEN_PAGES_MS : options.delayMs;
-  const start = absoluteUrl(website && website.startsWith('http') ? website : `https://${website}`, 'https://x/');
-  if (!start) return { pages: [], error: 'unreadable web address' };
+  // START AT THE FRONT DOOR, WHATEVER PAGE IS ON THE RECORD.
+  //
+  // Kernutt Stokes is stored as its Bend office page. Reading began there and
+  // never climbed up to the team page, so 32 people with direct emails and
+  // direct numbers stayed invisible (2026-08-31). The stored page is still
+  // opened — it is often the right one — but the homepage goes first, because
+  // that is where the links to everything else live.
+  const given = absoluteUrl(website && website.startsWith('http') ? website : `https://${website}`, 'https://x/');
+  if (!given) return { pages: [], error: 'unreadable web address' };
+  let start = given;
+  try {
+    const u = new URL(given);
+    if (u.pathname && u.pathname !== '/') start = u.origin + '/';
+  } catch { /* keep what we were given */ }
 
   const pages = [];
   const opened = new Set();
@@ -144,6 +156,19 @@ async function fetchPeoplePages(website, options = {}) {
   try { home = await fetchPage(start, fetchImpl); } catch (e) { return { pages: [], error: e.message }; }
   pages.push({ url: start, html: home });
   opened.add(new URL(start).pathname);
+
+  // The page that was on the record, where that is not the homepage. It was put
+  // there for a reason — often the local office — and it names people too.
+  if (given !== start) {
+    try {
+      const p2 = new URL(given).pathname;
+      if (!opened.has(p2)) {
+        opened.add(p2);
+        if (delay) await sleep(delay);
+        pages.push({ url: given, html: await fetchPage(given, fetchImpl) });
+      }
+    } catch { /* the homepage alone is enough to carry on */ }
+  }
 
   // First hop: the obvious pages off the homepage.
   const firstHop = linksToPeople(home, start);

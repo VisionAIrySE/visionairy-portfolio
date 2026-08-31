@@ -786,6 +786,20 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
 
   data.siteReadAt = options.now || new Date();
   data.fetchedAt = options.now || new Date();
+  // WHAT RUSS SET HIMSELF IS NOT WRITTEN OVER.
+  //
+  // He keeps priority, and he is told when their site disagrees rather than
+  // finding the value quietly changed (2026-08-31: "I want a warning before you
+  // overwrite what I've written. I still want priority.") The disagreement is
+  // recorded and offered to him on the business page; everything else the
+  // reading found is applied as normal.
+  const { applyOrHold } = require('./overrides.js');
+  const HIS_TO_KEEP = ['name', 'phone', 'email', 'website', 'address', 'employeeCount', 'trade'];
+  for (const f of HIS_TO_KEEP) {
+    if (!(f in data)) continue;
+    const outcome = await applyOrHold(db, prospectId, f, data[f]);
+    if (outcome === 'waiting for you' || outcome === 'changed' || outcome === 'unchanged') delete data[f];
+  }
   const after = await db.prospect.update({ where: { id: prospectId }, data });
   const s = await rescore(after);
   const settled = await db.prospect.findUnique({ where: { id: prospectId } });

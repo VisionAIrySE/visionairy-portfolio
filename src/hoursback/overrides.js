@@ -74,3 +74,69 @@ async function setOverride(db, prospectId, field, value, correctedBy) {
 exports.OVERRIDABLE = OVERRIDABLE;
 exports.resolveField = resolveField;
 exports.setOverride = setOverride;
+
+// YOUR VALUE KEEPS PRIORITY, AND YOU ARE TOLD WHEN THE SITE DISAGREES.
+//
+// Russ, 2026-08-31: "I want a warning before you overwrite what I've written. I
+// still want priority." The old way gave priority by freezing a second column
+// forever, which is what went wrong. This gives priority without freezing
+// anything: a reading that disagrees with something HE set is not applied. It
+// is written into the change history as waiting, and his business page offers
+// it to him — keep mine, or use theirs.
+const WAITING_FOR_HIM = 'their website — waiting for you';
+
+// Did Russ set this field himself, and is it still his value?
+async function heSetThis(db, prospectId, field, currentValue) {
+  const last = await db.prospectFieldEdit.findFirst({
+    where: { prospectId, fieldName: field },
+    orderBy: { correctedAt: 'desc' },
+  });
+  if (!last || last.correctedBy !== 'russ') return false;
+  return String(last.valueAfter ?? '') === String(currentValue ?? '');
+}
+
+// A reading wants to change a field. Applies it, unless it would overwrite
+// something Russ set — in which case it is held for him to decide.
+async function applyOrHold(db, prospectId, field, value, foundBy = 'their website') {
+  const before = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  const now = before[field];
+  if (String(now ?? '') === String(value ?? '')) return 'unchanged';
+  if (await heSetThis(db, prospectId, field, now)) {
+    // Do not write over him. Record what the site says and wait.
+    const already = await db.prospectFieldEdit.findFirst({
+      where: { prospectId, fieldName: field, correctedBy: WAITING_FOR_HIM, valueAfter: String(value ?? '') },
+    });
+    if (!already) {
+      await db.prospectFieldEdit.create({
+        data: {
+          prospectId, fieldName: field,
+          valueBefore: String(now ?? ''), valueAfter: String(value ?? ''),
+          correctedBy: WAITING_FOR_HIM,
+        },
+      });
+    }
+    return 'waiting for you';
+  }
+  await db.prospect.update({ where: { id: prospectId }, data: { [field]: value } });
+  await db.prospectFieldEdit.create({
+    data: {
+      prospectId, fieldName: field,
+      valueBefore: String(now ?? ''), valueAfter: String(value ?? ''),
+      correctedBy: foundBy,
+    },
+  });
+  return 'changed';
+}
+
+// Everything a reading found that disagrees with something he set.
+async function waitingFor(db, prospectId) {
+  return db.prospectFieldEdit.findMany({
+    where: { prospectId, correctedBy: WAITING_FOR_HIM },
+    orderBy: { correctedAt: 'desc' },
+  });
+}
+
+exports.WAITING_FOR_HIM = WAITING_FOR_HIM;
+exports.heSetThis = heSetThis;
+exports.applyOrHold = applyOrHold;
+exports.waitingFor = waitingFor;

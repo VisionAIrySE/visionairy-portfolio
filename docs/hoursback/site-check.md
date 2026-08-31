@@ -1,7 +1,7 @@
 # Websites that do not belong to the business they are on
 
-591 businesses with a live email checked.
-37 carry somebody else's website. Nothing has been written to the record.
+687 businesses with a live email checked.
+48 carry somebody else's website. Nothing has been written to the record.
 
 - **Bend OR Medicare Advantage** — carries https://www.insurancethatfitsyou.com/, which is not theirs. The website officially identifies as Insurance Fitz Inc., not Bend OR Medicare Advantage — different registered business names.
   - id: `cmt93a73d0088t7lcv2vgx3h6`
@@ -114,3 +114,36 @@
 - **Oregon Natural Beef** — carries https://www.symonsbeefcompany.com/, which is not theirs. The website explicitly identifies as Symons Beef Company, a different business name than Oregon Natural Beef.
   - id: `cmt957e2d04fct7s7p45fno14`
   - the site says: Family-owned beef ranching and retail operation in central Oregon — calls itself: Symons Beef Company
+- **Top Subaru Auto Repair Near Me** — carries http://www.subagurubend.com/, which is not theirs. The website identifies itself as 'SubaGuru Bend' — a specific business name that does not match the generic record name 'Top Subaru Auto Repair Near Me.'
+  - id: `cmt94x4r000xat7qralemznlo`
+  - the site says: Expert Subaru service and repair — calls itself: SubaGuru Bend
+- **Home** — carries http://www.ces-bend.com/, which is not theirs. The website is branded as CES Bend, a manufacturing/industrial automation partner—entirely mismatched with a business named Home.
+  - id: `cmt9465hx009kt7z4mcuj8r3c`
+  - the site says: We provide manufacturing solutions and services. — Discover smart manufacturing & industrial automation solutions with CES Bend, a Rockwell Automation partner for manufacturers, OE
+- **Home Page** — carries https://kingsautollc.com/, which is not theirs. The website identifies as King's Auto LLC (domain kingsautollc.com), not as Home Page.
+  - id: `cmt9572vm03n8t7s7rksvwq90`
+  - the site says: We provide auto repair, diagnostics, and vehicle maintenance with clear explanations and transparent pricing. — calls itself: King's Auto
+- **Home** — carries https://blueskyvet.com/, which is not theirs. The website identifies as Blue Sky Veterinary Clinic, a different business entity with a distinct name.
+  - id: `cmt94x6n20120t7qrp8xcg812`
+  - the site says: We provide comprehensive veterinary care for dogs, cats, and small animals with services including preventative care, surgery, dentistry, and internal medicine. — calls itself: Blu
+- **Home** — carries https://lamontaministorage.storageunitsoftware.com/, which is not theirs. The website identifies as Lamonta Mini Storage LLC, not Home — different business names indicate a record mismatch.
+  - id: `cmt9576ji03z2t7s7s8imnlff`
+  - the site says: Secure self-storage facility with online booking, drive-up access, and 24-hour customer service. — calls itself: Lamonta Mini Storage LLC
+- **DESCHUTES RIVER DESIGNS** — carries https://www.deschutesriver.com/, which is not theirs. The website describes a rafting and lodging business called Imperial River Company, not a design business; they share only the geographic place name.
+  - id: `cmtbt9ltg0frpt7a59lu9l8td`
+  - the site says: Lodging and rafting on the Deschutes River in Maupin, Oregon — calls itself: Imperial River Company
+- **Auto Repair &amp; Diagnostics** — carries http://www.bryansautomotiveunlimited.com/, which is not theirs. The website identifies itself as Bryan's Automotive Unlimited, not Auto Repair & Diagnostics.
+  - id: `cmt956ifh027ut7s7d2or4hc9`
+  - the site says: Comprehensive automotive repair and maintenance for domestic and foreign vehicles, light trucks, RVs, boats, and small engines. — calls itself: Bryan's Automotive Unlimited
+- **Custom Heavy Equipment Attachments** — carries https://www.redironmfg.com/?utm_source=google&utm_medium=wix_google_business_profile&utm_campaign=13875452012262359066, which is not theirs. The website identifies itself as 'Red Iron Works' — a different business name than the record shows.
+  - id: `cmt957dxa04e8t7s7f82k9q3s`
+  - the site says: A fab shop that builds custom heavy equipment attachments using CNC plasma cutting and welding. — calls itself: Red Iron Works
+- **STORM WATER POLO, INC.** — carries https://greenrise.com/, which is not theirs. The website explicitly identifies itself as GREENRISE TECHNOLOGIES, not Storm Water Polo, and a stormwater business would brand itself by its actual company name, not a different one.
+  - id: `cmtbtc49x0gx1t7a560fxma3l`
+  - the site says: Sustainable stormwater management, green roofs, SWPPP compliance, and erosion control solutions — calls itself: GREENRISE TECHNOLOGIES
+- **Home** — carries https://northlamontass.storageunitsoftware.com/, which is not theirs. The website identifies itself as 'North Lamonta Industrial & Storage,' not 'Home.'
+  - id: `cmt9576h803ykt7s7g07akxc7`
+  - the site says: State-of-the-art storage units in Prineville, Oregon with online booking and drive-up access. — calls itself: North Lamonta Industrial & Storage
+- **Central Oregon Vacation Rentals** — carries http://blackbutte.com/, which is not theirs. The website identifies as 'Black Butte Realty Group,' a distinct business entity, not 'Central Oregon Vacation Rentals.'
+  - id: `cmt956p1g02swt7s75y76h2o8`
+  - the site says: Manages vacation rental homes and properties on Black Butte Ranch resort. — calls itself: Black Butte Realty Group

@@ -72,9 +72,16 @@ async function main() {
   let done = 0, withPeople = 0, withSize = 0, withPhones = 0, peopleSaved = 0, failed = 0;
   try {
     const rows = await db.prospect.findMany({
-      where: { website: { not: null }, doNotContact: false },
-      select: { id: true, name: true, website: true, address: true, addressManualValue: true },
-      orderBy: { automationScore: 'desc' },
+      // Whichever address is on the record. It used to look only at the
+      // machine's column and skipped 1,226 businesses that had a website
+      // (2026-08-31).
+      where: { doNotContact: false, OR: [{ website: { not: null } }, { websiteManualValue: { not: null } }] },
+      select: { id: true, name: true, website: true, websiteManualValue: true, address: true, addressManualValue: true },
+      // Best first, and a business whose score was never worked out is not
+      // best. Without this, --limit reads the unscored ones and never reaches
+      // the businesses that matter (2026-08-31 — the same fault the email
+      // screen had).
+      orderBy: { automationScore: { sort: 'desc', nulls: 'last' } },
       // --limit=50 reads the best fifty first, so a run can be looked at before
       // the whole list is committed to.
       ...(Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1]) > 0
@@ -101,7 +108,7 @@ async function main() {
       const b = rows[at];
       done += 1;
       try {
-        const read = await ps.fetchPeoplePages(b.website, { maxPages: PAGES_PER_SITE });
+        const read = await ps.fetchPeoplePages(b.websiteManualValue || b.website, { maxPages: PAGES_PER_SITE });
         if (read.error && !read.pages.length) { failed += 1; continue; }
         const people = ps.peopleFromSite(read.pages);
         if (people.length) {
