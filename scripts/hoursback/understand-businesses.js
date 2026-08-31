@@ -160,11 +160,22 @@ if (require.main === module) (async () => {
       website: true, websiteManualValue: true, email: true, emailManualValue: true,
       automationScore: true, scoreEvidence: true, stage: true,
     },
-    // The ones he can email today, first — they are the ones he will open.
+    // THE ONES WE KNOW NOTHING ABOUT COME FIRST. Then, among equals, the ones
+    // he can email today — they are the ones he will open.
+    //
+    // Read in best-first order alone this re-reads businesses already
+    // described before it ever reaches one that has never been described. On
+    // 2026-08-30 that was 1,361 ahead of 226, and the 226 sorted DEAD LAST
+    // because a business nobody has written down also tends to have no email
+    // on file. Nine hours of reading before the first genuinely unknown
+    // business. Selection has to follow what is MISSING — the same mistake,
+    // in the same script, cost a wasted paid run two days earlier.
+    //
     // Without nulls: 'last' the database puts the EMPTY ones at the top on a
     // descending sort, so the first look landed on a lacrosse booster club and
     // a horse ranch instead of his best prospects (2026-08-28).
     orderBy: [
+      { theirWork: { sort: 'asc', nulls: 'first' } },
       { email: { sort: 'desc', nulls: 'last' } },
       { automationScore: { sort: 'desc', nulls: 'last' } },
     ],
