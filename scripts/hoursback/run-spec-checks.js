@@ -4694,6 +4694,63 @@ def('a_person_the_record_refuses_is_never_swallowed', () => {
   return { ok: true, detail: 'a refused person is counted and named in the run summary instead of vanishing' };
 }, 'people');
 
+def('no_message_ever_prints_the_word_null', () => {
+  // A trade with nothing published gets no research line — that is the honest
+  // answer, and proofFor returns nothing for storage, manufacturing,
+  // agriculture, retail and cleaning. Dropped into the template unchecked it
+  // printed the literal word "null" between the opening and what Russ does.
+  // 281 messages were carrying it, none sent, found by reading one
+  // (2026-08-30).
+  //
+  // Written against a FRESHLY COMPOSED message, not stored rows: the first
+  // version counted rows in the test database, found none, and passed saying
+  // "none of 0 messages" — a check that can only ever pass proves nothing.
+  const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
+  const bare = ['storage & logistics', 'manufacturing', 'agriculture', 'retail & food', 'cleaning & facilities'];
+  const bad = [];
+  for (const trade of bare) {
+    const drafted = draftFirstContact({
+      id: 'x', name: 'Cascade Works', trade, phone: '541-555-0100',
+      email: 'office@cascadeworks.example', ownerName: 'Dale Hutchins',
+      automationScore: 40, theirWork: 'We move freight across Central Oregon.',
+    });
+    const text = `${drafted && drafted.body || ''} ${drafted && drafted.subject || ''}`;
+    if (/\bnull\b|\bundefined\b/.test(text)) bad.push(trade);
+  }
+  if (bad.length) return { ok: false, detail: `a missing research line prints as a word for: ${bad.join(', ')}` };
+  return { ok: true, detail: `${bare.length} trades with nothing published compose cleanly — no "null" in the text` };
+}, 'messages');
+
+def('a_one_man_business_is_never_told_nothing_fits_it', () => {
+  // The line naming why nothing off the shelf fits only goes to a business that
+  // genuinely runs several different operations, and it quotes that business's
+  // own published words. Sent to a one-man electrician it is a lie that reads
+  // as a mail-merge — Russ, 2026-08-30: "name the reason ... AS LONG AS IT IS
+  // RELEVANT AND VALID." Spec: .xf/specs/2026-08-30-build-line.md
+  const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
+  const base = { id: 'x', phone: '541-555-0100', email: 'o@x.example', ownerName: 'Dale', automationScore: 40 };
+  const many = draftFirstContact({ ...base, name: 'East Cascade Contracting', trade: 'construction',
+    separateOperations: 5, contacts: [{ name: 'Dale' }, { name: 'Sam' }],
+    theirWork: 'We provide professional excavation, junk removal, snow plowing, and equipment transport services across Oregon.' });
+  const one = draftFirstContact({ ...base, name: 'Elevated Electric', trade: 'trades',
+    separateOperations: 1, contacts: [{ name: 'Jo' }],
+    theirWork: 'Residential and commercial electrical services including wiring and panel replacements.' });
+  const fitsBadly = /fit badly|covers the half of it|built rather than bought/;
+  if (fitsBadly.test(String(one.body))) {
+    return { ok: false, detail: 'a one-person electrician was told nothing off the shelf fits them' };
+  }
+  if (!fitsBadly.test(String(many.body))) {
+    return { ok: false, detail: 'a contractor running five operations got the ordinary line instead' };
+  }
+  if (!/excavation|junk removal|snow plowing/.test(String(many.body))) {
+    return { ok: false, detail: 'the reason was not named in the business own words' };
+  }
+  if (/\{reason\}/.test(String(many.body) + String(one.body))) {
+    return { ok: false, detail: 'the reason slot was left unfilled in the message' };
+  }
+  return { ok: true, detail: 'the contractor hears why nothing fits, named from their own page; the electrician hears the ordinary line' };
+}, 'messages');
+
 (async () => {
   const args = process.argv.slice(2);
   const one = args.find((a) => a.startsWith('--check='));

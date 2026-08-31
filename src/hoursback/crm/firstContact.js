@@ -623,8 +623,33 @@ function draftFirstContact(prospect, signals = []) {
       ? longevityLine(prospect) + TO.openingFor(trade, business, seed, prospect.theirWork)
       : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
     .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
-    .replace('{proof}', V.proofFor(trade, seed))
-    .replace('{whatIDo}', V.pick(V.WHAT_I_DO_FREE, seed, 'what'))
+    // A TRADE WITH NO PUBLISHED RESEARCH GETS NO RESEARCH LINE — not the word
+    // "null" printed in the middle of the message.
+    //
+    // proofFor deliberately returns nothing when nothing has been published for
+    // that trade, which is the honest answer. Dropped straight into the
+    // template it became the literal text "null" sitting between the opening
+    // and what Russ does. 281 messages were carrying it, none sent yet, found
+    // 2026-08-30 by reading one.
+    .replace('{proof}', V.proofFor(trade, seed) || '')
+    // WHICH SENTENCE ABOUT WHAT RUSS DOES — decided by the business, not sent
+    // the same to everyone.
+    //
+    // A business running four or more genuinely different operations out of one
+    // office hears why nothing off the shelf will fit it, naming those
+    // operations in its own published words. Everyone else hears the ordinary
+    // line. Where the record cannot supply a real reason the ordinary line goes
+    // instead — Russ, 2026-08-30: "name the reason, it shows I've researched and
+    // makes it personal AS LONG AS IT IS RELEVANT AND VALID." An invented reason
+    // reads as a mail-merge and costs the reply (spec 2026-08-30-build-line).
+    .replace('{whatIDo}', (() => {
+      const { opportunityOf } = require('../opportunity.js');
+      const people = Array.isArray(prospect.contacts) ? prospect.contacts.filter((c) => c.name).length : 0;
+      const built = opportunityOf(prospect, people);
+      const reason = V.buildReasonFor(prospect, built && built.build);
+      if (!reason) return V.pick(V.WHAT_I_DO_FREE, seed, 'what');
+      return V.pick(V.WHAT_I_DO_BUILD, seed, 'whatbuild').replace('{reason}', reason);
+    })())
     .replace('{freeLook}', V.pick(V.FREE_LOOK, seed, 'freelook'))
     .replace('{afterTheLook}', V.pick(V.AFTER_THE_LOOK, seed, 'after'))
     .replace('{tradeLine}', leadsWithTrade ? '' : tradeLineFor(trade))
@@ -700,10 +725,10 @@ function draftLinkedIn(prospect, signals = []) {
     `What that usually looks like fixed: ${painFor(trade || 'other').looksLike}.`,
     // The research, on this channel too. It is the validation for the whole
     // offer and the note went out without it (Russ, 2026-08-27).
-    V.proofFor(trade, seed),
+    V.proofFor(trade, seed),   // may be null — filtered out below, never printed
     V.pick(V.FREE_LOOK, seed, 'freelook'),
     V.pick(LINKEDIN_CLOSES, seed, 'li'),
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 
   // The invitation goes with it: LinkedIn's two doors need two different
   // things, and only one of them reaches a stranger.

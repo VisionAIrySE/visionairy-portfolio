@@ -206,6 +206,67 @@ const WHAT_I_DO_FREE = [
   "I'm local to Central Oregon and I put in the software that does that work instead, whether it already exists or has to be built.",
 ];
 
+// The same line, for a business nothing off the shelf actually fits.
+//
+// Russ, 2026-08-30: "I build a Custom CRM for a company for 1/10 of the cost
+// from off the shelf or a dev shop, why is that bad and not a great
+// opportunity on its own?" The generic line says "sometimes built for them" to
+// everybody, true or not. These say WHY, and only go to a business whose build
+// score reached 60 — four or more genuinely different operations run from one
+// office, or seats paid for every month on software built for a company ten
+// times its size.
+//
+// Still one sentence. It sits in the same place between the hook and the ask,
+// where people stop reading, so it earns exactly one — same as the other family.
+// No price, no promise of a build, no figure. It names the reason and stops;
+// what it costs is a conversation, not a cold email (2026-08-30).
+// {reason} is filled from the record — never a guess. Russ, 2026-08-30: "name
+// the reason, it shows I've researched and makes it personal as long as it is
+// relevant and valid." So the line quotes the business's OWN published words
+// back, and where the record cannot supply one the whole family is skipped and
+// the ordinary sentence goes instead. A sentence that says "running four
+// different operations" at a business that runs one is worse than saying
+// nothing.
+const WHAT_I_DO_BUILD = [
+  "I'm local, and I find that work and hand it to software — though with {reason}, I doubt anything off the shelf covers the half of it.",
+  "I'm here in Central Oregon and I take that work off businesses. With {reason}, I'd expect the ready-made stuff to fit badly, and that is usually where the money goes.",
+  "I'm local to Central Oregon and I put software in to do that work instead — and with {reason}, that often means something built rather than bought.",
+];
+
+// The reason, in the business's own terms, from what the reading found. Returns
+// null when the record cannot support a specific claim — and null means the
+// build family is not used at all for that business.
+function buildReasonFor(prospect, buildScore) {
+  if (!prospect || (buildScore || 0) < 60) return null;
+
+  // 1. Several genuinely different operations, read off their own page rather
+  // than counted from commas. This is the strongest and most specific reason.
+  const ops = Number(prospect.separateOperations || 0);
+  if (ops >= 4) {
+    // Their own words, trimmed to the thing itself. The first attempt left the
+    // whole clause in and produced "provide professional excavation, junk
+    // removal, snow plowing all run out of one office" — the lead-in of the
+    // sentence dragged along with the first item (2026-08-30).
+    const listed = String(prospect.theirWork || '')
+      .replace(/^[^:]*?\b(provides?|offers?|specialis\w+|specializ\w+|is a|are a)\b/i, '')
+      .split(/,| and /)
+      .map((x) => x.trim().toLowerCase()
+        .replace(/^(we |our |the |a |an |professional |full[- ]service |complete |quality )+/g, '')
+        .replace(/\s+(services?|solutions?|work)\b.*$/, '')
+        .replace(/[.!?]+$/, '')
+        .trim())
+      .filter((x) => x.length > 3 && x.length < 30 && !/^(oregon|central oregon|across|serving|throughout)/.test(x))
+      .slice(0, 3);
+    if (listed.length >= 3) return `${listed.join(', ')} all run out of one office`;
+    return `${ops} different operations run out of one office`;
+  }
+
+  // 2. Nothing specific enough was read. Better to send the ordinary sentence
+  // than to invent a reason — an unfounded "your unusual setup" reads as a
+  // mail-merge and costs the reply.
+  return null;
+}
+
 // One line of proof, from published research rather than from Russ's own
 // clients — he has none yet, and a case study about work he has not done is
 // the one thing he must never write.
@@ -379,5 +440,5 @@ const COST_ANCHOR = {
 
 module.exports = {
   FLOOR_LINE, FLOOR_LINE_GENERAL,
-  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK,
+  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, WHAT_I_DO_BUILD, buildReasonFor, FREE_LOOK, AFTER_THE_LOOK,
   WORK_BEHIND_THE_OPENING, proofFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
