@@ -180,10 +180,194 @@ const PRICE_FRAMING = [
 // person does. Going away, doing the work, and coming back with the reasoning
 // is what somebody worth paying does — and the recommendation is still free,
 // so there is nothing for them to weigh up.
+// WHAT THOSE FIFTEEN MINUTES GO LOOKING FOR — six versions, 2026-08-30.
+//
+// The promise never changes: fifteen minutes, then Russ goes away, finds a
+// tool, and comes back with what he would put in, what it costs and why that
+// one, free either way. What changes is the ONE clause saying what Discovery
+// would expect to find in a business of that shape.
+//
+// Two drafts were thrown out before this one. The first deleted the tool hunt
+// and made building the whole offer. The second made building a fallback for
+// when nothing off the shelf fits. Russ, 2026-08-30: "It's not 'if nothing
+// fits'. Automation does not preclude Build! or vice versa." So every wording
+// below carries BOTH from its first minute, and says outright that telling one
+// from the other is what the call is for. That telling-which-is-which is the
+// thing nobody else selling the same hour does.
+//
+// The rules these are written against, and no wording may break:
+//   · no price, no fee, no dollar figure anywhere
+//   · no naming software they run — that was never broadcast to us
+//   · no claim about THIS business. Only what Russ would go looking for in a
+//     business of that shape. He can lightly infer; he cannot call something
+//     out and be wrong in front of a stranger.
+//   · nothing that reads as surveillance
+//
+// "Free either way" and "there is usually more than one" live in the sentence
+// straight after this one (AFTER_THE_LOOK), in the same paragraph. The two are
+// written to be read together and neither is complete alone.
+
+// 1. NOTHING SOLD COVERS THE WORK. For a trade whose job is a different shape
+// every time — the work that ends up done by hand because no product was ever
+// written for it.
+const FREE_LOOK_NO_TOOL_EXISTS = [
+  "Give me fifteen minutes and I will go looking for the job that gets done by hand every week because nothing sold was ever built for it. Some of that a tool already covers and some of it never will, and sorting one from the other is the whole of the call. Then I come back with the tool, what it costs and why that one, and what the rest would take to build.",
+  "Fifteen minutes on the phone, and what I am listening for is the work with no product behind it because nobody ever wrote one. Buying and building are both on the table from the first minute, and the call is what decides which parts go which way. Then I do the reading and come back with the tool, its price, why it is the one, and the shape of whatever has to be made instead.",
+  "A quarter of an hour on the phone. I would be looking for the job that lands on a person because there was never anything else to give it to. Some of it a tool covers, some of it has to be built, and I can tell you which. What comes back is the tool, its cost, why it is the one, and what the built part would involve.",
+  "Fifteen minutes is enough to find the work nothing on the market was written for. There is usually a tool for part of it and something to build for the rest, and knowing where that line sits is worth the call on its own. Then I do the research and come back with the tool, the price, why that one, and what the rest would take.",
+];
+
+// 2. SOFTWARE ANNOUNCED AND NEVER LANDED. Never says so about THEM — it says
+// what Russ goes looking for, and what people do by hand in the meantime.
+// "You announced a portal in 2023" is the sentence that must never be written.
+const FREE_LOOK_STALLED_BUILD = [
+  "Give me fifteen minutes and I will go looking for the software that got started and never quite arrived, and for what people have been doing by hand while it waited. Part of that gap something off the shelf closes today, and part of it is the thing that was meant to be built. I come back with the tool, what it costs and why that one, and what finishing the rest would take.",
+  "Fifteen minutes on the phone. What I would look for is the plan that got made once and never finished, and the work somebody quietly absorbed in the meantime. Buying and building are both live from the first minute, and the call is what sorts them. Then I go away and come back with the tool, its cost, the reason for it, and what the built part would involve.",
+  "A quarter of an hour is enough to find the thing that was going to be handled by software and ended up handled by a person. Some of that has something sold for it already and some of it does not and would have to be made. I can tell you which, then come back with the tool, the price, the reasoning, and what building the other half takes.",
+  "Fifteen minutes on the phone about the work that has been carried by hand while something else was supposed to be coming. There is usually a tool that covers part of it and something worth building for the rest, and the call is where that line gets drawn. Then I do the research and come back with the tool, what it runs to, why it is the one, and what the built part would involve.",
+];
+
+// 3. A SEAT RENTED FOREVER FOR SOMETHING OWNABLE. Impersonal on purpose. Russ
+// struck "a handful of paid seats" out of the rejected draft because it edges
+// toward a claim about them, and what they pay for was never published.
+const FREE_LOOK_RENTED_SEAT = [
+  "Give me fifteen minutes and I will go looking for the small job that is being rented by the month when it could be owned outright. Some of what turns up is answered by buying something better and some of it by having it made, and the call is what tells you which. Then I come back with the tool, what it costs and why that one, and what owning the rest would take.",
+  "Fifteen minutes on the phone, and what I am listening for is the one small job that costs a subscription every month and should not. Buying and building are both on the table from the start, and the call is what sorts one from the other. Then I go away and come back with the tool, its cost, the reason for it, and what having the rest built would involve.",
+  "A quarter of an hour, and I would be looking for the piece that gets paid for again every month and does one thing. Part of the answer is usually something better off the shelf and part of it is something made to fit. Knowing which is which is the point of the call, and what comes back is the tool, the price, why that one, and the shape of the built part.",
+  "Fifteen minutes is enough to find work that sits on a monthly bill and could come off it. There is often a tool that does it better and, alongside that, something worth building rather than renting forever. I do the research and come back with what I would put in, what it costs, why that one, and what building the rest would take.",
+];
+
+// 4. SOMETHING NEW, WITH NOTHING BEHIND IT YET. A business advertising office
+// roles is standing a job up with a person because there is nothing else
+// holding it. The wording never says that about them; it names the shape.
+const FREE_LOOK_NEW_AND_UNTOOLED = [
+  "Give me fifteen minutes and I will go looking for the newest part of the business, the one still held together by a spreadsheet and somebody remembering. Some of that has a tool sold for it already and some of it has to be built, and the call is what tells you which. Then I come back with the tool, what it costs and why that one, and what the built part would take.",
+  "Fifteen minutes on the phone, and what I am listening for is the part being carried by hand because it grew faster than anything built to hold it. Buying and building are both live from the first minute, and the call decides which parts go where. Then I do the reading and come back with the tool, its price, the reason for it, and what the rest would take to make.",
+  "A quarter of an hour is enough to find the work that is currently a spreadsheet and a good memory. Some of that a tool covers today and some of it never will and is worth building instead. I can tell you which, then come back with the tool, the cost, why it is the one, and the shape of the built part.",
+  "Fifteen minutes to look for the job that got added and never got anything to run it on. There is usually something sold that does part of it and something worth making for the rest, and sorting that is the call. Then I go and do the research and come back with the tool, what it runs to, why that one, and what building the rest involves.",
+];
+
+// 5. FOUR OR MORE GENUINELY DIFFERENT OPERATIONS. The hours are not inside any
+// one of them, they are in the handovers between them, and that is a thing no
+// product is sold for because no two businesses hand over the same way.
+const FREE_LOOK_HANDOVERS = [
+  "Give me fifteen minutes and I will go looking for the places where one side of the business hands work to another, because handovers are where the hours disappear. Some of those a tool already covers and some of them nothing sold ever will, and the call is what tells you which. Then I come back with the tool, what it costs and why that one, and what the rest would take to build.",
+  "Fifteen minutes on the phone, and what I am listening for is the seam between one operation and the next: the retyping, the asking, the checking somebody else already did. Buying and building are both live from the first minute and the call is what sorts them. Then I go away and come back with the tool, its price, the reason for it, and the shape of anything that has to be made.",
+  "A quarter of an hour, and I would be looking at where the different sides of the business meet, because that is where the same information gets entered twice. Part of that has a tool for it and part of it has to be built to fit. Knowing which is which is the point of the call, and what comes back is the tool, the cost, why that one, and what the built part would involve.",
+  "Fifteen minutes is enough to find the handovers: one job ending, another starting, and a person in between keeping both straight. There is usually something sold that takes part of it and something worth building for the rest. I do the research and come back with the tool, what it costs, why it is the one, and what the rest would take.",
+];
+
+// 6. NOTHING LEANS. The plain one, and the one most of the list gets. It has to
+// stand up entirely on its own — no signal behind it, nothing inferred.
 const FREE_LOOK = [
-  "Give me fifteen minutes on the phone to see where the time actually goes. Then I go and find the right tool for it and come back with what I would put in, what it costs, and why that one.",
-  "Fifteen minutes on the phone about where your team's week goes. Then I do the research and come back with the tool I would use, the price, and the reasoning behind it.",
-  "A quarter of an hour on the phone, and then I go away and find the best thing for what you have described — and come back with it, what it runs to, and why it is the one.",
+  "Give me fifteen minutes on the phone to see where the time actually goes, in the jobs done by hand every week that nobody has ever added up. Some of that has a tool already and some of it has to be built, and the call is what tells you which. Then I go and find it and come back with what I would put in, what it costs, and why that one.",
+  "Fifteen minutes on the phone about the small jobs that repeat every week and never get counted. Buying and building are both on the table from the first minute, and the call is what sorts one from the other. Then I do the research and come back with the tool, its price, the reasoning, and what the rest would take to make.",
+  "A quarter of an hour on the phone, and what I am looking for is the handful of things done by hand every week because they always have been. Part of that a tool covers today and part of it is worth building. I can tell you which, then come back with the tool, what it runs to, why it is the one, and the shape of the built part.",
+  "Fifteen minutes to find the repeat work nobody has ever put a number on. There is usually something already sold that takes some of it and something worth having made for the rest, and knowing where that line falls is the call. Then I come back with the tool, what it costs, why that one, and what the built part would involve.",
+];
+
+// Which of the six a business gets, from what the reading actually recorded.
+//
+// Same rule as everywhere else on this list: a lean is used only where the
+// record supports it, and the plain version is the answer whenever nothing
+// does. An invented lean is worse than no lean — it reads as a mail-merge and
+// costs the reply.
+//
+// The order is most specific first. A shelved piece of software is rare and
+// unmistakable, so it wins outright. Handovers need four or more genuinely
+// different operations, read off the page rather than counted from commas.
+// Then the trades whose work is a different shape every time. Then a published
+// job advert, which they chose to put in the world. What software they run
+// comes last, because we were never told it — they did not broadcast it, so it
+// is the weakest thing to lean a letter on even though it never gets named.
+const BESPOKE_TRADES = /^(manufacturing|construction|storage & logistics)$/i;
+
+function freeLookFamilyFor(prospect) {
+  if (!prospect) return FREE_LOOK;
+
+  const stalled = typeof prospect.stalledBuild === 'string' && prospect.stalledBuild.trim().length > 20;
+  if (stalled) return FREE_LOOK_STALLED_BUILD;
+
+  const ops = Number(prospect.separateOperations || 0);
+  if (ops >= 4) return FREE_LOOK_HANDOVERS;
+
+  if (BESPOKE_TRADES.test(String(prospect.trade || ''))) return FREE_LOOK_NO_TOOL_EXISTS;
+
+  if (Number(prospect.openRoles || 0) >= 1) return FREE_LOOK_NEW_AND_UNTOOLED;
+
+  const tools = String(prospect.toolsInUse || '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (tools.length) return FREE_LOOK_RENTED_SEAT;
+
+  return FREE_LOOK;
+}
+
+
+// THE SAME OFFER, SHORT ENOUGH FOR LINKEDIN.
+//
+// A note in a message window is read at about 700 characters and abandoned
+// after that. The email version of the fifteen-minute line runs to three
+// sentences, and dropping it into the note straight took 347 of 1,058 notes
+// past 900 characters, the longest to 1,152 — where five had been over before
+// (measured 2026-08-30, not guessed).
+//
+// So the note gets its own wording of the SAME offer, not a different one.
+// Every short form still carries all three: the free fifteen minutes, a tool
+// with what it costs, and building alongside it rather than after it. What
+// gives way is the elaboration, never a part of the promise.
+const FREE_LOOK_NO_TOOL_EXISTS_SHORT = [
+  "Fifteen minutes on the work nothing sold was built for. Then I find the tool, what it costs and why that one, free, and what the rest would take to build.",
+  "Give me fifteen minutes on the job no product covers. I come back with a tool, its cost and the reason for it, free, and with what to build instead.",
+];
+
+const FREE_LOOK_STALLED_BUILD_SHORT = [
+  "Fifteen minutes on what has been carried by hand while something else was coming. Then I find the tool, its cost and why that one, free, and what to build.",
+  "Give me fifteen minutes on what got started and never arrived. I come back with a tool, what it costs and why that one, free, and with what to build.",
+];
+
+const FREE_LOOK_RENTED_SEAT_SHORT = [
+  "Fifteen minutes on the small job paid for every month that does one thing. Then I find the tool, its cost and why that one, free, and what building it takes.",
+  "Give me fifteen minutes on what is rented and could be owned. I come back with a tool, what it costs and why that one, free, and with what to build.",
+];
+
+const FREE_LOOK_NEW_AND_UNTOOLED_SHORT = [
+  "Fifteen minutes on the newest part, still held together by a spreadsheet. Then I find the tool, its cost and why that one, free, and what to build.",
+  "Give me fifteen minutes on the job that never got anything to run it on. I come back with a tool, its cost and the reason for it, free, and what to build.",
+];
+
+const FREE_LOOK_HANDOVERS_SHORT = [
+  "Fifteen minutes on where one side of the business hands work to the next. Then I find the tool, its cost and why that one, free, and what to build.",
+  "Give me fifteen minutes on the handovers, where the hours go. I come back with a tool, what it costs and why that one, free, and with what to build.",
+];
+
+const FREE_LOOK_SHORT = [
+  "Fifteen minutes on the jobs done by hand every week that nobody counts. Then I find the tool, its cost and why that one, free, and what to build.",
+  "Give me fifteen minutes on where the time actually goes. I come back with a tool, what it costs and why that one, free, and with what to build.",
+];
+
+// One lean, decided once, in freeLookFamilyFor above. The note simply asks for
+// the short wording of whatever the letter would have said, so the two channels
+// can never drift apart the way they did in August, when the note was still
+// promising a paid audit weeks after the email had moved to the free call.
+const SHORT_FORM_OF = new Map([
+  [FREE_LOOK_NO_TOOL_EXISTS, FREE_LOOK_NO_TOOL_EXISTS_SHORT],
+  [FREE_LOOK_STALLED_BUILD, FREE_LOOK_STALLED_BUILD_SHORT],
+  [FREE_LOOK_RENTED_SEAT, FREE_LOOK_RENTED_SEAT_SHORT],
+  [FREE_LOOK_NEW_AND_UNTOOLED, FREE_LOOK_NEW_AND_UNTOOLED_SHORT],
+  [FREE_LOOK_HANDOVERS, FREE_LOOK_HANDOVERS_SHORT],
+  [FREE_LOOK, FREE_LOOK_SHORT],
+]);
+
+function shortFreeLookFamilyFor(prospect) {
+  return SHORT_FORM_OF.get(freeLookFamilyFor(prospect)) || FREE_LOOK_SHORT;
+}
+
+// Every wording that can reach a reader on either channel, in one list, for the
+// checks to read.
+const ALL_FREE_LOOKS = [
+  ...FREE_LOOK_NO_TOOL_EXISTS, ...FREE_LOOK_STALLED_BUILD, ...FREE_LOOK_RENTED_SEAT,
+  ...FREE_LOOK_NEW_AND_UNTOOLED, ...FREE_LOOK_HANDOVERS, ...FREE_LOOK,
+  ...FREE_LOOK_NO_TOOL_EXISTS_SHORT, ...FREE_LOOK_STALLED_BUILD_SHORT, ...FREE_LOOK_RENTED_SEAT_SHORT,
+  ...FREE_LOOK_NEW_AND_UNTOOLED_SHORT, ...FREE_LOOK_HANDOVERS_SHORT, ...FREE_LOOK_SHORT,
 ];
 
 // And then the rest, said once and lightly. This is the only place the bigger
@@ -205,67 +389,6 @@ const WHAT_I_DO_FREE = [
   "I'm here in Central Oregon, and what I do is take that work off businesses: sometimes with something that already exists, sometimes with something built for them.",
   "I'm local to Central Oregon and I put in the software that does that work instead, whether it already exists or has to be built.",
 ];
-
-// The same line, for a business nothing off the shelf actually fits.
-//
-// Russ, 2026-08-30: "I build a Custom CRM for a company for 1/10 of the cost
-// from off the shelf or a dev shop, why is that bad and not a great
-// opportunity on its own?" The generic line says "sometimes built for them" to
-// everybody, true or not. These say WHY, and only go to a business whose build
-// score reached 60 — four or more genuinely different operations run from one
-// office, or seats paid for every month on software built for a company ten
-// times its size.
-//
-// Still one sentence. It sits in the same place between the hook and the ask,
-// where people stop reading, so it earns exactly one — same as the other family.
-// No price, no promise of a build, no figure. It names the reason and stops;
-// what it costs is a conversation, not a cold email (2026-08-30).
-// {reason} is filled from the record — never a guess. Russ, 2026-08-30: "name
-// the reason, it shows I've researched and makes it personal as long as it is
-// relevant and valid." So the line quotes the business's OWN published words
-// back, and where the record cannot supply one the whole family is skipped and
-// the ordinary sentence goes instead. A sentence that says "running four
-// different operations" at a business that runs one is worse than saying
-// nothing.
-const WHAT_I_DO_BUILD = [
-  "I'm local, and I find that work and hand it to software — though with {reason}, I doubt anything off the shelf covers the half of it.",
-  "I'm here in Central Oregon and I take that work off businesses. With {reason}, I'd expect the ready-made stuff to fit badly, and that is usually where the money goes.",
-  "I'm local to Central Oregon and I put software in to do that work instead — and with {reason}, that often means something built rather than bought.",
-];
-
-// The reason, in the business's own terms, from what the reading found. Returns
-// null when the record cannot support a specific claim — and null means the
-// build family is not used at all for that business.
-function buildReasonFor(prospect, buildScore) {
-  if (!prospect || (buildScore || 0) < 60) return null;
-
-  // 1. Several genuinely different operations, read off their own page rather
-  // than counted from commas. This is the strongest and most specific reason.
-  const ops = Number(prospect.separateOperations || 0);
-  if (ops >= 4) {
-    // Their own words, trimmed to the thing itself. The first attempt left the
-    // whole clause in and produced "provide professional excavation, junk
-    // removal, snow plowing all run out of one office" — the lead-in of the
-    // sentence dragged along with the first item (2026-08-30).
-    const listed = String(prospect.theirWork || '')
-      .replace(/^[^:]*?\b(provides?|offers?|specialis\w+|specializ\w+|is a|are a)\b/i, '')
-      .split(/,| and /)
-      .map((x) => x.trim().toLowerCase()
-        .replace(/^(we |our |the |a |an |professional |full[- ]service |complete |quality )+/g, '')
-        .replace(/\s+(services?|solutions?|work)\b.*$/, '')
-        .replace(/[.!?]+$/, '')
-        .trim())
-      .filter((x) => x.length > 3 && x.length < 30 && !/^(oregon|central oregon|across|serving|throughout)/.test(x))
-      .slice(0, 3);
-    if (listed.length >= 3) return `${listed.join(', ')} all run out of one office`;
-    return `${ops} different operations run out of one office`;
-  }
-
-  // 2. Nothing specific enough was read. Better to send the ordinary sentence
-  // than to invent a reason — an unfounded "your unusual setup" reads as a
-  // mail-merge and costs the reply.
-  return null;
-}
 
 // One line of proof, from published research rather than from Russ's own
 // clients — he has none yet, and a case study about work he has not done is
@@ -314,21 +437,26 @@ const CUSTOMERS_HAVE_TO_TURN_UP = new Set([
   'lodging & hospitality', 'education & childcare', 'trades', 'auto',
 ]);
 
-function proofFor(trade) {
+function proofFor(trade, howLong = 'full') {
   const t = String(trade || '').toLowerCase();
+  const say = (q) => (howLong === 'short' ? q.short : q.line);
   // 1. Their own trade body measured their own week. Strongest thing there is.
   const own = quotableFor(t);
-  if (own) return own.line;
+  if (own) return say(own);
   // 2. Somebody measured the KIND OF WORK this message opens on. Following up
   //    an enquiry is the same act in a roofing company and a dental practice.
   const { painFor } = require('./painPoints.js');
   let work = WORK_BEHIND_THE_OPENING[painFor(t || 'other').function];
   if (work === 'scheduling' && !CUSTOMERS_HAVE_TO_TURN_UP.has(t)) work = null;
   const byWork = work ? quotableForWork(work) : null;
-  if (byWork) return byWork.line;
+  if (byWork) return say(byWork);
   // 3. Nothing published fits. The message goes without one.
   return null;
 }
+
+// The same finding, in the wording that fits a LinkedIn note. Same source,
+// same claim, fewer words — see the note above quotableFor in evidence.js.
+function proofShortFor(trade) { return proofFor(trade, 'short'); }
 
 const CLOSES = {
   // Two ways to answer and one of them is a single click.
@@ -440,5 +568,8 @@ const COST_ANCHOR = {
 
 module.exports = {
   FLOOR_LINE, FLOOR_LINE_GENERAL,
-  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, WHAT_I_DO_BUILD, buildReasonFor, FREE_LOOK, AFTER_THE_LOOK,
-  WORK_BEHIND_THE_OPENING, proofFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };
+  COST_ANCHOR, pick, OPENINGS, WHAT_I_DO, WHAT_I_DO_FREE, FREE_LOOK, AFTER_THE_LOOK,
+  FREE_LOOK_NO_TOOL_EXISTS, FREE_LOOK_STALLED_BUILD, FREE_LOOK_RENTED_SEAT,
+  FREE_LOOK_NEW_AND_UNTOOLED, FREE_LOOK_HANDOVERS, ALL_FREE_LOOKS, freeLookFamilyFor,
+  FREE_LOOK_SHORT, shortFreeLookFamilyFor,
+  WORK_BEHIND_THE_OPENING, proofFor, proofShortFor, GUARANTEE, GUARANTEE_PRICED, YEAR_FRAMING, PRICE_FRAMING, CLOSES, TELL_WORDINGS };

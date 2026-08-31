@@ -33,6 +33,7 @@ const EVIDENCE = {
     measures: 'prior authorisation only',
     url: 'https://www.ama-assn.org/practice-management/prior-authorization/survey-quantifies-time-burdens-prior-authorization',
     sayItLikeThis: "The doctors' association timed prior authorisations at thirteen hours a week per physician, and four practices in ten have somebody doing nothing else.",
+    sayItShorter: 'The doctors\' association timed prior authorisations at thirteen hours a week per physician.',
   },
 
   insurance: {
@@ -43,6 +44,7 @@ const EVIDENCE = {
     measures: 'certificates of insurance only',
     url: null,
     sayItLikeThis: "The agents' association puts a single certificate at forty-five to ninety minutes by hand, and eight to fifteen hours a week of somebody's time on certificates alone.",
+    sayItShorter: 'The agents\' association puts certificates alone at eight to fifteen hours a week of somebody\'s time.',
   },
 
   veterinary: {
@@ -53,6 +55,7 @@ const EVIDENCE = {
     measures: 'after-hours record writing; the 2-3 hours a day is inside the working day',
     url: 'https://fve.org/cms/wp-content/uploads/Admin-burden-report-R13-1.pdf',
     sayItLikeThis: 'The vets\' federation found records alone take six hours a week after the clinic has closed, and not one vet surveyed said their paperwork had gone down.',
+    sayItShorter: 'The vets\' federation found records alone take six hours a week after the clinic has closed.',
   },
 
   legal: {
@@ -148,6 +151,7 @@ const BY_WORK = {
     what: 'An audit of 2,241 US companies found the average response to an online enquiry took 42 hours, and 23% never replied at all. Across 1.25 million leads at 42 companies, firms that made contact inside an hour were nearly seven times more likely to qualify that lead than firms that waited one more hour, and more than sixty times more likely than firms that waited a day.',
     url: 'https://hbr.org/2011/03/the-short-life-of-online-sales-leads',
     sayItLikeThis: 'Harvard Business Review audited 2,241 companies and found the average reply to an online enquiry took forty-two hours — and that answering inside the first hour makes you seven times more likely to qualify that lead.',
+    sayItShorter: 'Harvard Business Review found the average reply to an online enquiry takes forty-two hours.',
   },
 
   client_communication: {
@@ -156,6 +160,7 @@ const BY_WORK = {
     what: 'A pooled analysis of eight randomised controlled trials found text reminders lifted attendance from 67.8% with no reminder to 78.6%, and cut non-attendance by roughly a quarter — matching phone calls at a fraction of the cost. Cochrane reviews are the highest tier of evidence there is.',
     url: 'https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD007458.pub3/references',
     sayItLikeThis: 'Eight randomised trials, pooled by Cochrane, found text reminders lift attendance from sixty-eight per cent to seventy-nine — the same effect as ringing people, at a fraction of the cost.',
+    sayItShorter: 'Eight randomised trials found text reminders lift attendance from sixty-eight per cent to seventy-nine.',
   },
 
   scheduling: {
@@ -164,6 +169,7 @@ const BY_WORK = {
     what: 'The same pooled analysis of eight randomised trials: attendance rose from 67.8% to 78.6% where reminders were sent automatically.',
     url: 'https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD007458.pub3/references',
     sayItLikeThis: 'Eight randomised trials found automatic reminders lift attendance from sixty-eight per cent to seventy-nine.',
+    sayItShorter: 'Eight randomised trials found automatic reminders lift attendance by eleven points.',
   },
 
   reviews_and_reputation: {
@@ -172,6 +178,7 @@ const BY_WORK = {
     what: 'Matching Yelp ratings against Washington State Department of Revenue takings for Seattle restaurants, 2003-2009, one extra star was worth five to nine per cent more revenue. Luca controlled for actual quality by exploiting how Yelp rounds its scores. The effect was LARGER for independent businesses than for chains.',
     url: 'https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1928601',
     sayItLikeThis: 'A Harvard Business School study matched review scores against state revenue records and found one extra star is worth five to nine per cent more revenue — and it counts for more at an independent business than at a chain.',
+    sayItShorter: 'A Harvard Business School study found one extra review star is worth five to nine per cent more revenue.',
   },
 
   email_and_newsletter: {
@@ -222,7 +229,9 @@ function evidenceForWork(type) {
 
 function quotableForWork(type) {
   const e = evidenceForWork(type);
-  return e && e.sayItLikeThis ? { line: e.sayItLikeThis, who: e.who, url: e.url } : null;
+  return e && e.sayItLikeThis
+    ? { line: e.sayItLikeThis, short: e.sayItShorter || e.sayItLikeThis, who: e.who, url: e.url }
+    : null;
 }
 
 // Trades searched with nothing published found. Named on purpose — an empty
@@ -239,9 +248,19 @@ function evidenceFor(trade) {
 }
 
 // Only what may be repeated to a client, word for word.
+// SAME FINDING, FEWER WORDS, FOR A CHANNEL WITH NO ROOM.
+//
+// A LinkedIn note is read to about 700 characters and abandoned after that.
+// 450 of the 464 notes running past 700 were doing it because of this one
+// paragraph — the Harvard line alone is 216 characters (measured 2026-08-30).
+// So each finding carries a second wording that says the same thing shorter.
+// It is a shorter QUOTE OF THE SAME SOURCE, never a different claim, and the
+// email keeps the full one.
 function quotableFor(trade) {
   const e = evidenceFor(trade);
-  return e && e.sayItLikeThis ? { line: e.sayItLikeThis, who: e.who, url: e.url } : null;
+  return e && e.sayItLikeThis
+    ? { line: e.sayItLikeThis, short: e.sayItShorter || e.sayItLikeThis, who: e.who, url: e.url }
+    : null;
 }
 
 function wasSearched(trade) {

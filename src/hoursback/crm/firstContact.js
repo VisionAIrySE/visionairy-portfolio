@@ -311,7 +311,7 @@ function draftLinkedInInvite(prospect) {
   const V = require('./variants.js');
   const { tradeOf } = require('./queues.js');
   const trade = prospect.trade || tradeOf(prospect.name);
-  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const business = businessNameOf(prospect);
   const seed = business;
   const first = greetingFor(prospect);
   const detail = INVITE_TRADE_DETAIL[trade];
@@ -486,6 +486,25 @@ function chooseOpener(signals = []) {
   return TRADE_WEEK;
 }
 
+// WHAT TO CALL THEM IN THE LETTER.
+//
+// A name Russ corrected by hand beats the one that was scraped — the correction
+// reaches the customer card already and had no way of reaching the message.
+//
+// And a name that is plainly not a name never reaches a letter. One record on
+// the list is literally called "{businessName}": a placeholder saved as if it
+// were a business, which composed into "My guess is a version of it runs at
+// {businessName}." It read as a broken mailshot, which is the one impression a
+// first message cannot recover from (2026-08-30).
+const NOT_A_NAME = /[{}<>]|^\s*$|^(null|undefined|n\/a|unknown|business ?name|company ?name)$/i;
+
+function businessNameOf(prospect) {
+  const { resolveField } = require('../overrides.js');
+  const given = String(resolveField(prospect || {}, 'name') || '');
+  if (NOT_A_NAME.test(given.trim())) return 'your business';
+  return given.replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+}
+
 // "Hi Dale," when we know who owns it. When we do not, the greeting drops the
 // name rather than saying "Hi there," which reads like a circular the moment
 // somebody reads it cold (2026-08-26).
@@ -587,7 +606,7 @@ function draftFirstContact(prospect, signals = []) {
   if (!key) return null;
   const { registerFor, OPENING_BY_REGISTER, CLOSING_BY_REGISTER } = require('./register.js');
   const TO = require('./tradeOpening.js');
-  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
+  const business = businessNameOf(prospect);
   const { line } = followOnFor(key, prospect);
   // Settle the trade here rather than taking it from the follow-on, which
   // reports null whenever the chosen opening has no trade-specific wording —
@@ -614,53 +633,29 @@ function draftFirstContact(prospect, signals = []) {
   // letters, and in a town this size they might know each other. Each fixed
   // line has four wordings, chosen by the business's own name so it is the
   // same for them every time and different across the list.
-  const V = require('./variants.js');
-  const seed = business;
   const who = greetingFor(prospect);
-  const body = BODY
-    .replace('Hi {greeting},', who ? `Hi ${who},` : 'Hello,')
-    .replace('{opener}', leadsWithTrade
-      ? longevityLine(prospect) + TO.openingFor(trade, business, seed, prospect.theirWork)
-      : longevityLine(prospect) + (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key]))
-    .replace('{followOn}', leadsWithTrade ? '' : line + toolsLine(prospect))
-    // A TRADE WITH NO PUBLISHED RESEARCH GETS NO RESEARCH LINE — not the word
-    // "null" printed in the middle of the message.
-    //
-    // proofFor deliberately returns nothing when nothing has been published for
-    // that trade, which is the honest answer. Dropped straight into the
-    // template it became the literal text "null" sitting between the opening
-    // and what Russ does. 281 messages were carrying it, none sent yet, found
-    // 2026-08-30 by reading one.
-    .replace('{proof}', V.proofFor(trade, seed) || '')
-    // WHICH SENTENCE ABOUT WHAT RUSS DOES — decided by the business, not sent
-    // the same to everyone.
-    //
-    // A business running four or more genuinely different operations out of one
-    // office hears why nothing off the shelf will fit it, naming those
-    // operations in its own published words. Everyone else hears the ordinary
-    // line. Where the record cannot supply a real reason the ordinary line goes
-    // instead — Russ, 2026-08-30: "name the reason, it shows I've researched and
-    // makes it personal AS LONG AS IT IS RELEVANT AND VALID." An invented reason
-    // reads as a mail-merge and costs the reply (spec 2026-08-30-build-line).
-    .replace('{whatIDo}', (() => {
-      const { opportunityOf } = require('../opportunity.js');
-      const people = Array.isArray(prospect.contacts) ? prospect.contacts.filter((c) => c.name).length : 0;
-      const built = opportunityOf(prospect, people);
-      const reason = V.buildReasonFor(prospect, built && built.build);
-      if (!reason) return V.pick(V.WHAT_I_DO_FREE, seed, 'what');
-      return V.pick(V.WHAT_I_DO_BUILD, seed, 'whatbuild').replace('{reason}', reason);
-    })())
-    .replace('{freeLook}', V.pick(V.FREE_LOOK, seed, 'freelook'))
-    .replace('{afterTheLook}', V.pick(V.AFTER_THE_LOOK, seed, 'after'))
-    .replace('{tradeLine}', leadsWithTrade ? '' : tradeLineFor(trade))
-    .replace(/\bcustomers\b/g, theirPeople(trade))
-    .replace(/\bcustomer login\b/g, `${theirPeople(trade).replace(/s$/, '')} login`)
-    .replace('{close}', V.pick(V.CLOSES[register], seed, 'close'))
+
+  // THE MESSAGE, 2026-08-30.
+  //
+  // Rebuilt after Russ read a whole campaign end to end for the first time and
+  // found the three emails selling three different things: day 0 offered a free
+  // fifteen minutes, day 4 sold a $999 audit, day 8 promised money back on five
+  // hours. The price is out of the sequence entirely now — it belongs after the
+  // call — and all three say the same thing, getting shorter.
+  //
+  // And nothing here tells a stranger what their week looks like. 716 of 869
+  // messages used to open by asserting a problem nobody had verified; one wrong
+  // guess and the email is over. The claim is about the TRADE now, and the next
+  // clause says outright that some have already fixed it.
+  //
+  // Every sentence below is Russ's own, from his rewrite on 2026-08-30, saved at
+  // ~/.claude/voice/samples/2026-08-30-hoursback-email-russ-rewrite.md
+  const C = require('./campaign.js');
+  const body = `${C.dayZero(who, C.tradeCopy(trade))}\n\n${SIGN_OFF}`
     .replace(/\{business\}/g, business)
-    // The trade opening fills one slot and leaves two empty, which would show
-    // as a double space mid-paragraph.
     .replace(/[ \t]+\n/g, '\n')
-    .replace(/([^\n]) {2,}/g, '$1 ');
+    .replace(/([^\n]) {2,}/g, '$1 ')
+    .replace(/\n +/g, '\n');
   return { subject, body, openedWith: key, trade, register };
 }
 
@@ -679,91 +674,57 @@ function draftFirstContact(prospect, signals = []) {
 function draftLinkedIn(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
-  const { painFor } = require('./painPoints.js');
-  const { THE_OFFER } = require('../industryTiers.js');
-  const TO = require('./tradeOpening.js');
-  const V = require('./variants.js');
   const { tradeOf } = require('./queues.js');
+  const C = require('./campaign.js');
   const trade = prospect.trade || tradeOf(prospect.name);
-  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
-  const seed = business;
   const who = greetingFor(prospect);
 
-  // Sentence one: what was actually read off their page, or their trade's own
-  // week. Same rule as the email — never something we failed to find.
-  // The corrected wording, the same one the email uses. Taking OPENERS
-  // directly reintroduced "you have an opening for an office role at the
-  // moment" — the exact claim Russ had struck out, because a careers page can
-  // sit untouched for two years (2026-08-26).
-  const observed = key !== TRADE_WEEK
-    ? (V.TELL_WORDINGS[key] ? V.pick(V.TELL_WORDINGS[key], seed, `tell:${key}`) : OPENERS[key])
-    : null;
-  const week = painFor(trade || 'other').recognition;
-  // On LinkedIn the week has to be one sentence, not three.
-  const firstSentence = String(week).split(/(?<=\.)\s+/)[0];
-
-  // Sentence two: what they themselves say they do, where somebody read it.
-  // Same guard as the email: a paragraph pasted into this field would read
-  // "You Founded in 2004, we are..." and hand a stranger their own brochure.
-  const work = TO.usableWorkClause(prospect.theirWork);
-  const guess = work
-    ? `You ${work}, so I'd guess some of that lands on whoever runs your office.`
-    : null;
-
-  const hours = THE_OFFER.hoursWord;
-  const opening = observed
-    ? `${observed} ${firstSentence}`
-    : firstSentence;
-
-  const body = [
-    `${who ? `Hi ${who},` : 'Hello,'} I'm local to Central Oregon and I take repetitive office work off small businesses.`,
-    guess ? `${opening}\n\n${guess}` : opening,
-    // The same ask the email makes. Both channels have to carry the same
-    // offer, or the one Russ sends by hand contradicts the one that sends
-    // itself. It used to promise the paid audit here long after the email had
-    // moved to the free fifteen minutes (2026-08-27).
-    `What that usually looks like fixed: ${painFor(trade || 'other').looksLike}.`,
-    // The research, on this channel too. It is the validation for the whole
-    // offer and the note went out without it (Russ, 2026-08-27).
-    V.proofFor(trade, seed),   // may be null — filtered out below, never printed
-    V.pick(V.FREE_LOOK, seed, 'freelook'),
-    V.pick(LINKEDIN_CLOSES, seed, 'li'),
-  ].filter(Boolean).join('\n\n');
-
-  // The invitation goes with it: LinkedIn's two doors need two different
-  // things, and only one of them reaches a stranger.
+  // THE SAME OFFER AS THE EMAIL, at the length a message window is read.
+  //
+  // The note used to promise the paid audit weeks after the email had moved to
+  // the free fifteen minutes, so the channel Russ sends by hand contradicted
+  // the one that sends itself. It is the same campaign now, shorter: who he is,
+  // the trade's week with room to say "we have that one handled", and the offer
+  // whole.
+  //
+  // Nothing of Russ's copy is cut to hit a length. An earlier version dropped
+  // the build line and the five-to-twenty hours to fit 700 characters without
+  // saying so — his words, quietly removed. The note runs to about 950 now and
+  // that is the right trade (2026-08-30).
+  const body = C.linkedInNote(who, C.tradeCopy(trade));
   const invite = draftLinkedInInvite(prospect);
   return { subject: null, body, openedWith: key, trade, inviteBody: invite.body };
 }
+
+
 
 // Build the second or third message for a business, given what the first one
 // opened on. Returns null when there is nothing honest to say.
 function draftFollowUpTouch(prospect, openedWith, touch) {
   const { tradeOf } = require('./queues.js');
   if (touch !== 2 && touch !== 3) return null;
-  const business = String(prospect.name || 'your business').replace(/, (LLC|Inc|Ltd)\.?$/i, '');
-  const t = touch === 2 ? SECOND_TOUCH : THIRD_TOUCH;
-  const { painFor } = require('./painPoints.js');
-  const pain = painFor(prospect.trade || tradeOf(prospect.name));
-  const V2 = require('./variants.js');
-  const f = bandFacts(prospect);
-  // The price belongs HERE, not in a first approach — by now they have read
-  // something honest, and the number arrives with context around it.
-  const priceLine = f.known
-    ? V2.pick(V2.PRICE_FRAMING, prospect.name || '', 'price')
-      .replace(/\{fee\}/g, `$${f.fee.toLocaleString()}`)
-      .replace(/\{yearHours\}/g, f.yearHours.toLocaleString())
-    : `The audit is priced off the size of your team, from ${'$999'} up. At the smallest band it buys back ${f.yearHours.toLocaleString()} hours a year.`;
-  const body = t.body
-    .replace('{priceLine}', priceLine)
-    .replace('Hi {greeting},', greetingFor(prospect) ? `Hi ${greetingFor(prospect)},` : 'Hello,')
-    .replace('{shortTell}', SHORT_TELLS[openedWith] || 'the admin hours in your office')
-    .replace('{recognition}', pain.recognition)
-    .replace('{cost}', pain.cost)
-    .replace('{lever}', pain.lever)
-    .replace(/\{hours\}/g, f.hoursWord)
-    .replace(/\{business\}/g, business);
-  return { subject: t.subject.replace(/\{business\}/g, business), body, openedWith: `touch_${touch}` };
+  const business = businessNameOf(prospect);
+  const who = greetingFor(prospect);
+  const trade = prospect.trade || tradeOf(prospect.name);
+
+  // THE PRICE IS OUT OF THE SEQUENCE (2026-08-30).
+  //
+  // This used to say "It costs $999. What you get back is 260 hours a year" on
+  // day 4, and promise money back on five hours a week on day 8 — while day 0
+  // offered a free fifteen minutes. Three emails, three different offers. Russ
+  // read the sequence end to end and that was the first thing in it.
+  //
+  // Now all three carry the same offer and nothing else, getting shorter. The
+  // $999 is a conversation for after the call.
+  const C = require('./campaign.js');
+  const t = C.tradeCopy(trade);
+  const tradeWord = C.tradeWordFor(trade);
+  const body = `${touch === 2 ? C.dayFour(who, t) : C.dayEight(who, t, tradeWord)}\n\n${SIGN_OFF}`
+    .replace(/\{business\}/g, business)
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n +/g, '\n');
+  const subject = touch === 2 ? C.subjectDayFour(t) : 'Closing the loop';
+  return { subject, body, openedWith: `touch_${touch}` };
 }
 
 module.exports = {

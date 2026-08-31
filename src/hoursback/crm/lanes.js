@@ -146,9 +146,32 @@ function signalsOf(prospect) {
 
 // One draft per business per lane, never a second. Returns the row, or null
 // when there is nothing specific to open with.
+// WHEN WE CAN NO LONGER WRITE TO SOMEBODY, WHAT THEY WERE SENT LAST TIME MUST
+// NOT KEEP STANDING.
+//
+// Every path below that gives up used to just return null, and the message
+// already in the row stayed exactly as it was — old wording, DRAFT or QUEUED,
+// showing on the list as though it were current. Fourteen of them survived
+// tonight's rewrite that way: five businesses since marked do-not-contact,
+// six whose address had been taken off the record, three on LinkedIn. None
+// could actually be sent, because the sending queries screen for all of that,
+// but six of them were still on the screen Russ reads. That is exactly how 32
+// messages carrying the McKinsey line stayed visible after it was thrown out
+// (2026-08-30).
+//
+// So a business that can no longer be written to has its unsent, untouched
+// messages suppressed with the reason recorded, rather than left looking live.
+async function standDownStaleDrafts(db, prospectId, lane, why) {
+  await db.outreachMessage.updateMany({
+    where: { prospectId, lane, state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null, editedAt: null },
+    data: { state: 'SUPPRESSED', suppressedReason: why },
+  });
+  return null;
+}
+
 async function draftFor(db, prospectId, lane) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  if (p.doNotContact) return null;
+  if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
   // Write to whoever it is actually going to, not to whoever owns the place.
   // The greeting used to name the owner while the message went to info@.
   const person = lane === 'EMAIL' ? await personFor(db, prospectId) : null;
@@ -172,8 +195,8 @@ async function draftFor(db, prospectId, lane) {
     }
   }
   const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
-  if (!built) return null;
-  if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return null;
+  if (!built) return standDownStaleDrafts(db, prospectId, lane, 'nothing honest left to open with');
+  if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return standDownStaleDrafts(db, prospectId, lane, 'no address on the record any more');
 
   // A draft already written is kept. The one exception: it is still sitting
   // unsent, Russ has never touched it, and the wording has moved on

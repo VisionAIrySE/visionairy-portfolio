@@ -3502,9 +3502,16 @@ def('no_linkedin_note_carries_a_link', () => withLiveDb(async (db) => {
 }), 'linkedin');
 
 def('linkedin_notes_stay_short', () => withLiveDb(async (db) => {
-  // Past about 900 characters a message window stops being read.
-  const CAP = 900;
-  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN' }, select: { body: true } });
+  // 700 is where a message window stops being read, and for a while this was
+  // set there. Then the note was cut to fit it — the build line and the five to
+  // twenty hours taken out of Russ's own copy without telling him. His words
+  // win over my length rule, so the limit is what the note actually needs with
+  // all of it in: about 950, and 1,000 is the line that says something has gone
+  // wrong rather than something is long (2026-08-30).
+  const CAP = 1000;
+  const notes = await db.outreachMessage.findMany({
+    where: { lane: 'LINKEDIN', state: { in: ['DRAFT', 'QUEUED'] } }, select: { body: true },
+  });
   if (!notes.length) return { ok: false, detail: 'no LinkedIn notes written yet' };
   const long = notes.filter((n) => n.body.length > CAP);
   const longest = Math.max(...notes.map((n) => n.body.length));
@@ -4024,10 +4031,18 @@ def('both_channels_make_the_same_offer', () => withLiveDb(async (db) => {
   // The note Russ pastes by hand and the email that sends itself have to ask
   // for the same thing. The note promised the paid audit for a while after the
   // email had moved to the free fifteen minutes (2026-08-27).
+  // Every wording of the ask, not just the plain one. From 2026-08-30 the
+  // fifteen-minute line has six versions — what it goes looking for changes
+  // with the business — and this read only the plain family, so 518 emails
+  // and 594 notes carrying a perfectly good ask were counted as missing it.
   const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
-  const asks = (b) => V.FREE_LOOK.some((t) => String(b).includes(t));
-  const emails = await db.outreachMessage.findMany({ where: { lane: 'EMAIL', editedAt: null }, select: { body: true } });
-  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN', editedAt: null }, select: { body: true } });
+  const asks = (b) => V.ALL_FREE_LOOKS.some((t) => String(b).includes(t));
+  // Only what can still reach a reader. A stood-down message carries whatever
+  // it said the day its business stopped being contactable, and holding
+  // tonight's ask against it measures nothing.
+  const live = { editedAt: null, state: { in: ['DRAFT', 'QUEUED'] } };
+  const emails = await db.outreachMessage.findMany({ where: { lane: 'EMAIL', ...live }, select: { body: true } });
+  const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN', ...live }, select: { body: true } });
   const badE = emails.filter((m) => !asks(m.body)).length;
   const badL = notes.filter((m) => !asks(m.body)).length;
   const ok = !badE && !badL;
@@ -4721,35 +4736,153 @@ def('no_message_ever_prints_the_word_null', () => {
   return { ok: true, detail: `${bare.length} trades with nothing published compose cleanly — no "null" in the text` };
 }, 'messages');
 
-def('a_one_man_business_is_never_told_nothing_fits_it', () => {
-  // The line naming why nothing off the shelf fits only goes to a business that
-  // genuinely runs several different operations, and it quotes that business's
-  // own published words. Sent to a one-man electrician it is a lie that reads
-  // as a mail-merge — Russ, 2026-08-30: "name the reason ... AS LONG AS IT IS
-  // RELEVANT AND VALID." Spec: .xf/specs/2026-08-30-build-line.md
-  const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
-  const base = { id: 'x', phone: '541-555-0100', email: 'o@x.example', ownerName: 'Dale', automationScore: 40 };
-  const many = draftFirstContact({ ...base, name: 'East Cascade Contracting', trade: 'construction',
-    separateOperations: 5, contacts: [{ name: 'Dale' }, { name: 'Sam' }],
-    theirWork: 'We provide professional excavation, junk removal, snow plowing, and equipment transport services across Oregon.' });
-  const one = draftFirstContact({ ...base, name: 'Elevated Electric', trade: 'trades',
-    separateOperations: 1, contacts: [{ name: 'Jo' }],
-    theirWork: 'Residential and commercial electrical services including wiring and panel replacements.' });
-  const fitsBadly = /fit badly|covers the half of it|built rather than bought/;
-  if (fitsBadly.test(String(one.body))) {
-    return { ok: false, detail: 'a one-person electrician was told nothing off the shelf fits them' };
+// ---------------------------------------------------------------------------
+// THE FIFTEEN-MINUTE LINE (2026-08-30)
+//
+// The offer is one paragraph and it has to carry four things at once: the free
+// fifteen minutes, a named tool with what it costs, building as a live answer
+// from the first minute rather than a fallback, and a hint there is usually
+// more than one thing to find. Two drafts were thrown out for dropping one of
+// them, so each half is checked separately rather than eyeballed.
+//
+// Everything below reads the DATABASE, not the generator's own report. Three
+// nights were declared successes by a generator that worked correctly and then
+// threw the results away.
+
+// What everything here counts as the same sentence said different ways.
+const FIFTEEN = /fifteen minutes|quarter of an hour/i;
+const WHAT_IT_COSTS = /what it costs|its cost|the cost\b|its price|the price\b|what it runs to/i;
+const THE_BUILD = /\bbuilt?\b|building|to build|to make|has to be made|worth making|having it made|worth having made/i;
+// The paragraph body, without Russ's own sign-off. His signature carries a
+// calendly.com link, which is a named product and would fail the software test
+// on every message ever written.
+const justTheLetter = (body) => String(body).split(/\nBest regards,/)[0];
+
+def('every_message_offers_the_fifteen_minutes_and_a_priced_tool', () => withLiveDb(async (db) => {
+  // Neither half may go missing. The first rejected draft kept the call and
+  // deleted the tool hunt from all six versions — Russ: "You have completely
+  // eliminated the whole automation, off the shelf premise."
+  // What can still reach a reader: not sent, not suppressed. A suppressed row
+  // is a message that has been stood down and will never go anywhere, and
+  // holding tonight's wording against one is measuring the wrong thing.
+  const drafts = await db.outreachMessage.findMany({
+    where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } }, select: { body: true, prospectId: true },
+  });
+  if (!drafts.length) return { ok: false, detail: 'no email drafts exist to check' };
+  const noCall = drafts.filter((d) => !FIFTEEN.test(justTheLetter(d.body)));
+  const noTool = drafts.filter((d) => !/\btool\b/i.test(justTheLetter(d.body)) || !WHAT_IT_COSTS.test(justTheLetter(d.body)));
+  const noBuild = drafts.filter((d) => !THE_BUILD.test(justTheLetter(d.body)));
+  if (noCall.length || noTool.length || noBuild.length) {
+    return { ok: false, detail: `${noCall.length} without the free fifteen minutes, ${noTool.length} without a tool and what it costs, ${noBuild.length} without building on the table` };
   }
-  if (!fitsBadly.test(String(many.body))) {
-    return { ok: false, detail: 'a contractor running five operations got the ordinary line instead' };
+  return { ok: true, detail: `${drafts.length} messages still able to go out, every one offering fifteen free minutes, a named tool with its cost, and building alongside it` };
+}), 'messages');
+
+def('no_first_message_carries_a_price', () => withLiveDb(async (db) => {
+  // The price belongs in the SECOND touch, after they have read something
+  // honest. A number in a first approach becomes the whole conversation.
+  const drafts = await db.outreachMessage.findMany({
+    where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } }, select: { body: true },
+  });
+  const MONEY = /\$\s*\d|\b\d[\d,]*\s*(?:dollars?|bucks|usd)\b|\bfee\b|\bcosts? \$?\d/i;
+  const priced = drafts.filter((d) => MONEY.test(justTheLetter(d.body)));
+  return { ok: !priced.length, detail: priced.length
+    ? `${priced.length} first messages name a price or a fee`
+    : `${drafts.length} messages still able to go out, no price, no fee, no figure` };
+}), 'messages');
+
+def('no_first_message_names_software_they_run', () => withLiveDb(async (db) => {
+  // What they pay for was never broadcast to us. Naming it reads as somebody
+  // who went looking rather than somebody who looked, and it is the one thing
+  // that turns a warm note cold.
+  const { TOOLS } = require(path.join(ROOT, 'src/hoursback/enrich.js'));
+  const names = Object.keys(TOOLS).map((n) => n.replace(/_/g, ' '));
+  const drafts = await db.outreachMessage.findMany({
+    where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } },
+    select: { body: true, prospect: { select: { theirWork: true, selfDescription: true } } },
+  });
+  const caught = [];
+  for (const d of drafts) {
+    const letter = justTheLetter(d.body);
+    // What THEY put on their own website is theirs to have named. An
+    // accountant whose homepage says "bookkeeping and QuickBooks work" has
+    // broadcast it, and quoting their own sentence back is the whole point of
+    // the opening line. What the reading DETECTED behind their site is the
+    // thing that was never broadcast, and that may never appear.
+    const published = `${d.prospect?.theirWork || ''} ${d.prospect?.selfDescription || ''}`;
+    for (const n of names) {
+      const re = new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (re.test(letter) && !re.test(published)) caught.push(n);
+    }
   }
-  if (!/excavation|junk removal|snow plowing/.test(String(many.body))) {
-    return { ok: false, detail: 'the reason was not named in the business own words' };
-  }
-  if (/\{reason\}/.test(String(many.body) + String(one.body))) {
-    return { ok: false, detail: 'the reason slot was left unfilled in the message' };
-  }
-  return { ok: true, detail: 'the contractor hears why nothing fits, named from their own page; the electrician hears the ordinary line' };
+  return { ok: !caught.length, detail: caught.length
+    ? `software named in a cold message: ${[...new Set(caught)].join(', ')}`
+    : `${drafts.length} messages still able to go out, no product named in any of them` };
+}), 'messages');
+
+def('the_fifteen_minute_line_never_claims_anything_about_them', () => {
+  // The opening line DOES say something about them, on purpose, and only ever
+  // something they published. The fifteen-minute line is different: it says
+  // what Russ would go looking for in a business of that shape, and it must
+  // never assert a fact. Russ, 2026-08-30: "we can lightly infer but there
+  // won't be definitive enough info to call something out specifically and
+  // confidently." So this reads the wordings themselves, not the whole letter.
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const CLAIM = /\byou(?:'re| are| have| had| run| pay| paid| use| own| bought| announced| employ| still| already)\b|\byour \w+ (?:is|was|has|costs|runs)\b/i;
+  const bad = V.ALL_FREE_LOOKS.filter((s) => CLAIM.test(s));
+  if (bad.length) return { ok: false, detail: `${bad.length} wordings state a fact about the reader: "${bad[0].slice(0, 70)}..."` };
+  return { ok: true, detail: `${V.ALL_FREE_LOOKS.length} wordings, none of them telling a stranger what is true of their business` };
 }, 'messages');
+
+def('every_business_gets_a_fifteen_minute_line_the_record_supports', () => {
+  // A lean is used only where the reading recorded something. Where it did not,
+  // the plain version goes — an invented lean reads as a mail-merge and costs
+  // the reply, the same lesson as the retired build sentence.
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  const cases = [
+    ['a shelved piece of software', { stalledBuild: 'Their site has advertised a client portal as coming soon since 2022.' }, V.FREE_LOOK_STALLED_BUILD],
+    ['five different operations', { separateOperations: 5 }, V.FREE_LOOK_HANDOVERS],
+    ['work that is a different shape every time', { trade: 'construction' }, V.FREE_LOOK_NO_TOOL_EXISTS],
+    ['a published job advert', { openRoles: 2 }, V.FREE_LOOK_NEW_AND_UNTOOLED],
+    ['software we detected but they never published', { toolsInUse: 'QuickBooks, Square' }, V.FREE_LOOK_RENTED_SEAT],
+    ['nothing read at all', {}, V.FREE_LOOK],
+    ['a record with nothing on it', { separateOperations: 1, openRoles: 0, trade: 'accounting' }, V.FREE_LOOK],
+  ];
+  for (const [what, record, expected] of cases) {
+    if (V.freeLookFamilyFor(record) !== expected) return { ok: false, detail: `${what} landed on the wrong version` };
+  }
+  if (V.freeLookFamilyFor(null) !== V.FREE_LOOK) return { ok: false, detail: 'a missing record did not fall back to the plain version' };
+  const seen = new Set(V.ALL_FREE_LOOKS);
+  if (seen.size !== V.ALL_FREE_LOOKS.length) return { ok: false, detail: 'the same wording appears in more than one version' };
+  return { ok: true, detail: `${V.ALL_FREE_LOOKS.length} wordings across six versions, each chosen only from what the reading recorded` };
+}, 'messages');
+
+def('the_retired_build_sentence_is_in_no_message', () => withLiveDb(async (db) => {
+  // The pass/fail build test is gone. Building is on the table for everybody
+  // from the first minute now, so no message may still carry the sentence that
+  // told a high-scoring business nothing off the shelf would fit it.
+  const V = require(path.join(ROOT, 'src/hoursback/crm/variants.js'));
+  if (V.WHAT_I_DO_BUILD || V.buildReasonFor) {
+    return { ok: false, detail: 'the retired build family is still exported from variants.js' };
+  }
+  const RETIRED = /fit badly|covers the half of it|built rather than bought|all run out of one office|different operations run out of one office/i;
+  const drafts = await db.outreachMessage.findMany({ where: { state: { in: ['DRAFT', 'QUEUED'] } }, select: { body: true } });
+  const stale = drafts.filter((d) => RETIRED.test(String(d.body)));
+  return { ok: !stale.length, detail: stale.length
+    ? `${stale.length} messages still carry the retired build sentence`
+    : `${drafts.length} messages still able to go out, none carrying it` };
+}), 'messages');
+
+def('no_message_prints_the_word_null', () => withLiveDb(async (db) => {
+  // 281 messages once carried the literal text "null" between the opening and
+  // what Russ does, because a trade with no published research returned nothing
+  // and nothing was dropped into the template. None had been sent.
+  const drafts = await db.outreachMessage.findMany({ where: { state: { in: ['DRAFT', 'QUEUED'] } }, select: { body: true, subject: true } });
+  const broken = drafts.filter((d) => /\bnull\b|\bundefined\b|\{[a-zA-Z]+\}/.test(`${d.subject || ''} ${d.body}`));
+  return { ok: !broken.length, detail: broken.length
+    ? `${broken.length} messages print a word the reader was never meant to see`
+    : `${drafts.length} messages still able to go out, no "null", no unfilled slot` };
+}), 'messages');
 
 (async () => {
   const args = process.argv.slice(2);
