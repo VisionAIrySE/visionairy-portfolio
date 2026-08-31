@@ -15,8 +15,8 @@ datasource db {
   // Postgres on Supabase — Russ's existing "VisionAIry CRM" project. Chosen
   // 2026-08-25 over a paid disk: data lives free and permanent in Supabase,
   // so the app itself can run on a free tier that keeps nothing.
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -29,20 +29,20 @@ datasource db {
 /// separate columns, a correction never overwritten by a later sweep. The
 /// resolved value is ManualValue when present, fetched otherwise.
 model Prospect {
-  id     String  @id @default(cuid())
+  id      String @id @default(cuid())
   placeId String @unique
 
   // --- capture fields (machine-written) + their hand-entered pairs --------
-  name              String
-  nameManualValue   String?
-  phone             String?
-  phoneManualValue  String?
-  website           String?
+  name               String
+  nameManualValue    String?
+  phone              String?
+  phoneManualValue   String?
+  website            String?
   websiteManualValue String?
-  address           String?
+  address            String?
   addressManualValue String?
-  normalizedPhone   String?
-  normalizedDomain  String?
+  normalizedPhone    String?
+  normalizedDomain   String?
 
   // --- enrichment fields (machine-written) + their hand-entered pairs -----
   employeeCount            Int?
@@ -54,7 +54,7 @@ model Prospect {
   emailConfidence          Float?
   emailStatus              String?
 
-  headcountPublishedAs     String?   // "8-20" when the site published a range
+  headcountPublishedAs String? // "8-20" when the site published a range
 
   // --- read from the business's own website (free: no key, no fee) --------
   // siteStatus: READ | NO_WEBSITE | UNREACHABLE. scoreEvidence is the list of
@@ -62,18 +62,18 @@ model Prospect {
   // seen - so the number is never a black box on the call screen.
   siteStatus      String?
   siteReadAt      DateTime?
-  linkedInUrl     String?   // the business's own LinkedIn page, from their site
-  selfDescription String?   // the one line they wrote about themselves
+  linkedInUrl     String? // the business's own LinkedIn page, from their site
+  selfDescription String? // the one line they wrote about themselves
   /// What this particular business does, read off their own published words and
   /// written as a clause that completes "You ___". Only ever their own claim
   /// reflected back — never an inference, never praise. Empty where nothing
   /// could be written honestly, and those messages keep the trade line, which
   /// is true of everybody.
   theirWork       String?
-  trade           String?   // settled from their own words when the name could not
-  yearsInBusiness Int?      // how many years, already counted from "since 1994"
-  toolsInUse      String?   // what they already pay for, which says what is missing
-  openRoles       Int?      // how many office roles they are advertising
+  trade           String? // settled from their own words when the name could not
+  yearsInBusiness Int? // how many years, already counted from "since 1994"
+  toolsInUse      String? // what they already pay for, which says what is missing
+  openRoles       Int? // how many office roles they are advertising
   automationScore Int?
   scoreEvidence   String?
 
@@ -82,14 +82,14 @@ model Prospect {
   // manufacturer loses nothing for the same gap, because nobody books a
   // fabrication shop through a web page. siteGaps holds what is missing and
   // what would fill it, cheapest first (2026-08-27).
-  siteScore       Int?
-  siteGaps        String?
+  siteScore          Int?
+  siteGaps           String?
   // What the page shows of something they already wanted built and did not get.
   // Russ's biggest deal came from a man who had been quoted $300,000 by a dev
   // shop and shelved it — he was not persuaded of anything, he was waiting for
   // a price he could say yes to. Rare, so it is a flag on the card and never a
   // number in the score (2026-08-30).
-  stalledBuild    String?
+  stalledBuild       String?
   // How many genuinely different businesses run out of this one company, read
   // off the page rather than counted from commas. One electrician listing four
   // services is 1; a contractor doing junk removal, snow, excavation and septic
@@ -126,7 +126,7 @@ model Prospect {
   // --- who was actually spoken to (crm1) ----------------------------------
   contactName     String?
   contactRole     String?
-  isDecisionMaker Boolean?   // null = unknown; distinguishable from "no"
+  isDecisionMaker Boolean? // null = unknown; distinguishable from "no"
   ownerName       String?
 
   // --- money, separate from stage (crm1): CUSTOMER can exist unpaid -------
@@ -137,22 +137,22 @@ model Prospect {
   // call; Russ comes back a couple of days later with one thing to fix. The
   // hours figure is what the guarantee is measured against and what the paid
   // work is priced against, so it lives on the record rather than in a note.
-  stageOneAt        DateTime?
-  stageOneLever     String?   // money | hours | customers
+  stageOneAt         DateTime?
+  stageOneLever      String? // money | hours | customers
   stageOneRepetition String?
-  stageOneFriction  String?
-  stageOneHours     Float?    // hours a week the bottleneck eats
-  stageOneWho       String?   // who is doing it
-  stageOneWand      String?   // what would change if it ran itself
-  stageOneBottleneck String?  // the one sentence said back to them
+  stageOneFriction   String?
+  stageOneHours      Float? // hours a week the bottleneck eats
+  stageOneWho        String? // who is doing it
+  stageOneWand       String? // what would change if it ran itself
+  stageOneBottleneck String? // the one sentence said back to them
   // The SECOND call: the prescription, delivered free as promised. Three
   // things and no more — what it is, what it costs, and the first step they
   // take this week. Then the door opens to paid work.
-  stageOneFix       String?   // the one thing to fix, decided AFTER the call
-  stageOneFixCost   String?   // what it costs them
-  stageOneFirstStep String?   // what they do this week
-  stageOneFixSentAt DateTime? // when the prescription was delivered
-  stageOneDoorAt    DateTime? // when the offer of paid help was made
+  stageOneFix        String? // the one thing to fix, decided AFTER the call
+  stageOneFixCost    String? // what it costs them
+  stageOneFirstStep  String? // what they do this week
+  stageOneFixSentAt  DateTime? // when the prescription was delivered
+  stageOneDoorAt     DateTime? // when the offer of paid help was made
   // When the second call is happening. The first call ends by promising to
   // come back in a couple of days, and a promise with no date on it is how a
   // free call quietly becomes nothing.
@@ -164,8 +164,8 @@ model Prospect {
   // Everything clicked and typed during the call, as it was answered. Kept
   // whole so the questions that came next can be worked out again, and so a
   // call can be read back and understood rather than just followed.
-  stageOneAnswers   String?
-  stageOneStartedAt DateTime?
+  stageOneAnswers    String?
+  stageOneStartedAt  DateTime?
 
   // --- the calling day (crm2/crm3) ----------------------------------------
   attemptCount    Int       @default(0)
@@ -177,55 +177,55 @@ model Prospect {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  fieldEdits      ProspectFieldEdit[]
-  duplicatesKept  ProspectDuplicate[] @relation("keptProspect")
-  callLogs        CallLog[]
-  messages        OutreachMessage[]
-  contacts        Contact[]
+  fieldEdits     ProspectFieldEdit[]
+  duplicatesKept ProspectDuplicate[] @relation("keptProspect")
+  callLogs       CallLog[]
+  messages       OutreachMessage[]
+  contacts       Contact[]
 
   // --- the email lane -----------------------------------------------------
-  emailBouncedAt DateTime?   // suppressed on email only; the phone lane is untouched
-  repliedAt      DateTime?   // a reply anywhere stops every queued message everywhere
+  emailBouncedAt DateTime? // suppressed on email only; the phone lane is untouched
+  repliedAt      DateTime? // a reply anywhere stops every queued message everywhere
 }
 
 /// One dial, appended forever — never overwritten. outcome is the per-dial
 /// axis (NO_ANSWER, VOICEMAIL, GATEKEEPER, WRONG_NUMBER, NOT_INTERESTED,
 /// INTERESTED) and never moves the stage by itself.
 model CallLog {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   prospectId String
-  prospect   Prospect @relation(fields: [prospectId], references: [id])
-  callKey    String?  @unique // idempotency: the same call logged twice writes one row
+  prospect   Prospect  @relation(fields: [prospectId], references: [id])
+  callKey    String?   @unique // idempotency: the same call logged twice writes one row
   outcome    String
   wentHow    String?
   nextWhat   String?
   nextWhen   DateTime?
-  loggedAt   DateTime @default(now())
+  loggedAt   DateTime  @default(now())
 }
 
 /// A business the sweep re-found. The kept prospect stays; the candidate is
 /// recorded here instead of inserted, with the signal that matched.
 model ProspectDuplicate {
-  id              String   @id @default(cuid())
-  keptProspectId  String
-  keptProspect    Prospect @relation("keptProspect", fields: [keptProspectId], references: [id])
+  id               String   @id @default(cuid())
+  keptProspectId   String
+  keptProspect     Prospect @relation("keptProspect", fields: [keptProspectId], references: [id])
   candidatePlaceId String?
   candidateName    String?
-  matchSignal      String   // "phone" | "domain" | "name_address"
+  matchSignal      String // "phone" | "domain" | "name_address"
   createdAt        DateTime @default(now())
 }
 
 /// One sweep. mode separates the one-time regional capture from the monthly
 /// top-up; a resumed sweep re-requests no completed cell.
 model CaptureRun {
-  id             String    @id @default(cuid())
-  mode           String    // "regional" | "monthly_top_up"
-  startedAt      DateTime  @default(now())
+  id             String     @id @default(cuid())
+  mode           String // "regional" | "monthly_top_up"
+  startedAt      DateTime   @default(now())
   finishedAt     DateTime?
-  cellsAttempted Int       @default(0)
-  cellsCompleted Int       @default(0)
-  placesSeen     Int       @default(0)
-  placesInserted Int       @default(0)
+  cellsAttempted Int        @default(0)
+  cellsCompleted Int        @default(0)
+  placesSeen     Int        @default(0)
+  placesInserted Int        @default(0)
   prospects      Prospect[]
 }
 
@@ -242,26 +242,25 @@ model ProspectFieldEdit {
   correctedAt DateTime @default(now())
 }
 
-
 /// The message Russ approves ONCE. Every first-contact email is a copy of this
 /// with the business's own facts slotted in, and nothing else changed. Until
 /// approvedAt is set, nothing on the email lane can send.
 model MessageTemplate {
-  id         String    @id @default(cuid())
-  name       String    @unique   // "first_contact"
-  subject    String
-  body       String
-  version    Int       @default(1)
-  approvedAt DateTime?
-  approvedBy String?
+  id              String            @id @default(cuid())
+  name            String            @unique // "first_contact"
+  subject         String
+  body            String
+  version         Int               @default(1)
+  approvedAt      DateTime?
+  approvedBy      String?
   /// A fingerprint of every sentence that can appear in the message, taken at
   /// the moment Russ approved it. Approval used to attach to the SHAPE only,
   /// so rewriting the sentences inside left it reading as approved and the
   /// approve button stayed hidden — he had nothing to press (2026-08-26).
   approvedWording String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  messages   OutreachMessage[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  messages        OutreachMessage[]
 }
 
 /// One message, on one lane, to one business. Written, never overwritten.
@@ -270,38 +269,37 @@ model MessageTemplate {
 /// A LinkedIn message can only reach SENT through a person's hand, recorded in
 /// sentBy — the engine may never write it.
 model OutreachMessage {
-  id         String   @id @default(cuid())
-  prospectId String
-  prospect   Prospect @relation(fields: [prospectId], references: [id])
-  lane       String
-  state      String   @default("DRAFT")
-  subject    String?
-  body       String
-  openedWith String?  // which tell this message led with
+  id               String           @id @default(cuid())
+  prospectId       String
+  prospect         Prospect         @relation(fields: [prospectId], references: [id])
+  lane             String
+  state            String           @default("DRAFT")
+  subject          String?
+  body             String
+  openedWith       String? // which tell this message led with
   /// LinkedIn only. The short note that goes out WITH the invitation to
   /// connect — capped at what LinkedIn allows, and it never carries the offer,
   /// because a number in an invitation reads as a salesperson to a stranger.
   /// The body above is what gets sent once they accept.
-  inviteBody String?
-  templateId String?
-  template   MessageTemplate? @relation(fields: [templateId], references: [id])
-  queuedAt   DateTime?
-  sentAt     DateTime?
-  sentBy     String?  // a person's name for LinkedIn; "engine" for email
+  inviteBody       String?
+  templateId       String?
+  template         MessageTemplate? @relation(fields: [templateId], references: [id])
+  queuedAt         DateTime?
+  sentAt           DateTime?
+  sentBy           String? // a person's name for LinkedIn; "engine" for email
   /// The address this one actually went to. Russ can mark several people at a
   /// business and each gets their own message, so the record has to say which.
-  sentTo     String?
-  repliedAt  DateTime?
+  sentTo           String?
+  repliedAt        DateTime?
   suppressedReason String?
   /// Set the moment Russ rewrites a draft by hand. A message he has touched is
   /// never regenerated underneath him, however far the wording moves on.
-  editedAt   DateTime?
-  createdAt  DateTime @default(now())
+  editedAt         DateTime?
+  createdAt        DateTime         @default(now())
 
   @@index([prospectId, lane])
   @@index([state])
 }
-
 
 /// A person at a business. The website reader finds them; Russ corrects them.
 /// Several per business is the normal case — a shared inbox, an owner, and
@@ -309,21 +307,42 @@ model OutreachMessage {
 ///
 /// source: WEBSITE | RUSS | CALL
 model Contact {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   prospectId String
-  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  prospect   Prospect  @relation(fields: [prospectId], references: [id])
   name       String?
   role       String?
   email      String?
   phone      String?
   linkedIn   String?
-  source     String   @default("WEBSITE")
-  foundOn    String?  // the page it was read from
-  isPrimary  Boolean  @default(false)
+  source     String    @default("WEBSITE")
+  foundOn    String? // the page it was read from
+  isPrimary  Boolean   @default(false)
   bouncedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([prospectId, email])
   @@index([prospectId])
+}
+
+/// A SENTENCE RUSS REWROTE BY HAND, kept so every other message can use it.
+///
+/// Editing a message on screen used to change that one message and nothing
+/// else — his edits never reached the other 868, and he asked twice: "I want my
+/// edits to spread as examples of how the rest should be written so I don't
+/// have to do it every fucking time" (2026-08-31).
+///
+/// A wording lives here rather than in the code because the hosted site cannot
+/// write to its own files. `slot` names which sentence of the message it
+/// replaces — the same names the wording lists use.
+model VoiceWording {
+  id           String    @id @default(cuid())
+  slot         String // who | handled | whyme | offer | ask0 | ask4 | part | look | last | forthat | close8 | noteclose
+  wording      String
+  fromBusiness String? // where he wrote it, so it can be traced back
+  addedAt      DateTime  @default(now())
+  retiredAt    DateTime? // taken back out of use, never deleted
+
+  @@index([slot, retiredAt])
 }

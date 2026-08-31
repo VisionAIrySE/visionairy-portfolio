@@ -174,7 +174,13 @@ async function draftFor(db, prospectId, lane) {
   if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
   // Write to whoever it is actually going to, not to whoever owns the place.
   // The greeting used to name the owner while the message went to info@.
-  const person = lane === 'EMAIL' ? await personFor(db, prospectId) : null;
+  // WHOEVER IT IS ACTUALLY GOING TO, ON BOTH CHANNELS.
+  //
+  // This asked for the person on the email lane only, so ticking Trever
+  // Campbell as the one to write to changed the email and left the LinkedIn
+  // note still greeting the owner (Russ, 2026-08-31). The note is the one he
+  // pastes by hand, so the wrong name goes out under his own fingers.
+  const person = await personFor(db, prospectId);
   let writeTo = person && person.name ? { ...p, contactName: person.name } : p;
   // At a small shop the "general" inbox is the owner's inbox. 404 businesses
   // had a person's name on file and only a general address, and every one of
@@ -183,7 +189,7 @@ async function draftFor(db, prospectId, lane) {
   // greeting uses their name. Above that there is a real front desk and it
   // does not. The name still has to pass the person test, which is what stops
   // "Hi Vaccination," (2026-08-26).
-  if (lane === 'EMAIL' && !writeTo.contactName && !writeTo.ownerName) {
+  if (!writeTo.contactName && !writeTo.ownerName) {
     const named = await db.contact.findMany({
       where: { prospectId, name: { not: null } },
       select: { name: true }, orderBy: { createdAt: 'asc' },

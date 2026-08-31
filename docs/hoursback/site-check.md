@@ -1,7 +1,7 @@
 # Websites that do not belong to the business they are on
 
-199 businesses with a live email checked.
-11 carry somebody else's website. Nothing has been written to the record.
+347 businesses with a live email checked.
+18 carry somebody else's website. Nothing has been written to the record.
 
 - **Bend OR Medicare Advantage** — carries https://www.insurancethatfitsyou.com/, which is not theirs. The website officially identifies as Insurance Fitz Inc., not Bend OR Medicare Advantage — different registered business names.
   - id: `cmt93a73d0088t7lcv2vgx3h6`
@@ -36,3 +36,24 @@
 - **Bend Tax** — carries https://www.bendtax.com/, which is not theirs. The website identifies itself as Mode Hanus LLP, not Bend Tax—a different legal business name entirely.
   - id: `cmt93a58l002at7lcwh8bctmb`
   - the site says: We are a full-service accounting firm specializing in small businesses and financial statement preparation. — calls itself: Mode Hanus LLP
+- **Bend Oregon Certified Public Accounting** — carries http://www.pacificaccountancy.com/, which is not theirs. The website identifies itself as 'Pacific Accountancy,' a different business name with its own domain.
+  - id: `cmt93a5810024t7lc3m039h7k`
+  - the site says: Certified public accounting firm providing tax planning, accounting, and financial consulting to businesses, individuals, and homeowner associations. — calls itself: Pacific Accoun
+- **Redmond Printing** — carries http://www.mrprintco.com/, which is not theirs. The website identifies as MR PRINT CO and shows no connection to Redmond Printing—different names for different businesses, even though both do printing.
+  - id: `cmt956lzp02jwt7s7m5tsd8iz`
+  - the site says: Custom printing and promotional material services for Central Oregon businesses. — calls itself: MR PRINT CO
+- **Central Oregon Custom Cabinetry and Fine Furniture** — carries http://benscabinets.com/, which is not theirs. The website identifies itself as 'Ben's Cabinets,' not 'Central Oregon Custom Cabinetry and Fine Furniture.'
+  - id: `cmt956uf3034it7s7lupdayrw`
+  - the site says: We build quality custom cabinetry and high-end furniture. — calls itself: Ben's Cabinets
+- **Bookkeeping for Service Businesses** — carries https://zenbalances.net/, which is not theirs. The website identifies as 'ZenBalances Accounting & Compliance,' not 'Bookkeeping for Service Businesses' — different business names, even though the service type matches.
+  - id: `cmt94xat801fct7qrmxm1vlz8`
+  - the site says: Bookkeeping for service businesses with QuickBooks Online support and compliance guidance. — calls itself: ZenBalances Accounting & Compliance
+- **Trading Bend** — carries http://shamrockbm.com/bend.asp, which is not theirs. The domain shamrockbm.com belongs to Shamrock Building Materials, and the site explicitly identifies as 'Lumber and Steel Trading'—a different business entity than Trading Bend.
+  - id: `cmt94x8oj01ast7qrniw8ryy1`
+  - the site says: We trade and supply building materials, mostly framing lumber and panel products, to distribution customers. — Lumber and Steel Trading
+- **Bend & Portland Electrician** — carries https://hawkinselectric.llc/, which is not theirs. The website identifies as 'Hawkins Electric,' a different business name, with no mention of 'Bend & Portland Electrician.'
+  - id: `cmt9464vl006yt7z4yc8o9vc1`
+  - the site says: Licensed electrical contractor providing residential and commercial electrical services throughout Central Oregon. — calls itself: Hawkins Electric
+- **Alpine Outfitters** — carries https://www.alpineoutfitters.net/, which is not theirs. Alpine Outfitters implies alpine or outdoor gear for people, but the website sells gear for dogs.
+  - id: `cmt956lwd02j6t7s7jjfpqwiw`
+  - the site says: Craft and sell high-quality gear for working and active dogs. — Your One-Stop Shop for Quality Working & Active Dog Gear.

@@ -68,6 +68,11 @@ const TRADE_OPTIONS = Object.keys(require('../../src/hoursback/industryTiers.js'
 // combination, thrown away when the app restarts — it is a convenience, not a
 // record, and a fresh start should give a fresh ranking.
 const HELD_ORDER = new Map();
+
+// His own rewrites, in memory before the first message is drafted.
+require('../../src/hoursback/crm/campaign.js').loadHisWordings(db)
+  .then((n) => { if (n) console.log(`${n} of your own wordings in use`); })
+  .catch(() => { /* the table may not exist on an older copy */ });
 function tradeOfName(p) {
   const { tradeOf } = require('../../src/hoursback/crm/queues.js');
   return tradeOf(resolveField(p, 'name'));
@@ -144,6 +149,67 @@ const scoreBadge = (n, id) => {
   const dot = `<span class="pill ${(n || 0) >= 40 ? '' : (n || 0) >= 20 ? 'warm' : 'cool'}">${n === null || n === undefined ? '–' : n}</span>`;
   return id ? `<a href="/score/${id}" title="how this was worked out" style="text-decoration:none">${dot}</a>` : dot;
 };
+
+// DID HE REWRITE A SENTENCE THE WHOLE LIST USES?
+//
+// Worked out from the message itself every time the page is drawn, so nothing
+// has to be remembered between visits and a restart loses nothing. Compare the
+// message he saved against the one the engine would write now: if exactly one
+// shared sentence was swapped, that is an edit worth offering to everybody.
+//
+// Never offered when his new wording names the business or the person — that is
+// a note to one reader, and sending it to 869 strangers is the harm this whole
+// check exists to prevent.
+async function spreadOffer(message, prospect) {
+  if (!message || !message.editedAt || message.lane !== 'EMAIL') return null;
+  const SPREAD = require('../../src/hoursback/crm/spreadEdit.js');
+  const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
+  let written;
+  try {
+    const signals = JSON.parse(prospect.scoreEvidence || '[]');
+    written = draftFirstContact(prospect, signals);
+  } catch { return null; }
+  if (!written) return null;
+  const found = SPREAD.whatHeChanged(written.body, message.body);
+  if (!found) return null;
+  if (SPREAD.looksPersonal(found.now, resolveField(prospect, 'name'), prospect.contactName || prospect.ownerName)) return null;
+  const already = await db.voiceWording.findFirst({ where: { slot: found.slot, wording: found.now, retiredAt: null } });
+  if (already) return null;
+  return found;
+}
+
+const SLOT_NAMES = {
+  who: 'the opening line about what you do',
+  handled: 'the line saying some already have it handled',
+  whyme: 'the line about having run these offices yourself',
+  offer: 'the fifteen minutes and what comes back',
+  ask0: 'the closing ask',
+  ask4: 'the closing ask on the second email',
+  part: 'the part most owners have never considered',
+  look: 'what you would go looking for',
+  last: 'the opening of the last email',
+  forthat: 'what the fifteen minutes is for',
+  close8: 'the sign-off on the last email',
+  noteclose: 'the close on the LinkedIn note',
+};
+
+// Every unsent message written again, so a wording he just approved reaches the
+// whole list now rather than whenever something else happens to trigger it.
+// Started, not waited on — 1,900 messages take a couple of minutes.
+let REWRITING = false;
+function rewriteEverythingInBackground() {
+  if (REWRITING) return;
+  REWRITING = true;
+  (async () => {
+    try {
+      const L = require('../../src/hoursback/crm/lanes.js');
+      const rows = await db.outreachMessage.findMany({
+        where: { sentAt: null, editedAt: null }, select: { prospectId: true, lane: true },
+      });
+      for (const r of rows) { try { await L.draftFor(db, r.prospectId, r.lane); } catch { /* one bad row never stops the rest */ } }
+    } finally { REWRITING = false; }
+  })();
+}
 
 // ---------------------------------------------------------------------------
 async function home() {
@@ -924,6 +990,14 @@ async function businessCard(id, saved) {
       ? `<b>$${p.auditFee} for ${p.guaranteedHours} hours a week</b> — the same offer for every business. Not yet quoted.`
       : '<span class="muted">No team size known, so no price yet. Type one in below and it prices itself.</span>');
 
+  // One per message he has rewritten, or an empty object. Cheap: it only looks
+  // at messages carrying an edit, and there are at most two per business.
+  const offers = {};
+  for (const m of p.messages) {
+    const o = await spreadOffer(m, p);
+    if (o) offers[m.id] = o;
+  }
+
   const emailLine = resolveField(p, 'email')
     ? `${esc(resolveField(p, 'email'))} <span class="muted">— ${esc(EMAIL_STATUS_LABELS[p.emailStatus] || p.emailStatus || '')}${p.emailConfidence ? `, ${Math.round(p.emailConfidence * 100)}% sure` : ''}</span>`
     : `<span class="muted">${esc(EMAIL_STATUS_LABELS[p.emailStatus] || 'not looked for yet')}</span>`;
@@ -1091,6 +1165,15 @@ async function businessCard(id, saved) {
   ${p.messages.length ? p.messages.map((m) => `<div class="card">
     <div class="row"><div><b>${m.lane === 'EMAIL' ? 'Email' : 'LinkedIn note'}</b>
       <span class="muted">${esc(m.state)}${m.editedAt ? ' · you rewrote this' : ''}${m.openedWith ? ` · opens on: ${esc(m.openedWith)}` : ''}</span></div></div>
+    ${offers[m.id] ? `<div class="card" style="background:#e0f2fe;border-color:#0284c7;margin:8px 0">
+      <b>You rewrote ${esc(SLOT_NAMES[offers[m.id].slot] || 'a line every message uses')}.</b>
+      <p class="muted" style="margin:6px 0">Was: ${esc(offers[m.id].was.slice(0, 150))}${offers[m.id].was.length > 150 ? '…' : ''}</p>
+      <p style="margin:6px 0">Yours: ${esc(offers[m.id].now)}</p>
+      <form method="POST" action="/spread/${m.id}"
+        onsubmit="return confirm('Use your version everywhere? It joins the other ways of saying that line, so no two businesses get the same letter.')">
+        <button class="primary">Use this everywhere</button>
+        <span class="muted"> — it joins the other wordings of that line rather than replacing them.</span></form>
+    </div>` : ''}
     ${m.lane === 'EMAIL' ? `<input name="m.${m.id}.subject" value="${esc(m.subject || '')}" style="font-weight:600">` : ''}
     <textarea name="m.${m.id}.body" rows="${m.lane === 'EMAIL' ? 14 : 8}" style="margin-top:6px">${esc(m.body)}</textarea>
   </div>`).join('') : '<p class="muted">Nothing written for them yet.</p>'}
@@ -1787,6 +1870,24 @@ const server = http.createServer(async (req, res) => {
       // Put a business away, or bring it back. Archiving takes their unsent
       // messages with it so nothing can go out to somebody set aside
       // (Russ, 2026-08-28: "I need to be able to archive accounts").
+      // HIS WORDING, EVERYWHERE. It joins the written ones for that line rather
+      // than replacing them, so the list keeps its variety, and every unsent
+      // message is written again so the change lands tonight rather than
+      // whenever something else happens to trigger a rewrite.
+      if (route === 'spread' && id) {
+        const m = await db.outreachMessage.findUnique({ where: { id }, include: { prospect: true } });
+        const found = m ? await spreadOffer(m, m.prospect) : null;
+        if (found) {
+          await db.voiceWording.create({
+            data: { slot: found.slot, wording: found.now, fromBusiness: resolveField(m.prospect, 'name') },
+          });
+          const C = require('../../src/hoursback/crm/campaign.js');
+          await C.loadHisWordings(db);
+          rewriteEverythingInBackground();
+        }
+        res.writeHead(303, { Location: `/business/${m ? m.prospectId : ''}?spread=1` });
+        return res.end();
+      }
       if (route === 'business' && id && url.pathname.endsWith('/archive')) {
         const p = await db.prospect.findUnique({ where: { id }, select: { doNotContact: true } });
         const putting = !p.doNotContact;

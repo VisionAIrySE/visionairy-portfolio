@@ -246,6 +246,58 @@ const TRADES = {
     firstLook: 'the double entry. There are tools now that take the details once and show them everywhere they are needed',
   },
 };
+// ---------------------------------------------------------------------------
+// RUSS'S OWN REWRITES, ALONGSIDE THE WRITTEN ONES.
+//
+// Editing a message on screen used to change that one message and nothing
+// else. He asked twice for his edits to become the pattern: "I want my edits to
+// spread as examples of how the rest should be written so I don't have to do it
+// every fucking time" (2026-08-31).
+//
+// So a sentence he rewrites is kept in the database and joins the list it
+// belongs to, as one more way of saying that line. It never replaces the
+// written ones — his rewrite and the four originals all stay in the draw, so
+// two neighbouring businesses still never get the same letter.
+//
+// Held in memory because drafting is synchronous and happens hundreds of times
+// a run. Reloaded at start-up and again the moment he approves one.
+const HIS_OWN = new Map();
+
+async function loadHisWordings(db) {
+  HIS_OWN.clear();
+  const rows = await db.voiceWording.findMany({ where: { retiredAt: null }, select: { slot: true, wording: true } });
+  for (const r of rows) {
+    if (!HIS_OWN.has(r.slot)) HIS_OWN.set(r.slot, []);
+    HIS_OWN.get(r.slot).push(r.wording);
+  }
+  return rows.length;
+}
+
+// The written wordings plus anything he has added for that line.
+function waysToSay(list, slot) {
+  const his = HIS_OWN.get(slot);
+  return his && his.length ? list.concat(his) : list;
+}
+
+// Every line the message is assembled from, by the name used to pick it. This
+// is what lets an edit be traced back to the sentence it replaced.
+function slotsOfTheMessage() {
+  return {
+    who: WHO_I_AM,
+    handled: ALREADY_HANDLED,
+    whyme: WHY_ME,
+    offer: THE_OFFER,
+    ask0: ASK_DAY0,
+    ask4: ASK_DAY4,
+    part: DAY4_THE_PART,
+    look: DAY4_WHAT_ID_LOOK_FOR,
+    last: DAY8_OPEN,
+    forthat: DAY8_THATS_WHAT_ITS_FOR,
+    close8: DAY8_CLOSE,
+    noteclose: NOTE_CLOSE,
+  };
+}
+
 // Each line is chosen by the business's own name, so it reads the same for them
 // on every redraft and differently from the shop down the road. The salt makes
 // each line choose separately — without it, two businesses landing on the same
@@ -253,11 +305,11 @@ const TRADES = {
 function dayZero(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
-    pick(WHO_I_AM, seed, 'who'),
-    `${t.week} ${pick(ALREADY_HANDLED, seed, 'handled').replace('{they}', t.they)}`,
-    pick(WHY_ME, seed, 'whyme'),
-    pick(THE_OFFER, seed, 'offer'),
-    pick(ASK_DAY0, seed, 'ask0'),
+    pick(waysToSay(WHO_I_AM, 'who'), seed, 'who'),
+    `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
+    pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme'),
+    pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
+    pick(waysToSay(ASK_DAY0, 'ask0'), seed, 'ask0'),
   ].join('\n\n');
 }
 
@@ -265,19 +317,19 @@ function dayFour(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
     `I wrote to you earlier this week about ${t.hook}.`,
-    pick(DAY4_THE_PART, seed, 'part').replace('{task}', t.task),
-    pick(DAY4_WHAT_ID_LOOK_FOR, seed, 'look'),
-    pick(ASK_DAY4, seed, 'ask4'),
+    pick(waysToSay(DAY4_THE_PART, 'part'), seed, 'part').replace('{task}', t.task),
+    pick(waysToSay(DAY4_WHAT_ID_LOOK_FOR, 'look'), seed, 'look'),
+    pick(waysToSay(ASK_DAY4, 'ask4'), seed, 'ask4'),
   ].join('\n\n');
 }
 
 function dayEight(name, t, tradeWord, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
-    pick(DAY8_OPEN, seed, 'last'),
+    pick(waysToSay(DAY8_OPEN, 'last'), seed, 'last'),
     `For ${tradeWord} the first thing I'd look at is ${t.firstLook}. Which one is right depends on how you actually work.`,
-    pick(DAY8_THATS_WHAT_ITS_FOR, seed, 'forthat'),
-    pick(DAY8_CLOSE, seed, 'close8'),
+    pick(waysToSay(DAY8_THATS_WHAT_ITS_FOR, 'forthat'), seed, 'forthat'),
+    pick(waysToSay(DAY8_CLOSE, 'close8'), seed, 'close8'),
   ].join('\n\n');
 }
 
@@ -320,13 +372,14 @@ const WHO_I_AM_SHORT =
 function linkedInNote(name, t, seed = '') {
   return [
     `${name ? `Hi ${name},` : 'Hello,'} ${WHO_I_AM_SHORT}`,
-    `${t.week} ${pick(ALREADY_HANDLED, seed, 'handled').replace('{they}', t.they)}`,
-    pick(THE_OFFER, seed, 'offer'),
-    pick(NOTE_CLOSE, seed, 'noteclose'),
+    `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
+    pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
+    pick(waysToSay(NOTE_CLOSE, 'noteclose'), seed, 'noteclose'),
   ].join('\n\n');
 }
 
 module.exports = {
   WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, TRADES,
   tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,
+  loadHisWordings, waysToSay, slotsOfTheMessage,
 };
