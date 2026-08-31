@@ -173,12 +173,31 @@ async function list(params) {
   const stage = params.get('stage') || '';
   const page_ = Math.max(1, Number(params.get('page') || 1));
   const per = 50;
+  // ONLY THE ONES YOU CAN ACTUALLY REACH, UNLESS YOU ASK FOR THE REST.
+  //
+  // This screen holds all 32,739 businesses from the state register and only
+  // 871 of them have an email address. Sorted on score alone, 30 of the top 50
+  // had no email and no phone either — a perfect 100 beside a business there is
+  // no way to contact (Russ, 2026-08-31: "why does the Acct screen show
+  // companies with 100 score and no email addresses").
+  //
+  // Sorting reachable-first does not work: ordering on the address itself sorts
+  // it alphabetically and throws the score order away. So the screen is the
+  // worked list by default, with everything else one link away.
+  const showAll = params.get('all') === '1';
   const where = { doNotContact: false };
-  if (q) where.OR = [
-    { name: { contains: q, mode: 'insensitive' } },
-    { address: { contains: q, mode: 'insensitive' } },
-    { email: { contains: q, mode: 'insensitive' } },
-  ];
+  if (!showAll) where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }, { phone: { not: null } }];
+  if (q) {
+    // A second OR would silently replace the reachability one — same key, same
+    // object. Both have to be true, so they go in an AND together.
+    const searched = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { address: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+    ];
+    if (where.OR) { where.AND = [{ OR: where.OR }, { OR: searched }]; delete where.OR; }
+    else where.OR = searched;
+  }
   if (stage) where.stage = stage;
   const [rows, total] = await Promise.all([
     db.prospect.findMany({ where, orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }], take: per, skip: (page_ - 1) * per }),
@@ -189,11 +208,16 @@ async function list(params) {
     <td>${scoreBadge(p.automationScore, p.id)}</td>
     <td><a href="/business/${p.id}"><b>${esc(resolveField(p, 'name'))}</b></a><div class="muted">${esc((resolveField(p, 'address') || '').replace(/, USA$/, ''))}</div></td>
     <td><a href="tel:${digits(resolveField(p, 'phone'))}">${esc(resolveField(p, 'phone') || '—')}</a></td>
-    <td class="muted">${esc(resolveField(p, 'email') || '—')}</td>
+    <td class="muted">${resolveField(p, 'email') ? esc(resolveField(p, 'email'))
+      : resolveField(p, 'phone') ? '<span style="color:#b45309">phone only</span>'
+      : '<span style="color:#b91c1c">no way to reach them</span>'}</td>
     <td class="muted">${esc(p.stage)}</td>
   </tr>`).join('');
-  const link = (n) => `<a class="btn" href="/list?page=${n}${q ? `&q=${encodeURIComponent(q)}` : ''}${stage ? `&stage=${stage}` : ''}">${n === page_ - 1 ? 'Previous' : 'Next'}</a>`;
-  return page(`<h1>All businesses (${total})</h1>
+  const link = (n) => `<a class="btn" href="/list?page=${n}${q ? `&q=${encodeURIComponent(q)}` : ''}${stage ? `&stage=${stage}` : ''}${showAll ? '&all=1' : ''}">${n === page_ - 1 ? 'Previous' : 'Next'}</a>`;
+  return page(`<h1>${showAll ? 'Every business on file' : 'Businesses you can reach'} (${total.toLocaleString()})</h1>
+  <p class="muted">${showAll
+    ? 'Everything from the state register, most of it with no way to contact them. <a href="/list">Show only the ones you can reach</a>'
+    : 'Best first. These have an email address or a phone number. <a href="/list?all=1">Show every business on file</a>'}</p>
   <form method="GET" action="/list" class="row" style="margin:12px 0">
     <input name="q" value="${esc(q)}" placeholder="search a name, a town, an email" style="flex:1">
     <button class="primary">Search</button>
@@ -544,7 +568,18 @@ async function emailScreen(params) {
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
       where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
-      include: { prospect: true }, orderBy: { prospect: { automationScore: 'desc' } }, take: 25,
+      include: { prospect: true },
+      // BEST FIRST, AND A BUSINESS WITH NO SCORE IS NOT BEST.
+      //
+      // Four businesses whose score had never been worked out were sorting
+      // above every 100 on the list, so the whole screen read as random —
+      // Russ, 2026-08-31: "It seems random and no score is shown." The score
+      // was shown; the top four had a dash where the number goes.
+      //
+      // Not yet lined up comes before already lined up, because the ones
+      // waiting on him are the ones he came here to deal with.
+      orderBy: [{ state: 'asc' }, { prospect: { automationScore: { sort: 'desc', nulls: 'last' } } }],
+      take: 25,
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
@@ -827,9 +862,15 @@ async function businessCard(id, saved) {
   <p><a class="btn primary" href="/live/${p.id}">${p.stageOneAt ? 'The free call' : 'Start the free call'}</a>
      <a class="btn" href="/questions/${encodeURIComponent(p.trade || tradeOfName(p) || 'other')}?for=${p.id}">The 15 minutes for ${esc(p.trade || tradeOfName(p) || 'this trade')}</a>
      <a class="btn" href="/stage1/${p.id}">Write-up and transcript</a>
+     <!-- ARCHIVE, MADE FINDABLE. It was a plain grey button in a row of four
+          blue ones and Russ could not see it (2026-08-31: "I still don't see an
+          archive selection button anywhere"). Archive already IS the
+          save-but-disqualify he asked about: the record and everything read
+          about it stay, nothing more is ever sent, and unsent messages are
+          pulled. So there is one button, and it now says that. -->
      <form method="POST" action="/business/${p.id}/archive" style="display:inline"
-       onsubmit="return confirm('${p.doNotContact ? 'Bring them back onto the list?' : 'Archive them? Nothing more goes to them and their unsent messages are removed.'}')">
-       <button>${p.doNotContact ? 'Bring them back' : 'Archive'}</button></form>
+       onsubmit="return confirm('${p.doNotContact ? 'Bring them back onto the list?' : 'Archive them? The record stays, nothing more is sent, and their unsent messages are pulled.'}')">
+       <button style="background:#fee2e2;border-color:#dc2626;color:#991b1b;font-weight:600">${p.doNotContact ? '↩ Bring them back onto the list' : '⊘ Archive — keep the record, stop the sending'}</button></form>
      <a class="btn" href="/call/${p.id}">Log a call</a>
      ${!p.quotedAt && p.auditFee ? `<form method="POST" action="/quote/${p.id}" style="display:inline"><button>Lock this quote in</button></form>` : ''}</p>
 
@@ -839,23 +880,33 @@ async function businessCard(id, saved) {
     <br><span class="muted">Russ's biggest deal came from a man quoted $300,000 by a development shop who shelved it — he was waiting for a price he could say yes to. Worth opening on this rather than on tools.</span>
   </div>` : ''}
 
-  <h2>Why call them</h2>${tells}
-
-  ${(() => {
-    // WHAT THE READING COULD NOT FIND, which is worth as much as what it did.
-    //
-    // The reader is allowed to answer "I cannot tell" and it does, honestly, on
-    // most sites — that sentence is the one thing on the card that says what to
-    // ASK on the call. It was being written to the record and never shown, so
-    // the whole point of reading for meaning was invisible here (2026-08-28).
-    let gaps = [];
-    try { gaps = JSON.parse(p.siteGaps || '[]'); } catch { gaps = []; }
-    const bits = [];
-    if (p.yearsInBusiness) bits.push(`<p>Been going <b>${p.yearsInBusiness} years</b>, by their own account.</p>`);
-    if (p.selfDescription) bits.push(`<p class="muted">${esc(p.selfDescription)}</p>`);
-    if (gaps.length) bits.push(`<p class="muted"><b>Their site never says:</b> ${gaps.map((g) => esc(String(g))).join(' ')}</p>`);
-    return bits.length ? `<h2>What their own site told us</h2>${bits.join('')}` : '';
-  })()}
+  <h2>Everything, editable</h2>
+  <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
+  <form method="POST" action="/business/${p.id}">
+    <div class="grid">
+      ${editable(p, 'name', 'Business name')}
+      ${editable(p, 'phone', 'Phone')}
+      ${editable(p, 'email', 'Email')}
+      ${editable(p, 'website', 'Website')}
+      ${editable(p, 'address', 'Address')}
+      ${editable(p, 'employeeCount', 'Team size (for the call, not the price)', 'number')}
+      <div><label>Industry</label><select name="trade">${TRADE_OPTIONS
+        .map((t) => `<option value="${esc(t)}"${(p.trade || tradeOfName(p)) === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+        ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
+      <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
+      <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
+      <div style="grid-column:1/-1"><label>What they do, in the email</label>
+        <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
+        ${workProblem ? `<div class="was" style="color:#b91c1c"><b>Not being used:</b> ${esc(workProblem)}</div>` : ''}
+        <div class="was">Goes into the message as &ldquo;You ${esc(p.theirWork) || '&hellip;'}, so I'd guess&hellip;&rdquo;. Read off their own site. Leave it empty and the message falls back to their industry, which is always safe.</div></div>
+      <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
+      <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
+        <option value="">unknown</option>
+        <option value="yes"${p.isDecisionMaker === true ? ' selected' : ''}>yes</option>
+        <option value="no"${p.isDecisionMaker === false ? ' selected' : ''}>no</option></select></div>
+    </div>
+    <p><button class="primary">Save</button></p>
+  </form>
 
   <h2>Where their five hours are</h2>
   ${(() => {
@@ -893,10 +944,6 @@ async function businessCard(id, saved) {
       </details>`).join('')}`;
   })()}
 
-  <h2>The price</h2>
-  <p>${priceLine}</p>
-  <p class="muted"><b>${esc(p.trade || tradeOfName(p))}</b> · Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
-
   <h2>Who works there (${p.contacts.length})</h2>
   <p class="muted">Every box below is editable. Change anything, tick who the message goes to, and press save once at the
     bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
@@ -916,6 +963,28 @@ async function businessCard(id, saved) {
           >find them &rarr;</a>` : ''}</td>
     </tr>`).join('')}
   </table></div>` : '<p class="muted">Nobody found on their site yet.</p>'}
+
+  <h2>Why call them</h2>${tells}
+
+  ${(() => {
+    // WHAT THE READING COULD NOT FIND, which is worth as much as what it did.
+    //
+    // The reader is allowed to answer "I cannot tell" and it does, honestly, on
+    // most sites — that sentence is the one thing on the card that says what to
+    // ASK on the call. It was being written to the record and never shown, so
+    // the whole point of reading for meaning was invisible here (2026-08-28).
+    let gaps = [];
+    try { gaps = JSON.parse(p.siteGaps || '[]'); } catch { gaps = []; }
+    const bits = [];
+    if (p.yearsInBusiness) bits.push(`<p>Been going <b>${p.yearsInBusiness} years</b>, by their own account.</p>`);
+    if (p.selfDescription) bits.push(`<p class="muted">${esc(p.selfDescription)}</p>`);
+    if (gaps.length) bits.push(`<p class="muted"><b>Their site never says:</b> ${gaps.map((g) => esc(String(g))).join(' ')}</p>`);
+    return bits.length ? `<h2>What their own site told us</h2>${bits.join('')}` : '';
+  })()}
+
+  <h2>The price</h2>
+  <p>${priceLine}</p>
+  <p class="muted"><b>${esc(p.trade || tradeOfName(p))}</b> · Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
 
   <h2>Their messages (${p.messages.length})</h2>
   ${p.messages.length ? p.messages.map((m) => `<div class="card">
@@ -953,34 +1022,6 @@ async function businessCard(id, saved) {
     }
     return '<p class="mini">The message goes to the business inbox above. Add an address beside a person to write to them directly.</p>';
   })()}
-
-  <h2>Everything, editable</h2>
-  <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
-  <form method="POST" action="/business/${p.id}">
-    <div class="grid">
-      ${editable(p, 'name', 'Business name')}
-      ${editable(p, 'phone', 'Phone')}
-      ${editable(p, 'email', 'Email')}
-      ${editable(p, 'website', 'Website')}
-      ${editable(p, 'address', 'Address')}
-      ${editable(p, 'employeeCount', 'Team size (for the call, not the price)', 'number')}
-      <div><label>Industry</label><select name="trade">${TRADE_OPTIONS
-        .map((t) => `<option value="${esc(t)}"${(p.trade || tradeOfName(p)) === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
-        ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
-      <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
-      <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
-      <div style="grid-column:1/-1"><label>What they do, in the email</label>
-        <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
-        ${workProblem ? `<div class="was" style="color:#b91c1c"><b>Not being used:</b> ${esc(workProblem)}</div>` : ''}
-        <div class="was">Goes into the message as &ldquo;You ${esc(p.theirWork) || '&hellip;'}, so I'd guess&hellip;&rdquo;. Read off their own site. Leave it empty and the message falls back to their industry, which is always safe.</div></div>
-      <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
-      <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
-        <option value="">unknown</option>
-        <option value="yes"${p.isDecisionMaker === true ? ' selected' : ''}>yes</option>
-        <option value="no"${p.isDecisionMaker === false ? ' selected' : ''}>no</option></select></div>
-    </div>
-    <p><button class="primary">Save</button></p>
-  </form>
 
   <h2>What's happened</h2>
   ${p.callLogs.length ? p.callLogs.map((c) => `<div class="card"><b>${esc(OUTCOME_LABELS[c.outcome] || c.outcome)}</b> — ${new Date(c.loggedAt).toLocaleString()}

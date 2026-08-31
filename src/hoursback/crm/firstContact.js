@@ -651,7 +651,7 @@ function draftFirstContact(prospect, signals = []) {
   // Every sentence below is Russ's own, from his rewrite on 2026-08-30, saved at
   // ~/.claude/voice/samples/2026-08-30-hoursback-email-russ-rewrite.md
   const C = require('./campaign.js');
-  const body = `${C.dayZero(who, C.tradeCopy(trade))}\n\n${SIGN_OFF}`
+  const body = `${C.dayZero(who, C.tradeCopy(trade), business)}\n\n${SIGN_OFF}`
     .replace(/\{business\}/g, business)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/([^\n]) {2,}/g, '$1 ')
@@ -691,7 +691,7 @@ function draftLinkedIn(prospect, signals = []) {
   // the build line and the five-to-twenty hours to fit 700 characters without
   // saying so — his words, quietly removed. The note runs to about 950 now and
   // that is the right trade (2026-08-30).
-  const body = C.linkedInNote(who, C.tradeCopy(trade));
+  const body = C.linkedInNote(who, C.tradeCopy(trade), businessNameOf(prospect));
   const invite = draftLinkedInInvite(prospect);
   return { subject: null, body, openedWith: key, trade, inviteBody: invite.body };
 }
@@ -719,7 +719,7 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   const C = require('./campaign.js');
   const t = C.tradeCopy(trade);
   const tradeWord = C.tradeWordFor(trade);
-  const body = `${touch === 2 ? C.dayFour(who, t) : C.dayEight(who, t, tradeWord)}\n\n${SIGN_OFF}`
+  const body = `${touch === 2 ? C.dayFour(who, t, business) : C.dayEight(who, t, tradeWord, business)}\n\n${SIGN_OFF}`
     .replace(/\{business\}/g, business)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n +/g, '\n');

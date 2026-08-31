@@ -14,23 +14,107 @@
 // some have already fixed it — Russ, 2026-08-30: "Some firms may have that task
 // handled but many have three or four more like it burning time in the wings."
 
-// FIXED — the same for every business, in Russ's words.
-const WHO_I_AM =
-  "I'm local to Central Oregon and I take repetitive office work off small businesses and hand it off to software automations and AI supported solutions to help save my customers time and money to focus on things that build their business.";
+// FOUR WAYS TO SAY EACH LINE, AND RUSS'S OWN IS ALWAYS THE FIRST.
+//
+// This was fixed once already, in August, after two dentists who both still
+// listed a fax number were sent near-identical letters — in a town this size
+// they might well know each other. Every fixed line got four wordings, chosen
+// by the business's own name so it is the same for them every time and
+// different across the list. Writing the campaign as one fixed script threw
+// that away and eight lookalike businesses got one identical letter
+// (2026-08-30). Hundreds of byte-identical emails also read as a mailshot to
+// whatever is filtering them.
+//
+// Version one of every set is the sentence Russ wrote. The others say the same
+// thing with the words moved — no new claim, nothing added, nothing dropped.
 
-const WHY_ME =
-  "I've run the offices I'm offering to fix — finance, construction, my own businesses. I'm not a software person guessing at how your week works.";
+const { pick } = require('./variants.js');
 
-// The offer, whole, and the only place the deliverable is described. Note what it
-// does NOT say: no price, no fee, and no claim about a client Russ has served.
-// "Customers like you have found" is what businesses in their position find, not
-// a case study — he has no clients yet and must never write one.
-const THE_OFFER =
-  "Give me fifteen minutes on the phone and I'll go away and do the research for you at no cost. I'll bring you back one tool that solves a specific challenge for you, what it costs to implement and why it makes sense, plus what it would take to build the parts nothing off the shelf covers. Customers like you have found anywhere from five to twenty hours a week of repetitive tasks and taken them off the table this way.";
+const WHO_I_AM = [
+  "I'm local to Central Oregon and I take repetitive office work off small businesses and hand it off to software automations and AI supported solutions to help save my customers time and money to focus on things that build their business.",
+  "I'm local to Central Oregon. What I do is take the repetitive office work off small businesses and hand it to software automations and AI supported solutions, so my customers get their time and money back for the work that actually builds the business.",
+  "I'm based here in Central Oregon and I take the repetitive office work off small businesses, handing it to software automations and AI supported solutions so the time and the money go back into building the business instead.",
+  "I'm local to Central Oregon and my work is taking repetitive office tasks off small businesses and giving them to software automations and AI supported solutions, so my customers keep the time and money for what actually grows the place.",
+];
 
-const ASK_DAY0 = "No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.";
-const ASK_DAY4 = "No charge, nothing to sign, and you get my best recommendation for a tool that will save your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.";
-const ASK_DAY8 = "My calendar's below if it's worth a look.";
+// The concession. It is the line that keeps the email alive when the reader has
+// already solved the thing being described — Russ, 2026-08-30, after asking
+// what happens when the dentist already sends automated reminders.
+const ALREADY_HANDLED = [
+  'Some {they} may have that task handled, but many have three or four more like it burning time in the wings.',
+  'Some {they} will have that one solved already. Most have three or four more like it burning time in the wings.',
+  'Plenty of {they} have that task covered by now, and still have three or four more like it burning time in the wings.',
+  'You may well have that one handled. Most {they} still have three or four more like it burning time in the wings.',
+];
+
+const WHY_ME = [
+  "I've run the offices I'm offering to fix — finance, construction, my own businesses. I'm not a software person guessing at how your week works.",
+  "I've sat in the offices I'm offering to fix: finance, construction, businesses of my own. This isn't a software person guessing at how your week runs.",
+  "Finance, construction, my own companies — I've run the offices I'm offering to fix, so I'm not guessing at how the week actually goes.",
+  "I've done the job I'm offering to take off you, in finance, in construction and in my own businesses. Not a software person guessing at your week.",
+];
+
+// The offer, whole, and the only place the deliverable is described. Note what
+// it does NOT say: no price, no fee, and no claim about a client Russ has
+// served. "Customers like you have found" is what businesses in their position
+// find, not a case study — he has no clients yet and must never write one.
+const THE_OFFER = [
+  "Give me fifteen minutes on the phone and I'll go away and do the research for you at no cost. I'll bring you back one tool that solves a specific challenge for you, what it costs to implement and why it makes sense, plus what it would take to build the parts nothing off the shelf covers. Customers like you have found anywhere from five to twenty hours a week of repetitive tasks and taken them off the table this way.",
+  "Give me fifteen minutes on the phone and I'll go away and do the research at no cost to you. What comes back is one tool that solves something specific, what it costs to put in and why it makes sense, plus what building the parts nothing off the shelf covers would take. Customers like you have found five to twenty hours a week of repetitive tasks this way and taken them off the table.",
+  "Fifteen minutes on the phone is all I need, and then I do the research for you at no cost. You get one tool that solves a specific challenge, what it costs to implement and why that one, plus what it would take to build whatever nothing off the shelf covers. Customers like you have taken anywhere from five to twenty hours a week off the table doing this.",
+  "Fifteen minutes on the phone, then I go away and do the research at no cost. Back comes one tool that solves a specific challenge for you, what implementing it costs and why it makes sense, and what building the parts nothing off the shelf covers would involve. Customers like you have found five to twenty hours a week of repetitive work this way.",
+];
+
+const ASK_DAY0 = [
+  'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
+  'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
+  "There's no charge for the review and nothing to sign — just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply, or take a time from my calendar below.",
+  'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour? Reply here, or grab a time from my calendar below.',
+];
+
+const ASK_DAY4 = [
+  'No charge, nothing to sign, and you get my best recommendation for a tool that will save your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
+  'No charge and nothing to sign, and what you get is my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
+  "There's no charge and nothing to sign — just my best recommendation for a tool that will save your team time and money. Fifteen minutes? Reply, or take a time from my calendar below.",
+  'Free, nothing to sign, and you come away with my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or grab a time from my calendar below.',
+];
+
+const DAY4_THE_PART = [
+  "Here's the part most owners have never really considered. It isn't {task}. It's that the person doing it was hired to do something else, and that work waits while they spend time on repetitive, tedious tasks.",
+  "Here's the part most owners have never really priced. It isn't {task} itself. It's that the person doing it was hired for something else, and that job waits while they work through repetitive, tedious tasks.",
+  "The part most owners have never really considered isn't {task}. It's that whoever does it was hired to do something else, and that work sits waiting while they get through the repetitive, tedious stuff.",
+  "Here's what most owners have never really weighed up. It isn't {task}. It's that the person doing it was hired for a different job, and that job waits while the repetitive, tedious work gets done.",
+];
+
+const DAY4_WHAT_ID_LOOK_FOR = [
+  "That number and those tasks are what I'd go looking for in fifteen minutes — not to sell you on anything, but so you know what it's worth before you decide whether to fix it.",
+  "That number, and the tasks behind it, are what I'd go looking for in fifteen minutes. Not to sell you anything — so you know what it's worth before deciding whether to fix it.",
+  "Fifteen minutes is enough to find that number and the tasks behind it. Nothing is being sold on the call; the point is that you know what it's worth before you decide anything.",
+  "What I'd go looking for in fifteen minutes is that number and the tasks behind it — not to sell you on anything, but so the decision about fixing it gets made with a real figure in front of you.",
+];
+
+const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final note from me.', 'Last one from me.'];
+
+const DAY8_THATS_WHAT_ITS_FOR = [
+  "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you.",
+  "That's what the fifteen minutes is for — I come back with the specific product, its cost, and why it fits you.",
+  "That's the job of the fifteen minutes. I go away and come back with the specific product, what it costs, and why it suits you.",
+  "The fifteen minutes is for exactly that. I come back to you with the product, what it costs, and why it's the right one for you.",
+];
+
+const DAY8_CLOSE = [
+  "My calendar's below if it's worth a look.",
+  "The calendar's below if it's worth a look.",
+  "My calendar's below if you want it.",
+  "Calendar's below if it's of use.",
+];
+
+const NOTE_CLOSE = [
+  'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?',
+  'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour?',
+  "There's no charge and nothing to sign — just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?",
+  'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour?',
+];
 
 // PER TRADE — four short pieces each.
 //   week      the trade's own week, said about the TRADE and never about them
@@ -162,35 +246,38 @@ const TRADES = {
     firstLook: 'the double entry. There are tools now that take the details once and show them everywhere they are needed',
   },
 };
-
-function dayZero(name, t) {
+// Each line is chosen by the business's own name, so it reads the same for them
+// on every redraft and differently from the shop down the road. The salt makes
+// each line choose separately — without it, two businesses landing on the same
+// wording for one line land on it for every line and the whole letter matches.
+function dayZero(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
-    WHO_I_AM,
-    `${t.week} Some ${t.they} may have that task handled, but many have three or four more like it burning time in the wings.`,
-    WHY_ME,
-    THE_OFFER,
-    ASK_DAY0,
+    pick(WHO_I_AM, seed, 'who'),
+    `${t.week} ${pick(ALREADY_HANDLED, seed, 'handled').replace('{they}', t.they)}`,
+    pick(WHY_ME, seed, 'whyme'),
+    pick(THE_OFFER, seed, 'offer'),
+    pick(ASK_DAY0, seed, 'ask0'),
   ].join('\n\n');
 }
 
-function dayFour(name, t) {
+function dayFour(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
     `I wrote to you earlier this week about ${t.hook}.`,
-    `Here's the part most owners have never really considered. It isn't ${t.task}. It's that the person doing it was hired to do something else, and that work waits while they spend time on repetitive, tedious tasks.`,
-    "That number and those tasks are what I'd go looking for in fifteen minutes — not to sell you on anything, but so you know what it's worth before you decide whether to fix it.",
-    ASK_DAY4,
+    pick(DAY4_THE_PART, seed, 'part').replace('{task}', t.task),
+    pick(DAY4_WHAT_ID_LOOK_FOR, seed, 'look'),
+    pick(ASK_DAY4, seed, 'ask4'),
   ].join('\n\n');
 }
 
-function dayEight(name, t, tradeWord) {
+function dayEight(name, t, tradeWord, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
-    'Last note from me.',
+    pick(DAY8_OPEN, seed, 'last'),
     `For ${tradeWord} the first thing I'd look at is ${t.firstLook}. Which one is right depends on how you actually work.`,
-    "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you.",
-    ASK_DAY8,
+    pick(DAY8_THATS_WHAT_ITS_FOR, seed, 'forthat'),
+    pick(DAY8_CLOSE, seed, 'close8'),
   ].join('\n\n');
 }
 
@@ -217,33 +304,29 @@ const TRADE_WORD = {
 };
 function tradeWordFor(trade) { return TRADE_WORD[String(trade || '').toLowerCase()] || TRADE_WORD.other; }
 
-// Day 4's subject is the same concrete noun day 0 opened on, said shorter. The
-// subject and the first line must not repeat each other.
-// Named with no verb, so a plural hook ("the recall calls") does not produce
-// "What the recall calls actually costs".
+// Day 4's subject, named with no verb so a plural hook ("the recall calls")
+// does not produce "What the recall calls actually costs".
 function subjectDayFour(t) { return `The cost of ${t.hook}`; }
-
-module.exports = { WHO_I_AM, WHY_ME, THE_OFFER, TRADES, tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight };
 
 // THE LINKEDIN NOTE — the same offer, at the length a message window is read.
 //
-// A note is read to about 700 characters and abandoned after that, so this is
-// the email's three paragraphs boiled to three sentences. Nothing new is
-// promised and nothing is dropped: who Russ is, the trade's week with the room
-// to say "we've done that one", and the free fifteen minutes with what comes
-// back from it. The credibility line and the study both go — on this channel
-// there is no room, and the profile carries the credibility anyway.
+// Nothing of Russ's copy is cut to hit a length. An earlier version dropped the
+// build line and the five-to-twenty hours to fit 700 characters without saying
+// so — his words, quietly removed. The credibility line goes, because the
+// profile carries it; the offer does not (2026-08-30).
 const WHO_I_AM_SHORT =
   "I'm local to Central Oregon and I take repetitive office work off small businesses and hand it to software automations and AI supported solutions.";
 
-function linkedInNote(name, t) {
+function linkedInNote(name, t, seed = '') {
   return [
     `${name ? `Hi ${name},` : 'Hello,'} ${WHO_I_AM_SHORT}`,
-    `${t.week} Some ${t.they} may have that one handled, but many have three or four more like it burning time in the wings.`,
-    "Give me fifteen minutes and I'll go away and do the research for you at no cost. I'll bring you back one tool that solves a specific challenge for you, what it costs to implement and why it makes sense, plus what it would take to build the parts nothing off the shelf covers. Customers like you have found anywhere from five to twenty hours a week of repetitive tasks and taken them off the table this way.",
-    'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?',
+    `${t.week} ${pick(ALREADY_HANDLED, seed, 'handled').replace('{they}', t.they)}`,
+    pick(THE_OFFER, seed, 'offer'),
+    pick(NOTE_CLOSE, seed, 'noteclose'),
   ].join('\n\n');
 }
 
-module.exports.linkedInNote = linkedInNote;
-module.exports.WHO_I_AM_SHORT = WHO_I_AM_SHORT;
+module.exports = {
+  WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, TRADES,
+  tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,
+};

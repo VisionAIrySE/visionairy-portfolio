@@ -1,7 +1,7 @@
 # Industries that do not match the business's own words
 
-Read 50 businesses with a live email against what they say they do.
-2 do not match. Nothing has been written to the record.
+854 businesses with a live email read against what they say they do.
+88 do not match. Nothing has been written to the record.
 
 - **Top Bend Movers** — recorded as *storage & logistics*, actually **trades**. They describe themselves as a moving company (residential and commercial moves), not a storage or logistics operation — moving is a service trade.
   - id: `cmt956o1802qct7s7svwenq3m`
@@ -9,3 +9,261 @@ Read 50 businesses with a live email against what they say they do.
 - **Chris Abbott Transport** — recorded as *medical*, actually **storage & logistics**. They are a transportation and logistics company, not a medical provider—they move patients but don't provide medical services.
   - id: `cmt956nuc02omt7s78n1qn116`
   - their words: Non-emergency medical transport including ambulatory, wheelchair, stretcher, dialysis, and hospital discharge services. — calls itself: Chris Abbott Transportation Service
+- **Lakeside Lumber** — recorded as *construction*, actually **retail & food**. They supply materials to contractors and builders, not perform construction work—a retail business serving the construction industry, not a construction business.
+  - id: `cmt9576fk03y8t7s7o4y8edab`
+  - their words: Supplies siding, decking, fencing, railing, trim, and building hardware to contractors, builders, and homeowners in the Pacific Northwest. — The Pacific Northwest siding and decking specialists since 
+- **Pelican Bay Forest Products** — recorded as *manufacturing*, actually **storage & logistics**. They describe themselves as a distributor—they supply products to others, not manufacture them.
+  - id: `cmt94x8ne01agt7qr2iuapglr`
+  - their words: Wholesale forest products distributor providing lumber, panels, timbers, and steel to builders and industrial users. — Pelican Bay Forest Products
+- **HAPPY DOG REAL ESTATE, LLC** — recorded as *real estate*, actually **professional services**. Independent mortgage broker facilitating loans, not a property buyer, seller, or manager.
+  - id: `cmtbt4pok0dhlt7a5tdn8acw4`
+  - their words: An independent mortgage broker offering competitive home loans through multiple lenders. — calls itself: HappyDog
+- **UPASUAJI INTERNATIONAL** — recorded as *nonprofit & community*, actually **medical**. They provide specialized surgical care and work with healthcare providers—that's medical, not community services
+  - id: `cmtbtfd2c0ig0t7a58ihug75x`
+  - their words: Expanding access to specialized surgical care while strengthening healthcare providers in Sub-Saharan Africa
+- **Lazy Z Ranch** — recorded as *retail & food*, actually **agriculture**. They operate a regenerative farm producing wine and mead—the core business is agricultural production and winemaking, not retail.
+  - id: `cmt956ub1033kt7s7dqb7qqkd`
+  - their words: Handcraft Oregon mead and ranch wines from our regenerative farm. — calls itself: Lazy Z Ranch Wines
+- **MD Equipment Services** — recorded as *manufacturing*, actually **professional services**. They supply industrial equipment to manufacturers — they don't manufacture it themselves.
+  - id: `cmt956m0u02k2t7s78yc77wu9`
+  - their words: We buy, sell, and supply industrial machinery and equipment used in manufacturing and fabrication. — calls itself: MD Equipment Services LLC
+- **Stayz General Contracting** — recorded as *construction*, actually **lodging & hospitality**. They describe property management, rental listings, and guest experiences — not construction work itself.
+  - id: `cmt93a8lc00b4t7lct7eulsnh`
+  - their words: Design-driven remodeling — Discover premium property management and design services in Central Oregon. Experience elevated rental listings and personalized guest experiences with Stayz.
+- **SMITH ROCK BOOKKEEPING** — recorded as *accounting*, actually **fitness & recreation**. They run an independent outdoor recreation and adventure guide for Smith Rock State Park, not bookkeeping or accounting services.
+  - id: `cmtbtnfjr0m8qt7a5z7odnuk2`
+  - their words: An independent online guide for outdoor recreation and adventure at Smith Rock State Park. — calls itself: SmithRock.com
+- **AMG** — recorded as *professional services*, actually **real estate**. They manage homeowners associations—that's residential real estate management, more specific than generic professional services.
+  - id: `cmt93a8x500ckt7lcuunqx9s6`
+  - their words: Aperion Management Group provides full-service HOA management with responsive communication, industry expertise, and reliable support. — calls itself: Aperion Management Group
+- **ADVANCED HEALTH SOLUTIONS LLC** — recorded as *medical*, actually **insurance**. They administer Oregon Health Plan benefits and coordinate referrals—they are a health plan entity, not a medical provider.
+  - id: `cmtbt69og0e7wt7a5l084ctkr`
+  - their words: Connects Oregon Health Plan members in Coos and Curry Counties to quality local medical, dental, behavioral health, and substance use treatment. — calls itself: Advanced Health
+- **Treasure Valley Coffee of Central Oregon** — recorded as *retail & food*, actually **storage & logistics**. They solve a supply-chain problem for businesses—delivering and managing vendors—not selling products retail to end consumers.
+  - id: `cmt956mtg02lmt7s7fzp13pxp`
+  - their words: deliver coffee and bottled water to businesses across Central Oregon — Tired of managing multiple vendors? Get coffee and bottled water delivered right to your business in Bend, Redmond, and all of Ce
+- **In the Breeze** — recorded as *manufacturing*, actually **storage & logistics**. They describe themselves as a distributor and importer that sells wholesale to retailers, not as a manufacturer of products.
+  - id: `cmt94x8gh018at7qr27bki4s7`
+  - their words: Wholesale-only distributor and importer of outdoor garden décor and kites. — In the Breeze is a wholesale only distributor and importer of outdoor decorative garden products and kites. We strive to of
+- **MIND HEALTH CONSULTING LLC** — recorded as *medical*, actually **professional services**. Psychotherapy and psychological evaluations are mental health professional services, not medical practice.
+  - id: `cmtbt0nbz0bjvt7a5x0uh368i`
+  - their words: Psychotherapy, pain management, and psychological evaluations — calls itself: Mindhealth
+- **A9C LLC** — recorded as *construction*, actually **trades**. They're specialty contractors in spray foam insulation and drywall—skilled trades rather than general construction.
+  - id: `cmt94ytdq01xit7qrcgrrf2yl`
+  - their words: Insulation, spray foam and drywall services for residential and commercial properties. — calls itself: Alpha 9 Construction LLC
+- **Rimrock Trails Treatment Services** — recorded as *nonprofit & community*, actually **medical**. They provide clinical mental health counseling and substance abuse treatment services—healthcare functions, not nonprofit-sector classification.
+  - id: `cmt956ydz03fat7s7sj5zanla`
+  - their words: Mental health counseling and substance use treatment services for individuals and families — Rimrock Trails Treatment Services is your leading provider of integrated behavioral health treatment mental
+- **Hooker Creek Construction Materials** — recorded as *manufacturing*, actually **construction**. They describe themselves as a 'full service construction materials and equipment provider'—they supply the materials and rent equipment that construction uses, rather than operate as a manufacturing facility.
+  - id: `cmt9461h6002wt7z4q9crcy53`
+  - their words: Full service construction materials and equipment provider offering ready mix concrete, sand and gravel, equipment rental and sales, and trucking. — Looking for sand and gravel, equipment rental & sup
+- **Trading Bend** — recorded as *manufacturing*, actually **storage & logistics**. They trade and distribute building materials to resellers — they don't manufacture lumber or steel.
+  - id: `cmt94x8oj01ast7qrniw8ryy1`
+  - their words: We trade and supply building materials, mostly framing lumber and panel products, to distribution customers. — Lumber and Steel Trading
+- **Great Basin Nursery** — recorded as *agriculture*, actually **landscaping**. They grow plants, but they describe themselves as a native plant nursery providing landscape design services — that's landscaping, not agriculture.
+  - id: `cmt94x8ku019ot7qr7m8go1sr`
+  - their words: We grow native plants from locally collected seed for wholesale and retail customers in the Great Basin region. — Native plant nursery and landscape design services in Bend, Oregon.
+- **WISE OWL THERAPY, LLC** — recorded as *medical*, actually **professional services**. They provide therapy and counseling services — that's professional services, not medical treatment.
+  - id: `cmtbt33ex0cqlt7a5gtn7g8o1`
+  - their words: Individual therapy for anxiety, depression, and ADHD for women and teens. — calls itself: Wise Owl Therapy
+- **Schultz Farm and Garden** — recorded as *agriculture*, actually **landscaping**. They grow plants and trees for landscaping supply and provide planting services, not agricultural commodity production.
+  - id: `cmt956mu002lst7s71t02l1ml`
+  - their words: Family-owned grower and retailer of plants, trees, and landscaping materials for Central Oregon, with delivery and planting services. — Schultz Farm and Garden
+- **Mountain States Materials** — recorded as *landscaping*, actually **retail & food**. They supply materials to landscapers, not provide landscaping services.
+  - id: `cmt94ytmn01zut7qrzmehfvoy`
+  - their words: Central Oregon's largest supplier of landscape materials including bark, wood, rock, sand, compost, soil, flagstone and boulders. — Providing Central Oregon with the largest selection of Bark & Rock P
+- **Three Creeks Brewing Co.** — recorded as *retail & food*, actually **manufacturing**. They brew beer on-site—the core business is manufacturing, not just selling.
+  - id: `cmt956u67032et7s77qvpc0ka`
+  - their words: Award-winning craft brewery and pub with on-site brewing and mountain dining. — calls itself: Three Creeks Brewing Co
+- **Oregon Beef Company** — recorded as *retail & food*, actually **manufacturing**. They're USDA meat processors doing custom processing—manufacturing, not primarily retail; they distribute to others who retail.
+  - id: `cmt957dyw04eot7s7gvlkaara`
+  - their words: USDA custom meat processing and wholesale distribution serving restaurants, institutions, and retail customers. — Large distributor of Beef, Pork, Poultry, Cheese, Potato products, Fish & Oils. Servin
+- **Bend Biomedical** — recorded as *nonprofit & community*, actually **medical**. They manufacture and distribute pharmaceuticals to treat disease—that's medical industry—their nonprofit status is organizational structure, not industry classification.
+  - id: `cmt95753p03tut7s7a77wb6n4`
+  - their words: We provide high-quality, low-cost medicines to prevent and cure serious diseases in neglected populations around the world. — Bend Biomedical &#8211; Nonprofit Global Health Pharmaceuticals
+- **ESCAPE ADVENTURES INC.** — recorded as *fitness & recreation*, actually **lodging & hospitality**. They operate guided tours and multi-day getaways—hospitality and travel services, not fitness facilities or recreation centers.
+  - id: `cmtbter330i5xt7a5hmsqxfu4`
+  - their words: Adventure tour operator specializing in multi-day guided bike tours and family getaways across North America and Europe. — calls itself: Escape Adventures
+- **High Ridge Excavation** — recorded as *trades*, actually **construction**. Excavation and septic installation are construction services, not general trades.
+  - id: `cmt956zs403hct7s70jbeqilc`
+  - their words: Licensed excavation and septic services for residential and commercial properties throughout Central Oregon. — calls itself: High Ridge Excavation LLC
+- **JBL Cabinets and Closets** — recorded as *construction*, actually **trades**. They design and build custom cabinets and closets—skilled carpentry work, not general construction contracting.
+  - id: `cmt956m1j02k8t7s7poei5id6`
+  - their words: Design and build custom cabinets and closets. — calls itself: JBL Cabinets & Closets
+- **Midstate Construction Services** — recorded as *construction*, actually **trades**. They specialize in professional flooring installation, which is a skilled trade, not general construction.
+  - id: `cmt9461bg0024t7z43p75ri3y`
+  - their words: Professional flooring installation and construction solutions for Central Oregon homes and businesses. — calls itself: Mid State Construction Services
+- **C Bar L Development** — recorded as *trades*, actually **construction**. Excavation contractors provide construction services—site prep, earthmoving, demolition—not skilled trades like electrical or plumbing.
+  - id: `cmt94ytl501zat7qrr2d03ejp`
+  - their words: Excavation contractor providing residential, commercial, agricultural and civil earthworks services throughout Oregon. — C Bar L Development offers full excavation services in Central Oregon including
+- **Wild Ride Brewing Redmond, Oregon Brewery** — recorded as *retail & food*, actually **manufacturing**. They call themselves a 'production brewery' that manufactures and distributes beer — the tap room is secondary to the manufacturing operation.
+  - id: `cmt956lvs02j2t7s7r34hpcqw`
+  - their words: We are a production brewery and family-friendly tap room located in downtown Redmond, Oregon with beer distributed throughout the Pacific Northwest. — calls itself: Wild Ride Brewing
+- **Dream Decks and Remodeling** — recorded as *construction*, actually **trades**. They specialize in deck building and repair—skilled carpentry work—not general construction projects.
+  - id: `cmt957hjk04l8t7s7nxdh9w0i`
+  - their words: Build, replace, and repair composite and wood decks, remodels, and house cleaning projects. — Dream Decks and Remodeling is committed to providing the highest level of craftsmanship. Specializing in c
+- **Miller's Metal Works** — recorded as *manufacturing*, actually **trades**. They provide metal fabrication and welding services for custom orders, not mass manufacturing.
+  - id: `cmt956lus02ist7s7tjt6jtpm`
+  - their words: Metal fabrication and welding services including CNC plasma cutting and gate fabrication — Metal Fabricator | Miller's Metal Works | Redmond
+- **Cascade Moving & Logistics, LLC** — recorded as *storage & logistics*, actually **trades**. Moving and relocation services are skilled trades, not warehouse or freight logistics operations.
+  - id: `cmt94x9bc01bct7qr0elql442`
+  - their words: Long-distance and interstate moving services for residential and commercial relocations throughout Oregon and the western United States. — was on file as: Cascade Moving & Logistics - Bend
+- **Cascade Tire & Racing Services** — recorded as *retail & food*, actually **auto**. They sell racing tires, motorcycle helmets, and motorsports suspension components—automotive retail, not food.
+  - id: `cmt95731x03o6t7s7k2tybdvf`
+  - their words: Sells racing tires, motorcycle helmets, suspension components, and motorsports racing gear. — Cascade Tire & Racing Services - Prineville OR and Kent WA
+- **Superior Sanitation** — recorded as *cleaning & facilities*, actually **trades**. Septic and grease trap pumping are licensed, specialized trade services—not general facility cleaning or maintenance.
+  - id: `cmt956lyw02jqt7s7si5omco4`
+  - their words: Septic pumping, grease trap pumping, and portable toilet services for events and construction sites. — Superior Sanitation &#8211; Family Owned and Proudly Serving Our Community
+- **Redmond Equipment** — recorded as *agriculture*, actually **construction**. They sell and rent equipment for farm and ranch, but also explicitly for excavation and landscaping—not just agriculture.
+  - id: `cmt956myw02n2t7s7h8jvjign`
+  - their words: Sell and rent heavy equipment for farm, ranch, excavation, and landscaping. — calls itself: Redmond Equipment Company
+- **PUDDING RIVER PROPERTIES LLC** — recorded as *retail & food*, actually **agriculture**. They operate a vineyard and produce wine—that's agricultural production, not retail.
+  - id: `cmtbtel670i3bt7a597gv75x7`
+  - their words: Boutique winery; vineyard, tasting room, and custom crush winemaking. — calls itself: Pudding River Wine Cellars
+- **Stanford Livestock International** — recorded as *professional services*, actually **agriculture**. They import and export livestock and pedigree breeding stock — this is agricultural trade, not professional services.
+  - id: `cmt956vj30380t7s72u33yt5i`
+  - their words: Import and export livestock agents specializing in pedigree breeding stock and camelids — calls itself: Stanford Livestock International Limited
+- **The Mail Box Store** — recorded as *storage & logistics*, actually **professional services**. They're a print and mail services center—a retail business services location—not a storage facility or logistics operation.
+  - id: `cmt9576a803x6t7s7l8pe3ikr`
+  - their words: Local print, shipping, mailbox, and business services center. — The Mail Box Store helps Bend residents and businesses with printing, copying, shipping, packing, private mailboxes, Amazon returns, sig
+- **The Shed Center** — recorded as *construction*, actually **manufacturing**. They manufacture prefabricated buildings, not perform construction work for customers.
+  - id: `cmt95756o03umt7s7hm9lsr34`
+  - their words: Prefabricated storage sheds, garages, cabins, and portable buildings. — Ready to take your home to the next level? At the Shed Center, we&#039;re confident we can provide the perfect storage sheds in 
+- **New Basin Distilling Company** — recorded as *retail & food*, actually **manufacturing**. They make their own spirits and vinegars — that's manufacturing; the tasting room bar is where they sell them.
+  - id: `cmt957dxs04ect7s7o395tpbq`
+  - their words: Makes spirits and mixing vinegars and operates a tasting room bar. — New Basin Distilling Company makes spirits and mixing vinegars! We make mixed drinks healthier with our 17 flavors of mixing vinega
+- **Central Oregon Equipment Rental** — recorded as *construction*, actually **storage & logistics**. They rent equipment to construction, landscaping, and agriculture companies rather than performing construction work themselves.
+  - id: `cmt9575ag03vot7s7igad8qtn`
+  - their words: Equipment rental services throughout Central Oregon for construction, landscaping, and agricultural projects. — calls itself: Bigfoot Equipment Rental & Supply LLC
+- **BEND MENTAL WELLNESS LLC** — recorded as *professional services*, actually **medical**. Mental health counseling and therapy is a healthcare service, not general professional services.
+  - id: `cmtbtf7pm0idft7a5n1z8tm0t`
+  - their words: Mental health counseling and therapy for individuals, couples, and families. — calls itself: Bend Mental Wellness
+- **Be-Bop Biscotti** — recorded as *retail & food*, actually **manufacturing**. They manufacture and supply artisan biscotti to retail and wholesale channels, which makes them a food manufacturer rather than a retail food operation.
+  - id: `cmt956mxj02mot7s74nbz50cg`
+  - their words: Handcrafted artisan biscotti supplier for retail and wholesale. — Be-Bop Biscotti
+- **Cascade Lakes** — recorded as *retail & food*, actually **nonprofit & community**. Not-for-profit brewery is a nonprofit organization, not a commercial retail operation.
+  - id: `cmt956lqv02hqt7s7mdek8sfs`
+  - their words: Not-for-profit brewery and brewpubs serving craft beers in Central Oregon. — calls itself: Cascade Lakes Brewing Company
+- **Tactical Roofing & Construction** — recorded as *construction*, actually **trades**. They call themselves a roofing contractor specializing in repairs and replacements—that's a skilled trade, not general construction.
+  - id: `cmt9461ix0034t7z4mfsyy3xw`
+  - their words: do roofing repairs, replacements and inspections built for snow and wind — Trusted roofing contractor in Bend OR for repairs, replacements, and inspections. Built for snow, wind, and durability. Get a
+- **CES Bend** — recorded as *manufacturing*, actually **professional services**. They provide manufacturing automation solutions and services to manufacturers—they're a Rockwell partner serving the sector, not a manufacturer themselves.
+  - id: `cmt9465hx009kt7z4mcuj8r3c`
+  - their words: We provide manufacturing solutions and services. — Discover smart manufacturing & industrial automation solutions with CES Bend, a Rockwell Automation partner for manufacturers, OEMs, integrators & co
+- **Mesher** — recorded as *trades*, actually **retail & food**. They're a supplier and distributor of plumbing materials, not a plumbing trade business.
+  - id: `cmt956esy0212t7s7hekl7mck`
+  - their words: Supplies plumbing materials and fixtures to wholesale accounts. — calls itself: Mesher Supply
+- **Copa Bev Co** — recorded as *retail & food*, actually **manufacturing**. They manufacture CBD sparkling water—the product is made in-house, not retailed from elsewhere.
+  - id: `cmt94x8o601aot7qrpmzn7j2n`
+  - their words: We make all-natural CBD sparkling water for functional beverage consumption. — Safe & All Natural CBD Sparkling Water. Bend, Oregon made, CBD drinks for those who play outside and want to hydrate diff
+- **LEGACY HARDSCAPE CONSTRUCTION, LLC** — recorded as *construction*, actually **landscaping**. Hardscape contractors building patios and retaining walls are classified as landscaping services, not general construction.
+  - id: `cmtbt28j20cbdt7a507vjmooh`
+  - their words: Hardscape contractor specializing in patios, retaining walls, water features, and landscaping. — calls itself: Legacy Hardscape Construction
+- **BLUE PINE DESIGNS LLC** — recorded as *manufacturing*, actually **trades**. Custom furniture making, upholstery, and van conversions are skilled trades, not factory manufacturing.
+  - id: `cmtbtcy4m0haqt7a5o34bvoqz`
+  - their words: Custom furniture, upholstery, and van conversions — calls itself: Blue Pine Designs
+- **WASTE ALERT** — recorded as *storage & logistics*, actually **professional services**. They monitor policy and regulatory issues for other businesses — business intelligence and compliance tracking, not warehouse or logistics operations.
+  - id: `cmtbtdn750hmkt7a500a1lk0r`
+  - their words: Monitor local government agendas and minutes for solid waste and recycling policy issues affecting your business.
+- **MC SMITH SIGNS** — recorded as *construction*, actually **trades**. They fabricate and install custom signs—a specialized skilled trade, not general construction work.
+  - id: `cmtbt9qfw0ftnt7a55zefxnlt`
+  - their words: Building custom business signs in Bend, Oregon since 1975. — calls itself: M.C. Smith Signs
+- **STORM WATER SERVICES, INC.** — recorded as *construction*, actually **professional services**. They provide stormwater management and regulatory compliance consulting, not construction contracting.
+  - id: `cmtbtf4ax0ic5t7a5qn00mane`
+  - their words: Provides stormwater management, SWPPP compliance, erosion control, and green infrastructure solutions. — calls itself: GREENRISE TECHNOLOGIES
+- **Black Butte Ranch** — recorded as *lodging & hospitality*, actually **real estate**. Realty Group managing vacation rental properties—they manage homes, not operate a lodging business.
+  - id: `cmt956p1g02swt7s75y76h2o8`
+  - their words: Manages vacation rental homes and properties on Black Butte Ranch resort. — calls itself: Black Butte Realty Group
+- **MARBLE COUNSELING & CONSULTING, LLC** — recorded as *professional services*, actually **medical**. They deliver clinical behavioral health therapy, which is a healthcare service, not business consulting.
+  - id: `cmtbt2hne0cgbt7a511t8gug0`
+  - their words: Trauma-informed, evidence-based behavioral health therapy for adults and older adolescents.
+- **TARA LINITZ PHOTOGRAPHY, LLC** — recorded as *professional services*, actually **retail & food**. They create recipes and visual content for food brands, not professional services.
+  - id: `cmtbt0c410bf2t7a5zm27gy4f`
+  - their words: I create seasonal recipes and visual content for food brands. — calls itself: Tara Linitz Photography
+- **MODUS TRANSPORTATION, LLC** — recorded as *storage & logistics*, actually **medical**. They provide medical transportation services — that's medical, not storage & logistics.
+  - id: `cmtbtg44h0isxt7a520ez7e1h`
+  - their words: Private airport and ADA-accessible medical transportation services in Central Oregon. — calls itself: Modus Transportation
+- **VANDO DEVELOPMENT, LLC** — recorded as *professional services*, actually **construction**. They provide land development services—actual site work and approvals—not professional advisory services.
+  - id: `cmtbtajz90g6jt7a5ifu67bad`
+  - their words: Provides land development services from site analysis to final project approval. — calls itself: Vando Development LLC
+- **SMITH ROCK MASONRY COMPANY LLC** — recorded as *construction*, actually **fitness & recreation**. They operate an online guide and resource for State Park outdoor recreation with events and a shop, not masonry work.
+  - id: `cmtbtcs0h0h84t7a5vxd6f331`
+  - their words: Independent online guide and resource for Smith Rock State Park outdoor recreation, with shop and event information. — calls itself: SmithRock.com
+- **Box Factory** — recorded as *real estate*, actually **retail & food**. A marketplace hosting 35+ merchants with shops and dining is itself a retail and hospitality venue, not a real estate company.
+  - id: `cmt94x8p501b0t7qrfuz6oe64`
+  - their words: Home to over 35 exclusive local merchants offering shops, dining, and services in Bend. — The Box Factory is a celebrated place to dine, drink, shop, and gather in Bend, Oregon. Home to 35+ local busi
+- **JUNIPER EQUIPMENT LLC** — recorded as *construction*, actually **trades**. Equipment supplier to contractors and landscapers, not a construction contractor itself
+  - id: `cmtbtfpzw0imat7a54cmnvuj9`
+  - their words: Sells mini excavators and skid steers to contractors, homeowners, and landscapers. — calls itself: Juniper Equipment
+- **DRAFT IT UP** — recorded as *professional services*, actually **construction**. They design and draft construction projects and home remodels — that's construction work specifically, not general professional services.
+  - id: `cmtbtdz1h0hsgt7a5mo6h8qwx`
+  - their words: Custom home design, remodels, and architectural drafting for construction projects
+- **HYSTYLE CONTRACTING LLC** — recorded as *trades*, actually **construction**. They contract for outdoor hardscape construction—patios, driveways, retaining walls—which is construction contracting, not a specific trade.
+  - id: `cmtbtb6sd0ggvt7a57ag4uvls`
+  - their words: Design and installation of patios, walkways, driveways and retaining walls
+- **BEND THOUGHTS AND THERAPY LLC** — recorded as *professional services*, actually **medical**. They provide therapy and counseling, which is healthcare—more specific than 'professional services.'
+  - id: `cmtbt4g4u0ddit7a5g8asqf6u`
+  - their words: Therapy and counseling for anxiety, stress, trauma, and relationship challenges — calls itself: Bend Thoughts and Therapy
+- **DESTINATION TRANSPORTATION LLC** — recorded as *professional services*, actually **auto**. Private car service and airport shuttles are transportation operators, not professional services.
+  - id: `cmtbtcw5j0h9tt7a5lngwepwx`
+  - their words: Private car service, airport shuttle, and custom transportation for Central Oregon. — calls itself: Destination Transportation
+- **BIG ROCK WOODCRAFT LLC** — recorded as *manufacturing*, actually **trades**. Custom furniture and cabinet building is a skilled trade, not manufacturing.
+  - id: `cmtbtc02m0gv8t7a55dued440`
+  - their words: Builds custom furniture and cabinets in Central Oregon. — calls itself: Big Rock Woodcraft
+- **RTC 541** — recorded as *trades*, actually **retail & food**. They're a firearms retailer with gunsmith repair services and training—primarily a retail business, not a skilled trades contractor.
+  - id: `cmt956myh02myt7s70kpddi1t`
+  - their words: Firearms sales, gunsmith services, and training. — calls itself: Redmond Trading Co.
+- **CASCADE LAND DEVELOPMENT LLC** — recorded as *trades*, actually **construction**. Excavation and site preparation are construction work; septic installation is a specialty within that scope, not the primary category.
+  - id: `cmtbtch1v0h3ht7a53svgczmn`
+  - their words: Septic system installation and repair, excavation, and site preparation services. — calls itself: Cascade Land Development
+- **BLUE MOON DESIGNS, LLC** — recorded as *manufacturing*, actually **professional services**. They build and sell property management software—a professional service, not manufacturing.
+  - id: `cmtbtn1n50m28t7a54qa745qo`
+  - their words: Provides web-based lease forms and property management software for apartment associations. — calls itself: Blue Moon Software
+- **Redefined Wellness Collective** — recorded as *personal care*, actually **medical**. Functional medicine is medical practice — that's their core offering, not just personal care like aesthetics or massage.
+  - id: `cmt94xeye01tit7qrbnvs5n03`
+  - their words: Science-backed wellness center offering aesthetics, recovery therapies, and functional medicine. — This is what Redmond has been missing.
+- **MOUNTAIN VIEW LAVENDER** — recorded as *agriculture*, actually **manufacturing**. They grow the raw material, but their actual business—the distillation process that creates the finished products they sell—is manufacturing.
+  - id: `cmtbtd2340hddt7a5pmr6kk3f`
+  - their words: Grows and distills lavender plants using small batch steam distillation to produce essential oil and hydrosol, sold online and by farm appointment.
+- **DUMP WORKS, LLC** — recorded as *landscaping*, actually **construction**. They supply materials for construction and landscaping, not a landscaping service itself — aggregate delivery is a materials supplier role.
+  - id: `cmtbt34ot0cr4t7a5mk2vwxyx`
+  - their words: We deliver rock, soil, and aggregate products for landscaping and construction projects. — calls itself: Dump Works
+- **541 JUNK REMOVAL LLC** — recorded as *cleaning & facilities*, actually **trades**. They haul and remove junk and debris—not ongoing cleaning or facility maintenance.
+  - id: `cmtbt64br0e5lt7a5vtuhyh86`
+  - their words: Full-service junk removal serving Bend and Redmond, Oregon including appliance removal, construction debris removal, yard debris removal, hot tub removal, and snow removal. — calls itself: 541 Junk Re
+- **DANCIN WOOFS COMPASSIONATE DOG TRAINING AND DAYCARE** — recorded as *fitness & recreation*, actually **professional services**. They provide dog training and daycare services, which are professional services, not recreation or fitness activities.
+  - id: `cmtbthrfy0jkct7a5pprnq8it`
+  - their words: Dog training and daycare in Bend, Oregon.
+- **CENTRAL OREGON WELLNESS RANCH** — recorded as *personal care*, actually **fitness & recreation**. They run equine-facilitated therapy and wellness retreats—recreational wellness experiences, not personal care services like grooming or salons.
+  - id: `cmtbt5z830e2lt7a5b3hh4cz9`
+  - their words: Equine-facilitated therapy and integrative wellness retreats for trauma survivors and veterans.
+- **PRO TREE CARE, LLC** — recorded as *landscaping*, actually **trades**. Tree trimming, removal, and arborist services are specialized skilled trades, not landscape design or general grounds maintenance.
+  - id: `cmtbthlsj0jhqt7a5oo4wzltm`
+  - their words: Tree trimming, removal, storm recovery, and arborist services for residential and commercial clients. — calls itself: TreeJob
+- **SALMON KING FISHERIES** — recorded as *retail & food*, actually **agriculture**. They catch and process salmon themselves—that's a fishing operation (resource harvesting), not a retail/food business buying and reselling.
+  - id: `cmtbtbyi00gult7a57dt5u7ea`
+  - their words: Catch, process, and sell Columbia River salmon (smoked, fresh, frozen) and offer catering services.
+- **SMITH ROCK CLIMBING** — recorded as *fitness & recreation*, actually **professional services**. They provide guides and information about climbing, not fitness facilities or recreation activities.
+  - id: `cmtbtceyt0h1pt7a5vo5h7hoh`
+  - their words: An online resource and guide for Smith Rock State Park adventurers. — calls itself: SmithRock.com
+- **BEND PHOTO TOURS LLC** — recorded as *fitness & recreation*, actually **professional services**. They teach photography through guided tours and tutoring — that's education and professional instruction, not fitness.
+  - id: `cmtbtb3aq0gfjt7a5qac1u3hg`
+  - their words: Expert-guided photo tours, workshops and tutoring throughout Central Oregon. — calls itself: Bend Photo Tours
+- **RIVER BEND THERAPY, LLC** — recorded as *personal care*, actually **professional services**. They provide counseling and therapy services, which is a licensed professional service, not personal grooming or care.
+  - id: `cmtbta4d30g01t7a5d2jxzpyl`
+  - their words: My life's work is counseling people while they navigate unexpected and highly stressful experiences. — calls itself: River Bend Therapy
+- **TYLER HAAS DESIGNS LLC** — recorded as *retail & food*, actually **manufacturing**. They design and manufacture custom artisan jewelry from precious metals and gemstones — not a retail or food business.
+  - id: `cmtbt2wy50cmxt7a5h756j0b0`
+  - their words: Designs and creates custom artisan jewelry from precious metals and natural gemstones. — calls itself: Tyler Haas Designs
+- **KILLORAN COUNSELING AND WELLNESS LLC** — recorded as *personal care*, actually **professional services**. Therapy and counseling are professional mental health services, not personal care services like haircuts or grooming.
+  - id: `cmtbt3bsd0cu4t7a51dx8e5ci`
+  - their words: Individual therapy and counseling — calls itself: Kristin Killoran Counseling
+- **INGREDIENT STUDIO, LLC** — recorded as *fitness & recreation*, actually **retail & food**. They teach cooking classes and host culinary events — that's culinary, not fitness.
+  - id: `cmtbtbtaa0gret7a54gv8tlr8`
+  - their words: Private cooking classes and culinary events — calls itself: Ingredient Studio
+- **WILD RIVER ROSE, LLC** — recorded as *retail & food*, actually **personal care**. They make skincare and body care products, not food—personal care is the fit.
+  - id: `cmtbtdvid0hr0t7a5u7ho4v2n`
+  - their words: Handcrafted skincare and body care products made in small batches with herbal infusions. — calls itself: Wild River Rose
+- **EARTHIE MAMA, LLC** — recorded as *retail & food*, actually **personal care**. They create handcrafted natural wellness products — manufacturing, not retail or food.
+  - id: `cmtbtcsz60h8jt7a53z99hpu0`
+  - their words: We create handcrafted natural wellness products to help families heal and thrive. — calls itself: Earthie Mama
