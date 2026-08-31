@@ -137,4 +137,22 @@ function firstNameOf(fullName) {
   return first && first.length > 1 ? first : null;
 }
 
-module.exports = { NOT_A_PERSON, FIRST_NAMES, NEVER_IN_A_NAME, nameFromEmail, firstNameOf, plausiblePersonName };
+// THE NAME OF SOMEBODY RUSS HAS MARKED HIMSELF.
+//
+// The ordinary rule needs two words, because a single word scraped off a page
+// is as likely to be "Closed" as a person. But a contact he has ticked and
+// given an address to is a decision, not a guess — and plenty of team pages
+// list only "Kevin". Rejecting that name greeted the owner instead, so a note
+// meant for Kevin opened "Hi Jack," (2026-08-31).
+//
+// One word is accepted here only when it is a name anybody would recognise.
+function firstNameOfMarked(fullName) {
+  const proper = firstNameOf(fullName);
+  if (proper) return proper;
+  const one = String(fullName || '').trim();
+  if (!/^[A-Z][a-z'’-]{2,}$/.test(one)) return null;
+  if (NEVER_IN_A_NAME.test(one)) return null;
+  return FIRST_NAMES.has(one.toLowerCase()) ? one : null;
+}
+
+module.exports = { NOT_A_PERSON, FIRST_NAMES, NEVER_IN_A_NAME, nameFromEmail, firstNameOf, firstNameOfMarked, plausiblePersonName };

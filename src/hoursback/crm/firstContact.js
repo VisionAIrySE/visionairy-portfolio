@@ -511,7 +511,10 @@ function businessNameOf(prospect) {
 function greetingFor(prospect) {
   const { nameFromEmail, firstNameOf } = require('./names.js');
   // A name we were told beats a name we worked out.
-  const known = firstNameOf(prospect.contactName) || firstNameOf(prospect.ownerName);
+  // Who Russ typed or ticked beats who the machine found, and one given name is
+  // enough when it came from him.
+  const { firstNameOfMarked } = require('./names.js');
+  const known = firstNameOfMarked(prospect.contactName) || firstNameOf(prospect.ownerName);
   if (known) return known;
   // "dale@..." is Dale, but only when it is genuinely a name.
   const fromAddress = nameFromEmail(prospect.emailManualValue || prospect.email);

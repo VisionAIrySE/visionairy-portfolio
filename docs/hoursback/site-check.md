@@ -1,7 +1,7 @@
 # Websites that do not belong to the business they are on
 
-347 businesses with a live email checked.
-18 carry somebody else's website. Nothing has been written to the record.
+446 businesses with a live email checked.
+25 carry somebody else's website. Nothing has been written to the record.
 
 - **Bend OR Medicare Advantage** — carries https://www.insurancethatfitsyou.com/, which is not theirs. The website officially identifies as Insurance Fitz Inc., not Bend OR Medicare Advantage — different registered business names.
   - id: `cmt93a73d0088t7lcv2vgx3h6`
@@ -57,3 +57,24 @@
 - **Alpine Outfitters** — carries https://www.alpineoutfitters.net/, which is not theirs. Alpine Outfitters implies alpine or outdoor gear for people, but the website sells gear for dogs.
   - id: `cmt956lwd02j6t7s7jjfpqwiw`
   - the site says: Craft and sell high-quality gear for working and active dogs. — Your One-Stop Shop for Quality Working & Active Dog Gear.
+- **Smarter LTL Freight Shipping** — carries https://www.fedexfreight.com/en-us, which is not theirs. The website belongs to FedEx Freight, a national carrier, not Smarter LTL Freight Shipping.
+  - id: `cmt94x9h001cgt7qr9px7ghnt`
+  - the site says: FedEx Freight provides less-than-truckload (LTL) freight shipping services across the U.S., Canada, and Mexico. — calls itself: FedEx Freight
+- **Central Oregon Realtor** — carries http://www.relevantrealestateor.com/, which is not theirs. The website belongs to Relevant Real Estate, not Central Oregon Realtor — different business names.
+  - id: `cmt956jkr02aut7s77dhofjil`
+  - the site says: Helps clients buy and sell real estate throughout Central Oregon with local knowledge and honest guidance. — calls itself: Relevant Real Estate
+- **Bend APM** — carries http://www.bendapm.com/, which is not theirs. The website identifies itself as 'Austin Property Management,' not 'Bend APM'—different business names.
+  - id: `cmt93a8gl00aot7lc9znlpdc0`
+  - the site says: We provide property management services to residential owners and tenants in Central Oregon, managing apartments, condominiums, single-family homes, and multiplexes. — calls itself
+- **House Buyers** — carries https://www.leadingedgehomebuyers.com/, which is not theirs. The website's official business name is 'Leading Edge Home Buyers,' not 'House Buyers' — the record name does not match the sign name on the site.
+  - id: `cmt95745c03rwt7s7p6lqr5ba`
+  - the site says: We buy houses nationwide for cash. — calls itself: Leading Edge Home Buyers
+- **Bend Elevation** — carries https://www.bendelevation.com/, which is not theirs. The website identifies itself as 'Bend Home Collective', not 'Bend Elevation'—a direct name mismatch on the site's own self-description.
+  - id: `cmt94x5s700z2t7qr81xvajzk`
+  - the site says: Real estate broker helping people buy and sell homes in Bend, Oregon. — calls itself: Bend Home Collective
+- **Insurance Redmond** — carries https://insuranceredmond.com/, which is not theirs. The website's official name is 'AIC Insurance Agency', not 'Insurance Redmond' — the business name on the record doesn't match the site's stated identity.
+  - id: `cmt94xc5201jot7qrrz9f8hgz`
+  - the site says: Comprehensive and tailored insurance solutions for personal and commercial coverage — calls itself: AIC Insurance Agency
+- **Bend Property Managers** — carries http://www.bendpropertymanager.com/, which is not theirs. The website identifies itself as SUMMIT PROPERTY SOLUTIONS, not Bend Property Managers — a different business entity.
+  - id: `cmt94xd6d01not7qr64rslcr9`
+  - the site says: Full-service property management for residential, multi-family, and vacation rental properties throughout Oregon. — calls itself: SUMMIT PROPERTY SOLUTIONS

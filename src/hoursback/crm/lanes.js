@@ -181,7 +181,12 @@ async function draftFor(db, prospectId, lane) {
   // note still greeting the owner (Russ, 2026-08-31). The note is the one he
   // pastes by hand, so the wrong name goes out under his own fingers.
   const person = await personFor(db, prospectId);
-  let writeTo = person && person.name ? { ...p, contactName: person.name } : p;
+  // A person Russ marked wins over the owner on the record, and a single given
+  // name counts — the ordinary rule wants two words and threw away every team
+  // page that lists only "Kevin".
+  const { firstNameOfMarked } = require('./names.js');
+  const marked = person && person.name && firstNameOfMarked(person.name) ? person.name : null;
+  let writeTo = marked ? { ...p, contactName: marked, ownerName: null } : p;
   // At a small shop the "general" inbox is the owner's inbox. 404 businesses
   // had a person's name on file and only a general address, and every one of
   // them was greeted "Hello,". Where three or fewer people are named on the
@@ -200,7 +205,13 @@ async function draftFor(db, prospectId, lane) {
       if (usable) writeTo = { ...writeTo, contactName: usable.name };
     }
   }
-  const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(p, signalsOf(p));
+  // BOTH LANES GET THE PERSON IT IS ACTUALLY GOING TO.
+  //
+  // The note was handed the raw record while the email was handed the corrected
+  // one, so ticking Trever Campbell changed the email and left the note
+  // greeting the owner. Making the person available to both lanes was not
+  // enough on its own — this line still passed the wrong object (2026-08-31).
+  const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(writeTo, signalsOf(p));
   if (!built) return standDownStaleDrafts(db, prospectId, lane, 'nothing honest left to open with');
   if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return standDownStaleDrafts(db, prospectId, lane, 'no address on the record any more');
 
