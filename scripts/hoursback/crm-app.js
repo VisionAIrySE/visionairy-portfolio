@@ -63,6 +63,11 @@ const EMAIL_STATUS_LABELS = {
 // showed a price and a band label but never the trade or the team size — the
 // two things that actually tell him who he is looking at (2026-08-26).
 const TRADE_OPTIONS = Object.keys(require('../../src/hoursback/industryTiers.js').ADMIN_SHARE).sort();
+
+// The order of the email list, held still between visits. One entry per filter
+// combination, thrown away when the app restarts — it is a convenience, not a
+// record, and a fresh start should give a fresh ranking.
+const HELD_ORDER = new Map();
 function tradeOfName(p) {
   const { tradeOf } = require('../../src/hoursback/crm/queues.js');
   return tradeOf(resolveField(p, 'name'));
@@ -573,6 +578,8 @@ async function emailScreen(params) {
   // ones is how it gets missed.
   const onlyTrade = (params.get('trade') || '').trim();
   const floor = Number(params.get('floor') || 0);
+  const reRank = params.get('rerank') === '1';
+  const orderKey = `${onlyTrade}|${floor}`;
   const prospectWhere = { doNotContact: false, repliedAt: null };
   if (onlyTrade) prospectWhere.trade = onlyTrade;
   if (floor > 0) prospectWhere.automationScore = { gte: floor };
@@ -597,6 +604,26 @@ async function emailScreen(params) {
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
   ]);
+  // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
+  // steady until a refresh, otherwise I never get through them").
+  //
+  // Saving an account re-reads their website and scores it again, and this
+  // list is ranked by score — so opening one business, correcting it, and
+  // coming back reshuffled the page underneath him every single time.
+  //
+  // The sequence is remembered as soon as it is first worked out and reused on
+  // every later visit, so the page he comes back to is the page he left. Press
+  // Re-rank, or change a filter, and it is worked out again.
+  const held = HELD_ORDER.get(orderKey);
+  if (reRank || !held) {
+    HELD_ORDER.set(orderKey, ready.map((m) => m.id));
+  } else {
+    const place = new Map(held.map((id, i) => [id, i]));
+    // Anything written since the order was fixed goes on the end rather than
+    // jumping the queue.
+    ready.sort((a, b) => (place.has(a.id) ? place.get(a.id) : 9999) - (place.has(b.id) ? place.get(b.id) : 9999));
+  }
+
   const waitingTotal = await db.outreachMessage.count({
     where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
   });
@@ -644,8 +671,16 @@ async function emailScreen(params) {
         <textarea name="body" rows="12" style="margin-top:6px">${esc(m.body)}</textarea>
         <p class="mini"><button>Save my wording</button> — anything you rewrite here is kept as a sample of how you actually write, and everything after is written against it.</p>
       </form>
-      <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button>They replied</button></form>
-      <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button>It bounced</button></form>
+      <!-- THE HAND VERSION, AND WHY IT IS STILL HERE.
+           The sending service reports bounces, spam complaints and replies on
+           its own, and the app acts on all three — see mailEvents.js. But that
+           needs RESEND_WEBHOOK_SECRET set on the host, no email has ever
+           actually been sent from here, and nothing has ever come back. Until
+           one has, these are the proof that marking works at all. Russ,
+           2026-08-31: "why do I have the buttons there?" — because the
+           automatic path is untested, not because it is missing. -->
+      <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">They replied</button></form>
+      <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">It bounced</button></form>
     </div>`;
 
   const justSent = params.get('sent');
@@ -662,6 +697,19 @@ async function emailScreen(params) {
     <p class="muted">Written from what you promised on the call. None of them go anywhere until you release them.</p>
     ${batch.slice(0, 5).map(one).join('')}
     <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
+  <div class="card" style="background:${process.env.RESEND_WEBHOOK_SECRET ? '#dcfce7;border-color:#16a34a' : '#fef3c7;border-color:#d97706'}">
+    <!-- WHETHER THE MAIL SERVICE CAN TELL US ANYTHING, said on the screen
+         rather than guessed at. Russ asked to confirm the setting for the
+         automatic path (2026-08-31) and it can only be seen from the host
+         itself, so the app now says. -->
+    <b>Bounces and replies: ${process.env.RESEND_WEBHOOK_SECRET
+      ? 'reported automatically.'
+      : 'NOT set up.'}</b>
+    ${process.env.RESEND_WEBHOOK_SECRET
+      ? 'The mail service tells this site when an address fails, somebody answers, or somebody marks it as spam, and the sending stops on its own.'
+      : 'Nothing tells this site when an address fails or somebody answers, so a bounce goes unnoticed and a person who replied keeps getting chased. Add RESEND_WEBHOOK_SECRET in the site settings and point the mail service at /mail-events.'}
+  </div>
+
   <h2>Written and waiting (${ready.length}${onlyTrade || floor ? ` of ${waitingTotal}` : ''})</h2>
   <form method="GET" action="/email" class="row" style="margin:8px 0 14px">
     <select name="trade" style="width:auto">
@@ -673,7 +721,9 @@ async function emailScreen(params) {
     </select>
     <button>Show these</button>
     ${onlyTrade || floor ? '<a class="btn" href="/email">Clear</a>' : ''}
+    <a class="btn" href="/email?rerank=1${onlyTrade ? `&trade=${encodeURIComponent(onlyTrade)}` : ''}${floor ? `&floor=${floor}` : ''}">Re-rank</a>
   </form>
+  <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
   <!-- Tick the ones to go out, then one button at the bottom. A button under
        every single message meant 645 separate clicks and no way to see what
        you had chosen (Russ, 2026-08-28: "rather than have a button for each
@@ -913,6 +963,23 @@ async function businessCard(id, saved) {
     ${esc(p.stalledBuild)}
     <br><span class="muted">Russ's biggest deal came from a man quoted $300,000 by a development shop who shelved it — he was waiting for a price he could say yes to. Worth opening on this rather than on tools.</span>
   </div>` : ''}
+
+  ${(() => {
+    // WHAT HAPPENED TO THE MAIL, ON THE PAGE ABOUT THIS BUSINESS.
+    //
+    // A bounce and a reply both change everything — one closes the email lane,
+    // the other stops every message on every lane — and neither of them showed
+    // anywhere on this page. Russ, 2026-08-31: "What happens when one bounces
+    // or they reply? Is it tracked on the Account screen?" It was recorded and
+    // acted on, and invisible here.
+    if (p.repliedAt) return `<div class="card" style="background:#dcfce7;border-color:#16a34a">
+      <b>They answered on ${new Date(p.repliedAt).toLocaleDateString()}.</b>
+      Every message still waiting, on every lane, stopped the moment they did. Nothing else goes out to them.</div>`;
+    if (p.emailBouncedAt) return `<div class="card" style="background:#fee2e2;border-color:#dc2626">
+      <b>The address bounced on ${new Date(p.emailBouncedAt).toLocaleDateString()}.</b>
+      Email to them is closed and their unsent messages were pulled. They are still on the call list — the phone still works.</div>`;
+    return '';
+  })()}
 
   <h2>Everything, editable</h2>
   <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
