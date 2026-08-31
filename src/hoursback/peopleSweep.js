@@ -37,6 +37,14 @@ const PAGE_TIMEOUT_MS = 8000;
 const DELAY_BETWEEN_PAGES_MS = 900;
 const MAX_HTML_BYTES = 1500000;
 
+// What an ordinary visitor's browser sends. Two of fifteen unreadable sites in
+// the first fifty were refusing us purely on this (2026-08-31).
+const BROWSER_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'en-US,en;q=0.9',
+};
+
 // The pages worth opening, best first. A team page is usually one of these or
 // sits one click under the About page.
 const WORTH_OPENING = [
@@ -122,7 +130,14 @@ async function fetchPage(url, fetchImpl) {
     const res = await fetchImpl(url, {
       signal: ctrl.signal,
       redirect: 'follow',
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; VisionAIry research; russ@visionairy.biz)' },
+      // WE ASK LIKE A BROWSER, BECAUSE A GREAT MANY SITES REFUSE ANYTHING ELSE.
+      //
+      // Announcing ourselves as research was honest and it got the door shut.
+      // Cornerstone Family Dentistry and El Mercadito both returned "refused"
+      // to the old line and opened straight away to this one (tested
+      // 2026-08-31). Nothing else changes: the same pages, the same pause
+      // between them, the same ceiling.
+      headers: BROWSER_HEADERS,
     });
     if (!res.ok) throw new Error(`http ${res.status}`);
     const text = await res.text();

@@ -1,7 +1,7 @@
 # Websites that do not belong to the business they are on
 
-687 businesses with a live email checked.
-48 carry somebody else's website. Nothing has been written to the record.
+865 businesses with a live email checked.
+66 carry somebody else's website. Nothing has been written to the record.
 
 - **Bend OR Medicare Advantage** — carries https://www.insurancethatfitsyou.com/, which is not theirs. The website officially identifies as Insurance Fitz Inc., not Bend OR Medicare Advantage — different registered business names.
   - id: `cmt93a73d0088t7lcv2vgx3h6`
@@ -147,3 +147,57 @@
 - **Central Oregon Vacation Rentals** — carries http://blackbutte.com/, which is not theirs. The website identifies as 'Black Butte Realty Group,' a distinct business entity, not 'Central Oregon Vacation Rentals.'
   - id: `cmt956p1g02swt7s75y76h2o8`
   - the site says: Manages vacation rental homes and properties on Black Butte Ranch resort. — calls itself: Black Butte Realty Group
+- **SMITH ROCK MASONRY COMPANY LLC** — carries https://www.smithrock.com/, which is not theirs. The website describes an outdoor recreation guide for Smith Rock State Park, not masonry services.
+  - id: `cmtbtcs0h0h84t7a5vxd6f331`
+  - the site says: Independent online guide and resource for Smith Rock State Park outdoor recreation, with shop and event information. — calls itself: SmithRock.com
+- **Bend Airbnb Vacation Rental Property Management** — carries https://www.bendhost.com/, which is not theirs. The website identifies as 'Grand Welcome Bend & Central Oregon,' a distinct business entity name, not 'Bend Airbnb Vacation Rental Property Management.'
+  - id: `cmt93a8oi00bgt7lcqz36z6bk`
+  - the site says: We provide full-service vacation rental property management in Bend and Central Oregon. — calls itself: Grand Welcome Bend & Central Oregon
+- **HOME** — carries https://www.gregpowellhomes.com/, which is not theirs. The website identifies as Greg Powell's business (gregpowellhomes.com), not a business named HOME.
+  - id: `cmt94x5xm010qt7qrr0l9h572`
+  - the site says: Real estate agent helping buyers, sellers, and investors purchase and sell homes in Central Oregon — calls itself: Greg Powell
+- **Box Factory** — carries https://boxfactorybend.com/, which is not theirs. The website describes a shopping center and marketplace, not a box manufacturing business.
+  - id: `cmt94x8p501b0t7qrfuz6oe64`
+  - the site says: Home to over 35 exclusive local merchants offering shops, dining, and services in Bend. — The Box Factory is a celebrated place to dine, drink, shop, and gather in Bend, Oregon. Ho
+- **CLAIRE LAPOMA COUNSELING INC** — carries https://clairelapoma.com/, which is not theirs. The website identifies itself as Inner Compass Counseling, not Claire Lapoma Counseling Inc.
+  - id: `cmtbt5gim0dtvt7a51udns29h`
+  - the site says: Counseling specializing in perinatal mental health, trauma, grief and life transitions. — calls itself: Inner Compass Counseling
+- **Home** — carries http://www.evanstreeandlawn.com/, which is not theirs. The website identifies itself as Evans Tree and Lawn Service, not Home.
+  - id: `cmt957j2504nqt7s7gmos2kmh`
+  - the site says: Professional tree services including hazardous tree removal, trimming, pruning, stump grinding, and risk assessment. — calls itself: Evans Tree and Lawn Service
+- **HOME** — carries http://rtc541.com/, which is not theirs. The website identifies itself as Redmond Trading Co., not HOME.
+  - id: `cmt956myh02myt7s70kpddi1t`
+  - the site says: Firearms sales, gunsmith services, and training. — calls itself: Redmond Trading Co.
+- **Auto Repair Shop in La Pine, OR** — carries https://www.godsgreasemonkeyor.com/, which is not theirs. The website identifies the business as 'Gods Grease Monkey,' not as the generic name on the record.
+  - id: `cmt957jia04oet7s7bzian75c`
+  - the site says: Auto repair shop providing oil changes, brake repair, engine swaps, diagnostics, and mobile mechanic services in La Pine, OR. — Auto Repair Shop in La Pine, OR | Gods Grease Monkey
+- **BLUE MOON DESIGNS, LLC** — carries https://cms.bluemoonforms.com/?p=home, which is not theirs. The website describes property management software and lease forms, calls itself Blue Moon Software, and uses a different domain (bluemoonforms.com) — not the design business the name implies.
+  - id: `cmtbtn1n50m28t7a54qa745qo`
+  - the site says: Provides web-based lease forms and property management software for apartment associations. — calls itself: Blue Moon Software
+- **Redmond Oregon Auto Repair** — carries http://www.autorepairredmond.com/, which is not theirs. The website identifies itself as 'Oscar's Expert Auto Repair', a different business name than the record's 'Redmond Oregon Auto Repair'.
+  - id: `cmt956i9b0274t7s7g1uon5k3`
+  - the site says: Auto and truck repair for all makes and models of cars, trucks and vans. — calls itself: Oscar's Expert Auto Repair
+- **General Contractor Redmond &amp; Bend** — carries http://www.cardenasochoaconstruction.com/, which is not theirs. The website belongs to Cardenas Ochoa Construction, a different business than the one named in the record.
+  - id: `cmt94ytdb01xgt7qrfcjn48nu`
+  - the site says: General contractor providing custom home construction, roof replacement, remodeling, and repairs in central Oregon. — Licensed General Contractor serving Redmond, Bend, and Central
+- **Must-Try Brewery in Redmond, OR** — carries https://initiativebrew.com/, which is not theirs. The website identifies itself as Initiative Brew Pub, not Must-Try Brewery — different business names.
+  - id: `cmt956lw202j4t7s793pfdqs7`
+  - the site says: Craft brewery and pub serving handcrafted beer, food, and cocktails made in-house. — calls itself: Initiative Brew Pub
+- **GREEN PRESSURE WASH, LLC** — carries https://cleanriteoregon.com/, which is not theirs. The website explicitly identifies as Clean Rite Janitorial LLC, a different legal entity than Green Pressure Wash, LLC.
+  - id: `cmtbte8t20hxkt7a5017vph1x`
+  - the site says: Professional janitorial services including carpet cleaning, pressure washing, air duct cleaning, and office maintenance for residential and commercial properties. — calls itself: C
+- **BOB BLACK COACHING LLC** — carries https://missioncurve.com/, which is not theirs. The website identifies as 'Mission Curve Advisors,' not 'Bob Black Coaching LLC' — different business name.
+  - id: `cmtbtaox30g8ot7a5geg2sgg1`
+  - the site says: Personal coaching and workshops to help people discover and pursue their God-given life mission. — calls itself: Mission Curve Advisors
+- **SMITH ROCK CLIMBING** — carries https://www.smithrock.com/, which is not theirs. The website is a guide to Smith Rock State Park, not a climbing business.
+  - id: `cmtbtceyt0h1pt7a5vo5h7hoh`
+  - the site says: An online resource and guide for Smith Rock State Park adventurers. — calls itself: SmithRock.com
+- **CASCADE LAKES PROPERTIES LLC** — carries https://www.cascadelakes.com/, which is not theirs. The website identifies as Cascade Lakes Brewing Company and describes brewery operations, not property management or real estate services.
+  - id: `cmtbt4l920dfot7a5axfbt9mx`
+  - the site says: Central Oregon's first and only not-for-profit brewery featuring high-quality craft beers at two local brewpubs. — calls itself: Cascade Lakes Brewing Company
+- **BEND OUTDOOR WORX, LLC** — carries https://www.bendoutdoorworx.com/, which is not theirs. The website describes an accelerator program, not the outdoor work/services company that 'Bend Outdoor Worx' names implies.
+  - id: `cmtbtgvlr0j5jt7a5ryyctggo`
+  - the site says: We're an outdoor startup accelerator that helps scale outdoor businesses through a 14-week intensive cohort program and ongoing mentor support.
+- **NEXT ADVENTURE REALTY, LLC** — carries https://nextadventure.net/, which is not theirs. The name says REALTY (real estate), but the website describes an outdoor gear retailer—different businesses.
+  - id: `cmtbt4a480da2t7a525qyo7rv`
+  - the site says: Sells outdoor gear and apparel for ski, snowboarding, climbing, camping and hiking, plus rentals and consignment services. — calls itself: Next Adventure

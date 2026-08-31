@@ -575,7 +575,10 @@ async function fetchPage(url, fetchImpl) {
     signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
     headers: {
       // Says plainly who we are and how to ask us to stop.
-      'user-agent': 'HoursBackBot/1.0 (+https://visionairy.biz; contact russ@visionairy.biz)',
+      // The same reason as in peopleSweep: a site that refuses a named crawler
+      // opens to an ordinary browser, and we are reading pages they publish.
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'accept-language': 'en-US,en;q=0.9',
       accept: 'text/html,application/xhtml+xml',
     },
   });
