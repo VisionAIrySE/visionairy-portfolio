@@ -1056,7 +1056,7 @@ async function businessCard(id, saved) {
   })()}
 
   <h2>Everything, editable</h2>
-  <p class="muted">What you type here beats anything the machine found, and it survives every later sweep.</p>
+  <p class="muted">One value per field. What you type replaces what is there, and a later reading of their website can replace it again — every change is kept in the history at the bottom of this page.</p>
   <form method="POST" action="/business/${p.id}">
     <div class="grid">
       ${editable(p, 'name', 'Business name')}
@@ -1080,7 +1080,8 @@ async function businessCard(id, saved) {
         <option value="yes"${p.isDecisionMaker === true ? ' selected' : ''}>yes</option>
         <option value="no"${p.isDecisionMaker === false ? ' selected' : ''}>no</option></select></div>
     </div>
-    <p><button class="primary">Save</button></p>
+    <p><button class="primary"
+      onclick="return confirm('Save these changes? They replace what is on the record now. Every change is kept in the history below.')">Save</button></p>
   </form>
 
   <h2>Where their five hours are</h2>

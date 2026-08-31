@@ -1,7 +1,7 @@
 # Websites that do not belong to the business they are on
 
-446 businesses with a live email checked.
-25 carry somebody else's website. Nothing has been written to the record.
+591 businesses with a live email checked.
+37 carry somebody else's website. Nothing has been written to the record.
 
 - **Bend OR Medicare Advantage** — carries https://www.insurancethatfitsyou.com/, which is not theirs. The website officially identifies as Insurance Fitz Inc., not Bend OR Medicare Advantage — different registered business names.
   - id: `cmt93a73d0088t7lcv2vgx3h6`
@@ -78,3 +78,39 @@
 - **Bend Property Managers** — carries http://www.bendpropertymanager.com/, which is not theirs. The website identifies itself as SUMMIT PROPERTY SOLUTIONS, not Bend Property Managers — a different business entity.
   - id: `cmt94xd6d01not7qr64rslcr9`
   - the site says: Full-service property management for residential, multi-family, and vacation rental properties throughout Oregon. — calls itself: SUMMIT PROPERTY SOLUTIONS
+- **FastBreak Convenience Stores** — carries http://www.myfastbreak.com/, which is not theirs. The website's reference to 'MARCH MANIA' and vague description suggest a basketball/sports business, not a convenience store chain.
+  - id: `cmt957lr704v8t7s7qug83ime`
+  - the site says: Provide products and services in a convenient manner that develops relationships and contributes to the safety and success of customers and communities. — MARCH MANIA
+- **PUDDING RIVER PROPERTIES LLC** — carries https://puddingriver.com/, which is not theirs. The website describes a winery (Pudding River Wine Cellars), while the business name suggests a properties or real estate company—they share a place name but describe different businesses.
+  - id: `cmtbtel670i3bt7a597gv75x7`
+  - the site says: Boutique winery; vineyard, tasting room, and custom crush winemaking. — calls itself: Pudding River Wine Cellars
+- **Mechanical Construction** — carries https://alliant-systems.com/, which is not theirs. The website identifies as 'Alliant Systems', not 'Mechanical Construction'—two different business names, not a match.
+  - id: `cmt9466v500c8t7z4eyljek0a`
+  - the site says: Integrated mechanical solutions including engineering, construction, service, building automation, and energy services. — calls itself: Alliant Systems
+- **Lumos Medical Center** — carries https://lumosmedicalcenter.com/?utm_source=google&utm_medium=organic&utm_campaign=maps, which is not theirs. The website identifies itself as Sol and Serenity, a naturopathy clinic — a different business name and service entirely from Lumos Medical Center.
+  - id: `cmt93ab7600hqt7lc0ic9vmjo`
+  - the site says: A naturopathy clinic serving Bend, Oregon. — calls itself: Sol and Serenity
+- **SUN RIVER TRANSPORTATION, LLC** — carries https://www.sunriver.com/, which is not theirs. The website describes a luxury real-estate community developer, not a transportation company.
+  - id: `cmtbtdqob0hoxt7a5cfuf4209`
+  - the site says: Build luxury communities and homes for 55+ active adults. — calls itself: SunRiver Communities
+- **TorqueFix Diesel** — carries http://www.americanpridetransmission.com/, which is not theirs. The website belongs to American Pride Transmission, a different business—the site names itself explicitly.
+  - id: `cmt956ike028gt7s76non0bj5`
+  - the site says: Transmission and diesel engine repair and modification. — calls itself: American Pride Transmission
+- **Central Oregon Equipment Rental** — carries https://bigfootequipmentrental.com/, which is not theirs. The website identifies as Bigfoot Equipment Rental & Supply LLC, a different business name than Central Oregon Equipment Rental.
+  - id: `cmt9575ag03vot7s7igad8qtn`
+  - the site says: Equipment rental services throughout Central Oregon for construction, landscaping, and agricultural projects. — calls itself: Bigfoot Equipment Rental & Supply LLC
+- **Websites** — carries https://arkminiatures.net/, which is not theirs. A business named 'Websites' should describe web services; this site is a retail hobby shop (RK Hobbies and Miniatures) selling model kits and RC vehicles.
+  - id: `cmt957lmh04u0t7s7tpc81rq5`
+  - the site says: Retail hobby shop specializing in RC vehicles, model kits, scale trains, and dollhouse miniatures. — calls itself: RK Hobbies and Miniatures
+- **Property Management Bend** — carries https://www.propertymanagementbendoregon.com/, which is not theirs. The website identifies itself as 'Arise Real Estate Management, LLC', not 'Property Management Bend'.
+  - id: `cmt93a8iv00awt7lc8ive7nji`
+  - the site says: Local property management company providing residential, multi-family, and commercial property management services — calls itself: Arise Real Estate Management, LLC
+- **Real Estate Agents in Redmond, Oregon** — carries http://www.jefflarkinrealty.com/, which is not theirs. The website is for 'Jeff Larkin Realty,' a specific company, not a generic 'Real Estate Agents' directory or collective listing.
+  - id: `cmt956jlw02b0t7s7x8cwwxsk`
+  - the site says: We provide traditional and commercial real estate services, with expertise in the agricultural industry. — calls itself: Jeff Larkin Realty
+- **Carolyn Wilkinson** — carries https://prinevillerealty.com/, which is not theirs. The website identifies as 'Prineville Realty,' not as Carolyn Wilkinson's business.
+  - id: `cmt95740r03qot7s7yogno8fp`
+  - the site says: Real estate agent providing property search, buying and selling services in the Prineville area. — calls itself: Prineville Realty
+- **Oregon Natural Beef** — carries https://www.symonsbeefcompany.com/, which is not theirs. The website explicitly identifies as Symons Beef Company, a different business name than Oregon Natural Beef.
+  - id: `cmt957e2d04fct7s7p45fno14`
+  - the site says: Family-owned beef ranching and retail operation in central Oregon — calls itself: Symons Beef Company

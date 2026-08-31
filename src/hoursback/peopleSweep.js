@@ -22,6 +22,17 @@ function absoluteUrl(href, base) {
 }
 
 const MAX_PAGES_PER_SITE = 12;      // a hard stop; most sites finish in four
+
+// A SITE WITH A REAL TEAM PAGE IS ALLOWED FURTHER.
+//
+// Twelve pages is plenty for a plumber and nowhere near enough for a firm.
+// Kernutt Stokes lists its people, each on their own page with a direct email
+// and a direct number, and the read stopped after a handful of them — so Russ
+// had contact details on screen that the record had never seen (2026-08-31).
+//
+// The extra pages are only spent where a team page was actually found, and only
+// on links sitting underneath it, so an ordinary site still finishes in four.
+const MAX_PAGES_WITH_A_TEAM_PAGE = 50;
 const PAGE_TIMEOUT_MS = 8000;
 const DELAY_BETWEEN_PAGES_MS = 900;
 const MAX_HTML_BYTES = 1500000;
@@ -38,6 +49,42 @@ function rank(url, label) {
   const hay = `${url} ${label}`;
   for (const [i, re] of WORTH_OPENING.entries()) if (re.test(hay)) return i;
   return 99;
+}
+
+// EVERY LINK SITTING UNDERNEATH THE TEAM PAGE.
+//
+// A person's own page is named after the person — /team/trever-campbell — so
+// whether the ordinary rule opened it came down to whether the firm happened to
+// put a word like "team" in the address. This takes the team page's own address
+// and follows anything below it, which is what a profile always is.
+function linksBelow(html, teamPageUrl) {
+  let base;
+  try { base = new URL(teamPageUrl); } catch { return []; }
+  const under = base.pathname.replace(/\/+$/, '');
+  if (!under || under === '') return [];
+  const out = [];
+  const seen = new Set();
+  for (const m of String(html).matchAll(/<a[^>]+href=["']([^"'#]+)["']/gi)) {
+    const abs = absoluteUrl(m[1], teamPageUrl);
+    if (!abs) continue;
+    let u;
+    try { u = new URL(abs); } catch { continue; }
+    if (u.host !== base.host) continue;
+    if (!/^https?:$/.test(u.protocol)) continue;
+    if (/\.(pdf|jpe?g|png|gif|svg|webp|zip|docx?|xlsx?)$/i.test(u.pathname)) continue;
+    const path = u.pathname.replace(/\/+$/, '');
+    if (path === under) continue;
+    if (!path.startsWith(`${under}/`)) continue;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    out.push(u.toString());
+  }
+  return out;
+}
+
+// Is this page the one listing the people?
+function looksLikeATeamPage(url) {
+  return WORTH_OPENING[0].test(String(url));
 }
 
 // Every same-site link, sorted by how likely it is to hold people.
@@ -125,6 +172,26 @@ async function fetchPeoplePages(website, options = {}) {
       try { pages.push({ url, html: await fetchPage(url, fetchImpl) }); } catch { /* keep going */ }
     }
   }
+  // THIRD HOP — the profiles themselves. Only from a page that is actually the
+  // team page, and only to addresses sitting under it. This is where the direct
+  // email and the direct number live, and it was never reached.
+  const teamPages = pages.filter((pg) => looksLikeATeamPage(pg.url));
+  if (teamPages.length) {
+    const roomier = Math.min(options.maxPages || MAX_PAGES_WITH_A_TEAM_PAGE, MAX_PAGES_WITH_A_TEAM_PAGE);
+    for (const page of teamPages) {
+      let profiles = [];
+      try { profiles = linksBelow(page.html, page.url); } catch { profiles = []; }
+      for (const url of profiles) {
+        if (pages.length >= roomier) break;
+        const path = new URL(url).pathname;
+        if (opened.has(path)) continue;
+        opened.add(path);
+        if (delay) await sleep(delay);
+        try { pages.push({ url, html: await fetchPage(url, fetchImpl) }); } catch { /* keep going */ }
+      }
+    }
+  }
+
   return { pages, error: null };
 }
 
@@ -328,11 +395,91 @@ function rosterRun(page, taken = new Set()) {
 }
 
 // Everyone across every page opened, deduplicated by name.
+// ONE PERSON'S OWN PAGE.
+//
+// The two readers above are built for a team LIST — runs of names down a page,
+// with nobody's address beside them. A profile page is the opposite: one person,
+// their photo, their direct address and their direct line. Read as a list it
+// gave a name and nothing else, which is why Kernutt Stokes came back with 24
+// people and not one email between them (2026-08-31).
+//
+// Here the page IS the person. The address in the mailto and the number in the
+// tel belong to whoever the page is about.
+function personOnTheirOwnPage(page) {
+  const html = String(page.html || '');
+  const mailtos = [...html.matchAll(/mailto:([^"'?>\s]+)/gi)].map((m) => m[1].trim().toLowerCase());
+  const tels = [...html.matchAll(/tel:([+0-9().\s-]{7,})/gi)].map((m) => m[1].replace(/[^\d+]/g, ''));
+  // More than one address means it is a list again, not one person's page.
+  const own = [...new Set(mailtos)].filter((a) => !/^(info|contact|office|hello|admin|sales|support|reception|frontdesk)@/i.test(a));
+  if (own.length !== 1) return [];
+
+  // A JOB TITLE IS NEVER A NAME.
+  //
+  // The first version took the first heading that looked like a person and
+  // wrote down "Managing Partner" as somebody called Managing — which would
+  // have opened a letter "Hi Managing," (caught on the Kernutt Stokes run,
+  // 2026-08-31).
+  const isATitle = (t) => {
+    const low = String(t).toLowerCase().replace(/[^a-z ]/g, ' ').trim();
+    if (!low) return true;
+    const words = low.split(/\s+/);
+    return words.every((w) => ROLE_WORDS.some((r) => r.split(/\s+/).includes(w))
+      || ['and', 'of', 'the', 'senior', 'junior', 'chief', 'lead', 'head', 'staff'].includes(w));
+  };
+
+  // THE ADDRESS HAS TO AGREE WITH THE NAME.
+  //
+  // Refusing job titles was not enough — the next heading on one page was the
+  // office town, and "Lake Oswego" went down as somebody's name (Kernutt
+  // Stokes run, 2026-08-31). On a person's own page the address is theirs, so
+  // it is the thing that says which heading is really the person: sritchie@
+  // agrees with Ritchie and agrees with nothing about Lake Oswego.
+  const local = own[0].split('@')[0].toLowerCase().replace(/[^a-z]/g, '');
+  const agreesWithTheAddress = (candidate) => {
+    const words = String(candidate).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+    return words.some((w) => local.includes(w) || w.includes(local));
+  };
+
+  let name = null;
+  for (const m of html.matchAll(/<h[1-3][^>]*>([\s\S]{0,120}?)<\/h[1-3]>/gi)) {
+    const t = stripCredentials(textOf(m[1]));
+    if (!looksLikeAPerson(t) || isATitle(t)) continue;
+    if (agreesWithTheAddress(t)) { name = t; break; }
+  }
+  if (!name) {
+    // No heading the address backs up. Build the name from the address itself,
+    // which on a profile page belongs to the person the page is about.
+    const spaced = own[0].split('@')[0].replace(/[._-]+/g, ' ');
+    const cased = spaced.replace(/\b\w/g, (c) => c.toUpperCase());
+    if (looksLikeAPerson(cased) && !isATitle(cased)) name = cased;
+  }
+  // A heading the address does not back up is not used at all. Allowing it as a
+  // fallback is how "Lake Oswego" — the office town, in a heading on Steven
+  // Ritchie's page — was written down as a person (2026-08-31). No name is a
+  // true answer; a town is a letter opening "Hi Lake,".
+  if (!name) return [];
+
+  const text = textOf(html);
+  // The job title, taken from the words just after the name rather than from
+  // the whole opening line — which gave "trever campbell, cpa. partner. email
+  // call" as somebody's role.
+  const after = text.slice(0, 600);
+  const longestFirst = [...ROLE_WORDS].sort((a, b) => b.length - a.length);
+  return [{
+    name,
+    role: (longestFirst.find((w) => new RegExp(`\\b${w}\\b`, 'i').test(after)) || null),
+    email: own[0],
+    phone: [...new Set(tels)][0] || null,
+    linkedIn: (linkedInProfilesOn(html) || [])[0] || null,
+    foundOn: page.url,
+  }];
+}
+
 function peopleFromSite(pages) {
   const all = new Map();
   for (const page of pages) {
     const taken = new Set();
-    for (const person of [...peopleOnPage(page, taken), ...rosterRun(page, taken)]) {
+    for (const person of [...personOnTheirOwnPage(page), ...peopleOnPage(page, taken), ...rosterRun(page, taken)]) {
       const key = person.name.toLowerCase();
       const prior = all.get(key);
       if (!prior) { all.set(key, person); continue; }
@@ -356,8 +503,9 @@ function teamSizeFrom(people) {
 }
 
 module.exports = {
+  MAX_PAGES_WITH_A_TEAM_PAGE, linksBelow, looksLikeATeamPage,
   MAX_PAGES_PER_SITE, PAGE_TIMEOUT_MS, DELAY_BETWEEN_PAGES_MS,
   WORTH_OPENING, rank, linksToPeople, fetchPeoplePages,
-  peopleOnPage, peopleFromSite, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, ROLE_WORDS,
+  peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, ROLE_WORDS,
   linkedInProfilesOn, profileNear, roleFromLine,
 };

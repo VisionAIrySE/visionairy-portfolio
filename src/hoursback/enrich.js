@@ -753,7 +753,13 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
   // to last time while its team page still names three people we have never
   // written down — and skipping them because nothing else moved meant almost
   // nobody was saved at all.
-  await saveContacts(db, prospectId, finding);
+  // The business's own town, so a firm with several offices writes to the
+  // person who is actually here.
+  const townOf = (addr) => {
+    const m = String(addr || '').match(/,\s*([A-Za-z .'-]{3,30}),\s*[A-Z]{2}\b/);
+    return m ? m[1].trim() : null;
+  };
+  await saveContacts(db, prospectId, finding, townOf(before.addressManualValue || before.address));
 
   // The score is a function of the RECORD, not of this reading. What the site
   // said is only part of it — the team size, the owner's name, how long they
@@ -864,9 +870,24 @@ async function runSiteEnrichment(db, options = {}) {
 
 // Everyone the site named, kept alongside the business. A person typed in by
 // hand is never overwritten by a later read.
-async function saveContacts(db, prospectId, finding) {
-  const people = (finding.people || []).filter((p) => p.name || p.email);
+async function saveContacts(db, prospectId, finding, businessTown = null) {
+  let people = (finding.people || []).filter((p) => p.name || p.email);
   if (!people.length) return 0;
+
+  // THE LOCAL ONE GOES FIRST, AT A FIRM WITH SEVERAL OFFICES.
+  //
+  // Kernutt Stokes has offices in more than one town and the message went to
+  // whoever the read happened to find first. Trever Campbell is the Bend one
+  // (Russ, 2026-08-31). Where a person's own page names the business's own
+  // town, they are the one written to.
+  const town = String(businessTown || '').trim().toLowerCase();
+  if (town.length > 2) {
+    const isLocal = (p) => `${p.foundOn || ''} ${p.role || ''} ${p.town || ''}`.toLowerCase().includes(town);
+    const locals = people.filter(isLocal);
+    if (locals.length && locals.length < people.length) {
+      people = locals.concat(people.filter((p) => !isLocal(p)));
+    }
+  }
   const personalLinks = (finding.linkedIn && finding.linkedIn.people) || [];
   let n = 0;
   for (const [i, person] of people.entries()) {
@@ -877,6 +898,13 @@ async function saveContacts(db, prospectId, finding) {
       prospectId, email: person.email,
       name: person.name || (existing && existing.name) || null,
       role: person.role || (existing && existing.role) || null,
+      // THE DIRECT NUMBER, WHICH WAS BEING READ AND THROWN AWAY.
+      //
+      // Their own profile pages print a direct line beside the address. It was
+      // read off the page and then never written down, so every person on the
+      // list reached the front desk (Russ, 2026-08-31: "their emails and direct
+      // call numbers are there").
+      phone: person.phone || (existing && existing.phone) || null,
       linkedIn: personalLinks[i] || (existing && existing.linkedIn) || null,
       foundOn: person.foundOn || null,
       source: 'WEBSITE',

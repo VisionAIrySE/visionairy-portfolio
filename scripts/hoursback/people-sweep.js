@@ -15,13 +15,28 @@
 const { PrismaClient } = require('@prisma/client');
 const ps = require('../../src/hoursback/peopleSweep.js');
 
-const PAGES_PER_SITE = 8;
+// Eight was enough for a plumber and nowhere near enough for a firm. A site
+// with a real team page is allowed as far as fifty, and only for the profile
+// pages beneath it — Kernutt Stokes went from 24 people and no addresses to 32
+// people each with a direct email and a direct line (2026-08-31).
+const PAGES_PER_SITE = 50;
 const PAUSE_BETWEEN_SITES_MS = 400;
 const PROGRESS_EVERY = 25;
 
 // Save the people, keeping anyone with a name even when they published no
 // email — that omission is exactly what lost every phone number last time.
-async function savePeople(db, prospectId, people) {
+async function savePeople(db, prospectId, people, businessTown = null) {
+  // THE LOCAL ONE IS WRITTEN TO, AT A FIRM WITH SEVERAL OFFICES.
+  //
+  // Kernutt Stokes has five, and the message went to whoever the read happened
+  // to find first. Trever Campbell is the Bend one, and his own page carries a
+  // Bend number while the others carry Eugene and Portland (Russ, 2026-08-31).
+  const town = String(businessTown || '').trim().toLowerCase();
+  if (town.length > 2) {
+    const local = (p) => `${p.foundOn || ''} ${p.role || ''}`.toLowerCase().includes(town);
+    const here = people.filter(local);
+    if (here.length && here.length < people.length) people = here.concat(people.filter((p) => !local(p)));
+  }
   let saved = 0;
   for (const [i, person] of people.entries()) {
     if (!person.name && !person.email) continue;
@@ -58,8 +73,12 @@ async function main() {
   try {
     const rows = await db.prospect.findMany({
       where: { website: { not: null }, doNotContact: false },
-      select: { id: true, name: true, website: true },
+      select: { id: true, name: true, website: true, address: true, addressManualValue: true },
       orderBy: { automationScore: 'desc' },
+      // --limit=50 reads the best fifty first, so a run can be looked at before
+      // the whole list is committed to.
+      ...(Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1]) > 0
+        ? { take: Number(process.argv.find((a) => a.startsWith('--limit=')).split('=')[1]) } : {}),
     });
     console.log(`${rows.length} businesses with a website to read`);
 
@@ -87,7 +106,9 @@ async function main() {
         const people = ps.peopleFromSite(read.pages);
         if (people.length) {
           withPeople += 1;
-          peopleSaved += await savePeople(db, b.id, people);
+          const addr = b.addressManualValue || b.address || '';
+          const townMatch = String(addr).match(/,\s*([A-Za-z .'-]{3,30}),\s*[A-Z]{2}\b/);
+          peopleSaved += await savePeople(db, b.id, people, townMatch ? townMatch[1].trim() : null);
           touched.push(b.id);
           if (people.some((p) => p.phone)) withPhones += 1;
         }
