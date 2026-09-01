@@ -128,8 +128,12 @@ Answer with JSON only, no other words, in this shape:
       "email": "their own address, or null",
       "phone": "their direct number, or null",
       "linkedIn": "their profile URL, or null",
-      "seenOn": "the page URL you read them from"
+      "seenOn": "the page URL you read them from",
+      "basedAt": "the town or office THIS PERSON works from, if the pages say so — else null"
     }
+  ],
+  "locations": [
+    { "town": "a town this business operates from", "isHeadOffice": true or false, "seenOn": "the page URL that says so" }
   ],
   "sharedEmail": "the general inbox like info@ or office@, or null",
   "mainPhone": "the main number, or null",
@@ -145,6 +149,12 @@ Answer with JSON only, no other words, in this shape:
 }
 
 Rules that matter more than filling a field in:
+
+WHERE THEY ARE, AND WHERE EACH PERSON IS. A firm can have offices in several towns and one staff page listing everybody in all of them. Kernutt Stokes has offices in Bend, Corvallis, Eugene and Hillsboro; its team page names ninety-five people and says beside none of them which office they sit in, so ninety-five strangers went onto a record about Bend. Somebody in Corvallis is a hundred and thirty miles from the person we are writing to.
+
+List every town the business operates from in "locations", each with the page that says so, and mark the head office if the pages name one.
+
+Then, for each person, answer "basedAt" ONLY where the pages actually place them — their own profile page naming an office, a heading they are listed under, a direct line with a town beside it. **A bare staff directory with no office against a name tells you nothing: answer null.** Null is the correct and expected answer for most people on a firm-wide team page, and guessing from the head office, from the first town on the site, or from a surname is exactly the mistake that put a whole state's staff on one town's record.
 
 TRADE. Judge what the business IS, not what words appear. A firm of accountants whose benefits page mentions dental insurance is accounting. A supplier who sells to roofers is not a roofing contractor. A crane company that works on building sites is not a builder. If it is genuinely between two, set trade to null and say so in cannotTell — a wrong answer costs far more than a blank.
 
@@ -288,6 +298,7 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
       // separateOperations stays null: these pages are somebody else's, so
       // nothing was learned about this business — not "one operation".
       hiringOffice: false, yearsInBusiness: null, stalledBuild: null, separateOperations: null,
+      locations: [],
       notTheirSite: true,
       cannotTell: typeof said.cannotTell === 'string' && said.cannotTell.trim().length > 5
         ? said.cannotTell.trim().slice(0, 240)
@@ -335,6 +346,20 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
       && Number(said.yearsInBusiness) < 200 ? Math.round(Number(said.yearsInBusiness)) : null,
     cannotTell: typeof said.cannotTell === 'string' && said.cannotTell.trim().length > 5
       ? said.cannotTell.trim().slice(0, 240) : null,
+    // EVERY TOWN THIS BUSINESS WORKS FROM. A firm with offices in four towns
+    // and one staff page listing everybody is why this exists: without it,
+    // people who work a hundred and thirty miles away land on a record about
+    // Bend and there is no way to tell (2026-09-01).
+    locations: Array.isArray(said.locations)
+      ? said.locations
+        .filter((l) => l && typeof l.town === 'string' && l.town.trim().length > 1)
+        .slice(0, 12)
+        .map((l) => ({
+          town: l.town.trim().slice(0, 60),
+          isHeadOffice: l.isHeadOffice === true,
+          seenOn: typeof l.seenOn === 'string' ? l.seenOn : null,
+        }))
+      : [],
     dropped: [],
   };
 
@@ -377,6 +402,13 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
       roleWasPrinted: role ? p.roleWasPrinted !== false : null,
       email, phone, linkedIn,
       seenOn: typeof p.seenOn === 'string' ? p.seenOn : null,
+      // WHICH OFFICE THIS PERSON SITS IN, and null wherever the pages did not
+      // say. Null is the expected answer on a firm-wide staff list, and it is
+      // the honest one: Kernutt Stokes named 95 people across four Oregon
+      // offices with no office beside any of them, and all 95 landed on a
+      // record about Bend (2026-09-01).
+      basedAt: typeof p.basedAt === 'string' && p.basedAt.trim().length > 1
+        ? p.basedAt.trim().slice(0, 60) : null,
     });
   }
   return out;

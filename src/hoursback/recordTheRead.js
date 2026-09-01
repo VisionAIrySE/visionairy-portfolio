@@ -154,11 +154,34 @@ async function keepTheRead(db, {
   const tools = Array.isArray(understood.toolsInUse) ? understood.toolsInUse : [];
   await say(db, base, 'toolsInUse', tools.length ? tools.join(', ') : null, {});
 
+  // EVERY TOWN THIS BUSINESS WORKS FROM. Recorded one per town, each with the
+  // page that said so, because a firm with four offices is not four records —
+  // it is one record that has to know which office we mean.
+  const towns = Array.isArray(understood.locations) ? understood.locations : [];
+  if (!towns.length) {
+    await say(db, base, 'locations', null, {});
+  } else {
+    for (const t of towns) {
+      await R.record(db, {
+        ...base,
+        field: 'location',
+        value: t.isHeadOffice ? `${t.town} (head office)` : t.town,
+        status: R.OBSERVED,
+        url: t.seenOn || url,
+        quote: t.town,
+      });
+    }
+  }
+
   // The people named on their own pages, each carrying the page they were read
   // from. A role worked out from a sentence is an inference and says so.
+  //
+  // `basedAt` is kept as its own fact rather than buried in the person's line,
+  // so "we know where this person sits" and "we never found out" can be told
+  // apart at a glance — which is the whole reason this exists.
   for (const p of (understood.people || [])) {
     if (!p || !p.name) continue;
-    await R.record(db, {
+    const person = await R.record(db, {
       ...base,
       field: 'person',
       value: [p.name, p.role, p.email, p.phone, p.linkedIn].filter(Boolean).join(' | '),
@@ -166,6 +189,14 @@ async function keepTheRead(db, {
       url: p.seenOn || url,
       quote: p.name,
     });
+    await R.record(db, {
+      ...base,
+      field: 'personBasedAt',
+      value: p.basedAt ? `${p.name} — ${p.basedAt}` : null,
+      status: p.basedAt ? R.OBSERVED : R.COULD_NOT_TELL,
+      url: p.basedAt ? (p.seenOn || url) : null,
+      quote: p.basedAt ? p.name : null,
+    }).catch(() => person); // one person's missing office never loses the person
   }
 
   // What the site never said. A real finding, and the reason a later question

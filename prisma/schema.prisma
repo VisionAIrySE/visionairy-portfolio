@@ -322,6 +322,17 @@ model Contact {
   linkedIn   String?
   source     String    @default("WEBSITE")
   foundOn    String? // the page it was read from
+  /// WHICH OFFICE THIS PERSON SITS IN, where the pages said so — and null
+  /// where they did not, which on a firm-wide staff list is most people.
+  ///
+  /// Kernutt Stokes has offices in Bend, Corvallis, Eugene and Hillsboro. Its
+  /// team page names ninety-five people and puts an office beside none of
+  /// them, so ninety-five strangers landed on a record about Bend, some of
+  /// them a hundred and thirty miles away (2026-09-01).
+  ///
+  /// Null means UNKNOWN, never "here". Guessing the head office, the first
+  /// town on the site, or the town on the record is the mistake itself.
+  basedAt    String?
   isPrimary  Boolean   @default(false)
   bouncedAt  DateTime?
   createdAt  DateTime  @default(now())

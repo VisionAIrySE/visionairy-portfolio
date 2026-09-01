@@ -692,6 +692,10 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
       ...(p.phone ? { phone: p.phone } : {}),
       ...(p.linkedIn ? { linkedIn: p.linkedIn } : {}),
       ...(p.seenOn ? { foundOn: p.seenOn } : {}),
+      // Only where the pages actually placed them. A blank stays blank and
+      // means unknown — never "here", which is how a whole firm's staff ended
+      // up on one town's record.
+      ...(p.basedAt ? { basedAt: p.basedAt } : {}),
     };
     try {
       if (match) {
