@@ -18,6 +18,8 @@
 // undone completely by unretire(). The database is also set to refuse deleting
 // any business that has readings, so the rule survives a hand-written query.
 
+const crypto = require('crypto');
+
 const OBSERVED = 'observed';             // it says so on their own page
 const INFERRED = 'inferred';             // we worked it out; we could be wrong
 const CONFIRMED = 'confirmed';           // a person verified it
@@ -58,13 +60,44 @@ async function startReading(db, {
 /// Keep the readable text of one page. This is what makes every future re-read
 /// free: when we later want something we never thought to ask, we ask this text
 /// and not the business's website.
+///
+/// THE SAME WORDS ARE STORED ONCE. A page that has not changed since the last
+/// visit is still recorded as visited — the visit is a fact and gets its row —
+/// but its words point back at the copy already held instead of being written
+/// out again. So re-reading a business every year to catch what changed costs
+/// almost nothing until something actually changes, and when it does, both
+/// versions are on file and the difference can be read.
+///
+/// Following that pointer always reaches real words: the first visit to see
+/// them holds them, and nothing here deletes.
 async function keepPage(db, readingId, { url, title = null, text }) {
   if (!readingId) throw new Error('a page must belong to a reading');
   if (!url) throw new Error('a page must say which page it is');
   const kept = String(text || '');
   if (!kept.trim()) return null; // an empty page is not a page
+
+  const digest = crypto.createHash('sha256').update(kept).digest('hex').slice(0, 32);
+  const bytes = Buffer.byteLength(kept, 'utf8');
+
+  // Have these exact words been kept before, for this same page? Only a page
+  // that HOLDS its words can be pointed at, so a pointer never leads to a
+  // pointer and can never dangle.
+  const alreadyHeld = await db.readingPage.findFirst({
+    where: { url, digest, text: { not: null } },
+    select: { id: true },
+    orderBy: { fetchedAt: 'asc' },
+  });
+
   return db.readingPage.create({
-    data: { readingId, url, title, text: kept, bytes: Buffer.byteLength(kept, 'utf8') },
+    data: {
+      readingId,
+      url,
+      title,
+      text: alreadyHeld ? null : kept,
+      bytes,
+      digest,
+      sameAs: alreadyHeld ? alreadyHeld.id : null,
+    },
   });
 }
 
@@ -154,13 +187,30 @@ async function everyAnswer(db, prospectId, field = null) {
 
 /// The words this business's own site was found to contain. Ask THIS when a new
 /// question comes up — never their website again.
+/// Pages whose words were unchanged since an earlier visit point back at the
+/// copy already held. This follows those pointers, so a caller always gets real
+/// words and never has to know which visit happened to store them.
 async function keptWords(db, prospectId, { limit = 40 } = {}) {
-  return db.readingPage.findMany({
+  const pages = await db.readingPage.findMany({
     where: { reading: { prospectId, outcome: READ } },
-    select: { url: true, title: true, text: true, fetchedAt: true },
+    select: { url: true, title: true, text: true, sameAs: true, fetchedAt: true },
     orderBy: { fetchedAt: 'desc' },
     take: limit,
   });
+
+  const needed = [...new Set(pages.filter((p) => p.text === null && p.sameAs).map((p) => p.sameAs))];
+  const held = needed.length
+    ? await db.readingPage.findMany({ where: { id: { in: needed } }, select: { id: true, text: true } })
+    : [];
+  const wordsById = new Map(held.map((h) => [h.id, h.text]));
+
+  return pages.map((p) => ({
+    url: p.url,
+    title: p.title,
+    text: p.text !== null ? p.text : (wordsById.get(p.sameAs) ?? null),
+    fetchedAt: p.fetchedAt,
+    unchangedSinceEarlier: p.text === null && Boolean(p.sameAs),
+  }));
 }
 
 /// Set a fact aside — the website turned out not to be theirs, or the reader was

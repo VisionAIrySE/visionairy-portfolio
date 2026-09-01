@@ -420,11 +420,32 @@ model ReadingPage {
 
   url       String
   title     String?
-  text      String
+
+  /// The words. NULL only when `sameAs` points at an earlier page holding the
+  /// identical words — the page is still recorded as visited, the words are
+  /// simply not stored twice.
+  text      String?
   bytes     Int
   fetchedAt DateTime @default(now())
 
+  /// A short fingerprint of the words, so an unchanged page can be recognised
+  /// without loading it. Added 2026-09-01: re-reading a business yearly to
+  /// catch what changed would otherwise store the same paragraphs over and
+  /// over, and three visits in ten minutes already stored one site twice for
+  /// nothing.
+  ///
+  /// Optional because pages stored before this existed have no fingerprint,
+  /// and giving them a made-up one to satisfy a column would be exactly the
+  /// kind of substituted value this whole store exists to prevent.
+  digest String?
+
+  /// The earlier page whose words these are, when this visit found them
+  /// unchanged. Following it always reaches real words — the first visit to
+  /// see them is the one that holds them, and it is never deleted.
+  sameAs String?
+
   @@index([readingId])
+  @@index([url, digest])
 }
 
 /// ONE FACT, and everything needed to trust it.
