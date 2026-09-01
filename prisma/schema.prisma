@@ -183,6 +183,11 @@ model Prospect {
   messages       OutreachMessage[]
   contacts       Contact[]
 
+  // --- the evidence store: everything ever read, kept forever -------------
+  // See docs/hoursback/evidence-store.md. These only ever grow.
+  readings Reading[]
+  findings Finding[]
+
   // --- the email lane -----------------------------------------------------
   emailBouncedAt DateTime? // suppressed on email only; the phone lane is untouched
   repliedAt      DateTime? // a reply anywhere stops every queued message everywhere
@@ -345,4 +350,126 @@ model VoiceWording {
   retiredAt    DateTime? // taken back out of use, never deleted
 
   @@index([slot, retiredAt])
+}
+
+// ===========================================================================
+// THE EVIDENCE STORE — see docs/hoursback/evidence-store.md
+//
+// THE RULE: a reading is an event. It is written once and kept forever.
+// Nothing overwrites a reading. Nothing deletes a reading. Erasure requires a
+// deliberate, named act by a person.
+//
+// Added 2026-09-01, after 979 of 1,081 website readings were destroyed by two
+// scripts writing to the same slot in different shapes. No error was raised.
+// Nothing announced it. The work had been paid for once and was gone.
+//
+// Nothing below is ever UPDATEd except the three `retired...` columns on a
+// Finding, which record that a fact has been set aside — and even that keeps
+// the fact itself, so the act can be read back and undone.
+// ===========================================================================
+
+/// ONE OCCASION on which this system learned something about a business.
+///
+/// A reading that found nothing is still a reading, and is still kept. "I
+/// looked and could not tell" is a finding; it is NOT the same as never having
+/// looked, and the system must never again be unable to tell those apart.
+model Reading {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+
+  /// website | hand | call | import — where the learning came from. A value
+  /// Russ typed himself is a reading too, from the most authoritative source
+  /// there is, and it still wins over anything machine-read.
+  source    String
+  sourceUrl String?
+
+  /// Which script did the reading, at which version, asking which model. Kept
+  /// so a bad batch can be found and retired by the reader that made it,
+  /// rather than by guessing at dates.
+  reader        String
+  readerVersion String
+  model         String?
+
+  /// read | no_website | unreachable | failed. A failure is recorded, not
+  /// discarded — otherwise a site that cannot be fetched looks identical to
+  /// one nobody has tried.
+  outcome String
+  note    String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  pages    ReadingPage[]
+  findings Finding[]
+
+  @@index([prospectId, startedAt])
+  @@index([reader, startedAt])
+}
+
+/// The readable text of one page, cleaned of markup and kept.
+///
+/// This is what makes every future re-read free. When we later want to know
+/// something we never thought to ask, we ask this text — not the business's
+/// website. No fetching, no fee, no waiting, and no risk that the page has
+/// changed underneath the answer.
+model ReadingPage {
+  id        String  @id @default(cuid())
+  readingId String
+  reading   Reading @relation(fields: [readingId], references: [id])
+
+  url       String
+  title     String?
+  text      String
+  bytes     Int
+  fetchedAt DateTime @default(now())
+
+  @@index([readingId])
+}
+
+/// ONE FACT, and everything needed to trust it.
+///
+/// `status` keeps observed, inferred and confirmed permanently distinct — the
+/// system must never present an inference as a confirmed fact.
+///
+/// COULD_NOT_TELL IS A REAL VALUE. The old reader wrote "1 separate operation"
+/// whenever the model did not answer, so on 105 records "asked, and it is one"
+/// and "never asked" are now indistinguishable forever. Absence is data. Never
+/// substitute a default for an answer that was not given.
+model Finding {
+  id         String   @id @default(cuid())
+  readingId  String
+  reading    Reading  @relation(fields: [readingId], references: [id])
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+
+  /// What the fact is about: trade, separateOperations, canBookOnline,
+  /// stalledBuild, toolsInUse, openRoles, theirWork, ...
+  field String
+
+  /// The fact. Null ONLY where status is could_not_tell.
+  value  String?
+  number Float?
+
+  /// observed | inferred | confirmed | could_not_tell
+  status     String
+  confidence Float?
+
+  /// Which page, and the sentence on it that carries the fact. No fact is
+  /// recorded as known without both.
+  url   String?
+  quote String?
+
+  createdAt DateTime @default(now())
+
+  /// Setting a fact aside — because the website turned out not to be theirs,
+  /// or the reader was wrong. The fact itself is KEPT. Retiring is an act
+  /// that is written down and can be undone.
+  retiredAt     DateTime?
+  retiredReason String?
+  retiredBy     String?
+
+  @@index([prospectId, field, createdAt])
+  @@index([readingId])
+  @@index([field, status])
 }

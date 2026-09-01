@@ -285,7 +285,9 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
       trade: null, tradeUnsure: false, whatTheyDo: null, realName: null,
       people: [], sharedEmail: null, mainPhone: null, waysToReachThem: [],
       canBookOnline: null, formsToPrint: false, listsAFax: false,
-      hiringOffice: false, yearsInBusiness: null, stalledBuild: null, separateOperations: 1,
+      // separateOperations stays null: these pages are somebody else's, so
+      // nothing was learned about this business — not "one operation".
+      hiringOffice: false, yearsInBusiness: null, stalledBuild: null, separateOperations: null,
       notTheirSite: true,
       cannotTell: typeof said.cannotTell === 'string' && said.cannotTell.trim().length > 5
         ? said.cannotTell.trim().slice(0, 240)
@@ -299,8 +301,13 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
     // built, and the email that follows would be about a project they never had.
     stalledBuild: typeof said.stalledBuild === 'string' && said.stalledBuild.trim().length > 20
       ? said.stalledBuild.trim().slice(0, 240) : null,
+    // NULL WHERE THE READER DID NOT ANSWER, never 1.
+    //
+    // This used to fall back to 1, so "asked, and it runs one operation" and
+    // "never asked" became the same value — permanently, on 105 records, with
+    // no way back. Absence is data (2026-09-01, docs/hoursback/evidence-store.md).
     separateOperations: Number.isFinite(said.separateOperations)
-      ? Math.max(1, Math.min(8, Math.round(said.separateOperations))) : 1,
+      ? Math.max(1, Math.min(8, Math.round(said.separateOperations))) : null,
     trade: TRADES.includes(said.trade) && said.tradeSure !== false ? said.trade : null,
     tradeUnsure: Boolean(said.trade) && said.tradeSure === false,
     whatTheyDo: typeof said.whatTheyDo === 'string' && said.whatTheyDo.trim().length > 8

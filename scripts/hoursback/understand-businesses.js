@@ -36,6 +36,13 @@ const ps = require('../../src/hoursback/peopleSweep.js');
 const { whyNotTheirs } = require('../../src/hoursback/notTheirSite.js');
 const { pagesAsDocument, questionAbout, keepOnlyWhatWasRead } = require('../../src/hoursback/understand.js');
 const { howToReachThem, callOrderScore } = require('../../src/hoursback/reachable.js');
+const { keepTheRead } = require('../../src/hoursback/recordTheRead.js');
+
+// Which model answered, and which version of this reader asked. Both are kept
+// on every reading, so a batch that turns out to be wrong can be found and set
+// aside by the reader that made it, instead of by guessing at dates.
+const MODEL = 'haiku';
+const READER_VERSION = '2026-09-01';
 
 const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
 const LOOK = process.argv.includes('--look');
@@ -204,6 +211,13 @@ if (require.main === module) (async () => {
   const notes = [];
   const failed = [];
   const broke = [];
+  // Reads the store refused to keep. Counted and PRINTED at the end, never
+  // swallowed — a silent catch here is how 887 people were read off pages,
+  // counted, reported and dropped on the floor.
+  const notKept = [];
+  // Reads whose facts were kept but whose words were not — a success that
+  // quietly costs a whole re-read later, so it is never folded into the total.
+  const wordless = [];
   let next = 0;
   const started = Date.now();
 
@@ -348,6 +362,19 @@ if (require.main === module) (async () => {
 
         if (!LOOK) {
           await writeItDown(db, r, understood, reach, ranked, found, opportunity, url);
+          // AND into the reading store, which keeps this visit forever. The
+          // record above is the current answer; this is how we know it. Raw and
+          // cleaned answers both go, because the cleaning substitutes values and
+          // a substitute must never be kept as though it had been answered.
+          // See docs/hoursback/evidence-store.md.
+          const stored = await keepTheRead(db, {
+            prospectId: r.id, url, pages, said: answer, understood,
+            model: MODEL, readerVersion: READER_VERSION,
+          }).catch((e) => { notKept.push(`${name}: ${e.message}`); return null; });
+          // The facts landing but the words not is the quiet half-failure that
+          // matters most: it looks like a success and costs a whole re-read
+          // later, so it is counted separately and printed.
+          if (stored && stored.lostTheWords) wordless.push(name);
         }
         if (tally.read % 25 === 0) {
           process.stdout.write(`\r  read ${tally.read} of ${rows.length}   people ${tally.people}   addresses ${tally.emails}   phones on file now   `);
@@ -387,6 +414,16 @@ if (require.main === module) (async () => {
   console.log(`a form and nothing else:  ${tally.formOnly}`);
   console.log(`the phone and nothing else: ${tally.phoneOnly}`);
   console.log(`scores held down:         ${tally.held}`);
+  console.log('');
+  console.log(`kept in the reading store: ${tally.read - notKept.length} of ${tally.read}`);
+  if (notKept.length) {
+    console.log(`  NOT KEPT: ${notKept.length} — these reads are on the record but their evidence was lost:`);
+    console.log(notKept.slice(0, 20).map((s) => `    ${s}`).join('\n'));
+  }
+  if (wordless.length) {
+    console.log(`  WORDS LOST: ${wordless.length} — facts kept, but their pages were not, so these cost a re-read:`);
+    console.log(wordless.slice(0, 20).map((s) => `    ${s}`).join('\n'));
+  }
   await db.$disconnect();
 })().catch((e) => { console.error('failed:', e.message); process.exit(1); });
 
@@ -576,7 +613,11 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
       scoreEvidence: evidence,
       siteGaps: understood.cannotTell ? JSON.stringify([understood.cannotTell]) : null,
       stalledBuild: understood.stalledBuild || null,
-      separateOperations: understood.separateOperations || 1,
+      // Null where the reader did not answer, never 1 — the second of the two
+      // places that collapse silently made "asked" and "never asked" the same
+      // value (2026-09-01, docs/hoursback/evidence-store.md).
+      separateOperations: Number.isFinite(understood.separateOperations)
+        ? understood.separateOperations : null,
       siteStatus: 'READ',
       siteReadAt: new Date(),
       // OFF THE REVIEW PILE. 31,318 records were screened out for having no
