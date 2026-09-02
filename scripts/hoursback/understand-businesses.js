@@ -224,8 +224,22 @@ async function visitOneBusiness(db, r, deps = {}) {
     const groupsWithPages = PURPOSES.filter((g) => read.groups[g].length);
     const groupsAnswered = PURPOSES.filter((g) => read.answers[g]);
     if (groupsWithPages.length && !groupsAnswered.length) {
-      // The reader answered nothing at all. The pages are already kept; the
-      // reading says plainly how the visit ended.
+      // NOT ASKED IS NOT THE SAME AS ASKED AND FAILED.
+      //
+      // A site can return pages that carry no readable words at all — a bot
+      // challenge, or a site whose text only appears once a browser runs its
+      // scripts. Every group document is then empty, so no question is ever
+      // put to the reader. Calling that "the reader failed" records a failure
+      // that never happened and hides the real one, which is that the site
+      // gave us nothing to read (2026-09-01, the evidence rule: absence is
+      // data, and it must be recorded as itself).
+      const anyWords = crawl.pages.some((pg) => (pg.text || '').trim().length > 0);
+      if (!anyWords) {
+        if (reading) await R.finishReading(db, reading.id, R.UNREACHABLE, 'the site opened but published no readable words — its text needs a browser, or a challenge page was served instead');
+        visit.outcome = 'no_readable_words';
+        return visit;
+      }
+      // There WERE words and the reader still answered nothing.
       if (reading) await R.finishReading(db, reading.id, R.FAILED, 'the reader answered none of the group reads');
       visit.outcome = 'reader_failed';
       return visit;
@@ -396,7 +410,7 @@ if (require.main === module) (async () => {
   console.log(LOOK ? 'LOOKING ONLY — nothing will be written\n' : `reading, ${LANES} site(s) at a time, groups in parallel within each\n`);
 
   const tally = {
-    read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, partial: 0,
+    read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, noReadableWords: 0, partial: 0,
     tradeConfirmed: 0, tradeCorrected: 0, tradeUnsure: 0,
     people: 0, roles: 0, rolesUnderstood: 0, emails: 0, directLines: 0, profiles: 0,
     sharedInbox: 0, formOnly: 0, phoneOnly: 0, held: 0, newlyScored: 0,
@@ -446,6 +460,10 @@ if (require.main === module) (async () => {
           if (broke.length < 25) broke.push(`  ${String(visit.name || '(no name)').slice(0, 30).padEnd(32)}${String(visit.error).slice(0, 90)}`);
           continue;
         }
+        // The site opened and published nothing readable. Counted apart from a
+        // reader failure, and it must NEVER trip the give-up counter — a run of
+        // script-driven sites is not the reader breaking.
+        if (visit.outcome === 'no_readable_words') { tally.noReadableWords += 1; inARow = 0; continue; }
         if (visit.outcome === 'reader_failed') {
           tally.readerFailed += 1; failed.push(visit.name);
           inARow += 1;
@@ -515,6 +533,7 @@ if (require.main === module) (async () => {
   console.log(`website was not theirs:   ${tally.notTheirSite}`);
   console.log(`site would not answer:    ${tally.siteDown}`);
   console.log(`reader gave no answer:    ${tally.readerFailed}`);
+  console.log(`site published no words:  ${tally.noReadableWords}   (its text needs a browser, or a challenge page was served)`);
   if (tally.brokeOnThisOne) {
     console.log(`something broke on:       ${tally.brokeOnThisOne}   (the pass carried on; each reading closed as failed)`);
     console.log(broke.join('\n'));
