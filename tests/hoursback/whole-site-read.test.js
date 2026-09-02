@@ -922,3 +922,42 @@ test('the script keeps its ceilings and has shed the old capped read', () => {
   assert.ok(!/openrouter\.ai/i.test(source), 'no OpenRouter call path');
   assert.ok(source.includes("execFile('claude'"), 'every model call leaves through the local reader');
 });
+
+// ---------------------------------------------------------------------------
+// A page that published nothing is still a page we opened.
+//
+// keepPage() used to return null for a page whose text came back empty, so a
+// bot-challenge page or a site whose words need a browser left no trace. That
+// makes "never opened" and "opened, published nothing" the same absence — the
+// collapse CLAUDE.md rule 1 exists to forbid.
+test('a page that published no words is kept, not dropped', async () => {
+  const R = require('../../src/hoursback/readings.js');
+  const made = [];
+  const db = {
+    readingPage: {
+      create: async ({ data }) => { made.push(data); return { id: 'p' + made.length, ...data }; },
+      findFirst: async () => null,
+    },
+  };
+  const row = await R.keepPage(db, 'r1', { url: 'https://x.test/blocked', text: '', sentToModel: false });
+  assert.ok(row, 'a wordless page must still leave a row');
+  assert.equal(made.length, 1);
+  assert.equal(made[0].text, '', 'an empty text means "we opened it and it said nothing"');
+  assert.equal(made[0].sameAs, null, 'a blank page points at nothing');
+  assert.equal(made[0].bytes, 0);
+  assert.equal(made[0].sentToModel, false);
+});
+
+test('a blank page is never used as the held copy of another page', async () => {
+  const R = require('../../src/hoursback/readings.js');
+  let asked = null;
+  const db = {
+    readingPage: {
+      create: async ({ data }) => ({ id: 'p1', ...data }),
+      findFirst: async (q) => { asked = q; return null; },
+    },
+  };
+  await R.keepPage(db, 'r1', { url: 'https://x.test/a', text: 'real words here', sentToModel: true });
+  assert.ok(asked, 'it must look for an earlier identical copy');
+  assert.deepEqual(asked.where.NOT, { text: '' }, 'a blank row can never be the copy pointed at');
+});

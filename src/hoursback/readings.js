@@ -81,7 +81,35 @@ async function keepPage(db, readingId, { url, title = null, text, sentToModel } 
   if (!readingId) throw new Error('a page must belong to a reading');
   if (!url) throw new Error('a page must say which page it is');
   const kept = String(text || '');
-  if (!kept.trim()) return null; // an empty page is not a page
+
+  // A PAGE THAT PUBLISHED NOTHING IS STILL A PAGE WE OPENED.
+  //
+  // This used to drop it — `return null` — so a page fetched from a site whose
+  // words only appear once a browser runs them, or a challenge page served in
+  // place of the real one, left no trace at all. Nobody could later tell "we
+  // never opened that page" from "we opened it and it gave us nothing", which
+  // is the same collapse that made 105 records permanently unreadable
+  // (CLAUDE.md, rule 1: absence is data, recorded as itself).
+  //
+  // It is kept with an EMPTY text, which is not the same as a null one. Three
+  // states, each meaning one thing:
+  //   text has words  — this is what the page said
+  //   text is ''      — we opened it and it published nothing
+  //   text is null    — identical words already held, sameAs points at them
+  if (!kept.trim()) {
+    return db.readingPage.create({
+      data: {
+        readingId,
+        url,
+        title,
+        text: '',
+        bytes: 0,
+        digest: crypto.createHash('sha256').update('').digest('hex').slice(0, 32),
+        sameAs: null,
+        ...(sentToModel === true || sentToModel === false ? { sentToModel } : {}),
+      },
+    });
+  }
 
   const digest = crypto.createHash('sha256').update(kept).digest('hex').slice(0, 32);
   const bytes = Buffer.byteLength(kept, 'utf8');
@@ -90,7 +118,7 @@ async function keepPage(db, readingId, { url, title = null, text, sentToModel } 
   // that HOLDS its words can be pointed at, so a pointer never leads to a
   // pointer and can never dangle.
   const alreadyHeld = await db.readingPage.findFirst({
-    where: { url, digest, text: { not: null } },
+    where: { url, digest, text: { not: null }, NOT: { text: '' } },
     select: { id: true },
     orderBy: { fetchedAt: 'asc' },
   });
