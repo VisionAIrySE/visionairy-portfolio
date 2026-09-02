@@ -1065,6 +1065,13 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         job: x.job ? String(x.job).trim().replace(/\s+/g, ' ') : null,
         type: x.type ? String(x.type).trim() : null,
         quote: x.quote ? String(x.quote).trim() : null,
+        // THE PAGE IT RESTS ON, KEPT (2026-09-02).
+        //
+        // This was dropped here while being asked for above and required
+        // below, so a job naming real work on a real page was refused for
+        // resting on nothing. Almost everything is inferred; the page is the
+        // footing, not the wording.
+        restsOn: x.restsOn ? String(x.restsOn).trim() : (x.url ? String(x.url).trim() : null),
       } : null))
       .filter((x) => x && x.job);
     if (!found.length) {
