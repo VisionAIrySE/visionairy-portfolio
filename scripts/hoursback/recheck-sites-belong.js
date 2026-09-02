@@ -66,6 +66,53 @@ function ask(prompt) {
   });
 }
 
+// EVERY ANSWER EVER GIVEN, kept keyed by business, and the report rendered from
+// it rather than from whatever this run happened to hold.
+//
+// The first version wrote the report from a list that started empty each run.
+// So the second run's report replaced the first run's, and the names of four
+// businesses found NOT to own their website were gone — the counts survived and
+// the names did not, which reads exactly like a finished job (2026-09-01).
+//
+// Now the findings file is the record and the report is a view of it. A run
+// can be killed, resumed, or repeated and nothing earlier is lost.
+const FINDINGS = 'docs/hoursback/site-recheck-findings.json';
+
+function loadFindings() {
+  try { return JSON.parse(fs.readFileSync(FINDINGS, 'utf8')); } catch { return {}; }
+}
+
+function writeReport(flaggedCount, findings, done) {
+  fs.writeFileSync(FINDINGS, JSON.stringify(findings, null, 1));
+
+  const all = Object.values(findings);
+  const n = (v) => all.filter((f) => f.verdict === v).length;
+  const junk = all.filter((f) => f.recordNameIsJunk).length;
+
+  const head = '# Looking again at the websites the first check called wrong\n\n'
+    + `${flaggedCount} were flagged. This asks whether the site describes the same OPERATION,\n`
+    + 'not whether it matches a name — because the names on these records are often\n'
+    + 'page titles and search phrases rather than business names.\n\n'
+    + `Of ${all.length} answered: **${n('theirs')} are theirs after all**, `
+    + `${n('not_theirs')} genuinely are not, ${n('cannot_tell')} cannot be judged.\n\n`
+    + `${junk} of these records carry a name that is not a business name.\n\n`
+    + 'Nothing has been written to any record.\n\n';
+
+  // Only the ones needing a decision. The 57 that turned out fine need no entry.
+  const lines = [];
+  for (const f of all.filter((x) => x.verdict !== 'theirs')
+    .sort((a, b) => (a.verdict === 'not_theirs' ? -1 : 1))) {
+    lines.push(`- **${f.name}** — ${f.verdict === 'not_theirs' ? 'is NOT theirs' : 'cannot be judged'}: ${f.why}`);
+    lines.push(`  - id: \`${f.id}\``);
+    lines.push(`  - the site on file: ${f.site}`);
+    lines.push(`  - the name on the record ${f.recordNameIsJunk ? 'is NOT a real business name' : 'looks like a real name'}`);
+    lines.push(`  - what the site says: ${String(f.words || '').slice(0, 220)}`);
+  }
+
+  fs.writeFileSync(OUT, head + lines.join('\n') + '\n');
+  fs.writeFileSync(SEEN, JSON.stringify(done, null, 0));
+}
+
 function questionFor({ name, domain, trade, town, words, siteName }) {
   return `A customer record points at a website. Decide whether that website belongs to that business.
 
@@ -116,7 +163,8 @@ Say "cannot_tell" when the site is too thin to judge, or when it could honestly 
   console.log(`${flagged.length} were flagged by the first check`);
   console.log(`${todo.length} still to look at again, doing ${rows.length} now (local ${MODEL})\n`);
 
-  const lines = [];
+  // Every answer ever given, loaded from disk and added to — never restarted.
+  const findings = loadFindings();
   const tally = { theirs: 0, not_theirs: 0, cannot_tell: 0, junkName: 0, noAnswer: 0 };
   const gap = Math.ceil(60000 / READS_PER_MINUTE);
 
@@ -141,13 +189,25 @@ Say "cannot_tell" when the site is too thin to judge, or when it could honestly 
     if (said.recordNameIsJunk === true) tally.junkName += 1;
     done.push(r.id);
 
-    if (said.verdict !== 'theirs') {
-      lines.push(`- **${name}** — ${said.verdict === 'not_theirs' ? 'is NOT theirs' : 'cannot be judged'}: ${said.why}`);
-      lines.push(`  - id: \`${r.id}\``);
-      lines.push(`  - the site on file: ${site}`);
-      lines.push(`  - the name on the record ${said.recordNameIsJunk ? 'is NOT a real business name' : 'looks like a real name'}`);
-      lines.push(`  - what the site says: ${words.slice(0, 220)}`);
-    }
+    // EVERY answer is kept, including "theirs" — so a later run can tell an
+    // answered business from an unanswered one without re-reading it.
+    findings[r.id] = {
+      id: r.id,
+      name,
+      site,
+      verdict: said.verdict,
+      why: String(said.why || '').slice(0, 300),
+      recordNameIsJunk: said.recordNameIsJunk === true,
+      words: words.slice(0, 300),
+      answeredAt: new Date().toISOString().slice(0, 16),
+    };
+    // SAVED AFTER EVERY ANSWER, never only at the end.
+    //
+    // The first attempt at this run was killed fifteen minutes in and lost
+    // every answer it had, because the report was written once, last. A long
+    // job that keeps its work in memory is a long job you get to do twice.
+    if (!LOOK) writeReport(flagged.length, findings, done);
+
     process.stdout.write(`\r  looked at ${tally.theirs + tally.not_theirs + tally.cannot_tell}   theirs ${tally.theirs}   not theirs ${tally.not_theirs}   cannot tell ${tally.cannot_tell}   `);
     await new Promise((s) => setTimeout(s, gap));
   }
@@ -161,15 +221,7 @@ Say "cannot_tell" when the site is too thin to judge, or when it could honestly 
   console.log(`records whose NAME is the real problem: ${tally.junkName}`);
 
   if (!LOOK) {
-    const head = `# Looking again at the websites the first check called wrong\n\n`
-      + `${flagged.length} were flagged. This asks whether the site describes the same OPERATION,\n`
-      + `not whether it matches a name — because the names on these records are often\n`
-      + `page titles and search phrases rather than business names.\n\n`
-      + `Of ${tally.theirs + tally.not_theirs + tally.cannot_tell} looked at so far: `
-      + `**${tally.theirs} are theirs after all**, ${tally.not_theirs} genuinely are not, `
-      + `${tally.cannot_tell} cannot be judged.\n\nNothing has been written to the record.\n\n`;
-    fs.writeFileSync(OUT, head + lines.join('\n') + '\n');
-    fs.writeFileSync(SEEN, JSON.stringify(done, null, 0));
+    writeReport(flagged.length, findings, done);
     console.log(`\nwritten to ${OUT} — nothing was changed on any record`);
   } else {
     console.log('\nLOOKING ONLY — no report written, nothing changed');

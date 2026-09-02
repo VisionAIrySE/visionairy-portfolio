@@ -37,7 +37,11 @@ const LIMIT = Number(arg('limit', 0));
 const LANES = 6;
 const PAGES = 8;
 
-(async () => {
+// Only run when this file is the thing being run. Merely importing a script
+// that fetches live websites and writes to the database must never start a
+// pass — on 2026-09-01 a require() of research-businesses.js for a load check
+// began a real run that touched 78 records before it was killed.
+if (require.main === module) (async () => {
   const { PrismaClient } = require('@prisma/client');
   const db = new PrismaClient();
 

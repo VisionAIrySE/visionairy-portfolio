@@ -70,7 +70,14 @@ async function startReading(db, {
 ///
 /// Following that pointer always reaches real words: the first visit to see
 /// them holds them, and nothing here deletes.
-async function keepPage(db, readingId, { url, title = null, text }) {
+/// `sentToModel` records whether this page's words were handed to a model on
+/// this visit — true, false, or omitted. Omitted writes NOTHING: rows from
+/// before the marker existed say null, and null means "never recorded", which
+/// must stay distinguishable from an actual answer. A page stored but never
+/// read (a calendar, one product, legal boilerplate) says false — fetched,
+/// kept, deliberately not read — and a wrong skip is recoverable from the
+/// stored text without a second visit.
+async function keepPage(db, readingId, { url, title = null, text, sentToModel } = {}) {
   if (!readingId) throw new Error('a page must belong to a reading');
   if (!url) throw new Error('a page must say which page it is');
   const kept = String(text || '');
@@ -97,6 +104,9 @@ async function keepPage(db, readingId, { url, title = null, text }) {
       bytes,
       digest,
       sameAs: alreadyHeld ? alreadyHeld.id : null,
+      // Only written when the caller actually said. An omitted marker is not
+      // false — it is unrecorded, and the difference is the whole point.
+      ...(sentToModel === true || sentToModel === false ? { sentToModel } : {}),
     },
   });
 }

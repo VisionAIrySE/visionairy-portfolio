@@ -1,0 +1,575 @@
+{
+ "what": "An old keyword reader was started by accident during a build and ran ~2 minutes, stamping businesses as READ that it had not properly read. No reading was stored for any of them. This file is their state BEFORE that stamp was cleared.",
+ "when": "2026-09-02T04:00:15.236Z",
+ "cleared": 71,
+ "rows": [
+  {
+   "id": "cmt93a51r000at7lcwovj7nbv",
+   "name": "Chris Mahr & Associates CPAs",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:34.513Z",
+   "siteGaps": "[\"their site says almost nothing about what they do\",\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt93a527000et7lc7flhz8w9",
+   "name": "Hogue Accountancy, CPA, LLC",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:33.759Z",
+   "siteGaps": "[\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt93a52y000kt7lced8uevi5",
+   "name": "Azure Tax and Accounting LLC",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:47.866Z",
+   "siteGaps": "[\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a536000mt7lc563ujzya",
+   "name": "Parr Accounting",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:56.887Z",
+   "siteGaps": "[\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt93a53k000qt7lchxzddb2j",
+   "name": "Fowler & Co., Inc.",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:08.613Z",
+   "siteGaps": "[\"their own words could mean accounting or professional services — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a53v000ut7lcvr7ao4ha",
+   "name": "Riley Wigle CPAs LLC",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:18.003Z",
+   "siteGaps": "[\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a544000wt7lcuushxhju",
+   "name": "Hanson CPA Tax & Accounting, P.C.",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:04.371Z",
+   "siteGaps": "[\"their own words could mean accounting or professional services — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a55f001ct7lc49i4bk9w",
+   "name": "Devon Gaines CPA",
+   "trade": "professional services",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:07.399Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a55m001et7lc5c417z22",
+   "name": "Lisa J. Ihander - ConnectW",
+   "trade": "nonprofit & community",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:19.627Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no direct numbers published — only the main line\"]"
+  },
+  {
+   "id": "cmt93a574001ut7lc67lchfwm",
+   "name": "McGregor-Caverhill CPA",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:16.189Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a57b001wt7lca1hgs0sg",
+   "name": "Bend, OR CPA Firm",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:46.734Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a5a6002mt7lcsebkw9kf",
+   "name": "Accurate Bookkeeping Inc",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:06.189Z",
+   "siteGaps": "[\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt93a61f003mt7lcgn4s4w5j",
+   "name": "MGM Law Firm",
+   "trade": "legal",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:27.941Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a64f004kt7lc9nirrev9",
+   "name": "Bend, OR Attorneys",
+   "trade": "legal",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:11.088Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a698005qt7lczxiijlub",
+   "name": "Atlas Law Group LLC",
+   "trade": "legal",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:55.697Z",
+   "siteGaps": "[\"their own words could mean legal or retail & food — nothing decided\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a6xj006st7lcemadhe3y",
+   "name": "Peoples Insurance",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:09.882Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt93a6y70070t7lc6l3mrczn",
+   "name": "Home",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:48.457Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a71w0080t7lcw7wi45w4",
+   "name": "HIS Insurance",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:18.528Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a73d0088t7lcv2vgx3h6",
+   "name": "Bend OR Medicare Advantage",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:42.180Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a7dl009it7lcq5e2ylke",
+   "name": "Choices Insurance",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:18.274Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93a7f6009ot7lcn0ikkigd",
+   "name": "TRIA Inc.",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:33.503Z",
+   "siteGaps": "[\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93aayy00gut7lch1uxskdz",
+   "name": "Volunteers in Medicine Clinic of the Cascades",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:50.766Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93ac0s00ist7lce5nwphi9",
+   "name": "Peak Dental Bend",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:35.384Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93ac3m00j6t7lcf0goyv7h",
+   "name": "Dental Artistry: Dental Implants in Bend Oregon",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:27.283Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93ac9a00jqt7lcfsd1wvkf",
+   "name": "Family Dentist Bend, OR",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:07.091Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt93accn00k2t7lcsz273gcb",
+   "name": "Dentist in Bend",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:18.960Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94610n000mt7z4ca6201zh",
+   "name": "General Contractor Bend OR",
+   "trade": "construction",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:06.453Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94611f000qt7z4z197bk4s",
+   "name": "Oregon Custom Home Builder - Luxury Homes",
+   "trade": "construction",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:40.472Z",
+   "siteGaps": "[\"their own words could mean construction or trades — nothing decided\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94617p001mt7z4qv3p6tmp",
+   "name": "Harris & Sons Construction",
+   "trade": "construction",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:59.865Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt946359003qt7z4sdymc2b7",
+   "name": "Plumbing, Heating & Repair Services in Central Oregon",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:50.779Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94x5nk00yat7qr0pdp6ac5",
+   "name": "Key Properties Home - Key Properties Oregon",
+   "trade": "real estate",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:50.420Z",
+   "siteGaps": "[\"their own words could mean lodging & hospitality or agriculture — nothing decided\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\"]"
+  },
+  {
+   "id": "cmt94x5tc00zgt7qr48arbs42",
+   "name": "Alleda Real Estate",
+   "trade": "real estate",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:17.278Z",
+   "siteGaps": "[\"their own words could mean real estate or retail & food — nothing decided\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94x6ud013wt7qrpkifzkkv",
+   "name": "Companion Animal Medical Project",
+   "trade": "veterinary",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:57.251Z",
+   "siteGaps": "[\"their own words could mean veterinary or nonprofit & community — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xaq901eit7qrrjob9ah1",
+   "name": "Cascade Peaks Accounting",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:59.651Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xaqw01emt7qrifq6b4ve",
+   "name": "Masters of Business",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:55.809Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xas601f0t7qr42tggfd3",
+   "name": "Tax Minimizers of Redmond",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:10.961Z",
+   "siteGaps": "[\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt94xasw01f8t7qrn7iwcllv",
+   "name": "Bend Tax Service",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:56.304Z",
+   "siteGaps": "[\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt94xc2501j0t7qrlmlx2hjh",
+   "name": "Ankeny Northwest Insurance",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:29.320Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xc9w01kmt7qrwadn60ni",
+   "name": "Central Oregon Insurance",
+   "trade": "insurance",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:57.896Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt94xcen01m0t7qrpjxzp8ge",
+   "name": "Redmond - Western Title",
+   "trade": "real estate",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:43.817Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xe0e01qet7qrgskny2ay",
+   "name": "NeighborImpact",
+   "trade": "nonprofit & community",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:18.155Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xevm01skt7qrhf66su37",
+   "name": "Primary Care",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:59.396Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xey201tet7qrp2yldc44",
+   "name": "Cascade Mind & Body Clinic",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:28.172Z",
+   "siteGaps": "[\"their own words could mean medical or personal care — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xfmx01uct7qri1wogaez",
+   "name": "Dentist Redmond Oregon",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:22.694Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94xfo101uot7qr9gu58pny",
+   "name": "Redmond Dentist Near Me - Dr. Jay Gronemyer, DMD - Redmond Teeth Dentist Office",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:29.543Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt94ytjo01yyt7qr8bfnhk2q",
+   "name": "Custom Home Builder in Oregon - Kaufman Homes",
+   "trade": "construction",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:55.396Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956fn60226t7s76y7qm9mn",
+   "name": "Licensed Electricians in Redmond, Bend & Prineville, OR",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:26.798Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956foy022mt7s7cg089i1k",
+   "name": "Electrical Contractors In Redmond, OR",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:42.204Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their team page gives no job titles\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956fs7023at7s786l058yx",
+   "name": "Electrician Madras, OR",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:41.224Z",
+   "siteGaps": "[\"their own words could mean construction or trades — nothing decided\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956lnm02h0t7s74be5up9d",
+   "name": "Newhouse Manufacturing Company",
+   "trade": "manufacturing",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:18.885Z",
+   "siteGaps": "[\"their own words could mean manufacturing or retail & food or agriculture — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956lum02iqt7s7tv2y0jp2",
+   "name": "#1 Cold Plunge Tub for Home & Business",
+   "trade": "manufacturing",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:43.722Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956nuc02omt7s78n1qn116",
+   "name": "Non-Emergency Medical Transport Central Oregon",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:29.095Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956nyi02pot7s74u7bhybl",
+   "name": "Postal Connections 119",
+   "trade": "storage & logistics",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:52.509Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956o1802qct7s7svwenq3m",
+   "name": "Top Bend Movers",
+   "trade": "storage & logistics",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:41.862Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956o9802r6t7s7aorb0nth",
+   "name": "Focused Bookkeeping",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:10.577Z",
+   "siteGaps": "[\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956o9e02r8t7s796fz1wkm",
+   "name": "Spencer Bookkeeping",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:55.440Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956rje02yet7s79q86at0c",
+   "name": "Einstein Heating and Cooling",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:40.693Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956w8k03a6t7s7pmpx3lbn",
+   "name": "Prineville, OR Accounting Firm",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:54.589Z",
+   "siteGaps": "[\"their own words could mean accounting or nonprofit & community — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956yo903gat7s7q9gbsycn",
+   "name": "Cascade View Family Dental",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:15.087Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt956yor03get7s7a8putsq1",
+   "name": "Prineville Dental - Home",
+   "trade": "dental",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:38.862Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"their site names nobody\"]"
+  },
+  {
+   "id": "cmt95751003t4t7s7zj48yr71",
+   "name": "BTL Liners - Geomembrane Liners, Covers and Tarps",
+   "trade": "manufacturing",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:02.814Z",
+   "siteGaps": "[\"their own words could mean retail & food or agriculture — nothing decided\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt95751s03tct7s7ey40s8kd",
+   "name": "Longhorn Fabrication",
+   "trade": "manufacturing",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:19.199Z",
+   "siteGaps": "[\"their own words could mean manufacturing or agriculture — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt9576fk03y8t7s7o4y8edab",
+   "name": "Lakeside Lumber",
+   "trade": "construction",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:14.291Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt9576uw0400t7s7ukoz4i6s",
+   "name": "Madras, OR Accounting Firm",
+   "trade": "accounting",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:33.911Z",
+   "siteGaps": "[\"their own words could mean accounting or nonprofit & community or professional services — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt95773e040at7s79i3sfjli",
+   "name": "Donald V. Reeder, LLC",
+   "trade": "legal",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:42.134Z",
+   "siteGaps": "[\"their own words could mean legal or real estate — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt9578ct0428t7s7dbjzr9in",
+   "name": "Madras Medical Group",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:24.553Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt957gn504kct7s7p753tz28",
+   "name": "Dermatology Health Specialists - La Pine",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:24.822Z",
+   "siteGaps": "[\"their own words could mean medical or personal care — nothing decided\",\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmt957l4u04sst7s7sqfcfb2y",
+   "name": "ReStore — Habitat for Humanity LaPine Sunriver",
+   "trade": "nonprofit & community",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:37.260Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmtbtbjll0gnat7a5vi71evy8",
+   "name": "OREGON SURGICAL SPECIALTY MANAGEMENT GROUP, LLC",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:51:28.866Z",
+   "siteGaps": "[\"their team page gives no job titles\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmtbti9sn0jt2t7a5les37v45",
+   "name": "PANGEA CHIROPRACTIC LLC",
+   "trade": "medical",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:50:42.434Z",
+   "siteGaps": "[\"their site never says plainly what kind of business it is\",\"no address is published anywhere on their site\",\"no direct numbers published — only the main line\",\"no LinkedIn profiles linked from their site\"]"
+  },
+  {
+   "id": "cmtbto4sc0mk8t7a58hqdv2nc",
+   "name": "VERNAM CRANE SERVICE, INC.",
+   "trade": "trades",
+   "siteStatus": "READ",
+   "siteReadAt": "2026-09-02T03:52:00.638Z",
+   "siteGaps": "[\"their own words could mean trades or retail & food — nothing decided\",\"their site names nobody\"]"
+  }
+ ]
+}

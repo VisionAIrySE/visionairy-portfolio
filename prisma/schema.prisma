@@ -455,6 +455,13 @@ model ReadingPage {
   /// see them is the one that holds them, and it is never deleted.
   sameAs String?
 
+  /// Whether this page's words were handed to a model on this visit. False is
+  /// a real answer — fetched and kept, deliberately not read (a calendar, one
+  /// product page, legal boilerplate) — so a wrong skip is recoverable without
+  /// a second visit. Null on rows from before this existed, never backfilled:
+  /// a made-up answer is the substitution this store forbids (2026-09-01).
+  sentToModel Boolean?
+
   @@index([readingId])
   @@index([url, digest])
 }

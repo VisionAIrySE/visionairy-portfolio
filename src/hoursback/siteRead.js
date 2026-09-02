@@ -147,14 +147,41 @@ const TOOL_FINGERPRINTS = {
   Gravity: /gravityforms/i, 'Contact Form 7': /contact-form-7/i,
 };
 
+// Runs over EVERY page handed to it — the pages a skip rule kept from the
+// model included. A booking widget on a page nobody read is still a tool the
+// business pays for, and skipping a page from READING never skips it from
+// this (2026-09-01).
 function toolsFromPages(pages) {
   const hay = pages.flatMap((p) => (p.external || []).concat((p.links || []).map((l) => l.href))).join(' ');
-  const html = pages.map((p) => p.text || '').join(' ');
+  const html = pages.map((p) => [p.text || '', p.html || ''].filter(Boolean).join(' ')).join(' ');
   const found = [];
   for (const [name, re] of Object.entries(TOOL_FINGERPRINTS)) {
     if (re.test(hay) || re.test(html)) found.push(name);
   }
   return found;
+}
+
+// Every system the visit detected, each as a TOOL_FINGERPRINTS name (or the
+// model's own name for one the fingerprints do not know) PAIRED with the
+// detection method that found it. When the fingerprint and the model name the
+// SAME system, one entry says so; when they name DIFFERENT systems, both
+// entries are kept — the disagreement is information, not noise.
+function detectedTools(pages = [], modelNamed = []) {
+  const out = [];
+  const byName = new Map();
+  for (const name of toolsFromPages(pages)) {
+    const entry = { name, method: 'fingerprint' };
+    out.push(entry);
+    byName.set(name.toLowerCase(), entry);
+  }
+  for (const raw of Array.isArray(modelNamed) ? modelNamed : []) {
+    const name = String(raw || '').trim();
+    if (!name) continue;
+    const had = byName.get(name.toLowerCase());
+    if (had) { had.method = 'fingerprint and model'; continue; }
+    out.push({ name, method: 'model' });
+  }
+  return out;
 }
 
 // Everything gathered from every page, turned into three answers.
@@ -309,7 +336,7 @@ async function readSiteAsVisitor(browser, url, options = {}) {
 module.exports = {
   FOUND, ABSENT, UNKNOWN, BOOKING_HOSTS, WORTH_FOLLOWING,
   PAGE_TIMEOUT_MS, SETTLE_MS, MAX_PAGES,
-  readDom, verdictFrom, readSiteAsVisitor, toolsFromPages, TOOL_FINGERPRINTS,
+  readDom, verdictFrom, readSiteAsVisitor, toolsFromPages, detectedTools, TOOL_FINGERPRINTS,
   EVERY_CAPABILITY: ['enquiry', 'booking', 'login', 'quote_request', 'online_payment',
     'pricing_shown', 'work_shown', 'reviews_shown', 'live_chat', 'mobile_ready',
     'newsletter_capture', 'careers', 'intake_forms', 'catalogue'],

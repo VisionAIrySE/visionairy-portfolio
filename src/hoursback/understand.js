@@ -74,26 +74,22 @@ const TRADES = ['dental', 'veterinary', 'medical', 'legal', 'accounting', 'insur
   'agriculture', 'education & childcare', 'nonprofit & community',
   'professional services', 'funeral & memorial'];
 
-// How much of each page is worth handing over. A business says what it is and
-// names its people in the first part of a page; below that is blog posts and
-// footers, where any word can appear and nothing is being claimed.
+// How much of each page one model call is handed. The allowance is PER
+// PURPOSE GROUP, not per site: the old single site-wide budget stopped the
+// reader at roughly four pages however many the crawl fetched, which is the
+// cap this replaces (2026-09-01). A group whose pages exceed the allowance is
+// read in batches — nothing is dropped, and any page that had to be shortened
+// is named in a cut marker so the loss is visible, never silent.
 const PER_PAGE_CHARS = 4500;
-const TOTAL_CHARS = 20000;
+const GROUP_CHARS = 18000;
 
-// Everything the reader is given, as one document with the pages labelled so
-// the answer can say where a fact was seen.
-function pagesAsDocument(pages = []) {
-  const parts = [];
-  let used = 0;
-  for (const page of pages) {
-    const text = readableText(page.html).slice(0, PER_PAGE_CHARS);
-    if (text.length < 40) continue;
-    const block = `--- page: ${page.url} ---\n${text}`;
-    if (used + block.length > TOTAL_CHARS) break;
-    parts.push(block);
-    used += block.length;
-  }
-  return parts.join('\n\n');
+// One flat document from a list of pages, for callers that still read a site
+// in one question (the OpenRouter-based reader keeps this shape). The budget
+// is an argument now, not a hidden site-wide constant.
+function pagesAsDocument(pages = [], allowance = GROUP_CHARS) {
+  const withText = pages.map((p) => ({ url: p.url, text: p.text !== undefined && p.text !== null ? String(p.text) : readableText(p.html) }));
+  const { batches } = groupDocuments(withText, { allowance });
+  return batches.length ? batches[0].document : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +133,12 @@ Answer with JSON only, no other words, in this shape:
   ],
   "sharedEmail": "the general inbox like info@ or office@, or null",
   "mainPhone": "the main number, or null",
+  "postalAddress": "their street address as printed, or null — the place of business, never a page heading and never the words around a 'Get Directions' link",
+  "companyProfile": "the BUSINESS's own LinkedIn company page URL, or null — never a person's profile",
+  "teamSize": a number ONLY where the site states how many people work there ("a team of 12", "our 30 staff"), else null — never counted from how many names happen to be listed,
+  "openOfficeRoles": how many office, admin, reception, bookkeeping or scheduling jobs they are advertising right now, as a number, or 0,
+  "toolsInUse": array of software products the site shows they already use or pay for — a named booking widget, a scheduler, a payment provider, a review platform, a client portal — each as the product's own name, or an empty array,
+  "whoRunsIt": "the name of the owner, principal or most senior person, where the pages make that plain — else null. Being listed first is not evidence.",
   "waysToReachThem": array of any of ["published email","contact form","online booking","live chat","phone only"],
   "canBookOnline": true if a visitor can book or schedule without phoning, false if not, null if you cannot tell,
   "formsToPrint": true if they ask people to download, print or fill in a document and bring or send it back,
@@ -299,6 +301,10 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
       // nothing was learned about this business — not "one operation".
       hiringOffice: false, yearsInBusiness: null, stalledBuild: null, separateOperations: null,
       locations: [],
+      // Nothing off somebody else's page belongs on this record — not their
+      // address, not their team size, not the software THEY pay for.
+      postalAddress: null, companyProfile: null, teamSize: null,
+      openOfficeRoles: null, toolsInUse: [], whoRunsIt: null, recentNews: null,
       notTheirSite: true,
       cannotTell: typeof said.cannotTell === 'string' && said.cannotTell.trim().length > 5
         ? said.cannotTell.trim().slice(0, 240)
@@ -350,6 +356,30 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
     // and one staff page listing everybody is why this exists: without it,
     // people who work a hundred and thirty miles away land on a record about
     // Bend and there is no way to tell (2026-09-01).
+    // Asked for the first time 2026-09-01. Every one of these was already
+    // visible on the page and was being thrown away, so the record stayed half
+    // empty and a second pass over 1,602 sites would have been needed to get
+    // them. The reader is on the page anyway; a question costs nothing.
+    postalAddress: typeof said.postalAddress === 'string' && said.postalAddress.trim().length > 8
+      ? said.postalAddress.trim().slice(0, 200) : null,
+    companyProfile: typeof said.companyProfile === 'string' && /linkedin\.com\/company\//i.test(said.companyProfile)
+      ? said.companyProfile.trim().slice(0, 300) : null,
+    // Only where the site SAYS it. A count of names on a page is a floor, not
+    // a team size, and the two must not be confused.
+    teamSize: Number.isFinite(Number(said.teamSize)) && Number(said.teamSize) > 0
+      && Number(said.teamSize) < 5000 ? Math.round(Number(said.teamSize)) : null,
+    openOfficeRoles: Number.isFinite(Number(said.openOfficeRoles)) && Number(said.openOfficeRoles) >= 0
+      ? Math.min(20, Math.round(Number(said.openOfficeRoles))) : null,
+    toolsInUse: Array.isArray(said.toolsInUse)
+      ? said.toolsInUse.filter((t) => typeof t === 'string' && t.trim().length > 1)
+        .map((t) => t.trim().slice(0, 60)).slice(0, 12)
+      : [],
+    whoRunsIt: typeof said.whoRunsIt === 'string' && looksLikeAHuman(said.whoRunsIt)
+      ? said.whoRunsIt.trim().slice(0, 80) : null,
+    // What the news pages announced inside the last year. Asked of the news
+    // group only (2026-09-01).
+    recentNews: typeof said.recentNews === 'string' && said.recentNews.trim().length > 8
+      ? said.recentNews.trim().slice(0, 300) : null,
     locations: Array.isArray(said.locations)
       ? said.locations
         .filter((l) => l && typeof l.town === 'string' && l.town.trim().length > 1)
@@ -414,8 +444,636 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
   return out;
 }
 
+
+// ---------------------------------------------------------------------------
+// THE WHOLE-SITE READ, in purpose groups (2026-09-01).
+//
+// Russ: read every page, and sort each by what it is FOR. Six purposes —
+// identity, services, contact, people, hiring, news — and a page may carry
+// more than one: a contact page that names staff is read once with the
+// contact questions and once with the people questions. Each non-empty group
+// gets ONE focused model read (in batches where its text outgrows the
+// allowance), the groups run in parallel, and a group with no pages costs
+// zero model calls and is recorded as could_not_tell — never guessed at.
+
+const PURPOSES = ['identity', 'services', 'contact', 'people', 'hiring', 'news'];
+
+// The one honest answer a classifier can give that no pattern ever could.
+// Same spelling as the reading store's status, on purpose.
+const COULD_NOT_TELL = 'could_not_tell';
+
+// What a page's ADDRESS says it is for.
+const PURPOSE_PATHS = {
+  identity: /^\/$|(^|\/)(about|about-us|our-story|story|company|who-we-are|history|mission|values)([/.]|$)/i,
+  services: /(^|\/)(services?|what-we-do|solutions|capabilities|practice-areas|treatments?|procedures?|products?|shop|store|pricing|rates|rentals?|equipment|catalog|menu)([/.]|$)/i,
+  contact: /(^|\/)(contact|contact-us|locations?|offices?|directions|find-us|hours|visit(-us)?)([/.]|$)/i,
+  people: /(^|\/)(team|our-team|meet-the-team|staff|our-people|people|leadership|management|providers|attorneys|agents|doctors|dentists|physicians|associates|employees|bios?|directory)([/.]|$)/i,
+  hiring: /(^|\/)(careers?|jobs?|join-our-team|join-us|employment|hiring|apply|work-with-us|opportunities|now-hiring)([/.]|$)/i,
+  news: /(^|\/)(blog|news|articles?|posts?|press|media|updates?|events?|newsletter)([/.]|$)/i,
+};
+
+// What a page's WORDS say it is for — so a purpose is never missed just
+// because the address gave nothing away.
+const PURPOSE_WORDS = {
+  identity: /\b(about us|our story|our mission|who we are|family[- ]owned|locally owned|founded in (19|20)\d{2}|serving [a-z .,-]+ since|in business since)\b/i,
+  services: /\b(our services|services include|services we (offer|provide)|we (offer|provide|specialize in|install|repair|build|clean|design|deliver))\b/i,
+  contact: /\b(contact us|get in touch|give us a call|reach (us|out)|our office is|visit us at|find us at)\b|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b|\b\d+ [A-Z][A-Za-z]+ (Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Drive|Dr\.?|Boulevard|Blvd\.?|Lane|Ln\.?|Way|Court|Ct\.?|Highway|Hwy\.?|Suite|Ste\.?)\b/,
+  people: /\b(our team|meet (the|our) team|our (staff|people)|leadership team|team members?)\b/i,
+  hiring: /\b(we'?re hiring|now hiring|join (our|the) team|apply (now|today|online)|career opportunities|open positions?|employment opportunities|help wanted)\b/i,
+  news: /\b(latest news|recent posts?|posted (on|by)|published (on|by)|press release|read more)\b/i,
+};
+
+// A name with a job title beside it is people evidence even where nobody
+// wrote the words "our team" — a contact page listing "Jane Smith, Office
+// Manager" belongs in the people group as well as the contact group.
+const NAME_BESIDE_A_ROLE = /[A-Z][a-z]+(?: [A-Z]\.?)? [A-Z][a-z]+\s*[,–—|-]\s*(?:[A-Za-z]+ )?(owner|founder|president|ceo|coo|cfo|principal|partner|manager|director|attorney|paralegal|doctor|dentist|hygienist|physician|nurse|technician|estimator|receptionist|bookkeeper|accountant|coordinator|scheduler|dispatcher|broker|agent)\b/i;
+
+// What one fetched page is FOR. Returns every purpose it carries — a page is
+// never forced into a single box — and, beside each purpose, the address and
+// the words the call rested on, so a reader can see WHY a page was called
+// people as well as contact. A page that fits nothing is COULD_NOT_TELL, and
+// no default purpose is ever written in its place: absence is data.
+function classify(page) {
+  let pathname = '';
+  try { pathname = new URL(page.url).pathname; } catch { pathname = String(page.url || ''); }
+  const text = page.text !== undefined && page.text !== null ? String(page.text) : readableText(page.html);
+  const purposes = [];
+  const restedOn = [];
+  for (const purpose of PURPOSES) {
+    let why = null;
+    if (PURPOSE_PATHS[purpose].test(pathname)) why = `its address: ${pathname}`;
+    if (!why) {
+      const m = text.match(PURPOSE_WORDS[purpose]);
+      if (m) why = m[0].slice(0, 120);
+    }
+    if (!why && purpose === 'people') {
+      const m = text.match(NAME_BESIDE_A_ROLE);
+      if (m) why = m[0].slice(0, 120);
+    }
+    if (why) {
+      purposes.push(purpose);
+      restedOn.push({ purpose, url: page.url, text: why });
+    }
+  }
+  if (!purposes.length) return { url: page.url, purposes: COULD_NOT_TELL, restedOn: [] };
+  return { url: page.url, purposes, restedOn };
+}
+
+// Every page the crawl returned, classified — the count of classified pages
+// always equals the count of fetched pages, skipped ones included. Groups
+// hold only the pages the model will actually be handed; a page a skip rule
+// caught is classified and listed with the NAME of the rule that caught it,
+// so a reader can always see why a page went unread.
+function classifyPages(pages = []) {
+  const groups = { identity: [], services: [], contact: [], people: [], hiring: [], news: [] };
+  const classified = [];
+  const skipped = [];
+  for (const page of pages) {
+    const c = classify(page);
+    classified.push(c);
+    if (page.skipFromReading) {
+      skipped.push({ url: page.url, rule: page.skippedBy || 'skipped' });
+      continue;
+    }
+    if (c.purposes === COULD_NOT_TELL) continue;
+    for (const purpose of c.purposes) groups[purpose].push(page);
+  }
+  return { classified, groups, skipped };
+}
+
+// Which group answers which field. Every field this reader answers sits in
+// exactly ONE of the two lists below. WHOLE_SITE_FIELDS are asked of every
+// group — they are the fields whose empty answer across ALL groups fires the
+// reconciliation read. Everything else is asked of exactly one group, so an
+// empty answer there is simply could_not_tell for that field.
+// (tradeSure and cannotTell are annotations on other answers, not fields.)
+const WHOLE_SITE_FIELDS = ['theirOwnSite', 'realName', 'trade'];
+const FIELDS_BY_GROUP = {
+  identity: ['whatTheyDo', 'yearsInBusiness', 'separateOperations', 'whoRunsIt', 'teamSize', 'companyProfile'],
+  services: ['canBookOnline', 'toolsInUse', 'formsToPrint', 'stalledBuild'],
+  contact: ['sharedEmail', 'mainPhone', 'postalAddress', 'locations', 'waysToReachThem', 'listsAFax'],
+  people: ['people'],
+  hiring: ['hiringOffice', 'openOfficeRoles'],
+  news: ['recentNews'],
+};
+const SINGLE_GROUP_FIELDS = Object.values(FIELDS_BY_GROUP).flat();
+
+// ---------------------------------------------------------------------------
+// Building each group's document.
+
+// Text blocks repeating across three or more pages of one site — the shared
+// menu, the footer, the cookie bar. Left in, they consume the allowance on
+// every page and say nothing new after the first.
+const REPEATS_ON_PAGES = 3;
+function repeatedBlocks(pages = []) {
+  const counts = new Map();
+  for (const p of pages) {
+    const text = p.text !== undefined && p.text !== null ? String(p.text) : readableText(p.html);
+    const seenHere = new Set();
+    for (const line of text.split('\n')) {
+      const t = line.trim();
+      if (t.length < 12) continue;
+      if (seenHere.has(t)) continue;
+      seenHere.add(t);
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  return new Set([...counts].filter(([, n]) => n >= REPEATS_ON_PAGES).map(([t]) => t));
+}
+
+// A group's pages as documents the reader can hold: repeated blocks appear
+// once instead of on every page, each page is capped, and pages that will not
+// fit one allowance go into further BATCHES rather than being dropped. Any
+// page whose text had to be shortened is named in `cut` — the full text stays
+// in the row keepPage() wrote, so nothing is lost, only deferred.
+function groupDocuments(pages = [], { allowance = GROUP_CHARS, repeated = new Set() } = {}) {
+  const batches = [];
+  const cut = [];
+  const shownOnce = new Set();
+  let parts = [];
+  let inBatch = [];
+  let used = 0;
+  const closeBatch = () => {
+    if (parts.length) batches.push({ document: parts.join('\n\n'), pages: inBatch });
+    parts = []; inBatch = []; used = 0;
+  };
+  for (const page of pages) {
+    const raw = page.text !== undefined && page.text !== null ? String(page.text) : readableText(page.html);
+    const lines = raw.split('\n').filter((line) => {
+      const t = line.trim();
+      if (!repeated.has(t)) return true;
+      if (shownOnce.has(t)) return false;   // the menu appears once, not on every page
+      shownOnce.add(t);
+      return true;
+    });
+    let text = lines.join('\n');
+    if (text.length > PER_PAGE_CHARS) { text = text.slice(0, PER_PAGE_CHARS); cut.push(page.url); }
+    if (text.trim().length < 40) continue;
+    const header = `--- page: ${page.url} ---\n`;
+    const block = header + text;
+    if (used + block.length > allowance && parts.length) closeBatch();
+    if (block.length > allowance) {
+      // One page alone bigger than the allowance: shortened, and SAID so.
+      parts.push(header + text.slice(0, Math.max(allowance - header.length, 500)));
+      if (!cut.includes(page.url)) cut.push(page.url);
+      inBatch.push(page.url);
+      closeBatch();
+      continue;
+    }
+    parts.push(block);
+    inBatch.push(page.url);
+    used += block.length;
+  }
+  closeBatch();
+  return { batches, cut };
+}
+
+// ---------------------------------------------------------------------------
+// The questions — one per purpose, each DISTINCT, each asking only for what
+// its pages can answer, plus the three whole-site fields every group carries.
+
+const ASKED_OF_EVERY_GROUP = (businessName) => `  "theirOwnSite": true if these pages are the business's OWN website, false if they are a directory, a licence lookup, a listing, a marketplace, a parked domain, or another company's site,
+  "realName": what this business is CALLED — the trading name the owner would say answering the phone — or null if these pages never state it plainly. Never a browser tab title, never a slogan, never a description of the service,
+  "trade": one of ${JSON.stringify(TRADES)} or null,
+  "tradeSure": true or false,`;
+
+const GROUP_QUESTIONS = {
+  identity: {
+    label: 'identity pages — who this business is',
+    fields: () => `  "whatTheyDo": one short sentence in their own terms, or null,
+  "yearsInBusiness": a number if they say how long they have been going, else null,
+  "separateOperations": how many genuinely DIFFERENT businesses this one company runs, as a number — 1 for a company doing one trade however many services it lists, higher only where the operations are truly different from each other — or null if these pages do not say,
+  "whoRunsIt": "the name of the owner, principal or most senior person, where the pages make that plain — else null. Being listed first is not evidence.",
+  "teamSize": a number ONLY where the site states how many people work there ("a team of 12", "our 30 staff"), else null — never counted from how many names happen to be listed,
+  "companyProfile": "the BUSINESS's own LinkedIn company page URL, or null — never a person's profile",
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `HOW MANY BUSINESSES ARE REALLY IN HERE. An electrician who does "wiring, additions, panel replacements and service work" is running ONE business — answer 1. A contractor who does "junk removal, snow plowing, excavation, septic services and equipment transport" is running four or five genuinely different operations — answer 5. The test is whether a customer of one would ever be a customer of another. If these pages do not say, answer null — never a guess.
+
+TRADE. Judge what the business IS, not what words appear. A firm of accountants whose benefits page mentions dental insurance is accounting. If it is genuinely between two, set trade to null and say so in cannotTell.`,
+  },
+  services: {
+    label: 'services pages — what this business sells and how it takes work in',
+    fields: () => `  "canBookOnline": true if a visitor can book or schedule without phoning, false if not, null if you cannot tell or if this is a business nobody books,
+  "toolsInUse": array of software products the site shows they already use or pay for — a named booking widget, a scheduler, a payment provider, a review platform, a client portal — each as the product's own name, or an empty array,
+  "formsToPrint": true if they ask people to download, print or fill in a document and bring or send it back, false if not, null if you cannot tell,
+  "stalledBuild": "one plain sentence quoting what on the page suggests they already wanted SOFTWARE built and did not get it, or null",
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `BOOKING. "Can a visitor book without phoning" means a real booking or scheduling tool, or a request form that starts an appointment. A phone number, however prominent, is not online booking. If the business is one nobody books — a manufacturer, a wholesaler — answer null, not false.
+
+SOMETHING THEY ALREADY WANTED BUILT. Answer stalledBuild only when the PAGE ITSELF shows it: a piece of SOFTWARE announced and never delivered — a client portal, an online booking system, an app, a member area — or "coming soon" long enough to look abandoned, or a named tool they clearly resent or say they are moving off. Quote the words that made you say it. It must be about SOFTWARE — a coaching programme or a shop opening that is "coming soon" is a business launching something, not a shelved build. This is rare; a guess here sends a stranger an email about a project they never had. Answer null unless the page genuinely shows it.`,
+  },
+  contact: {
+    label: 'contact pages — how a stranger reaches this business and where it sits',
+    fields: () => `  "sharedEmail": "the general inbox like info@ or office@, or null",
+  "mainPhone": "the main number, or null",
+  "postalAddress": "their street address as printed, or null — the place of business, never a page heading and never the words around a 'Get Directions' link",
+  "locations": [ { "town": "a town this business operates from", "isHeadOffice": true or false, "seenOn": "the page URL that says so" } ],
+  "waysToReachThem": array of any of ["published email","contact form","online booking","live chat","phone only"],
+  "listsAFax": true if a fax number appears anywhere, false if not,
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `WHERE THEY ARE. List every town the business operates from in "locations", each with the page that says so, and mark the head office if the pages name one. A firm can have offices in several towns; somebody writing to the wrong one is writing to a stranger.
+
+ADDRESSES. If one address is published for the whole business — info@, office@, contact@, hello@, admin@ — it goes in sharedEmail. Never construct an address from a naming pattern you noticed; if it is not printed, it is null.
+
+NUMBERS. The number in the header or footer is the main number and goes in mainPhone.`,
+  },
+  people: {
+    label: 'people pages — who works at this business',
+    fields: () => `  "people": [
+    {
+      "name": "the person's full name as printed",
+      "role": "what they actually do, in two or three words, or null",
+      "roleWasPrinted": true if a job title was printed, false if you worked it out from a sentence about them,
+      "email": "their own address, or null",
+      "phone": "their direct number, or null",
+      "linkedIn": "their profile URL, or null",
+      "seenOn": "the page URL you read them from",
+      "basedAt": "the town or office THIS PERSON works from, if the pages say so — else null"
+    }
+  ],
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `PEOPLE. Only actual human beings who work there. Not the company, not a page heading, not a menu item, not a testimonial customer, not a partner firm. And not a PROJECT, a BUILDING, a PLACE or a CLIENT — a contractor's portfolio names the jobs it BUILT, and the words beside them belong to the client. Before you keep a name, ask whether a human being with that name draws a wage at this business. If the answer is anything other than clearly yes, leave them out.
+
+ROLES. A role written as a sentence still counts — "Dan keeps the trucks moving" makes Dan operations, roleWasPrinted false. But never guess: if the page names someone and says nothing about what they do, role is null.
+
+ADDRESSES AND NUMBERS. Only the address printed for that specific person. A shared inbox — info@, office@ — belongs to nobody. Never hand the main number to a person. Never construct an address from a naming pattern.
+
+PROFILES. Only a LinkedIn URL that appears on the page. Never guess one from a name.
+
+WHERE EACH PERSON SITS. Answer "basedAt" ONLY where the pages actually place them — their own profile page naming an office, a heading they are listed under. A bare staff directory with no office against a name tells you nothing: answer null. Null is the correct and expected answer for most people on a firm-wide team page.`,
+  },
+  hiring: {
+    label: 'hiring pages — what this business is trying to hire',
+    fields: () => `  "hiringOffice": true if they are advertising an office, admin, reception, bookkeeping or scheduling job right now, false if these pages advertise no such job, null if you cannot tell,
+  "openOfficeRoles": how many office, admin, reception, bookkeeping or scheduling jobs they are advertising right now, as a number, or null if you cannot tell,
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `Count only jobs that are plainly OPEN NOW on these pages. A careers page with no listings is false and zero. A trades or field job — a technician, an installer, a driver — is not an office role.`,
+  },
+  news: {
+    label: 'news pages — what this business has announced lately',
+    fields: () => `  "recentNews": "one or two plain sentences on what these pages announced within the LAST YEAR — a new office, a new hire, a new service, an award — each with its date where one is printed, or null if nothing on these pages is from the last year",
+  "cannotTell": "one plain sentence naming what these pages never say, or null"`,
+    rules: `Only what the pages themselves date inside the last year, or plainly present as current. An undated post is not recent news unless the page says so. Old posts are history, not news — leave them out.`,
+  },
+};
+
+// The question for ONE purpose group. Six distinct prompts — each carries the
+// three whole-site fields plus only its own group's questions, so a focused
+// read never wanders into another group's territory.
+function questionFor(purpose, businessName, document) {
+  const q = GROUP_QUESTIONS[purpose];
+  if (!q) throw new Error(`no question exists for a purpose called ${purpose}`);
+  return `You are reading pages from a small business's own website to fill in a customer record for a salesperson. You have been handed only the site's ${q.label}. Other pages are being read separately, so answer ONLY from the pages in front of you. Read for MEANING. Never pattern-match. A null is a true answer; an invented value is a lie in a salesperson's hands.
+
+The record says the business is called: ${businessName}
+
+Email addresses that were inside links appear as [email ...], phone numbers as [tel ...], LinkedIn profiles as [linkedin ...].
+
+${document}
+
+--- end of pages ---
+
+Answer with JSON only, no other words, in this shape:
+
+{
+${ASKED_OF_EVERY_GROUP(businessName)}
+${q.fields()}
+}
+
+Rules that matter more than filling a field in:
+
+WHOSE SITE IS THIS. Answer theirOwnSite first, because everything else depends on it. A page that says "verify a contractor's licence", "find a provider near you", "claim this listing", or that carries many other businesses alongside this one, is somebody else's site. If theirOwnSite is false, return every other field as null or empty and say whose site it is in cannotTell.
+
+WHAT THEY ARE CALLED. realName is the name on the sign — "La Pine Tool Rental", "Bend Family Dentistry". NOT the browser tab title, NOT a slogan, NOT a page name, NOT a location on its own. If these pages genuinely never say it, answer null.
+
+${q.rules}`;
+}
+
+// ---------------------------------------------------------------------------
+// How many reads fly at once — tuned DURING the run, from what the reader is
+// actually doing. Fast answers raise the level, slow answers and failures
+// lower it, and the level it settled on is reported so the run log can say
+// what the machine could actually sustain tonight (2026-08-28 is why: the
+// reader halved its speed over an evening and a fixed level threw away 22
+// answers in a row).
+const FAST_ANSWER_MS = 20 * 1000;
+const SLOW_ANSWER_MS = 90 * 1000;
+function makeFlightController({ start = 3, min = 1, max = 6, fastMs = FAST_ANSWER_MS, slowMs = SLOW_ANSWER_MS } = {}) {
+  let limit = Math.max(min, Math.min(start, max));
+  let inFlight = 0;
+  const waiting = [];
+  const admit = () => { while (inFlight < limit && waiting.length) { inFlight += 1; (waiting.shift())(); } };
+  const lower = () => { if (limit > min) limit -= 1; };
+  const raise = () => { if (limit < max) limit += 1; };
+  return {
+    async run(fn) {
+      await new Promise((ready) => { waiting.push(ready); admit(); });
+      const began = Date.now();
+      try {
+        const out = await fn();
+        const took = Date.now() - began;
+        if (took < fastMs) raise();
+        else if (took > slowMs) lower();
+        return out;
+      } catch (e) {
+        lower();
+        throw e;
+      } finally {
+        inFlight -= 1;
+        admit();
+      }
+    },
+    lower,
+    raise,
+    get level() { return limit; },
+    get settledAt() { return limit; },
+  };
+}
+
+// Nothing, in every shape a model answer delivers nothing.
+function saidNothing(v) {
+  return v === null || v === undefined
+    || (typeof v === 'string' && (!v.trim() || v.trim().toLowerCase() === 'null'))
+    || (Array.isArray(v) && !v.length);
+}
+
+// The batches of one group, folded into ONE answer for that group. Scalars:
+// the first batch to answer wins — later batches read different pages and a
+// blank from them is not a correction. Arrays: everything, deduplicated.
+function mergeBatchAnswers(answers = []) {
+  const merged = {};
+  for (const a of answers) {
+    if (!a || typeof a !== 'object') continue;
+    for (const [field, value] of Object.entries(a)) {
+      if (Array.isArray(value)) {
+        const have = merged[field] && Array.isArray(merged[field]) ? merged[field] : [];
+        const seen = new Set(have.map((v) => JSON.stringify(v)));
+        for (const v of value) {
+          const k = JSON.stringify(v);
+          if (!seen.has(k)) { seen.add(k); have.push(v); }
+        }
+        merged[field] = have;
+      } else if (merged[field] === undefined || saidNothing(merged[field])) {
+        if (value !== undefined) merged[field] = value;
+      }
+    }
+  }
+  return Object.keys(merged).length ? merged : null;
+}
+
+// The fields two groups answered DIFFERENTLY — both non-empty. One group
+// answering while another returned nothing is not a contradiction: silence
+// contradicts nobody. Only the fields every group is asked can collide.
+function contradictionsBetween(groupAnswers = {}) {
+  const disputed = [];
+  for (const field of WHOLE_SITE_FIELDS) {
+    const saidBy = {};
+    for (const [group, answer] of Object.entries(groupAnswers)) {
+      if (!answer || typeof answer !== 'object') continue;
+      const v = answer[field];
+      if (saidNothing(v)) continue;
+      saidBy[group] = v;
+    }
+    const distinct = new Set(Object.values(saidBy).map((v) => String(v).trim().toLowerCase()));
+    if (distinct.size > 1) disputed.push({ field, saidBy });
+  }
+  return disputed;
+}
+
+// The reconciliation question. It is handed the DISPUTED PAGES THEMSELVES —
+// their readable text, not just the answers those pages produced — because an
+// argument between summaries is settled by going back to the source.
+function reconciliationQuestion({ businessName, contradictions = [], emptyFields = [], pages = [] }) {
+  const fields = [...new Set([...contradictions.map((c) => c.field), ...emptyFields])];
+  const disagreements = contradictions.map((c) => `- "${c.field}": ${Object.entries(c.saidBy).map(([g, v]) => `the ${g} read said ${JSON.stringify(v)}`).join('; ')}`).join('\n');
+  const unanswered = emptyFields.map((f) => `- "${f}": every read came back empty`).join('\n');
+  const { batches } = groupDocuments(pages, { allowance: GROUP_CHARS });
+  const doc = batches.length ? batches[0].document : '';
+  return `Several focused reads of one small business's website disagreed, or all came back empty, on the fields below. The business's record says it is called: ${businessName}
+
+${disagreements ? `Where the reads disagreed:\n${disagreements}\n` : ''}${unanswered ? `Where every read came back empty:\n${unanswered}\n` : ''}
+Here are the disputed pages themselves. Settle each field FROM THESE PAGES — not by picking one earlier answer over another.
+
+${doc}
+
+--- end of pages ---
+
+Answer with JSON only, no other words: { ${fields.map((f) => `"${f}": your answer or null`).join(', ')} }
+
+If the pages genuinely do not settle a field, answer null. Null is recorded as "could not tell" and it is the correct answer — never break a tie by preferring one earlier read.`;
+}
+
+// ---------------------------------------------------------------------------
+// The whole visit's model reads: classify, group, read every non-empty group
+// in parallel, and reconcile only where the answers genuinely collide.
+async function readSiteInGroups({
+  businessName, pages = [], askTheReader, controller = makeFlightController(), deadline = null,
+}) {
+  if (typeof askTheReader !== 'function') throw new Error('readSiteInGroups needs an askTheReader function');
+  const overTime = () => Boolean(deadline && Date.now() > deadline);
+  const sorted = classifyPages(pages);
+  const repeated = repeatedBlocks(pages);
+  const answers = {};
+  const documents = {};
+  const couldNotTell = {};
+  const sentUrls = new Set();
+  const cut = [];
+  let modelCalls = 0;
+  let partial = false;
+
+  await Promise.all(PURPOSES.map(async (purpose) => {
+    const groupPages = sorted.groups[purpose];
+    if (!groupPages.length) {
+      // ZERO model calls for an empty group, and the absence recorded as
+      // itself — never a default answer in its place.
+      answers[purpose] = null;
+      couldNotTell[purpose] = `no ${purpose} page was found on the site`;
+      return;
+    }
+    const built = groupDocuments(groupPages, { allowance: GROUP_CHARS, repeated });
+    documents[purpose] = built.batches;
+    cut.push(...built.cut);
+    let unread = 0;
+    const replies = await Promise.all(built.batches.map(async (batch) => {
+      // The clock is read INSIDE the flight controller's slot: a batch still
+      // queued when time runs out is never sent, and the answers that did
+      // arrive are kept — a partial group answer, never a discarded one.
+      const reply = await controller.run(async () => {
+        if (overTime()) return { outOfTime: true };
+        modelCalls += 1;
+        for (const u of batch.pages) sentUrls.add(u); // handed to the model, answered or not
+        return askTheReader(questionFor(purpose, businessName, batch.document));
+      });
+      if (reply && reply.outOfTime) { unread += 1; return null; }
+      if (!reply || !reply.answer) { controller.lower(); unread += 1; return null; }
+      return reply.answer;
+    }));
+    const answered = replies.filter(Boolean);
+    if (!answered.length) {
+      answers[purpose] = null;
+      couldNotTell[purpose] = overTime()
+        ? `the visit ran out of time before the ${purpose} pages were read`
+        : `the reader gave no answer for the ${purpose} pages`;
+      if (unread) partial = true;
+      return;
+    }
+    const merged = mergeBatchAnswers(answered);
+    if (unread) {
+      // Built from PART of its batches — kept, and SAYS so, never discarded.
+      merged.partial = true;
+      partial = true;
+    }
+    answers[purpose] = merged;
+  }));
+
+  const groupsRead = PURPOSES.filter((p) => answers[p]);
+  const contradictions = contradictionsBetween(answers);
+  const emptyFields = groupsRead.length
+    ? WHOLE_SITE_FIELDS.filter((f) => groupsRead.every((g) => saidNothing(answers[g][f])))
+    : [];
+
+  // The reconciliation read: fired ONLY on genuine contradiction or on a
+  // whole-site field empty from every group that was asked. Zero extra model
+  // calls otherwise.
+  let reconciliation = null;
+  if ((contradictions.length || emptyFields.length) && !overTime()) {
+    const disputedUrls = new Set();
+    for (const c of contradictions) {
+      for (const g of Object.keys(c.saidBy)) {
+        for (const batch of (documents[g] || [])) for (const u of batch.pages) disputedUrls.add(u);
+      }
+    }
+    if (!disputedUrls.size) {
+      // An empty whole-site answer with no argument to point at: hand it the
+      // pages most likely to say who this is.
+      for (const pg of (sorted.groups.identity.length ? sorted.groups.identity : pages.slice(0, 3))) disputedUrls.add(pg.url);
+    }
+    const disputedPages = pages.filter((pg) => disputedUrls.has(pg.url));
+    const fields = [...new Set([...contradictions.map((c) => c.field), ...emptyFields])];
+    const reply = await controller.run(() => askTheReader(
+      reconciliationQuestion({ businessName, contradictions, emptyFields, pages: disputedPages }),
+    ));
+    modelCalls += 1;
+    const settled = {};
+    for (const f of fields) {
+      const v = reply && reply.answer ? reply.answer[f] : null;
+      // A field the reconciliation cannot settle is COULD_NOT_TELL — one
+      // group's answer is never promoted as a tie-break default.
+      settled[f] = saidNothing(v) ? COULD_NOT_TELL : v;
+    }
+    reconciliation = { fields, settled, gavePages: disputedPages.map((pg) => pg.url) };
+  } else if ((contradictions.length || emptyFields.length) && overTime()) {
+    partial = true;
+  }
+
+  return {
+    classified: sorted.classified,
+    groups: sorted.groups,
+    skipped: sorted.skipped,
+    answers,
+    documents,
+    couldNotTell,
+    contradictions,
+    emptyFields,
+    reconciliation,
+    modelCalls,
+    partial,
+    sentUrls,
+    cut,
+    concurrencySettledAt: controller.settledAt,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The groups' cleaned answers, folded into the one shape the record writers
+// already understand. Each single-group field comes from the group that owns
+// it — one writer per fact. The whole-site fields take the reconciled value
+// where a reconciliation spoke, the agreed value where the groups agree, and
+// NULL where they disagree unsettled — could not tell, never a coin toss.
+function mergedUnderstood(understoodByGroup = {}, reconciliation = null) {
+  const out = {
+    trade: null, tradeUnsure: false, whatTheyDo: null, realName: null,
+    people: [], sharedEmail: null, mainPhone: null, waysToReachThem: [],
+    canBookOnline: null, formsToPrint: false, listsAFax: false, hiringOffice: false,
+    yearsInBusiness: null, stalledBuild: null, separateOperations: null,
+    locations: [], postalAddress: null, companyProfile: null, teamSize: null,
+    openOfficeRoles: null, toolsInUse: [], whoRunsIt: null, recentNews: null,
+    cannotTell: null, dropped: [], notTheirSite: false,
+  };
+  const groups = Object.keys(understoodByGroup).filter((g) => understoodByGroup[g]);
+  if (!groups.length) return out;
+
+  // NOT THEIRS only when the reads that answered agree it is somebody else's
+  // site, or a reconciliation read settled it that way. One group's "no"
+  // against another's "yes" is a contradiction, not a verdict.
+  const saidNot = groups.filter((g) => understoodByGroup[g].notTheirSite === true);
+  const saidTheirs = groups.filter((g) => understoodByGroup[g].notTheirSite !== true);
+  const reconciledOwn = reconciliation && reconciliation.settled && 'theirOwnSite' in reconciliation.settled
+    ? reconciliation.settled.theirOwnSite : undefined;
+  const notTheirs = reconciledOwn !== undefined && reconciledOwn !== COULD_NOT_TELL
+    ? [false, 'no', 'false'].includes(typeof reconciledOwn === 'string' ? reconciledOwn.trim().toLowerCase() : reconciledOwn)
+    : (saidNot.length > 0 && saidTheirs.length === 0);
+  if (notTheirs) {
+    return {
+      ...out,
+      notTheirSite: true,
+      cannotTell: (understoodByGroup[saidNot[0]] && understoodByGroup[saidNot[0]].cannotTell)
+        || 'these pages belong to a directory or another company, not to this business',
+    };
+  }
+
+  for (const [group, fields] of Object.entries(FIELDS_BY_GROUP)) {
+    const u = understoodByGroup[group];
+    if (!u || u.notTheirSite) continue;
+    for (const f of fields) if (u[f] !== undefined) out[f] = u[f];
+  }
+
+  for (const f of ['realName', 'trade']) {
+    if (reconciliation && reconciliation.settled && f in reconciliation.settled) {
+      out[f] = reconciliation.settled[f] === COULD_NOT_TELL ? null : reconciliation.settled[f];
+    } else {
+      const values = groups
+        .map((g) => understoodByGroup[g][f])
+        .filter((v) => v !== null && v !== undefined && String(v).trim() !== '');
+      const distinct = [...new Set(values.map((v) => String(v).trim().toLowerCase()))];
+      out[f] = distinct.length === 1 ? values[0] : null;
+    }
+  }
+  if (out.trade && !TRADES.includes(out.trade)) out.trade = null;
+  out.tradeUnsure = groups.some((g) => understoodByGroup[g].tradeUnsure === true);
+
+  const gaps = [...new Set(groups.map((g) => understoodByGroup[g].cannotTell).filter(Boolean))];
+  out.cannotTell = gaps.length ? gaps.join(' | ').slice(0, 240) : null;
+  out.dropped = groups.flatMap((g) => understoodByGroup[g].dropped || []);
+
+  // One row per human even when two batches both saw them; holes filled, never
+  // overwritten — the same rule peopleFromSite() applies within one page set.
+  const uniquePeople = new Map();
+  for (const p of out.people || []) {
+    if (!p || !p.name) continue;
+    const key = String(p.name).toLowerCase();
+    const prior = uniquePeople.get(key);
+    if (!prior) { uniquePeople.set(key, p); continue; }
+    uniquePeople.set(key, {
+      ...prior,
+      role: prior.role || p.role,
+      email: prior.email || p.email,
+      phone: prior.phone || p.phone,
+      linkedIn: prior.linkedIn || p.linkedIn,
+      basedAt: prior.basedAt || p.basedAt,
+    });
+  }
+  out.people = [...uniquePeople.values()];
+  return out;
+}
+
 module.exports = {
-  TRADES, PER_PAGE_CHARS, TOTAL_CHARS, SHARED_MAILBOX,
+  TRADES, PER_PAGE_CHARS, GROUP_CHARS, SHARED_MAILBOX,
   readableText, pagesAsDocument, questionAbout, looksLikeAHuman, tidyPhone, nameThatWasPrinted,
   keepOnlyWhatWasRead, isARealAddress, NOT_REALLY_AN_ADDRESS, NEVER_ANSWERS,
+  // the whole-site grouped read (2026-09-01)
+  PURPOSES, COULD_NOT_TELL, WHOLE_SITE_FIELDS, SINGLE_GROUP_FIELDS, FIELDS_BY_GROUP,
+  classify, classifyPages, repeatedBlocks, groupDocuments, questionFor,
+  makeFlightController, mergeBatchAnswers, contradictionsBetween, reconciliationQuestion,
+  readSiteInGroups, mergedUnderstood, saidNothing,
 };

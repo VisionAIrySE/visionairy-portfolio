@@ -117,7 +117,12 @@ async function askTheReader(question) {
   catch { return { answer: null, cost, why: 'answered with broken JSON' }; }
 }
 
-(async () => {
+// Only run when this file is the thing being run. Merely importing a
+// SPEND-BEARING script must never be able to start a paid pass. Nothing
+// imports this file today and there is no OpenRouter key on this machine, so
+// this guard has never yet been load-bearing — it is here because the belt
+// costs one line and its absence costs a bill (added 2026-09-01).
+if (require.main === module) (async () => {
   if (!process.env.OPENROUTER_API_KEY) {
     console.error('No OpenRouter key on this machine. Nothing run, nothing spent.');
     process.exit(1);

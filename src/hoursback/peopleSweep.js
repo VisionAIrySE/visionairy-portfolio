@@ -16,6 +16,10 @@
 // Free, always. Their own websites, no key, no paid service, nothing to meter.
 
 const { textOf } = require('./enrich.js');
+// The same stripper the reader answers about. Every page the crawl returns
+// carries its readable text, because a page fetched and not kept is the
+// failure this repository exists to end (docs/hoursback/evidence-store.md).
+const { readableText } = require('./understand.js');
 
 function absoluteUrl(href, base) {
   try { return new URL(String(href), base).toString(); } catch { return null; }
@@ -114,7 +118,9 @@ function linksToPeople(html, baseUrl) {
     if (seen.has(key)) continue;
     seen.add(key);
     const r = rank(u.pathname, label);
-    if (r === 99) continue;
+    // A 99 is KEPT. It used to be dropped here, which silently capped every
+    // caller at the handful of pages the patterns recognise — a whole-site
+    // read cannot start from a filter that throws the site away (2026-09-01).
     scored.push({ url: u.toString(), rank: r });
   }
   scored.sort((a, b) => a.rank - b.rank);
@@ -148,7 +154,11 @@ async function fetchPage(url, fetchImpl) {
 // Read a site two hops deep, opening the pages most likely to name people.
 async function fetchPeoplePages(website, options = {}) {
   const fetchImpl = options.fetch || globalThis.fetch;
-  const maxPages = Math.min(options.maxPages || MAX_PAGES_PER_SITE, MAX_PAGES_PER_SITE);
+  // No Math.min here. The old clamp silently capped every caller at 12
+  // pages whatever they asked for, which is one of the three ways the old
+  // read stopped at ~8 pages (2026-09-01). A caller who asks gets what it
+  // asked for; a caller who does not ask still gets the modest default.
+  const maxPages = options.maxPages || MAX_PAGES_PER_SITE;
   const delay = options.delayMs === undefined ? DELAY_BETWEEN_PAGES_MS : options.delayMs;
   // START AT THE FRONT DOOR, WHATEVER PAGE IS ON THE RECORD.
   //
@@ -167,9 +177,12 @@ async function fetchPeoplePages(website, options = {}) {
 
   const pages = [];
   const opened = new Set();
+  // Every entry carries the address, how the fetch went, and the readable text
+  // — never an entry without its words (2026-09-01).
+  const entry = (url, html) => ({ url, status: 'fetched', html, text: readableText(html) });
   let home;
   try { home = await fetchPage(start, fetchImpl); } catch (e) { return { pages: [], error: e.message }; }
-  pages.push({ url: start, html: home });
+  pages.push(entry(start, home));
   opened.add(new URL(start).pathname);
 
   // The page that was on the record, where that is not the homepage. It was put
@@ -180,7 +193,7 @@ async function fetchPeoplePages(website, options = {}) {
       if (!opened.has(p2)) {
         opened.add(p2);
         if (delay) await sleep(delay);
-        pages.push({ url: given, html: await fetchPage(given, fetchImpl) });
+        pages.push(entry(given, await fetchPage(given, fetchImpl)));
       }
     } catch { /* the homepage alone is enough to carry on */ }
   }
@@ -193,7 +206,7 @@ async function fetchPeoplePages(website, options = {}) {
     if (opened.has(path)) continue;
     opened.add(path);
     if (delay) await sleep(delay);
-    try { pages.push({ url, html: await fetchPage(url, fetchImpl) }); } catch { /* one bad page never sinks the read */ }
+    try { pages.push(entry(url, await fetchPage(url, fetchImpl))); } catch { /* one bad page never sinks the read */ }
   }
 
   // Second hop — the whole point. A team page under the About tab is
@@ -209,7 +222,7 @@ async function fetchPeoplePages(website, options = {}) {
       if (opened.has(path)) continue;
       opened.add(path);
       if (delay) await sleep(delay);
-      try { pages.push({ url, html: await fetchPage(url, fetchImpl) }); } catch { /* keep going */ }
+      try { pages.push(entry(url, await fetchPage(url, fetchImpl))); } catch { /* keep going */ }
     }
   }
   // THIRD HOP — the profiles themselves. Only from a page that is actually the
@@ -217,7 +230,9 @@ async function fetchPeoplePages(website, options = {}) {
   // email and the direct number live, and it was never reached.
   const teamPages = pages.filter((pg) => looksLikeATeamPage(pg.url));
   if (teamPages.length) {
-    const roomier = Math.min(options.maxPages || MAX_PAGES_WITH_A_TEAM_PAGE, MAX_PAGES_WITH_A_TEAM_PAGE);
+    // Math.max, not Math.min: a site with a team page always gets at least
+    // the team-page room, and a whole-site caller asking for more gets more.
+    const roomier = Math.max(options.maxPages || MAX_PAGES_WITH_A_TEAM_PAGE, MAX_PAGES_WITH_A_TEAM_PAGE);
     for (const page of teamPages) {
       let profiles = [];
       try { profiles = linksBelow(page.html, page.url); } catch { profiles = []; }
@@ -227,7 +242,7 @@ async function fetchPeoplePages(website, options = {}) {
         if (opened.has(path)) continue;
         opened.add(path);
         if (delay) await sleep(delay);
-        try { pages.push({ url, html: await fetchPage(url, fetchImpl) }); } catch { /* keep going */ }
+        try { pages.push(entry(url, await fetchPage(url, fetchImpl))); } catch { /* keep going */ }
       }
     }
   }
@@ -515,6 +530,207 @@ function personOnTheirOwnPage(page) {
   }];
 }
 
+
+// ---------------------------------------------------------------------------
+// THE WHOLE SITE, not the eight pages a pattern happened to recognise.
+//
+// Russ, 2026-09-01: read every page, sort each by what it is FOR, and keep all
+// of it. The crawl below fetches every same-host HTML page reachable from the
+// home page, inside two hard bounds:
+//
+//   - two minutes of crawl time per business, after which what was gathered is
+//     returned marked partial — kept, never thrown away
+//   - ten pages of one path shape, so a five-hundred-item shop cannot eat the
+//     visit — EXCEPT beneath a team page, where the eleventh staff profile is
+//     exactly the page this whole system exists to open
+//
+// A page a rule catches — a calendar, one product, legal boilerplate, a login
+// area, an old post — is still FETCHED and returned with its readable text.
+// Skipping means "not handed to the model". It never means "not kept": a wrong
+// skip must be recoverable without a second visit.
+
+const CRAWL_TIME_LIMIT_MS = 120000;   // two minutes a business. A standing bound, not a tunable.
+const SAME_SHAPE_LIMIT = 10;          // ten of one path shape, then stop that path
+const WHOLE_SITE_PAGE_CEILING = 500;  // no site is infinite; the time limit usually bites first
+
+// One key per SHAPE of address, so /products/red-widget and /products/blue-widget
+// count against the same stop while /about and /contact stay distinct. The rule:
+// a single-segment path IS its own shape; a deeper path is its first segment
+// plus how deep it goes, with everything below the first segment wildcarded.
+function pathShape(pathname) {
+  const segs = String(pathname || '').split('/').filter(Boolean);
+  if (!segs.length) return '/';
+  if (segs.length === 1) return `/${segs[0].toLowerCase()}`;
+  return `/${segs[0].toLowerCase()}/${segs.slice(1).map(() => '*').join('/')}`;
+}
+
+// The date an address carries, where it carries one — /blog/2024/01/first-post.
+const ONE_YEAR_MS = 366 * 24 * 3600 * 1000;
+function dateInPath(pathname) {
+  const m = String(pathname || '').match(/(?:^|\/)((?:19|20)\d{2})(?:[/-](\d{1,2}))?(?:[/-](\d{1,2}))?(?:[/-]|$)/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = m[2] ? Number(m[2]) : 6;
+  if (month < 1 || month > 12) return null;
+  const day = m[3] ? Math.min(Math.max(Number(m[3]), 1), 28) : 15;
+  const when = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
+function titleOf(html) {
+  const m = String(html || '').match(/<title[^>]*>([\s\S]{0,300}?)<\/title>/i);
+  if (!m) return null;
+  const t = textOf(m[1]).slice(0, 200).trim();
+  return t || null;
+}
+
+// The pages fetched and stored but NOT handed to the model, each named by the
+// rule that caught it — so a reader can always see why a page went unread.
+// Order matters only where two rules could both catch a page; the first name
+// wins and both behaviours are the same: fetched, kept, not read.
+const SKIP_RULES = [
+  { rule: 'logged-in-area', catches: (u) => /(^|\/)(login|log-in|logout|signin|sign-in|signup|sign-up|register|my-?account|account|portal|dashboard|wp-admin|wp-login[^/]*|password|client-area|customer-area|members?-only)([/.]|$)/i.test(u.pathname) },
+  { rule: 'cart-or-checkout', catches: (u) => /(^|\/)(cart|checkout|basket|bag|payment|pay-now|order-confirmation)([/.]|$)/i.test(u.pathname) },
+  { rule: 'search-results', catches: (u) => /(^|\/)search([/.]|$)/i.test(u.pathname) || /(^|&)(s|q|query|search)=/i.test(u.search.replace(/^\?/, '')) },
+  { rule: 'calendar', catches: (u) => /(^|\/)(calendar|calendars|ical|events?\.ics)([/.]|$)/i.test(u.pathname) || /(^|&)(month|week|day)=/i.test(u.search.replace(/^\?/, '')) },
+  { rule: 'legal-boilerplate', catches: (u) => /(^|\/)(privacy(-policy)?|terms(-of-(use|service|sale))?|terms-and-conditions|conditions|disclaimer|cookies?(-policy)?|accessibility(-statement)?|legal|gdpr|ccpa|sitemap(\.xml)?)([/.]|$)/i.test(u.pathname) },
+  { rule: 'other-language', catches: (u) => /^\/(es|fr|de|it|pt|pt-br|ru|zh|zh-cn|zh-tw|ja|ko|nl|pl|sv|no|da|fi|vi|ar|he|tr)(\/|$)/i.test(u.pathname) || /(^|&)(lang|locale|language)=/i.test(u.search.replace(/^\?/, '')) },
+  { rule: 'post-index', catches: (u) => /\/page\/\d+(\/|$)/i.test(u.pathname) || /(^|&)paged?=\d+/i.test(u.search.replace(/^\?/, '')) || /(^|\/)(category|categories|tag|tags|archives?|author)(\/|$)/i.test(u.pathname) },
+  { rule: 'individual-product', catches: (u) => /(^|\/)(product|products|shop|store|item|items|catalog|inventory|equipment|rentals?)\/[^/]+/i.test(u.pathname) && !/\/page\/\d+/i.test(u.pathname) },
+  { rule: 'old-post', catches: (u) => { const d = dateInPath(u.pathname); return Boolean(d && Date.now() - d.getTime() > ONE_YEAR_MS); } },
+];
+
+function whySkip(url) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  for (const s of SKIP_RULES) if (s.catches(u)) return s.rule;
+  return null;
+}
+
+// Pages whose links lead nowhere worth going: a calendar spiders into every
+// month that ever was, search into every query, a login wall into itself.
+// A post INDEX is deliberately not here — its links are the posts.
+const FOLLOW_NOTHING_BELOW = new Set(['calendar', 'search-results', 'logged-in-area', 'cart-or-checkout']);
+
+// Crawl one business's whole site.
+//
+// Returns { pages, failures, partial, stoppedShapes, error }:
+//   pages         [{ url, status, html, text, title, shape, skipFromReading, skippedBy }]
+//                 — every fetched page, skipped ones included, none without text
+//   failures      [{ url, status }] — addresses that would not open
+//   partial       true when the two-minute limit stopped the crawl early;
+//                 what was gathered is returned, never discarded
+//   stoppedShapes the path shapes the ten-page stop closed, so a reader can
+//                 see what was deliberately not exhausted
+async function crawlWholeSite(website, options = {}) {
+  const fetchImpl = options.fetch || globalThis.fetch;
+  const delay = options.delayMs === undefined ? DELAY_BETWEEN_PAGES_MS : options.delayMs;
+  // The limit can be brought DOWN (tests do), never raised past two minutes.
+  const timeLimit = Math.min(options.timeLimitMs || CRAWL_TIME_LIMIT_MS, CRAWL_TIME_LIMIT_MS);
+  const startedAt = Date.now();
+
+  const given = absoluteUrl(website && website.startsWith('http') ? website : `https://${website}`, 'https://x/');
+  if (!given) return { pages: [], failures: [], partial: false, stoppedShapes: [], error: 'unreadable web address' };
+  let start = given;
+  let host;
+  try {
+    const u = new URL(given);
+    host = u.host;
+    if (u.pathname && u.pathname !== '/') start = u.origin + '/';
+  } catch { /* keep what we were given */ }
+
+  const pages = [];
+  const failures = [];
+  const opened = new Set();          // pathnames already fetched or refused
+  const queued = new Set();          // pathnames already in the queue
+  const shapeCounts = new Map();     // shape -> pages fetched of that shape
+  const stoppedShapes = new Set();
+  let partial = false;
+
+  // The queue holds { url, exempt } — exempt means this address came from
+  // linksBelow() on a real team page, and the ten-same-shape stop does not
+  // apply to it: the eleventh staff profile is still fetched.
+  const queue = [{ url: start, exempt: false }];
+  queued.add(new URL(start).pathname);
+  if (given !== start) {
+    try {
+      const p = new URL(given).pathname;
+      if (!queued.has(p)) { queue.push({ url: given, exempt: false }); queued.add(p); }
+    } catch { /* the homepage alone is enough */ }
+  }
+
+  while (queue.length && pages.length < WHOLE_SITE_PAGE_CEILING) {
+    if (Date.now() - startedAt > timeLimit) { partial = true; break; }
+    const { url, exempt } = queue.shift();
+    let u;
+    try { u = new URL(url); } catch { continue; }
+    const path = u.pathname;
+    if (opened.has(path)) continue;
+    const shape = pathShape(path);
+    if (!exempt && (shapeCounts.get(shape) || 0) >= SAME_SHAPE_LIMIT) {
+      // Ten of this shape are already in hand. The stop is RECORDED, so what
+      // was deliberately left unfetched is readable later.
+      stoppedShapes.add(shape);
+      continue;
+    }
+    opened.add(path);
+    if (delay && pages.length) await sleep(delay);
+
+    let html;
+    try { html = await fetchPage(url, fetchImpl); } catch (e) {
+      failures.push({ url, status: `failed: ${e.message}` });
+      continue;
+    }
+    shapeCounts.set(shape, (shapeCounts.get(shape) || 0) + 1);
+
+    const skippedBy = whySkip(url);
+    pages.push({
+      url,
+      status: 'fetched',
+      html,
+      // The readable words, ALWAYS — a skipped page's text is kept exactly like
+      // a read page's, so a wrong skip costs nothing but a re-run of a prompt.
+      text: readableText(html),
+      title: titleOf(html),
+      shape,
+      skipFromReading: Boolean(skippedBy),
+      skippedBy: skippedBy || null,
+    });
+
+    if (skippedBy && FOLLOW_NOTHING_BELOW.has(skippedBy)) continue;
+
+    // What this page links to. Everything same-host goes in the queue —
+    // including addresses no WORTH_OPENING pattern recognises — best-ranked
+    // first so a crawl the clock cuts short spent its time well.
+    const pageDate = skippedBy === 'old-post' ? dateInPath(path) : null;
+    const isTeam = looksLikeATeamPage(url);
+    const below = new Set();
+    if (isTeam) {
+      try { for (const b of linksBelow(html, url)) below.add(new URL(b).pathname); } catch { /* none */ }
+    }
+    let found = [];
+    try { found = linksToPeople(html, url); } catch { found = []; }
+    for (const link of found) {
+      let lu;
+      try { lu = new URL(link); } catch { continue; }
+      if (lu.host !== host) continue;
+      if (opened.has(lu.pathname) || queued.has(lu.pathname)) continue;
+      // BELOW AN OLD POST, NO OLDER POST. One dated page past the one-year
+      // limit is fetched and kept; the archive spiral beneath it is not.
+      if (pageDate) {
+        const linkDate = dateInPath(lu.pathname);
+        if (linkDate && linkDate.getTime() < pageDate.getTime()) continue;
+      }
+      queued.add(lu.pathname);
+      queue.push({ url: link, exempt: isTeam && below.has(lu.pathname) });
+    }
+  }
+
+  if (queue.length && Date.now() - startedAt > timeLimit) partial = true;
+
+  return { pages, failures, partial, stoppedShapes: [...stoppedShapes], error: pages.length ? null : 'no page could be opened' };
+}
+
 function peopleFromSite(pages) {
   const all = new Map();
   for (const page of pages) {
@@ -548,4 +764,7 @@ module.exports = {
   WORTH_OPENING, rank, linksToPeople, fetchPeoplePages,
   peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, ROLE_WORDS,
   linkedInProfilesOn, profileNear, roleFromLine,
+  // the whole-site crawl (2026-09-01)
+  crawlWholeSite, pathShape, dateInPath, whySkip, titleOf,
+  SKIP_RULES, CRAWL_TIME_LIMIT_MS, SAME_SHAPE_LIMIT, WHOLE_SITE_PAGE_CEILING,
 };
