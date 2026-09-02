@@ -33,6 +33,9 @@ const fs = require('fs');
 // HARD CEILING. However many are asked for, one run writes noticings for at
 // most this many businesses.
 const CEILING = 50;
+// How many TRADES are walked side by side. Six matches what the website read
+// settled on for this machine; --at-once= raises or lowers it for a bigger one.
+const AT_ONCE = Math.max(1, Number(arg('at-once', 6)));
 
 const { askTheReader } = require('./understand-businesses.js');   // safe: exports only; chdirs to the project root and loads .env
 const { PrismaClient } = require('@prisma/client');
@@ -116,7 +119,27 @@ async function main() {
     const fallbacks = [];   // kept the trade sentence, and why
     let rewritten = 0; let leftAlone = 0;
 
+    // SEVERAL BUSINESSES AT ONCE (2026-09-02).
+    //
+    // This walked the list one at a time, so six businesses meant eighteen
+    // rounds of thinking in a queue — five minutes for two of them, and at
+    // 3,000 businesses the difference between a night and a fortnight.
+    //
+    // Businesses of the SAME trade stay in order, because the rule that no two
+    // businesses in one trade may receive the same sentence works by showing
+    // each one what has already been written for that trade. Run them side by
+    // side and neither can see the other. So: one worker per trade, and the
+    // trades run in parallel.
+    const byTrade = new Map();
     for (const p of rows) {
+      const k = String(p.trade || tradeOf(p.name) || 'other').toLowerCase();
+      if (!byTrade.has(k)) byTrade.set(k, []);
+      byTrade.get(k).push(p);
+    }
+    const queues = [...byTrade.values()];
+    let nextQueue = 0;
+
+    const doOne = async (p) => {
       const businessName = p.nameManualValue || p.name || '(no name)';
       const tradeKey = String(p.trade || tradeOf(p.name) || 'other').toLowerCase();
 
@@ -152,7 +175,7 @@ async function main() {
           reason: res.couldNotTell || 'could not tell',
         });
         console.log(`  · ${businessName}: kept the trade sentence — ${res.couldNotTell}`);
-        continue;
+        return;
       }
 
       intoAvoid(tradeKey, p.id, res.sentence);
@@ -192,7 +215,30 @@ async function main() {
         status,
       });
       console.log(`  ✓ ${businessName}: ${res.sentence}`);
-    }
+    };
+
+    // A worker takes a whole trade and walks it in order; AT_ONCE trades are
+    // walked side by side. A business that throws is reported and the run
+    // carries on — one bad site never stops the batch.
+    const worker = async () => {
+      while (true) {
+        const mine = queues[nextQueue];
+        nextQueue += 1;
+        if (!mine) return;
+        for (const p of mine) {
+          try { await doOne(p); }
+          catch (e) {
+            const nm = p.nameManualValue || p.name || '(no name)';
+            console.log(`  ! ${nm}: ${String((e && e.message) || e).slice(0, 110)}`);
+            fallbacks.push({
+              name: nm, trade: String(p.trade || tradeOf(p.name) || 'other').toLowerCase(),
+              theyRun: [], areas: [], reason: `the run threw: ${String((e && e.message) || e).slice(0, 160)}`,
+            });
+          }
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(AT_ONCE, queues.length) }, worker));
 
     // ------------------------------------------------------------------ page
     const out = [];

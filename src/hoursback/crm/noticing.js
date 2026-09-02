@@ -67,6 +67,32 @@
 // KEPT from the first amendment (2026-09-02): what they already run is
 // gathered first, never offered back, and where a system covers part of the
 // week the sentence nods to it in passing and steps PAST it.
+//
+// AMENDED 2026-09-02 (third amendment), after two real outputs read against
+// real stored pages:
+//
+//   OBSIDIAN REAL ESTATE: lead follow-up qualified — tier 1, recurrence
+//   confirmed — and the writing step refused it because their pages show that
+//   work beside a named broker rather than the principal broker the letter
+//   addresses. That refusal was wrong. Work that plainly belongs to the
+//   BUSINESS — enquiries arriving, scheduling, chasing, following up,
+//   management, anything that comes in from outside and must be dealt with by
+//   whoever is there — QUALIFIES even when a named individual appears
+//   alongside it. The passage is written about the business and never names
+//   that individual (checked in code: namesAPerson). A refusal is honest only
+//   when the work is genuinely personal to somebody who is not the recipient
+//   — one named specialist's own caseload, one person's licensed professional
+//   work — and on such a refusal the reason is recorded against that area and
+//   the NEXT-RANKED qualifying area is tried before falling silent. A refusal
+//   on one area never ends the attempt while others stand ranked and waiting.
+//
+//   OSCAR'S AUTO REPAIR: four near-identical pages, each a menu and a phone
+//   number. Rejecting it was right; offering "Se Habla Español" as the work
+//   task was not. A language offered, an accreditation, a licence or
+//   registration number, a slogan, an award, a years-in-business claim and a
+//   payment method accepted are facts about the business, not work anybody
+//   does in a week — never the job named (said in the find prompt, enforced
+//   in code: notAJob). When a site is thin, the honest answer is silence.
 
 const R = require('../readings.js');
 const T = require('../toolLibrary.js');
@@ -145,6 +171,62 @@ function kindsOf(text) {
   const out = [];
   for (const [kind, re] of JOB_KINDS) if (re.test(t)) out.push(kind);
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT IS NEVER A JOB (2026-09-02, third amendment, after Oscar's Auto
+// Repair). When a site is thin the reader grabs at whatever is distinctive —
+// and offered "Se Habla Español" as the work task. A language offered, an
+// accreditation, a licence or registration number, a slogan, an award, a
+// years-in-business claim and a payment method accepted are facts about the
+// business, not work anybody does in a week. None of them can ever be the job
+// named. The find prompt says so in plain words, and this check enforces it
+// on whatever comes back — on the job and on the words offered as its
+// evidence. The patterns are deliberately tight: they catch the badge itself,
+// never a real job whose words brush past one of these subjects.
+
+const NEVER_A_JOB = [
+  ['a language offered', /\b(se habla|hablamos|we speak)\b|\bespa[ñn]ol\b|\b(bilingual|spanish)[- ]?(spoken|speaking staff)\b/i],
+  ['an accreditation', /\b(accredit\w+|better business bureau|bbb|certifi(?:ed|cation)s?)\b/i],
+  ['a licence or registration number', /\b(lic(?:en[cs]ed?)?|ccb|reg(?:istration)?)\b\.?\s*(?:no\.?|number|#)?\s*#?\d{3,}/i],
+  ['a slogan', /\b(slogan|motto|tagline)\b/i],
+  ['an award', /\b(award\w*|prize|winner|voted best|best of \w+|top[- ]rated|readers'? choice)\b/i],
+  ['a years-in-business claim', /\bsince (?:19|20)\d\d\b|\b(?:over |more than )?\d+\+? years? (?:in business|of (?:experience|service)|serving)\b/i],
+  ['a payment method accepted', /\b(?:we (?:accept|take)|accept(?:s|ed|ing)?|payments? (?:by|via|in))\b[^.]{0,40}\b(?:visa|mastercard|amex|american express|discover|cash|checks?|credit|debit|apple ?pay|venmo|paypal|financing)\b|\b(?:visa|mastercard|amex|american express|discover|apple ?pay|venmo|paypal)\b[^.]{0,30}\baccepted\b/i],
+];
+
+function notAJob(area) {
+  const text = `${(area && area.job) || ''} ${(area && area.quote) || ''}`;
+  for (const [what, re] of NEVER_A_JOB) if (re.test(text)) return what;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// WHOSE WORK IT IS (2026-09-02, third amendment, after Obsidian Real Estate).
+// Work that belongs to the business is written about the business. A named
+// person appearing beside the work on their pages does not make it that
+// person's private job — rental and property-management enquiries land on the
+// OFFICE, whoever heads the desk — and the passage never names that person.
+// Checked in code, not hoped for. A part of a name that is also part of the
+// business's own name proves nothing and is skipped; short fragments are
+// skipped too, so "Al" in "all day" never fires.
+
+function namesAPerson(sentence, people, businessName = '') {
+  const s = String(sentence || '');
+  const flat = normalise(s);
+  const biz = normalise(businessName);
+  for (const p of people || []) {
+    const full = p && p.name ? String(p.name).trim() : '';
+    if (!full) continue;
+    if (normalise(full).length >= 4 && flat.includes(normalise(full))) return full;
+    for (const part of full.split(/\s+/)) {
+      if (part.length < 3) continue;
+      if (biz && biz.includes(normalise(part))) continue;
+      const safe = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`(^|[^A-Za-z])${safe}(?=[^A-Za-z]|$)`).test(s)) return full;
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +604,13 @@ function promptToFind(evidence, rejected = null) {
   lines.push('volume, locations, staff, seasons, forms, FAQs, "call us" — over a line');
   lines.push('in a list of services.');
   lines.push('');
+  lines.push('WHAT IS NEVER A JOB. A language offered ("Se Habla Español"), an');
+  lines.push('accreditation, a licence or registration number, a slogan, an award, a');
+  lines.push('years-in-business claim and a payment method accepted are facts about');
+  lines.push('the business, not work anybody does in a week. None of them can ever be');
+  lines.push('the job named, however little else the site gives you to work with.');
+  lines.push('When a site is thin, the honest answer is cannotTell.');
+  lines.push('');
   lines.push('Never invent, never assume. Every quote must appear on the pages, word');
   lines.push('for word.');
   if (rejected) {
@@ -751,6 +840,18 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
     ? 'They are genuinely different kinds of work and the passage must keep them that way. Never add a third.'
     : 'Never add a second job of your own.');
   lines.push('');
+  lines.push('WHOSE WORK IT IS. Work that plainly belongs to the BUSINESS — enquiries');
+  lines.push('arriving, scheduling, chasing, following up, management, anything that');
+  lines.push('comes in from outside and must be dealt with by whoever is there —');
+  lines.push('qualifies even when a named person appears beside it on their pages. A');
+  lines.push("named person standing next to the work does not make it that person's");
+  lines.push('private job. Write it about the business, and never name that person in');
+  lines.push('the passage. Say cannotTell only when the work is genuinely personal to');
+  lines.push('one specific person who is NOT the recipient — one named specialist\'s');
+  lines.push("own caseload, one person's licensed professional work, a role the");
+  lines.push('recipient plainly has nothing to do with — and it would read as wrong');
+  lines.push('said to the recipient.');
+  lines.push('');
   lines.push('How the passage must read:');
   lines.push('- Say it the way you would say it out loud to them, across a counter.');
   lines.push('- Plain, short, everyday words. It names a real job somebody actually does.');
@@ -833,7 +934,24 @@ function groundingPage(quote, pages) {
 // Whatever happens after FIND, the areas found — with their verdicts, ranks
 // and choices — travel out on the result so they can be recorded and shown.
 
-async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, attempts = 2 }) {
+// A CEILING ON HOW MANY TIMES ONE BUSINESS MAY BE ASKED (2026-09-02).
+//
+// Three stages, each retrying, and the writing stage walking every pairing of
+// areas in turn — one stubborn business could reach two dozen rounds. At about
+// twelve seconds each that is five minutes for ONE business, and it is why six
+// took a quarter of an hour. The stages are all still there; the business just
+// cannot cost more than this many rounds in total. Running out is a real
+// answer — Russ's trade sentence stands and the reason is recorded.
+const MOST_ROUNDS_PER_BUSINESS = 8;
+
+async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: rawAsk, attempts = 2 }) {
+  let rounds = 0;
+  let ranOut = false;
+  const ask = async (prompt) => {
+    if (rounds >= MOST_ROUNDS_PER_BUSINESS) { ranOut = true; return null; }
+    rounds += 1;
+    return rawAsk(prompt);
+  };
   if (typeof ask !== 'function') throw new Error('askForNoticing needs the reader handed in');
   const pages = (evidence && evidence.pages) || [];
   if (!pages.length) return { couldNotTell: "their site's words are not on file" };
@@ -846,7 +964,11 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, att
   let rejected = null;
   for (let go = 0; go < attempts; go++) {
     const res = await ask(promptToFind(evidence, rejected));
-    if (!res || !res.answer) return { couldNotTell: (res && res.why) || 'the reader did not answer' };
+    if (!res || !res.answer) {
+      return { couldNotTell: ranOut
+        ? `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands`
+        : (res && res.why) || 'the reader did not answer' };
+    }
     const a = res.answer;
     if (a.cannotTell) return { couldNotTell: String(a.cannotTell) };
     const found = (Array.isArray(a.areas) ? a.areas : [])
@@ -870,6 +992,19 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, att
       };
       continue;
     }
+    // A badge is never a job, however thin the site (Oscar's Auto Repair,
+    // 2026-09-02, offered "Se Habla Español" as the work task).
+    const badge = found.map((x) => ({ x, what: notAJob(x) })).find((b) => b.what);
+    if (badge) {
+      rejected = {
+        what: `"${badge.x.job}" resting on ${badge.what}`,
+        why: `${badge.what} is not a work task — a language offered, an accreditation, a licence `
+          + 'or registration number, a slogan, an award, a years-in-business claim and a '
+          + 'payment method accepted are facts about the business, never the job named; leave '
+          + 'it out, and when nothing else on the site shows real work, say cannotTell',
+      };
+      continue;
+    }
     let ungrounded = null;
     const grounded = [];
     for (const x of found) {
@@ -890,6 +1025,8 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, att
         rank: null,
         rankWhy: null,
         chosen: false,
+        refused: null,
+        refusedWhy: null,
       });
     }
     if (ungrounded) { rejected = { what: 'supporting words that are not on the pages', why: ungrounded }; continue; }
@@ -933,46 +1070,92 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, att
   // RANK and CHOOSE — in code, on the library's own evidence.
   const angle = angleFor(roleTitle);
   const ranked = rankAreas(recurring, { trade: evidence.trade, angle });
-  const { chosen, why: chosenWhy } = chooseForEmail(ranked);
-  for (const c of chosen) c.chosen = true;
 
   // WRITE. The passage names exactly the chosen work, in Russ's voice,
   // checked in code; a rejection twice is silence, never a shrug-and-send.
-  rejected = null;
-  for (let go = 0; go < attempts; go++) {
-    const res = await ask(promptToWrite(evidence, chosen, roleTitle, avoid, rejected));
-    if (!res || !res.answer) return { couldNotTell: (res && res.why) || 'the reader did not answer', areas };
-    const a = res.answer;
-    if (a.cannotTell) return { couldNotTell: String(a.cannotTell), areas };
-    const sentence = String(a.sentence || '').trim().replace(/\s+/g, ' ');
-    const check = passable(sentence, { roleTitle, avoid, jobs: chosen });
-    if (!check.ok) { rejected = { sentence, why: check.why }; continue; }
-    const hours = sentence.match(CLAIMS_HOURS);
-    if (hours) {
-      rejected = {
-        sentence,
-        why: `promises time back ("${hours[0].trim()}") — no savings figure, verified or not, belongs in this passage`,
+  //
+  // A REFUSAL is not a rejection (third amendment, after Obsidian Real
+  // Estate). When the writer answers cannotTell for the chosen work, the
+  // reason is recorded against those areas and the NEXT-RANKED qualifying
+  // area is tried — a refusal on one area never ends the attempt while
+  // others stand ranked and waiting. Silence comes only when every
+  // qualifying area has been refused, or the passages for one were all
+  // rejected. And the passage never names a person from their pages: work
+  // that belongs to the business is written about the business.
+  let pool = [...ranked];
+  const refusals = [];
+  while (pool.length) {
+    const pick = chooseForEmail(pool);
+    const mine = pick.chosen;
+    for (const c of mine) c.chosen = true;
+    rejected = null;
+    let refusal = null;
+    let wrote = null;
+    for (let go = 0; go < attempts; go++) {
+      const res = await ask(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
+      if (!res || !res.answer) {
+        return { couldNotTell: ranOut
+          ? `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands`
+          : (res && res.why) || 'the reader did not answer', areas };
+      }
+      const a = res.answer;
+      if (a.cannotTell) { refusal = String(a.cannotTell); break; }
+      const sentence = String(a.sentence || '').trim().replace(/\s+/g, ' ');
+      const check = passable(sentence, { roleTitle, avoid, jobs: mine });
+      if (!check.ok) { rejected = { sentence, why: check.why }; continue; }
+      const hours = sentence.match(CLAIMS_HOURS);
+      if (hours) {
+        rejected = {
+          sentence,
+          why: `promises time back ("${hours[0].trim()}") — no savings figure, verified or not, belongs in this passage`,
+        };
+        continue;
+      }
+      const offers = offersWhatTheyHave(sentence, mine, (evidence && evidence.theyRun) || []);
+      if (!offers.ok) { rejected = { sentence, why: offers.why }; continue; }
+      const named = namesAPerson(sentence, evidence.people, evidence.name);
+      if (named) {
+        rejected = {
+          sentence,
+          why: `names ${named}, a person from their pages — work that belongs to the business is `
+            + 'written about the business, and the passage never names the person who appears '
+            + 'beside it',
+        };
+        continue;
+      }
+      if (a.sure !== undefined && a.sure !== null && Number(a.sure) < 0.6) {
+        return { couldNotTell: 'the reader was not sure enough of it', areas };
+      }
+      wrote = { sentence, sure: a.sure };
+      break;
+    }
+    if (wrote) {
+      return {
+        sentence: wrote.sentence,
+        jobs: mine.map((c) => ({ job: c.job, quote: c.quote, url: c.url, type: c.type })),
+        areas,
+        chosenWhy: refusals.length ? `${refusals.join(' ')} ${pick.why}` : pick.why,
+        url: mine[0].url,
+        quote: mine[0].quote,
+        confidence: wrote.sure === undefined || wrote.sure === null ? null : Number(wrote.sure),
+        angle,
       };
+    }
+    if (refusal) {
+      // The reason lands on the areas it refused — kept forever with them —
+      // and the next-ranked qualifying area gets its turn.
+      for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = refusal; }
+      refusals.push(`"${mine.map((c) => c.job).join('" and "')}" was refused at the writing step (${refusal}).`);
+      pool = pool.filter((x) => !mine.includes(x));
       continue;
     }
-    const offers = offersWhatTheyHave(sentence, chosen, (evidence && evidence.theyRun) || []);
-    if (!offers.ok) { rejected = { sentence, why: offers.why }; continue; }
-    if (a.sure !== undefined && a.sure !== null && Number(a.sure) < 0.6) {
-      return { couldNotTell: 'the reader was not sure enough of it', areas };
-    }
     return {
-      sentence,
-      jobs: chosen.map((c) => ({ job: c.job, quote: c.quote, url: c.url, type: c.type })),
+      couldNotTell: `every passage was rejected — last: ${rejected ? rejected.why : 'no answer stood'}`,
       areas,
-      chosenWhy,
-      url: chosen[0].url,
-      quote: chosen[0].quote,
-      confidence: a.sure === undefined || a.sure === null ? null : Number(a.sure),
-      angle,
     };
   }
   return {
-    couldNotTell: `every passage was rejected — last: ${rejected ? rejected.why : 'no answer stood'}`,
+    couldNotTell: `refused at the writing step for every qualifying area — ${refusals.join(' ')}`,
     areas,
   };
 }
@@ -1048,6 +1231,8 @@ async function recordNoticing(db, prospectId, result, { sourceUrl = null } = {})
       rank: x.rank ?? null,
       rankWhy: x.rankWhy ?? null,
       chosen: Boolean(x.chosen),
+      refused: x.refused ?? null,
+      refusedWhy: x.refusedWhy ?? null,
     }),
     status: R.INFERRED,
     url: x.url || null, quote: x.quote || null,
@@ -1119,4 +1304,5 @@ module.exports = {
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
   tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
   CLAIMS_HOURS, VISIBLE_TO,
+  notAJob, namesAPerson,
 };

@@ -24,6 +24,14 @@
 //      and a weak second is dropped rather than carried
 //   9. what a business visibly runs is never offered back to it — the
 //      sentence nods to it and steps past, or names different work
+//  10. WHOSE WORK IT IS (2026-09-02, third amendment): work belonging to the
+//      business stands even when a named person appears beside it, the
+//      passage never names that person, and a genuine refusal records its
+//      reason against the area and tries the next-ranked area before silence
+//  11. WHAT IS NEVER A JOB (third amendment): a language offered, an
+//      accreditation, a licence or registration number, a slogan, an award,
+//      a years-in-business claim or a payment method accepted is never the
+//      job named — a thin site gets silence, not a grab at what stands out
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -880,4 +888,214 @@ test('only the trade-week sentence moves; every other byte of the letter stands'
     if (i === 2) continue;
     assert.equal(b[i], a[i], `part ${i} of the letter moved`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// 10. WHOSE WORK IT IS (2026-09-02, third amendment, after Obsidian Real
+//     Estate). Work that plainly belongs to the business qualifies even when
+//     a named person appears beside it on their pages; the passage is written
+//     about the business and never names that person. A genuine refusal —
+//     work personal to somebody who is not the recipient — records its reason
+//     against that area and the next-ranked area is tried before silence.
+
+const OBSIDIAN_PAGES = [
+  {
+    url: 'https://obsidianre.example/',
+    title: 'Obsidian Real Estate Group',
+    text: 'Obsidian Real Estate Group handles residential sales, property '
+      + 'management, rentals and business sales across Central Oregon. Call '
+      + 'our office about any listing and we will get back to you the same '
+      + 'day. Cole Conroy heads our rental desk. Every enquiry about a rental '
+      + 'or a managed property comes through the office line, and our team '
+      + 'follows up on each one. Our office keeps every showing on the '
+      + 'calendar, walks each applicant through the paperwork, and owners '
+      + 'receive a monthly statement for every property we manage.',
+  },
+];
+
+const OBSIDIAN_EVIDENCE = {
+  name: 'Obsidian Real Estate Group',
+  trade: 'real estate',
+  theirWork: 'residential sales, property management, rentals and business sales',
+  selfDescription: null,
+  toolsInUse: null,
+  teamSize: 9,
+  yearsInBusiness: 8,
+  people: [
+    { name: 'Ann Alder', role: 'Principal Broker' },
+    { name: 'Cole Conroy', role: 'Broker' },
+  ],
+  theyRun: [],
+  pages: OBSIDIAN_PAGES,
+};
+
+const FIND_LEADS = {
+  areas: [{
+    job: 'following up on rental and property enquiries',
+    type: 'lead_follow_up',
+    quote: 'Every enquiry about a rental or a managed property comes through the office line',
+  }],
+};
+const RECUR_LEADS = { verdicts: [{ recurs: 'yes', why: 'enquiries come through the office line every day', plainly: 0.85 }] };
+
+test('work belonging to the business stands beside a named person, and the passage never names them', async () => {
+  const namesCole = { sentence: 'Cole Conroy chases every rental enquiry that comes through your office line.', sure: 0.9 };
+  const aboutTheBusiness = { sentence: 'Every rental enquiry comes through the office line, and somebody there has to get back to each one the same day.', sure: 0.85 };
+  const ask = stubReader([FIND_LEADS, RECUR_LEADS, namesCole, aboutTheBusiness]);
+  const res = await N.askForNoticing({ evidence: OBSIDIAN_EVIDENCE, roleTitle: 'Principal Broker', ask });
+  assert.equal(res.sentence, aboutTheBusiness.sentence);
+  assert.ok(!/cole|conroy/i.test(res.sentence));
+  assert.equal(res.jobs[0].type, 'lead_follow_up');
+  assert.equal(res.areas[0].refused, null);                 // qualified work was never refused
+  // the write prompt carried the rule in plain words
+  assert.match(ask.prompts[2], /WHOSE WORK IT IS/);
+  assert.match(ask.prompts[2], /never name that person/);
+  // the passage naming Cole was rejected in code, reason in the reader's face
+  assert.match(ask.prompts[3], /names Cole Conroy/);
+});
+
+test('a genuine refusal records its reason and the next-ranked area is tried before silence', async () => {
+  const twoRanks = {
+    areas: [
+      { job: 'chasing clients for the organizers they never sent', type: 'document_collection', quote: GOOD_QUOTE },
+      { job: 'staying in front of past clients between seasons', type: 'email_and_newsletter', quote: 'serving individuals and small businesses' },
+    ],
+  };
+  const strongAndWeak = {
+    verdicts: [
+      { recurs: 'yes', why: 'every client, every season', plainly: 0.9 },
+      { recurs: 'yes', why: 'past clients pile up year on year', plainly: 0.3 },
+    ],
+  };
+  const refusal = { cannotTell: "chasing organizers is Dale Smith's own licensed casework, not something the office handles" };
+  const nextArea = {
+    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sure: 0.8,
+  };
+  const ask = stubReader([twoRanks, strongAndWeak, refusal, nextArea]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.equal(res.sentence, nextArea.sentence);
+  assert.equal(res.jobs.length, 1);
+  assert.equal(res.jobs[0].type, 'email_and_newsletter');
+  assert.equal(ask.prompts.length, 4);                      // find, recur, refused write, next write
+  assert.ok(ask.prompts[3].includes('staying in front of past clients'));
+  // the refusal landed on the area it refused, kept with it forever
+  const doc = res.areas.find((a) => a.type === 'document_collection');
+  assert.equal(doc.refused, true);
+  assert.match(doc.refusedWhy, /licensed casework/);
+  assert.equal(doc.chosen, false);
+  const news = res.areas.find((a) => a.type === 'email_and_newsletter');
+  assert.equal(news.chosen, true);
+  assert.equal(news.refused, null);
+  // and the choice explains the road taken
+  assert.match(res.chosenWhy, /refused at the writing step/);
+  assert.ok(res.chosenWhy.includes('chasing clients for the organizers'));
+});
+
+test('when every qualifying area is refused, silence — with each refusal recorded against its area', async () => {
+  const refusal = { cannotTell: "this is one person's own licensed work, wrong said to the recipient" };
+  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, refusal]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.ok(res.couldNotTell);
+  assert.equal(res.sentence, undefined);
+  assert.match(res.couldNotTell, /refused at the writing step for every qualifying area/);
+  assert.equal(ask.prompts.length, 3);                      // one refusal, no areas left, no retry
+  assert.equal(res.areas[0].refused, true);
+  assert.match(res.areas[0].refusedWhy, /own licensed work/);
+  assert.equal(res.areas[0].chosen, false);
+});
+
+test('a refused area travels into the record with its reason', async () => {
+  const created = [];
+  const db = {
+    reading: {
+      create: async ({ data }) => ({ id: 'r1', ...data }),
+      update: async (args) => args,
+    },
+    finding: { create: async ({ data }) => { created.push(data); return data; } },
+  };
+  await N.recordNoticing(db, 'p1', {
+    couldNotTell: 'refused at the writing step for every qualifying area',
+    areas: [{
+      job: 'following up on enquiries', type: 'lead_follow_up', department: 'sales',
+      label: 'Following up on enquiries',
+      quote: 'Every enquiry comes through the office line', url: OBSIDIAN_PAGES[0].url,
+      recurs: 'yes', recursWhy: 'every day', plainly: 0.85,
+      tier: 1, hours: null, hoursVerified: null, rank: 1, rankWhy: 'tier 1',
+      chosen: false, refused: true, refusedWhy: "one person's own caseload",
+    }],
+  });
+  assert.deepEqual(created.map((f) => f.field), ['noticing', 'noticingArea']);
+  const area = JSON.parse(created[1].value);
+  assert.equal(area.refused, true);
+  assert.match(area.refusedWhy, /caseload/);
+});
+
+// ---------------------------------------------------------------------------
+// 11. WHAT IS NEVER A JOB (2026-09-02, third amendment, after Oscar's Auto
+//     Repair — four near-identical pages, and the reader offered "Se Habla
+//     Español" as the work task). A badge is never the job named, and a thin
+//     site gets silence.
+
+test('a badge is never the job: language, accreditation, licence number, slogan, award, years, payment method', () => {
+  const badges = [
+    { job: 'offering service in Spanish', quote: 'Se Habla Español' },
+    { job: 'being ASE certified', quote: 'ASE Certified technicians' },
+    { job: 'holding their contractor licence', quote: 'CCB #204158' },
+    { job: 'living up to the slogan', quote: 'Fast, Fair and Friendly is our motto' },
+    { job: 'winning best of Bend', quote: 'Voted Best Auto Shop 2024' },
+    { job: 'being in business a long time', quote: 'over 30 years serving Central Oregon' },
+    { job: 'taking cards', quote: 'We accept Visa, Mastercard and Discover' },
+  ];
+  for (const b of badges) assert.ok(N.notAJob(b), `"${b.quote}" should never be the job named`);
+  // and real work is untouched
+  assert.equal(N.notAJob({ job: 'chasing clients for the organizers they never sent', quote: GOOD_QUOTE }), null);
+  assert.equal(N.notAJob(FIND_PM.areas[0]), null);
+  assert.equal(N.notAJob(FIND_LEADS.areas[0]), null);
+});
+
+const OSCAR_TEXT = "Oscar's Auto Repair. Brake service and repair, oil changes, engine "
+  + 'diagnostics, transmission service, tune ups, heating and cooling. Call '
+  + '541 555 0100 for an appointment. Se Habla Español.';
+const OSCAR_EVIDENCE = {
+  name: "Oscar's Auto Repair",
+  trade: 'auto',
+  theirWork: 'auto repair',
+  selfDescription: null,
+  toolsInUse: null,
+  teamSize: null,
+  yearsInBusiness: null,
+  people: [],
+  theyRun: [],
+  pages: [
+    { url: 'https://oscarsauto.example/', title: "Oscar's Auto Repair", text: OSCAR_TEXT },
+    { url: 'https://oscarsauto.example/services', title: 'Services', text: OSCAR_TEXT },
+    { url: 'https://oscarsauto.example/contact', title: 'Contact', text: OSCAR_TEXT },
+  ],
+};
+
+test('a thin site: grabbing the language badge is rejected in code, and the honest answer is silence', async () => {
+  const grabs = {
+    areas: [{
+      job: 'serving Spanish-speaking customers',
+      type: 'translation_and_accessibility',
+      quote: 'Se Habla Español',
+    }],
+  };
+  const ask = stubReader([grabs, grabs]);
+  const res = await N.askForNoticing({ evidence: OSCAR_EVIDENCE, ask });
+  assert.ok(res.couldNotTell);
+  assert.equal(res.sentence, undefined);
+  assert.match(res.couldNotTell, /not a work task/);
+  assert.equal(ask.prompts.length, 2);
+  // the retry named the badge so the reader could drop it or fall silent
+  assert.match(ask.prompts[1], /a language offered/);
+});
+
+test('the find prompt says plainly what is never a job, and that a thin site gets silence', () => {
+  const prompt = N.promptToFind(OSCAR_EVIDENCE);
+  assert.match(prompt, /WHAT IS NEVER A JOB/);
+  assert.match(prompt, /Se Habla Espa/);
+  assert.match(prompt, /payment method accepted/);
+  assert.match(prompt, /When a site is thin, the honest answer is cannotTell/);
 });
