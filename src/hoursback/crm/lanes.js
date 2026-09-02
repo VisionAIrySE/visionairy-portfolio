@@ -169,17 +169,20 @@ async function standDownStaleDrafts(db, prospectId, lane, why) {
   return null;
 }
 
-async function draftFor(db, prospectId, lane) {
-  const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
-  // Write to whoever it is actually going to, not to whoever owns the place.
-  // The greeting used to name the owner while the message went to info@.
-  // WHOEVER IT IS ACTUALLY GOING TO, ON BOTH CHANNELS.
-  //
-  // This asked for the person on the email lane only, so ticking Trever
-  // Campbell as the one to write to changed the email and left the LinkedIn
-  // note still greeting the owner (Russ, 2026-08-31). The note is the one he
-  // pastes by hand, so the wrong name goes out under his own fingers.
+// Write to whoever it is actually going to, not to whoever owns the place.
+// The greeting used to name the owner while the message went to info@.
+// WHOEVER IT IS ACTUALLY GOING TO, ON BOTH CHANNELS.
+//
+// This asked for the person on the email lane only, so ticking Trever
+// Campbell as the one to write to changed the email and left the LinkedIn
+// note still greeting the owner (Russ, 2026-08-31). The note is the one he
+// pastes by hand, so the wrong name goes out under his own fingers.
+//
+// Pulled out of draftFor (2026-09-01) so the noticing pass answers "who is
+// this letter addressed to, and what is their job" with the SAME rules the
+// draft itself uses — a second copy of these rules is how two channels ended
+// up greeting two different people.
+async function whoTheLetterGoesTo(db, prospectId, p) {
   const person = await personFor(db, prospectId);
   // A person Russ marked wins over the owner on the record, and a single given
   // name counts — the ordinary rule wants two words and threw away every team
@@ -204,6 +207,25 @@ async function draftFor(db, prospectId, lane) {
       const usable = named.find((c) => firstNameOf(c.name));
       if (usable) writeTo = { ...writeTo, contactName: usable.name };
     }
+  }
+  return { writeTo, person };
+}
+
+async function draftFor(db, prospectId, lane) {
+  const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
+  let { writeTo } = await whoTheLetterGoesTo(db, prospectId, p);
+  // THE NOTICING — one sentence read off THIS business's own site, recorded
+  // through the append-only reading store. Where one stands, it takes the
+  // place of the trade's week sentence in the first email and nothing else in
+  // Russ's letter moves. Where the site could not support one, noticingFor
+  // returns null and the letter keeps his trade sentence unchanged — silence
+  // beats a wrong guess (Russ, 2026-09-01). Email only: the LinkedIn note is
+  // pasted by hand and stays as approved.
+  if (lane === 'EMAIL') {
+    const { noticingFor } = require('./noticing.js');
+    const noticed = await noticingFor(db, prospectId);
+    if (noticed) writeTo = { ...writeTo, noticing: noticed };
   }
   // BOTH LANES GET THE PERSON IT IS ACTUALLY GOING TO.
   //
@@ -590,6 +612,6 @@ module.exports = {
   sendQueuedEmails,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, markReplied, markBounced, reachableOn,
 };

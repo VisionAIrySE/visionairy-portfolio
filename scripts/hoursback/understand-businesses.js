@@ -83,6 +83,9 @@ const BATCH_OF_SITES = 50;
 // 0 answered (2026-08-28). So: wait four minutes per call, and let the flight
 // controller decide how many fly at once from what the reader actually does.
 const READ_TIMEOUT_MS = 240000;
+// The reader ignores a polite stop, so this is the one that actually fires:
+// our own timer, and a kill it cannot refuse. A normal read takes ~13 seconds.
+const HARD_KILL_MS = 180000;
 
 // How long one business's model reads may take in total. The crawl carries
 // its own two-minute limit inside crawlWholeSite(); this bounds the reads
@@ -104,7 +107,26 @@ const callLog = [];
 function askTheReader(question) {
   const began = Date.now();
   return new Promise((resolve) => {
-    execFile('claude', [
+    // A HUNG READ MUST NOT HOLD THE RUN.
+    //
+    // execFile's own `timeout` sends SIGTERM, which the reader ignores, so the
+    // promise never settles: on 2026-09-02 one read sat for over ten minutes
+    // against a normal thirteen seconds, and every business behind it waited.
+    // The cutoff was in the code the whole time and did nothing.
+    //
+    // So the timer is ours, the kill is SIGKILL, and the promise settles
+    // whether or not the child ever answers. A read that dies is recorded as
+    // no answer — which is true — rather than stopping the night.
+    let child = null;
+    let settled = false;
+    const answer = (v) => { if (!settled) { settled = true; clearTimeout(guard); resolve(v); } };
+    const guard = setTimeout(() => {
+      try { if (child && child.pid) process.kill(child.pid, 'SIGKILL'); } catch { /* already gone */ }
+      callLog.push({ via: 'local claude', model: 'haiku', ms: Date.now() - began, answered: false, killed: true });
+      answer({ answer: null, why: `the reader did not answer inside ${Math.round(HARD_KILL_MS / 1000)}s and was stopped` });
+    }, HARD_KILL_MS);
+
+    child = execFile('claude', [
       '-p', question,
       '--model', 'haiku',
       '--system-prompt', 'You read web pages and answer with JSON only. No preamble, no explanation, no code fences.',
@@ -113,14 +135,24 @@ function askTheReader(question) {
       '--no-session-persistence',
       '--settings', '{"hooks":{},"enabledPlugins":{}}',
       '--disallowed-tools', 'Bash,Read,Write,Edit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite',
-    ], { cwd: ROOM, timeout: READ_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    ], { cwd: ROOM, timeout: READ_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (settled) return;
       callLog.push({ via: 'local claude', model: 'haiku', ms: Date.now() - began, answered: Boolean(stdout) });
-      if (err && !stdout) return resolve({ answer: null, why: 'the reader did not answer' });
+      if (err && !stdout) return answer({ answer: null, why: 'the reader did not answer' });
       const text = String(stdout || '');
+      // THE READER'S OWN LIMIT IS NOT A THIN WEBSITE.
+      //
+      // When the local reader is out of allowance it answers in prose about
+      // that, not in JSON. On 2026-09-02 six businesses in a row were recorded
+      // as "kept the trade sentence" — six honest-looking fallbacks that were
+      // really one dead reader (feedback-a-working-fallback-hides-a-dead-primary).
+      if (/session limit|usage limit|rate limit|resets at|out of (credit|quota)/i.test(text.slice(0, 400))) {
+        return answer({ answer: null, why: 'THE READER IS OUT OF ALLOWANCE — this is not a thin website', readerExhausted: true });
+      }
       const m = text.match(/\{[\s\S]*\}/);
-      if (!m) return resolve({ answer: null, why: 'the reader answered with no JSON' });
-      try { resolve({ answer: JSON.parse(m[0]), why: null }); }
-      catch { resolve({ answer: null, why: 'the reader answered with broken JSON' }); }
+      if (!m) return answer({ answer: null, why: 'the reader answered with no JSON' });
+      try { answer({ answer: JSON.parse(m[0]), why: null }); }
+      catch { answer({ answer: null, why: 'the reader answered with broken JSON' }); }
     });
   });
 }

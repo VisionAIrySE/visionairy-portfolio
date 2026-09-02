@@ -1,0 +1,302 @@
+#!/usr/bin/env node
+// Write one true sentence per business — the noticing — and carry it into
+// their unsent first email.
+//
+//   node scripts/hoursback/write-noticings.js --look --limit=5
+//   node scripts/hoursback/write-noticings.js --since=2026-09-01
+//   node scripts/hoursback/write-noticings.js --ids=<id>,<id>
+//   node scripts/hoursback/write-noticings.js --limit=20
+//
+// --look: the sentences are generated and the review page is written, but
+// NOTHING in the database is touched — no reading, no finding, no draft.
+//
+// The sentence replaces exactly one thing in Russ's letter: the trade's week
+// sentence, the third element of dayZero. Everything else is his, unchanged.
+// A business whose own site does not clearly support one specific observation
+// keeps his trade sentence — silence beats a wrong guess, and the "could not
+// tell" is itself recorded, because absence is data.
+//
+// The letter is rewritten through the ONE existing draft path — lanes.draftFor
+// — the same as scripts/hoursback/rewrite-drafts.js uses. A draft Russ has
+// edited by hand (editedAt) or that is already sent is never touched; draftFor
+// enforces that and this script adds no second way of writing a message.
+//
+// COST. Three local model calls per business — find the areas, check they
+// recur, write the passage — plus at most one retry where an answer is
+// rejected, all through askTheReader() — the same local reader the site reads
+// use. No OpenRouter, no paid call, ever. The ceiling below is in code before
+// anything runs, because a loop that spends without one has cost real money.
+
+const path = require('path');
+const fs = require('fs');
+
+// HARD CEILING. However many are asked for, one run writes noticings for at
+// most this many businesses.
+const CEILING = 50;
+
+const { askTheReader } = require('./understand-businesses.js');   // safe: exports only; chdirs to the project root and loads .env
+const { PrismaClient } = require('@prisma/client');
+const N = require('../../src/hoursback/crm/noticing.js');
+const L = require('../../src/hoursback/crm/lanes.js');
+const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
+const { tradeOf } = require('../../src/hoursback/crm/queues.js');
+
+const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
+const LOOK = process.argv.includes('--look');
+const SINCE = arg('since', null);
+const IDS = String(arg('ids', '')).split(',').map((s) => s.trim()).filter(Boolean);
+const LIMIT = Math.min(Number(arg('limit', CEILING)) || CEILING, CEILING);
+
+const REVIEW_PAGE = path.resolve(__dirname, '../../docs/hoursback/messages-to-review.md');
+
+// The second paragraph of the letter: greeting, WHO_I_AM, then this.
+function secondParagraphOf(body) {
+  return String(body || '').split('\n\n')[2] || '';
+}
+
+function asQuote(text) {
+  return String(text || '').split('\n').map((l) => `> ${l}`).join('\n');
+}
+
+async function main() {
+  const db = new PrismaClient();
+  try {
+    // Who this run looks at. Explicit ids are taken as given; otherwise the
+    // most recently read businesses that a letter could actually reach, the
+    // same reachability screen rewrite-drafts.js uses. doNotContact stands
+    // everywhere — a business Russ said never to contact gets no work done
+    // on its letter at all.
+    const where = { doNotContact: false };
+    if (IDS.length) {
+      where.id = { in: IDS };
+    } else {
+      where.siteStatus = 'READ';
+      where.repliedAt = null;
+      where.emailBouncedAt = null;
+      where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }];
+      if (SINCE) {
+        const t = new Date(SINCE);
+        if (Number.isNaN(t.getTime())) throw new Error(`--since=${SINCE} is not a date`);
+        where.siteReadAt = { gte: t };
+      }
+    }
+    const rows = await db.prospect.findMany({
+      where, orderBy: { siteReadAt: 'desc' }, take: LIMIT,
+    });
+    console.log(`${rows.length} businesses selected (ceiling ${CEILING})${LOOK ? ' — LOOK ONLY, nothing will be written' : ''}`);
+
+    // Every noticing already on file, latest per business, grouped by trade —
+    // so two businesses in one trade can never be handed the same sentence,
+    // this run included. A business's own earlier sentence is not a collision
+    // with itself.
+    const priors = await db.finding.findMany({
+      where: { field: 'noticing', retiredAt: null, value: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { value: true, prospectId: true },
+    });
+    const latestByProspect = new Map();
+    for (const f of priors) if (!latestByProspect.has(f.prospectId)) latestByProspect.set(f.prospectId, f.value);
+    const priorProspects = latestByProspect.size
+      ? await db.prospect.findMany({
+        where: { id: { in: [...latestByProspect.keys()] } },
+        select: { id: true, name: true, trade: true },
+      })
+      : [];
+    const avoidByTrade = new Map();
+    const intoAvoid = (trade, prospectId, sentence) => {
+      const key = String(trade || 'other').toLowerCase();
+      if (!avoidByTrade.has(key)) avoidByTrade.set(key, []);
+      avoidByTrade.get(key).push({ prospectId, sentence });
+    };
+    for (const pp of priorProspects) {
+      intoAvoid(pp.trade || tradeOf(pp.name) || 'other', pp.id, latestByProspect.get(pp.id));
+    }
+
+    const noticed = [];     // review entries
+    const fallbacks = [];   // kept the trade sentence, and why
+    let rewritten = 0; let leftAlone = 0;
+
+    for (const p of rows) {
+      const businessName = p.nameManualValue || p.name || '(no name)';
+      const tradeKey = String(p.trade || tradeOf(p.name) || 'other').toLowerCase();
+
+      // Who the letter is addressed to, by the SAME rules the draft uses, and
+      // what their job is. The job angles the prompt and never the surface of
+      // the sentence; no job on record means the neutral version.
+      const { writeTo } = await L.whoTheLetterGoesTo(db, p.id, p);
+      let roleTitle = null;
+      if (writeTo.contactName) {
+        const c = await db.contact.findFirst({ where: { prospectId: p.id, name: writeTo.contactName } });
+        roleTitle = c && c.role ? c.role : null;
+      } else if (writeTo.ownerName) {
+        roleTitle = 'owner';   // the greeting falls to the owner on the record
+      }
+      const addressedTo = writeTo.contactName || writeTo.ownerName || 'nobody by name';
+
+      const avoid = (avoidByTrade.get(tradeKey) || [])
+        .filter((x) => x.prospectId !== p.id)
+        .map((x) => x.sentence);
+
+      const res = await N.noticeOneBusiness(db, p.id, {
+        ask: askTheReader, avoid, roleTitle, prospect: p,
+      });
+
+      if (!res.sentence) {
+        // Silence beats a wrong guess: the letter keeps Russ's trade
+        // sentence, and the "could not tell" is recorded as itself.
+        if (!LOOK) await N.recordNoticing(db, p.id, res, { sourceUrl: p.websiteManualValue || p.website });
+        fallbacks.push({
+          name: businessName, trade: tradeKey,
+          theyRun: res.theyRun || [],
+          areas: res.areas || [],
+          reason: res.couldNotTell || 'could not tell',
+        });
+        console.log(`  · ${businessName}: kept the trade sentence — ${res.couldNotTell}`);
+        continue;
+      }
+
+      intoAvoid(tradeKey, p.id, res.sentence);
+      const before = await db.outreachMessage.findFirst({ where: { prospectId: p.id, lane: 'EMAIL' } });
+
+      let after = null; let status;
+      if (LOOK) {
+        after = { body: draftFirstContact({ ...writeTo, noticing: res.sentence }, L.signalsOf(p)).body };
+        status = before && before.sentAt ? 'already sent — a real run would leave the letter alone'
+          : before && before.editedAt ? 'edited by Russ — a real run would leave the letter alone'
+            : 'what the letter would become (nothing was written)';
+      } else {
+        await N.recordNoticing(db, p.id, res, { sourceUrl: p.websiteManualValue || p.website });
+        after = await L.draftFor(db, p.id, 'EMAIL');
+        if (!after) status = 'sentence recorded; no letter stands (no address, or nothing honest to open with)';
+        else if (after.sentAt) { status = 'already sent — left exactly as it was; the sentence is on file for the next letter'; leftAlone += 1; }
+        else if (after.editedAt) { status = 'edited by Russ — left exactly as it was; the sentence is on file'; leftAlone += 1; }
+        else { status = before ? 'draft rewritten to carry the noticing' : 'draft written fresh, carrying the noticing'; rewritten += 1; }
+      }
+
+      noticed.push({
+        name: businessName,
+        trade: tradeKey,
+        theirWork: p.theirWork || p.selfDescription || null,
+        addressedTo,
+        roleTitle: roleTitle || 'not on record',
+        angle: res.angle,
+        theyRun: res.theyRun || [],
+        jobs: res.jobs || [],
+        areas: res.areas || [],
+        chosenWhy: res.chosenWhy || null,
+        restsOn: res.url,
+        quote: res.quote,
+        oldParagraph: before ? secondParagraphOf(before.body) : secondParagraphOf(draftFirstContact(writeTo, L.signalsOf(p)).body),
+        newParagraph: after ? secondParagraphOf(after.body) : res.sentence,
+        newBody: after ? after.body : null,
+        status,
+      });
+      console.log(`  ✓ ${businessName}: ${res.sentence}`);
+    }
+
+    // ------------------------------------------------------------------ page
+    const out = [];
+    out.push('# Messages to review — the noticing pass');
+    out.push('');
+    out.push(`Written ${new Date().toISOString()} by scripts/hoursback/write-noticings.js${LOOK ? ' — **a look only: nothing in the database was touched**' : ''}.`);
+    out.push('');
+    out.push("One thing changed in each letter below: the second paragraph, which used to be the trade's week, now names at most the two hardest-hitting jobs read off that business's own site, angled to the job of the person it is addressed to. Every other word is Russ's, unchanged. Beside each is what the business already visibly runs; EVERY area of work that mapped to the tool library, each with its type, department, the words it rests on and its recurrence verdict; how the areas ranked and which reached the email, and why. The card gets everything that fits — the email names two at most. Businesses whose site could not support a specific, true sentence are at the end — they keep the trade sentence, and the reason and any areas that fell short are beside each.");
+    out.push('');
+
+    const runsLine = (theyRun) => (theyRun && theyRun.length
+      ? theyRun.map((t) => (t.does ? `${t.name} (${t.does})` : t.name)).join('; ')
+      : 'nothing visible on their record or their pages');
+
+    // Every area found, ranked ones first — the card in full. Each carries
+    // its type, department, the words it rests on, its recurrence verdict,
+    // and where it ranked and why.
+    const areaLines = (areas, reachedEmail = true) => {
+      const lines = [];
+      const shown = [...(areas || [])].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+      for (const x of shown) {
+        // On a fallback the chosen area never reached any email — the passage
+        // was refused after the choice — and the label must not say it did.
+        const head = x.chosen
+          ? (reachedEmail ? `**#${x.rank} — IN THE EMAIL**` : `**#${x.rank} — chosen, but no passage stood**`)
+          : x.rank ? `#${x.rank}` : 'dropped';
+        lines.push(`  - ${head}: ${x.label || x.type} (\`${x.type}\`, ${x.department || '?'}) — ${x.job}`);
+        if (x.quote) lines.push(`    - their words: "${x.quote}"`);
+        lines.push(`    - recurs: ${x.recurs || 'not checked'}${x.recursWhy ? ` — ${x.recursWhy}` : ''}${x.plainly !== null && x.plainly !== undefined ? ` (plainly ${x.plainly})` : ''}`);
+        if (x.rankWhy) lines.push(`    - why this rank: ${x.rankWhy}`);
+      }
+      return lines;
+    };
+
+    noticed.forEach((n, i) => {
+      out.push(`## ${i + 1}. ${n.name} — ${n.trade}`);
+      out.push('');
+      if (n.theirWork) out.push(`- **What they do:** ${n.theirWork}`);
+      out.push(`- **Addressed to:** ${n.addressedTo} (${n.roleTitle}; angle: ${n.angle})`);
+      out.push(`- **They already run:** ${runsLine(n.theyRun)}`);
+      if (n.areas && n.areas.length) {
+        out.push(`- **Every area that fits (the card, ${n.areas.length} found):**`);
+        out.push(...areaLines(n.areas));
+      }
+      if (n.chosenWhy) out.push(`- **Why these reached the email:** ${n.chosenWhy}`);
+      if (n.jobs && n.jobs.length) {
+        out.push('- **Named in the email:**');
+        for (const j of n.jobs) {
+          out.push(`  - ${j.job || '(the reader gave no name for it)'}${j.quote ? ` — their words: "${j.quote}"` : ''}`);
+        }
+      }
+      out.push(`- **Rests on:** ${n.restsOn}`);
+      out.push(`- **Their own words behind it:** "${n.quote}"`);
+      out.push(`- **Status:** ${n.status}`);
+      out.push('');
+      out.push('**Second paragraph before:**');
+      out.push('');
+      out.push(asQuote(n.oldParagraph));
+      out.push('');
+      out.push('**Second paragraph now:**');
+      out.push('');
+      out.push(asQuote(n.newParagraph));
+      out.push('');
+      if (n.newBody) {
+        out.push('**The whole letter as it now stands:**');
+        out.push('');
+        out.push('```');
+        out.push(n.newBody);
+        out.push('```');
+        out.push('');
+      }
+    });
+
+    out.push('## Kept the trade sentence — nothing specific could honestly be said');
+    out.push('');
+    if (!fallbacks.length) {
+      out.push('None this run.');
+    } else {
+      out.push('| Business | Trade | Already runs | Why |');
+      out.push('|---|---|---|---|');
+      for (const f of fallbacks) {
+        out.push(`| ${f.name} | ${f.trade} | ${runsLine(f.theyRun).replace(/\|/g, '/')} | ${String(f.reason).replace(/\|/g, '/')} |`);
+      }
+      // Areas that were found and fell short are findings too — shown here so
+      // the verdicts can be judged, never lost inside the reason column.
+      for (const f of fallbacks) {
+        if (!f.areas || !f.areas.length) continue;
+        out.push('');
+        out.push(`**${f.name} — areas found before the fallback:**`);
+        out.push(...areaLines(f.areas, false));
+      }
+    }
+    out.push('');
+    fs.writeFileSync(REVIEW_PAGE, out.join('\n'));
+
+    console.log('');
+    console.log(`noticed: ${noticed.length}   kept the trade sentence: ${fallbacks.length}`);
+    if (!LOOK) console.log(`letters rewritten: ${rewritten}   left alone (sent or hand-edited): ${leftAlone}`);
+    console.log(`review page: ${REVIEW_PAGE}`);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });
+
+module.exports = { CEILING, secondParagraphOf };

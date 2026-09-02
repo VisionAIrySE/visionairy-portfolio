@@ -654,7 +654,16 @@ function draftFirstContact(prospect, signals = []) {
   // Every sentence below is Russ's own, from his rewrite on 2026-08-30, saved at
   // ~/.claude/voice/samples/2026-08-30-hoursback-email-russ-rewrite.md
   const C = require('./campaign.js');
-  const body = `${C.dayZero(who, C.tradeCopy(trade), business)}\n\n${SIGN_OFF}`
+  // THE NOTICING (2026-09-01). Where a sentence has been read off THIS
+  // business's own site — recorded in the reading store, handed in on the
+  // prospect as `noticing` — it stands where the trade's week sentence
+  // stands, and nothing else moves: Russ's greeting, WHO_I_AM, the
+  // concession line, WHY_ME, THE_OFFER and ASK_DAY0 are all exactly as they
+  // were, still seeded by the business's own name. No noticing, no change.
+  const t = prospect.noticing
+    ? { ...C.tradeCopy(trade), week: String(prospect.noticing) }
+    : C.tradeCopy(trade);
+  const body = `${C.dayZero(who, t, business)}\n\n${SIGN_OFF}`
     .replace(/\{business\}/g, business)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/([^\n]) {2,}/g, '$1 ')

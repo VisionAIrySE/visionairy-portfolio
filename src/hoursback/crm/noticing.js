@@ -1,0 +1,1122 @@
+// THE NOTICING — one sentence, true of one business, in Russ's letter.
+//
+// The second paragraph of the first email used to be the trade's week: the
+// same sentence for every accounting firm in town, and two of them in one
+// town got it word for word (Russ, 2026-09-01). We now hold what each
+// business says about itself — every page of their site, the people on it,
+// the software they run — so the sentence can be about THEM.
+//
+// What changes is exactly one thing: the third element of dayZero, the
+// trade's week sentence (`t.week`). Everything else in the letter is Russ's
+// own wording and does not move — his greeting, WHO_I_AM, the concession
+// line, WHY_ME, THE_OFFER, ASK_DAY0, his sign-off, and the per-business
+// variation seeded by the business name.
+//
+// RUSS'S RULE, SUPREME: never commit to something in the message that may
+// not resonate. If the business's own pages do not clearly support one
+// specific observation, there is no noticing, and the letter keeps the trade
+// sentence unchanged. Silence beats a wrong guess. Absence is data, and it
+// is recorded as itself: a could_not_tell finding, kept forever.
+//
+// EVERY sentence is a finding in the append-only reading store
+// (src/hoursback/readings.js). No column was added, nothing is overwritten,
+// and a business done twice simply has two findings — the latest wins on the
+// way out, exactly as the evidence rule requires.
+//
+// EVERY model call leaves through the LOCAL reader (askTheReader in
+// scripts/hoursback/understand-businesses.js). No OpenRouter, no paid call.
+//
+// AMENDED 2026-09-02 (second amendment), after a real sentence for a shipping
+// shop: "You're picking which carrier for every package. And with the
+// international ones, that's customs paperwork too." Grounded, warm, specific
+// — and useless. An agent at a counter advising one customer is not work
+// software takes, and the sentence rested on a SERVICE THEY ADVERTISE, which
+// is a menu item, not evidence of where their week goes. Three changes:
+//
+//   1. THE TOOL LIBRARY IS THE BENCHMARK. Every job named must map to one of
+//      the named types of work in src/hoursback/toolLibrary.js — the list of
+//      what software can actually take off a business, each with a department
+//      and a plain label. Nothing outside that list qualifies, full stop.
+//      The reader is handed the full menu and must name the type key; the
+//      code verifies the key exists. This REPLACES the old hand-written
+//      hands-on/around-work word lists entirely — the library IS the list,
+//      and a job that fits none of its types does not qualify. A customer
+//      being on the phone does NOT disqualify a job (phone_answering,
+//      call_notes_and_follow_up and knowledge_lookup are all in the library);
+//      what disqualifies is a one-off interaction that does not repeat, and a
+//      person physically handling an object.
+//
+//   2. THE RECURRENCE TEST, a separate second call. Mapping to a type is
+//      necessary but not sufficient: the job must plainly RECUR, many times a
+//      week, the same shape each time. An advertised service is never on its
+//      own evidence of recurrence. The second call sees only the trade and
+//      each named job with its type and its supporting quote — never the
+//      first call's reasoning — and answers yes or no per job, with a reason.
+//      A job failing recurrence is dropped; if all drop, Russ's trade
+//      sentence stands and the reason is recorded.
+//
+//   3. THE CARD GETS EVERYTHING; THE EMAIL NAMES TWO (Russ's decision).
+//      Every type of work that genuinely fits is found and recorded through
+//      readings.record() — two, three, four, more if they honestly qualify.
+//      The email names at most the TWO hardest-hitting, ranked on the
+//      library's own evidence (the trade's tier pairings, the hours figures,
+//      how plainly their pages show it recurring, how visibly it lands on
+//      the reader) — one when the second would be filler. Four in a first
+//      email reads as a scattergun; the rest are there for the call.
+//
+// KEPT from the first amendment (2026-09-02): what they already run is
+// gathered first, never offered back, and where a system covers part of the
+// week the sentence nods to it in passing and steps PAST it.
+
+const R = require('../readings.js');
+const T = require('../toolLibrary.js');
+
+const READER = 'noticing';
+const READER_VERSION = '2026-09-02-noticing-3';
+const MODEL = 'haiku';
+
+// ---------------------------------------------------------------------------
+// WHO THE LETTER IS GOING TO, and how that angles the sentence.
+//
+// The angle changes the PROMPT, never the surface of the sentence — the
+// sentence must not name the reader's job, flatter them, or read their job
+// description back at them. To an owner the repetition costs money and their
+// own evenings; to the person who does the office work it is their actual
+// day, and the sentence must never imply they are the problem; to a
+// specialist it is time taken from the work they are paid for. No job title
+// on record gets the neutral version.
+
+const AN_OWNER = /\b(owner|founder|principal|president|proprietor|partner|ceo|chief executive|general manager|managing (member|director|partner))\b/i;
+const RUNS_THE_OFFICE = /\b(office manager|practice manager|operations manager|administrator|administrative|admin|coordinator|receptionist|front desk|bookkeeper|billing|scheduler|dispatcher|secretary|manager)\b/i;
+const A_SPECIALIST = /\b(attorney|lawyer|paralegal|agent|broker|loan officer|officer|accountant|cpa|enrolled agent|dentist|dds|dmd|hygienist|doctor|physician|provider|dvm|veterinarian|therapist|stylist|realtor|engineer|estimator|inspector|appraiser|adjuster|technician|advis[eo]r|consultant|designer|architect|surveyor|instructor|trainer|groomer)\b/i;
+
+function angleFor(roleTitle) {
+  const t = String(roleTitle || '').trim();
+  if (!t) return 'neutral';
+  if (AN_OWNER.test(t)) return 'owner';
+  if (RUNS_THE_OFFICE.test(t)) return 'office';
+  if (A_SPECIALIST.test(t)) return 'specialist';
+  return 'neutral';
+}
+
+const ANGLES = {
+  owner:
+    'The letter is going to the person who owns or runs this business. Angle '
+    + 'the sentence at what the repeated work costs the place — money, and the '
+    + "owner's own evenings. Do this inside the sentence itself, never as a "
+    + 'separate clause about the reader, and never say they are the owner.',
+  office:
+    'The letter is going to the person who does the office work themselves, '
+    + 'every day. The sentence must describe the work as their own pages show '
+    + 'it, and it must never imply this person is slow or the problem — the '
+    + 'work is the problem. Do this inside the sentence itself, never as a '
+    + 'separate clause about the reader, and never name their job.',
+  specialist:
+    'The letter is going to somebody paid for skilled work. Angle the '
+    + 'sentence at the time the repeated office work takes from the work they '
+    + 'are paid for. Do this inside the sentence itself, never as a separate '
+    + 'clause about the reader, and never name their job.',
+  neutral:
+    "Nothing is known about the reader's job. Write the plain version, about "
+    + 'the business as a whole.',
+};
+
+// ---------------------------------------------------------------------------
+// WHAT KIND OF WORK a job's words touch — used ONLY by the what-they-already-
+// run check below, to catch a sentence offering a business work its own
+// systems visibly cover. Qualification is NOT decided here any more: the tool
+// library is the benchmark for that (2026-09-02, second amendment).
+const JOB_KINDS = [
+  ['scheduling', /\b(schedul\w+|reschedul\w+|appointments?|book(?:s|ed|ing|ings)?|calendars?|slots?|showings?)\b/i],
+  ['chasing', /\b(chas(?:e|es|ed|ing)|remind\w+|follow[\s-]?ups?|follows? up|following up|overdue|nudg\w+|renewals?|due back|reviews? request\w*)\b/i],
+  ['records', /\b(retyp\w+|re.?key\w+|typ(?:e|es|ed|ing)|data entry|enter(?:s|ed|ing)? (?:it|them|those|the same|every)|twice|two (?:places|systems)|in step|listings?|availability|inventory|spreadsheets?|price lists?)\b/i],
+  ['paperwork', /\b(paperwork|forms?|claims?|intake|organizers?|signatures?|unsigned|waivers?|registrations?|certificates?|permits?|filings?)\b/i],
+  ['quoting', /\b(quot(?:e|es|ed|ing)|estimates?|proposals?|invoic\w+|bill(?:s|ed|ing)?|reports?|statements?)\b/i],
+  ['enquiries', /\b(calls?|phon(?:e|es|ed|ing)|voicemails?|answer(?:s|ed|ing)?|questions?|enquir\w+|inquir\w+|emails?|texts?|messages?|asking|walk[\s-]?ins?)\b/i],
+];
+
+// EVERY kind a job's words touch, not just the first. The collision check
+// below needs this: "taking calls about maintenance, availability, and lease
+// questions" is availability work AND call-fielding, and a portal covers the
+// second — the first match alone let exactly that sentence past a portal on
+// the very first live run (2026-09-02).
+function kindsOf(text) {
+  const t = String(text || '');
+  const out = [];
+  for (const [kind, re] of JOB_KINDS) if (re.test(t)) out.push(kind);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THEY ALREADY RUN (Russ, 2026-09-02). Offering a business something it
+// visibly already has reads as not having looked. Each system the record or
+// the site read shows is listed for the reader, and a sentence whose named
+// job is work one of those systems already does is rejected — unless the
+// sentence nods to the system in passing and steps PAST it to what it does
+// not cover, which is the shape Russ asked for.
+//
+// `covers` is the kind of work the system takes off them, and only kinds a
+// system genuinely covers block anything: a chat widget does not answer the
+// phone, so chat blocks nothing and is merely listed so it is never offered.
+
+const RUNS = {
+  // booking and scheduling
+  calendly: ['online booking', 'scheduling'],
+  acuity: ['online booking', 'scheduling'],
+  'square appointments': ['online booking', 'scheduling'],
+  setmore: ['online booking', 'scheduling'],
+  vagaro: ['online booking', 'scheduling'],
+  mindbody: ['online booking', 'scheduling'],
+  schedulicity: ['online booking', 'scheduling'],
+  'cal.com': ['online booking', 'scheduling'],
+  'hubspot meetings': ['online booking', 'scheduling'],
+  zocdoc: ['online booking', 'scheduling'],
+  localmed: ['online booking', 'scheduling'],
+  nexhealth: ['online booking and patient reminders', 'scheduling'],
+  tebra: ['practice management with online booking', 'scheduling'],
+  'housecall pro': ['scheduling, dispatch and invoicing', 'scheduling'],
+  servicetitan: ['scheduling, dispatch and invoicing', 'scheduling'],
+  jobber: ['scheduling, dispatch and invoicing', 'scheduling'],
+  workiz: ['scheduling, dispatch and invoicing', 'scheduling'],
+  'service fusion': ['scheduling, dispatch and invoicing', 'scheduling'],
+  // reminders, recalls and review chasing
+  weave: ['phones, reminders and texts', 'chasing'],
+  solutionreach: ['patient reminders', 'chasing'],
+  demandforce: ['reminders and reviews', 'chasing'],
+  podium: ['review requests and texting', 'chasing'],
+  birdeye: ['review requests', 'chasing'],
+  // listed so they are never offered back; they cover too little of any one
+  // kind of work to block a sentence on their own
+  intercom: ['website chat', null],
+  tawk: ['website chat', null],
+  drift: ['website chat', null],
+  zendesk: ['website chat and support', null],
+  tidio: ['website chat', null],
+  livechat: ['website chat', null],
+  jotform: ['online forms', null],
+  'google forms': ['online forms', null],
+  typeform: ['online forms', null],
+  gravity: ['online forms', null],
+  'contact form 7': ['online forms', null],
+  shopify: ['an online store', null],
+  stripe: ['online payments', null],
+  'square payments': ['online payments', null],
+  paypal: ['online payments', null],
+  quickbooks: ['bookkeeping and invoicing', null],
+  hubspot: ['a CRM', null],
+  salesforce: ['a CRM', null],
+  gohighlevel: ['a CRM', null],
+  pipedrive: ['a CRM', null],
+  zoho: ['a CRM', null],
+  mailchimp: ['email campaigns', null],
+  'constant contact': ['email campaigns', null],
+  klaviyo: ['email campaigns', null],
+  activecampaign: ['email campaigns', null],
+  'google reviews widget': ['reviews shown on the site', null],
+  'dentrix / henry schein': ['practice management', null],
+};
+
+// The site it is built on says nothing about the week. Running WordPress is
+// not running a system.
+const SAYS_NOTHING = /^(wordpress|squarespace|wix|godaddy|webflow|duda|weebly)$/i;
+
+function runsEntry(name) {
+  const k = String(name || '').trim().toLowerCase();
+  if (!k || SAYS_NOTHING.test(k)) return null;
+  const hit = RUNS[k] || RUNS[Object.keys(RUNS).find((r) => k.includes(r))];
+  return hit ? { name, does: hit[0], covers: hit[1] } : { name, does: null, covers: null };
+}
+
+// A portal, read off their own stored words — the system most often offered
+// back to a business that already has one.
+const PORTAL_WORDS = /\b((?:tenant|resident|client|customer|patient|owner|homeowner|member)s?'? ?portal)\b|\bportal\b/i;
+
+/// Everything the record and the reading store show this business already
+/// runs. Newest finding first, first verdict per name wins — a system a later
+/// visit recorded gone earns no protection, and no earlier finding is touched.
+async function whatTheyAlreadyRun(db, prospectId, prospect, keptPages) {
+  const findings = await db.finding.findMany({
+    where: {
+      prospectId,
+      field: { in: ['toolInUse', 'toolsInUse', 'toolGone', 'canBookOnline'] },
+      retiredAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { field: true, value: true },
+  });
+  const verdicts = new Map();
+  let booksOnline = null;
+  for (const f of findings) {
+    if (f.field === 'canBookOnline') {
+      if (booksOnline === null && (f.value === 'yes' || f.value === 'no')) booksOnline = f.value;
+      continue;
+    }
+    for (const name of String(f.value || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+      const key = name.toLowerCase();
+      if (!verdicts.has(key)) verdicts.set(key, { name, runs: f.field !== 'toolGone' });
+    }
+  }
+  // The record's fast copy joins in — it may hold what predates the store.
+  for (const name of String((prospect && prospect.toolsInUse) || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+    const key = name.toLowerCase();
+    if (!verdicts.has(key)) verdicts.set(key, { name, runs: true });
+  }
+
+  const out = [];
+  for (const { name, runs } of verdicts.values()) {
+    if (!runs) continue;
+    const entry = runsEntry(name);
+    if (entry) out.push(entry);
+  }
+  if (booksOnline === 'yes' && !out.some((e) => e.covers === 'scheduling')) {
+    out.push({ name: 'online booking on their own site', does: 'taking bookings online', covers: 'scheduling' });
+  }
+  if (!out.some((e) => /portal/i.test(e.name))) {
+    for (const p of keptPages || []) {
+      const m = String(p.text || '').match(PORTAL_WORDS);
+      if (m) {
+        out.push({
+          name: m[1] ? m[1].trim() : 'a portal on their site',
+          does: 'a portal for routine requests and payments',
+          covers: 'enquiries',
+        });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// The nod that makes stepping past honest: the sentence mentions the system,
+// or the kind of thing it is, on its way to what that system does not cover.
+const NOD_WORDS = {
+  scheduling: /\b(book(?:ing)? online|online booking|books? through|schedule online|online schedul\w+|self[\s-]?schedul\w+)\b/i,
+  chasing: /\b(remind\w+ (?:go|going|already)|texts? go out|review requests? (?:go|going)|automatic remind\w+)\b/i,
+  enquiries: /\b(portal|chat box|live chat|log ?in)\b/i,
+};
+
+function offersWhatTheyHave(sentence, jobs, theyRun) {
+  const s = String(sentence || '');
+  const texts = (jobs || []).map((j) => j && j.job).filter(Boolean);
+  if (!texts.length) texts.push(s);
+  for (const sys of theyRun || []) {
+    if (!sys || !sys.covers) continue;
+    const nodded = (sys.name && normalise(s).includes(normalise(sys.name)))
+      || (NOD_WORDS[sys.covers] && NOD_WORDS[sys.covers].test(s));
+    if (nodded) continue; // the go-past shape: nodded to in passing, stepped past
+    for (const t of texts) {
+      if (kindsOf(t).includes(sys.covers)) {
+        return {
+          ok: false,
+          why: `offers work ${sys.name} visibly already does (${sys.does}) — never `
+            + 'offer what they already have; nod to it and step past it to what it '
+            + 'does not cover, or name different work',
+        };
+      }
+    }
+  }
+  return { ok: true, why: null };
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THE SENTENCE IS ALLOWED TO SOUND LIKE.
+//
+// Russ's voice, enforced in code rather than hoped for: plain, concrete, no
+// marketing language, no flattery, no exclamation, no rhetorical question,
+// short words, a real task and not a feeling. The reader is asked for this
+// and then checked — an answer that fails is rejected, and a rejection twice
+// is a could_not_tell, never a shrug-and-send.
+
+const MARKETING = /\b(leverage|leveraging|streamlines?d?|streamlining|solutions?|synerg\w*|optimi[sz]\w*|empower\w*|seamless\w*|robust|innovat\w*|cutting.edge|world.class|best.in.class|state.of.the.art|game.chang\w*|revolutioni[sz]\w*|elevate\w*|unlock\w*|supercharg\w*|transform\w*|impressive|amazing|incredible|fantastic|passionate)\b/i;
+
+// "as the owner", "as your office manager" — a clause about who the reader
+// is, which the sentence must never carry whatever the angle did to it.
+const ABOUT_THE_READER = /\bas (the|an?|your) [a-z][a-z ]{0,24}\b(owner|founder|principal|president|manager|administrator|coordinator|receptionist|attorney|agent|broker|officer|accountant|dentist|doctor)\b/i;
+
+// A promise of time back does not belong in this sentence. The library's
+// hours figures order the areas internally, and the one thing the library
+// says about them out loud is that an unverified figure (source: null) may
+// never be quoted to a client — so no figure, verified or not, is quoted here.
+const CLAIMS_HOURS = /\b(sav(?:e|es|ed|ing)|free(?:s|d)? up|get(?:s|ting)? back|tak(?:e|es|en|ing) back|win(?:s|ning)? back|giv(?:e|es|ing) (?:you |them )?back)\b[^.]{0,80}?\bhours?\b|\bhours?\b[^.]{0,40}?\b(back|saved|freed)\b/i;
+
+function normalise(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
+  const s = String(sentence || '').trim();
+  // Two jobs earn a little more room — two or three short sentences, never a
+  // paragraph (Russ, 2026-09-02: "I don't see a reason to not say two
+  // things"). One job keeps the original slot.
+  const twoJobs = Array.isArray(jobs) && jobs.length >= 2;
+  if (!s) return { ok: false, why: 'empty' };
+  if (/\n/.test(s)) return { ok: false, why: 'more than one paragraph' };
+  if (s.length < 30) return { ok: false, why: 'too short to be saying anything specific' };
+  if (s.length > (twoJobs ? 400 : 280)) {
+    return {
+      ok: false,
+      why: twoJobs
+        ? 'longer than even two jobs need — two or three short sentences, never a paragraph'
+        : 'longer than the slot it fills — this is one sentence, not a paragraph',
+    };
+  }
+  if (/[!?]/.test(s)) return { ok: false, why: 'an exclamation or a question — the voice allows neither' };
+  if (/[—–]/.test(s)) return { ok: false, why: 'a dash — the voice rules say no dashes' };
+  if (/[{}<>]/.test(s)) return { ok: false, why: 'placeholder braces' };
+  if (!/\.$/.test(s)) return { ok: false, why: 'does not end with a period' };
+  const m = s.match(MARKETING);
+  if (m) return { ok: false, why: `marketing language ("${m[0]}")` };
+  // STIFF IS A FAILURE, NOT A STYLE (Russ, 2026-09-01).
+  //
+  // The first sentence this wrote was true and grounded and read like a form:
+  // "someone must manage those requests". He is offering fifteen minutes and a
+  // free piece of research, and the sentence has to sound like one working
+  // person recognising another's week — warm, plain, said out loud. Official
+  // phrasing is caught here and sent back rather than reaching him.
+  const stiff = s.match(/\b(must (?:manage|handle|be |ensure|address|coordinate)|are required to|is required to|it is necessary|necessitat\w*|ensuring|in order to|utilis\w+|utiliz\w+|personnel|individuals|entities|thereby|whereby|facilitat\w+|the aforementioned|said requests|requests are (?:handled|managed|processed)|tasks are (?:handled|managed|performed)|is responsible for|are responsible for|administrat\w+ (?:burden|overhead)|manual processes|operational efficienc\w+)\b/i);
+  if (stiff) return { ok: false, why: `stiff, official phrasing ("${stiff[0]}") — say it the way you would say it out loud` };
+  // One sentence, occasionally two short ones — three at most when two jobs
+  // are named. Never a paragraph.
+  const parts = s.slice(0, -1).split(/(?<=[.])\s+/);
+  if (parts.length > (twoJobs ? 3 : 2)) {
+    return { ok: false, why: twoJobs ? 'more than three sentences' : 'more than two sentences' };
+  }
+  // Never address someone by their job title, never a clause about the role.
+  if (roleTitle) {
+    const title = String(roleTitle).trim().replace(/\s+/g, ' ');
+    if (title && normalise(title).length > 3 && normalise(s).includes(normalise(title))) {
+      return { ok: false, why: "names the reader's job title" };
+    }
+  }
+  if (ABOUT_THE_READER.test(s)) return { ok: false, why: 'a clause about who the reader is' };
+  // Two businesses in one trade never get the same sentence.
+  const mine = normalise(s);
+  if (avoid.some((a) => normalise(a) === mine)) {
+    return { ok: false, why: 'already written to another business in this trade' };
+  }
+  return { ok: true, why: null };
+}
+
+// ---------------------------------------------------------------------------
+// WHICH OF THEIR PAGES TO HAND THE READER.
+//
+// The kept words of the whole site are on file (readings.js keptWords), and
+// the most useful for a first sentence are the identity, services and
+// contact material — what they say they are, what they say they do, and how
+// work reaches them. Team and process pages come next; everything else is a
+// tiebreaker. Capped, because the reader gets a handful of calls per
+// business, not a crawl.
+
+const PER_PAGE = 3000;
+const TOTAL = 12000;
+const AT_MOST = 6;
+
+function pageScore(url) {
+  let p;
+  try { p = new URL(url).pathname.toLowerCase(); } catch { p = String(url || '').toLowerCase(); }
+  if (p === '/' || p === '' || /^\/(index|home)(\.\w+)?\/?$/.test(p)) return 6;
+  if (/about|who-we-are|our-story|our-firm|company/.test(p)) return 5;
+  if (/service|practice|what-we-do|treatment|care-|offering|specialt|menu/.test(p)) return 4;
+  if (/team|staff|people|meet-|attorneys|agents|providers|doctors/.test(p)) return 3;
+  if (/contact|location|hours|appointment|schedul|book|get-started|new-(client|patient)|form|faq|process|how-it-works/.test(p)) return 3;
+  return 1;
+}
+
+function pickPages(kept) {
+  const seen = new Set();
+  const withWords = [];
+  for (const p of kept || []) {
+    if (!p || !p.url || !p.text || !String(p.text).trim()) continue;
+    if (seen.has(p.url)) continue;   // keptWords is newest first; keep the newest
+    seen.add(p.url);
+    withWords.push(p);
+  }
+  withWords.sort((a, b) => pageScore(b.url) - pageScore(a.url));
+  const out = [];
+  let total = 0;
+  for (const p of withWords) {
+    if (out.length >= AT_MOST || total >= TOTAL) break;
+    const text = String(p.text).slice(0, Math.min(PER_PAGE, TOTAL - total));
+    out.push({ url: p.url, title: p.title || null, text });
+    total += text.length;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// SHARED PIECES of the prompts.
+
+function said(v) { return v === null || v === undefined || v === '' ? 'not stated' : String(v); }
+
+function businessBlock(e) {
+  const lines = [];
+  lines.push(`Business: ${said(e.name)}`);
+  lines.push(`Trade: ${said(e.trade)}`);
+  lines.push(`What they say they do: ${said(e.theirWork || e.selfDescription)}`);
+  lines.push(`Software they run: ${said(e.toolsInUse)}`);
+  lines.push(`Team size: ${said(e.teamSize)}`);
+  lines.push(`Years in business: ${said(e.yearsInBusiness)}`);
+  const people = (e.people || []).filter((p) => p && p.name);
+  lines.push(`People on their site: ${people.length
+    ? people.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join('; ')
+    : 'none recorded'}`);
+  return lines;
+}
+
+function pagesBlock(e) {
+  const lines = [];
+  for (const p of e.pages || []) {
+    lines.push('');
+    lines.push(`[PAGE ${p.url}${p.title ? ` — ${p.title}` : ''}]`);
+    lines.push(String(p.text));
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// THE FIRST QUESTION: what work on their pages maps to the library.
+//
+// The tool library is the benchmark. The reader gets the full menu — every
+// type's key, department and label — and every job it names must map to one
+// of those keys. The code verifies the key; an unmapped job is rejected and
+// rewritten, and a second failure means silence.
+
+function promptToFind(evidence, rejected = null) {
+  const e = evidence || {};
+  const lines = [];
+
+  lines.push(
+    'A first email will be written to a small business. Before a word of it '
+    + 'is written, every TYPE of work that software or AI could genuinely '
+    + 'take off this business must be found — read ONLY from the pages '
+    + 'below, which the business published on its own website. Your job is '
+    + 'to name each such area of work, or to say none can be named.',
+  );
+  lines.push('');
+  lines.push(...businessBlock(e));
+  lines.push('');
+  lines.push('THE MENU. This library is the complete list of the kinds of work');
+  lines.push('software can take off a business. It is the benchmark: a job qualifies');
+  lines.push('ONLY if it maps to one of these type keys. A job that fits none of them');
+  lines.push('does not qualify, full stop — leave it out, however true it is of their');
+  lines.push('day.');
+  for (const [key, t] of Object.entries(T.TYPES)) {
+    lines.push(`- ${key} (${t.department}): ${t.label}`);
+  }
+  lines.push('');
+  lines.push('Find EVERY type of work on that menu that plainly shows in how THIS');
+  lines.push('business works, on their own pages. One, two, three, four or more, if');
+  lines.push('they honestly qualify — never one more for the sake of the count.');
+  lines.push('');
+  lines.push('A customer being on the phone does NOT disqualify a job. Repeated calls');
+  lines.push('are one of the biggest things software takes: phone_answering,');
+  lines.push('call_notes_and_follow_up and knowledge_lookup are all on the menu. What');
+  lines.push('disqualifies is a one-off interaction that does not repeat, and a person');
+  lines.push('physically handling an object. No software packs a box, welds a bracket');
+  lines.push('or mows a lawn, and no software makes the judgment call that needs their');
+  lines.push('licence — but the paperwork, the calls, the reminders and the forms');
+  lines.push('AROUND that work are exactly what the menu holds.');
+  lines.push('');
+  lines.push('A services menu says what they will do for a customer, not where their');
+  lines.push('week goes. Prefer work their pages show actually happening — hours,');
+  lines.push('volume, locations, staff, seasons, forms, FAQs, "call us" — over a line');
+  lines.push('in a list of services.');
+  lines.push('');
+  lines.push('Never invent, never assume. Every quote must appear on the pages, word');
+  lines.push('for word.');
+  if (rejected) {
+    lines.push('');
+    lines.push(`Your previous answer was rejected. It gave ${rejected.what}. The problem: ${rejected.why}. Answer again, or say cannotTell.`);
+  }
+  lines.push('');
+  lines.push('Their own pages:');
+  lines.push(...pagesBlock(e));
+  lines.push('');
+  lines.push('Answer with JSON only, one of:');
+  lines.push('{"areas":[{"job":"the work in a few plain words, as their pages show it","type":"a type key from the menu, exactly as written","quote":"the exact words on their pages that show this work"}]}');
+  lines.push('{"cannotTell":"why, in one short sentence"}');
+  lines.push('Every area carries its own quote, word for word from the pages above.');
+  lines.push('When nothing on their pages honestly maps to the menu, answer cannotTell. Silence beats a wrong guess.');
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// THE SECOND QUESTION: does each job plainly recur. A separate call, on
+// purpose — it sees only the trade and each job with its type and quote,
+// never the first call's reasoning, so it judges the evidence and not the
+// argument. An advertised service is never on its own evidence of recurrence.
+
+function promptForRecurrence(trade, areas, note = null) {
+  const lines = [];
+  lines.push(
+    'Below are jobs read off the website of one small business. '
+    + `The business's trade: ${said(trade)}.`,
+  );
+  lines.push('');
+  lines.push('For each job, answer one question: does this job plainly RECUR, many');
+  lines.push('times a week, the same shape each time? Judge ONLY from the quoted');
+  lines.push("words beside it, which come from the business's own pages.");
+  lines.push('');
+  lines.push('An ADVERTISED SERVICE is never on its own evidence of recurrence. A');
+  lines.push('services menu says what the business is willing to do for whoever asks,');
+  lines.push('not where its week goes. "We assist with customs forms" proves they');
+  lines.push('offer it; it does not prove it happens many times a week. Recurrence');
+  lines.push('shows in words about hours, locations, staff numbers, service areas,');
+  lines.push('volume, seasons, forms, FAQs, portals, "call us", "email us", or how');
+  lines.push('many things they list. A one-off interaction that takes its shape from');
+  lines.push('each customer does not recur.');
+  lines.push('');
+  lines.push('The jobs:');
+  (areas || []).forEach((x, i) => {
+    lines.push(`${i + 1}. ${x.job} (kind of work: ${x.label || x.type}) — their words: "${x.quote}"`);
+  });
+  if (note) {
+    lines.push('');
+    lines.push(`Your previous answer could not be used: ${note}.`);
+  }
+  lines.push('');
+  lines.push('Answer with JSON only:');
+  lines.push('{"verdicts":[{"recurs":"yes" or "no","why":"one short reason","plainly":0.0-1.0}]}');
+  lines.push('One verdict per job, in the same order as the jobs above. "plainly" is');
+  lines.push('how plainly the quoted words show the job recurring. When in doubt,');
+  lines.push('answer no — silence beats a wrong guess.');
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// THE RANKING — in code, on the library's own evidence, never on a model's
+// mood (Russ: "The two have to be the HARDEST hitting").
+//
+//   1. The tier of the pairing between this TRADE and this type. The library
+//      defines tiers (1 no-brainer for this trade, 2 probably helpful, 3
+//      investigate before recommending) and hangs them off the per-trade
+//      pairings; BY_TRADE holds those pairings strongest first, so the front
+//      of a trade's list is its no-brainer pair, the back of the list its
+//      probably-helpful pair, and a type not on the trade's list at all is
+//      investigate-first. A tier-1 pairing beats a tier-2, always; "a
+//      marginally better tier" means a better position INSIDE a tier, and
+//      there recurrence evidence outranks position.
+//   2. The hours figure the library carries for tools of the type. A figure
+//      with source: null is unverified and MAY NOT be quoted to a client —
+//      it orders things internally and never reaches the letter.
+//   3. How plainly this business's own pages showed the job recurring — the
+//      recurrence check's own number.
+//   4. How visibly the work lands on the person reading, from the same role
+//      angle the prompt uses: the office person feels the admin day, the
+//      owner feels money and evenings, the specialist feels time taken from
+//      the work they are paid for.
+
+function tierFor(trade, type) {
+  const list = T.BY_TRADE[String(trade || 'other').toLowerCase()] || T.BY_TRADE.other;
+  const at = list.indexOf(type);
+  if (at === -1) return { tier: 3, at: null };
+  return { tier: at < 2 ? 1 : 2, at };
+}
+
+function hoursFor(type) {
+  let hours = null; let verified = false;
+  for (const p of T.platformsFor(type)) {
+    if (p.saves === null || p.saves === undefined) continue;
+    if (hours === null || p.saves > hours) { hours = p.saves; verified = Boolean(p.source); }
+  }
+  return { hours, verified };
+}
+
+// Which departments' work each reader feels directly — drawn from the same
+// reasoning as ANGLES above, never from a model call.
+const VISIBLE_TO = {
+  owner: { finance: 2, sales: 2, operations: 1, marketing: 1, admin: 1 },
+  office: { admin: 2, operations: 1, finance: 1, sales: 0, marketing: 0 },
+  specialist: { admin: 2, operations: 2, finance: 1, sales: 1, marketing: 0 },
+  neutral: { admin: 1, operations: 1, finance: 1, sales: 1, marketing: 1 },
+};
+
+function rankAreas(qualifying, { trade, angle = 'neutral' } = {}) {
+  const seen = VISIBLE_TO[angle] || VISIBLE_TO.neutral;
+  for (const x of qualifying) {
+    const { tier, at } = tierFor(trade, x.type);
+    const { hours, verified } = hoursFor(x.type);
+    x.tier = tier;
+    x.at = at;
+    x.hours = hours;
+    x.hoursVerified = hours === null ? null : verified;
+    // "plainly" was the recurrence check's own answer; when it gave none, a
+    // neutral 0.5 orders things internally and NOTHING is recorded in its
+    // place — the record keeps exactly what the check said (absence is data).
+    const plainly = x.plainly === null || x.plainly === undefined ? 0.5 : Number(x.plainly);
+    x.score = (hours || 0) * 0.5 + plainly * 4 + (seen[x.department] || 0);
+  }
+  const ranked = [...qualifying].sort((a, b) => (a.tier - b.tier)
+    || (b.score - a.score)
+    || ((a.at === null ? 9 : a.at) - (b.at === null ? 9 : b.at)));
+  ranked.forEach((x, i) => {
+    x.rank = i + 1;
+    const bits = [];
+    bits.push(x.tier === 1 ? `tier 1 for ${trade || 'this trade'}: a no-brainer pairing in the library`
+      : x.tier === 2 ? `tier 2 for ${trade || 'this trade'}: probably helpful, per the library`
+        : `tier 3: not among the library's pairings for ${trade || 'this trade'}, investigate before recommending`);
+    if (x.hours !== null && x.hours !== undefined) {
+      bits.push(x.hoursVerified
+        ? `the library documents ${x.hours} hours a week for tools of this type`
+        : `the library carries an unverified ${x.hours} hours a week for this type (ordering only, never quoted)`);
+    }
+    if (x.plainly !== null && x.plainly !== undefined) {
+      bits.push(`their own pages show it recurring ${x.plainly >= 0.7 ? 'plainly' : x.plainly >= 0.4 ? 'fairly plainly' : 'thinly'}`);
+    }
+    if ((seen[x.department] || 0) >= 2) bits.push('work the reader feels directly');
+    x.rankWhy = bits.join('; ');
+  });
+  return ranked;
+}
+
+// A weak second drags the strong first down (Russ: never two for the sake of
+// two). The second stands only when it hits nearly as hard as the first.
+function materiallyWeaker(second, first) {
+  const p = (a) => (a.plainly === null || a.plainly === undefined ? 0.5 : Number(a.plainly));
+  if (second.tier - first.tier >= 2) return true;         // a no-brainer next to an investigate-first
+  if (second.tier > first.tier && p(second) < 0.5) return true; // worse tier and thinner evidence: filler
+  if (p(second) < 0.35) return true;                      // recurrence barely shown at all
+  return false;
+}
+
+// The two hardest-hitting, or one when the second would be filler. Never two
+// of the same type — the strongest, then the strongest of a DIFFERENT type,
+// preferring a different department when that costs no tier. A tier-3 area
+// almost never reaches the email: only as the sole qualifier, never as the
+// second, never paired.
+function chooseForEmail(ranked) {
+  const strong = ranked.filter((x) => x.tier < 3);
+  const first = strong[0] || ranked[0];
+  const rest = ranked.filter((x) => x !== first && x.type !== first.type && x.tier < 3);
+  let second = null;
+  if (rest.length) {
+    const top = rest[0];
+    const otherDept = rest.find((x) => x.tier === top.tier && x.department !== first.department);
+    second = (top.department === first.department && otherDept) ? otherDept : top;
+  }
+  if (second && materiallyWeaker(second, first)) {
+    const why = `"${first.job}" ranked first (${first.rankWhy}). The next area of a different kind, `
+      + `"${second.job}", was materially weaker (${second.rankWhy}), and a weak second drags a `
+      + 'strong first down, so the email names one.';
+    return { chosen: [first], why };
+  }
+  if (!second) {
+    const why = `"${first.job}" ranked first (${first.rankWhy}); nothing of a genuinely different `
+      + 'kind stood on its own beside it, so the email names one.';
+    return { chosen: [first], why };
+  }
+  const why = `"${first.job}" ranked first (${first.rankWhy}). "${second.job}" is the strongest `
+    + `of a different kind of work (${second.rankWhy}).`;
+  return { chosen: [first, second], why };
+}
+
+// ---------------------------------------------------------------------------
+// THE THIRD QUESTION: the sentence itself, naming exactly the chosen work.
+
+function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected = null) {
+  const e = evidence || {};
+  const C = require('./campaign.js');
+  const t = C.tradeCopy(e.trade);
+  const jobs = chosen || [];
+  const two = jobs.length >= 2;
+  const lines = [];
+
+  lines.push(
+    'A first email is being written to a small business. ONE short passage '
+    + 'of it must name, warmly and plainly, the work listed below — which was '
+    + "read off the business's own pages and checked. Your job is to write "
+    + 'that passage, or to say it cannot be written.',
+  );
+  lines.push('');
+  lines.push(...businessBlock(e));
+  lines.push('');
+  lines.push(roleTitle
+    ? `The letter is addressed to a person whose job title is "${roleTitle}".`
+    : 'The letter is addressed to nobody in particular.');
+  lines.push(ANGLES[angleFor(roleTitle)]);
+  lines.push('');
+  lines.push('WHO IS WRITING. Russ ran offices like theirs before he did this. He is');
+  lines.push('offering fifteen minutes and a piece of research, free, with nothing to sign.');
+  lines.push('So the sentence sounds like one working person recognising another working');
+  lines.push('person\'s week. Warm, easy, sure of itself. Not a consultant\'s observation and');
+  lines.push('not a report.');
+  lines.push('');
+  lines.push(two
+    ? 'THE WORK TO NAME. Exactly these two jobs, strongest first, and nothing else:'
+    : 'THE WORK TO NAME. Exactly this one job, and nothing else:');
+  for (const j of jobs) {
+    lines.push(`- ${j.job}${j.label ? ` (${j.label})` : ''}. Their own words: "${j.quote}"`);
+  }
+  lines.push(two
+    ? 'They are genuinely different kinds of work and the passage must keep them that way. Never add a third.'
+    : 'Never add a second job of your own.');
+  lines.push('');
+  lines.push('How the passage must read:');
+  lines.push('- Say it the way you would say it out loud to them, across a counter.');
+  lines.push('- Plain, short, everyday words. It names a real job somebody actually does.');
+  lines.push('- Where it is true, put it on THEM: "that comes back to you", "somebody has');
+  lines.push('  to", "you are the one who". A named person doing a real task beats a');
+  lines.push('  described process every time.');
+  lines.push('- One job: one sentence, two short ones at the very most. Two jobs: two or');
+  lines.push('  three short sentences. Never a paragraph, never a list.');
+  lines.push('- No marketing words: never "leverage", "streamline", "solutions", "optimize", "seamless". No flattery of any kind. No exclamation mark. No question. No dashes.');
+  lines.push('- Nothing stiff or official. Never "must manage", "are required to", "it is');
+  lines.push('  necessary to", "ensuring", "in order to", "utilise", "individuals",');
+  lines.push('  "personnel", "requests are handled". If it reads like a form, rewrite it.');
+  lines.push('- Never name or address the reader\'s job title, and never add a clause about who the reader is.');
+  lines.push('- Never invent, never assume, never assert a problem the pages do not plainly show. Say only what their own published words support.');
+  lines.push('- The passage must be wrong for the shop down the road: it is about THIS business alone.');
+  lines.push('- Never promise or count hours saved, and never name a time or money figure their own pages do not carry.');
+  lines.push('- Never scold, never imply they are behind, never suggest they are doing it');
+  lines.push('  wrong. It is a fact about their week, said kindly, not a criticism.');
+  lines.push('');
+  const runs = (Array.isArray(e.theyRun) ? e.theyRun : []).filter((r) => r && r.name);
+  if (runs.length) {
+    lines.push('WHAT THEY ALREADY VISIBLY RUN, from their own record and pages:');
+    for (const r of runs) lines.push(`- ${r.name}${r.does ? ` (${r.does})` : ''}`);
+    lines.push('Never offer them anything on that list, and never name as the job work one');
+    lines.push('of those systems already does — offering what they already have reads as');
+    lines.push('not having looked. Where one of them covers part of the week, you may nod');
+    lines.push('to it in passing and step PAST it to what it does not cover. The shape,');
+    lines.push('never your words: "When someone calls about a unit, you\'ve got the portal');
+    lines.push('for that. It\'s the ones asking whether you\'ve got anything in Redmond');
+    lines.push('under $1,800 that still land on you." That nod counts as the first of two');
+    lines.push('jobs, never a third thing.');
+  } else {
+    lines.push('Nothing they already run shows on their record or their pages, so do not mention or invent any system.');
+  }
+  lines.push('');
+  lines.push(`For register only, this is the trade sentence yours would replace: "${t.week}" Yours is about THIS business alone.`);
+  lines.push(`In the letter your passage is immediately followed by: "${C.ALREADY_HANDLED[0].replace('{they}', t.they)}" So it must name work that reads naturally before that line.`);
+  if (avoid && avoid.length) {
+    lines.push('');
+    lines.push('Sentences already written to other businesses in this trade. Yours must not repeat any of them, in words or in substance:');
+    for (const a of avoid.slice(0, 12)) lines.push(`- "${a}"`);
+  }
+  if (rejected) {
+    lines.push('');
+    lines.push(`Your previous answer was rejected. It said: "${rejected.sentence}". The problem: ${rejected.why}. Answer again, saying the same work a different way, or say cannotTell.`);
+  }
+  lines.push('');
+  lines.push('Their own pages, for context only — the work to name is fixed above:');
+  lines.push(...pagesBlock(e));
+  lines.push('');
+  lines.push('Answer with JSON only, one of:');
+  lines.push('{"sentence":"...","sure":0.0-1.0}');
+  lines.push('{"cannotTell":"why, in one short sentence"}');
+  lines.push('When in doubt, answer cannotTell. Silence beats a wrong guess.');
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// GROUNDING. An area stands only on words actually held in the store. The
+// reader hands back the words it rested on, and those words are looked for in
+// the pages it was given — not trusted on its say-so.
+
+function groundingPage(quote, pages) {
+  const q = normalise(quote);
+  if (!q || q.length < 12) return null;
+  return (pages || []).find((p) => normalise(p.text).includes(q)) || null;
+}
+
+// ---------------------------------------------------------------------------
+// ASK, CHECK, AND EITHER STAND OR STAY SILENT.
+//
+// Three calls, in order, all through the local reader handed in:
+//   FIND    every area of work that maps to the library, each with the exact
+//           words behind it (one retry naming what was wrong, then silence)
+//   RECUR   the separate recurrence test, per area, blind to the first
+//           call's reasoning
+//   WRITE   the passage naming the chosen one or two, in Russ's voice,
+//           checked in code (one retry, then silence)
+//
+// Whatever happens after FIND, the areas found — with their verdicts, ranks
+// and choices — travel out on the result so they can be recorded and shown.
+
+async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask, attempts = 2 }) {
+  if (typeof ask !== 'function') throw new Error('askForNoticing needs the reader handed in');
+  const pages = (evidence && evidence.pages) || [];
+  if (!pages.length) return { couldNotTell: "their site's words are not on file" };
+  const held = pages.reduce((n, p) => n + String(p.text || '').length, 0);
+  if (held < 400) return { couldNotTell: 'too little of their site is on file to say anything specific' };
+
+  // FIND. Every named job must map to a type in the library — the code
+  // verifies the key exists — and stand on words actually held in the store.
+  let areas = null;
+  let rejected = null;
+  for (let go = 0; go < attempts; go++) {
+    const res = await ask(promptToFind(evidence, rejected));
+    if (!res || !res.answer) return { couldNotTell: (res && res.why) || 'the reader did not answer' };
+    const a = res.answer;
+    if (a.cannotTell) return { couldNotTell: String(a.cannotTell) };
+    const found = (Array.isArray(a.areas) ? a.areas : [])
+      .map((x) => (x && typeof x === 'object' ? {
+        job: x.job ? String(x.job).trim().replace(/\s+/g, ' ') : null,
+        type: x.type ? String(x.type).trim() : null,
+        quote: x.quote ? String(x.quote).trim() : null,
+      } : null))
+      .filter((x) => x && x.job);
+    if (!found.length) {
+      rejected = { what: 'no areas', why: 'no areas were named and cannotTell was not said — name the areas, or say cannotTell' };
+      continue;
+    }
+    const unmapped = found.find((x) => !x.type || !T.TYPES[x.type]);
+    if (unmapped) {
+      rejected = {
+        what: `"${unmapped.job}" mapped to "${unmapped.type || 'no type at all'}"`,
+        why: `"${unmapped.type || '(no type)'}" is not in the library of work software can take `
+          + '— every job must map to one of the listed type keys exactly, and a job that '
+          + 'honestly fits none of them does not qualify and is left out',
+      };
+      continue;
+    }
+    let ungrounded = null;
+    const grounded = [];
+    for (const x of found) {
+      const page = groundingPage(x.quote, pages);
+      if (!page) {
+        ungrounded = `the words behind "${x.job}" were not found on any stored page — every `
+          + 'area needs their own words behind it, word for word';
+        break;
+      }
+      grounded.push({
+        ...x,
+        url: page.url,
+        department: T.TYPES[x.type].department,
+        label: T.TYPES[x.type].label,
+        recurs: null,
+        recursWhy: null,
+        plainly: null,
+        rank: null,
+        rankWhy: null,
+        chosen: false,
+      });
+    }
+    if (ungrounded) { rejected = { what: 'supporting words that are not on the pages', why: ungrounded }; continue; }
+    areas = grounded;
+    break;
+  }
+  if (!areas) {
+    return { couldNotTell: `every answer was rejected — last: ${rejected ? rejected.why : 'no answer stood'}` };
+  }
+
+  // RECUR. A separate call that sees only the trade and each job with its
+  // type and quote — never the first call's reasoning.
+  let verdicts = null;
+  let note = null;
+  for (let go = 0; go < attempts; go++) {
+    const res = await ask(promptForRecurrence(evidence.trade, areas, note));
+    const v = res && res.answer && Array.isArray(res.answer.verdicts) ? res.answer.verdicts : null;
+    if (v && v.length === areas.length && v.every((x) => x && (x.recurs === 'yes' || x.recurs === 'no'))) {
+      verdicts = v;
+      break;
+    }
+    note = `it needed a "verdicts" array of exactly ${areas.length} entries, one per job in the `
+      + 'same order, each with "recurs" of "yes" or "no"';
+  }
+  if (!verdicts) return { couldNotTell: 'the recurrence check did not answer cleanly', areas };
+  areas.forEach((x, i) => {
+    x.recurs = verdicts[i].recurs;
+    x.recursWhy = verdicts[i].why ? String(verdicts[i].why).trim() : null;
+    x.plainly = verdicts[i].plainly === undefined || verdicts[i].plainly === null
+      ? null : Number(verdicts[i].plainly);
+  });
+  const recurring = areas.filter((x) => x.recurs === 'yes');
+  if (!recurring.length) {
+    return {
+      couldNotTell: 'every named job failed the recurrence test: '
+        + areas.map((x) => `"${x.job}" (${x.recursWhy || 'no reason given'})`).join('; '),
+      areas,
+    };
+  }
+
+  // RANK and CHOOSE — in code, on the library's own evidence.
+  const angle = angleFor(roleTitle);
+  const ranked = rankAreas(recurring, { trade: evidence.trade, angle });
+  const { chosen, why: chosenWhy } = chooseForEmail(ranked);
+  for (const c of chosen) c.chosen = true;
+
+  // WRITE. The passage names exactly the chosen work, in Russ's voice,
+  // checked in code; a rejection twice is silence, never a shrug-and-send.
+  rejected = null;
+  for (let go = 0; go < attempts; go++) {
+    const res = await ask(promptToWrite(evidence, chosen, roleTitle, avoid, rejected));
+    if (!res || !res.answer) return { couldNotTell: (res && res.why) || 'the reader did not answer', areas };
+    const a = res.answer;
+    if (a.cannotTell) return { couldNotTell: String(a.cannotTell), areas };
+    const sentence = String(a.sentence || '').trim().replace(/\s+/g, ' ');
+    const check = passable(sentence, { roleTitle, avoid, jobs: chosen });
+    if (!check.ok) { rejected = { sentence, why: check.why }; continue; }
+    const hours = sentence.match(CLAIMS_HOURS);
+    if (hours) {
+      rejected = {
+        sentence,
+        why: `promises time back ("${hours[0].trim()}") — no savings figure, verified or not, belongs in this passage`,
+      };
+      continue;
+    }
+    const offers = offersWhatTheyHave(sentence, chosen, (evidence && evidence.theyRun) || []);
+    if (!offers.ok) { rejected = { sentence, why: offers.why }; continue; }
+    if (a.sure !== undefined && a.sure !== null && Number(a.sure) < 0.6) {
+      return { couldNotTell: 'the reader was not sure enough of it', areas };
+    }
+    return {
+      sentence,
+      jobs: chosen.map((c) => ({ job: c.job, quote: c.quote, url: c.url, type: c.type })),
+      areas,
+      chosenWhy,
+      url: chosen[0].url,
+      quote: chosen[0].quote,
+      confidence: a.sure === undefined || a.sure === null ? null : Number(a.sure),
+      angle,
+    };
+  }
+  return {
+    couldNotTell: `every passage was rejected — last: ${rejected ? rejected.why : 'no answer stood'}`,
+    areas,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// THE EVIDENCE for one business, from what is already on file. Nothing here
+// touches their website — the kept words are the whole point of keeping them.
+
+async function gatherEvidence(db, prospectId, prospect = null) {
+  const p = prospect || await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  const kept = await R.keptWords(db, prospectId, { limit: 60 });
+  const contacts = await db.contact.findMany({
+    where: { prospectId },
+    select: { name: true, role: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  // Every page's words are scanned for what they run, not just the pages the
+  // reader will be handed — a portal link lives in a nav bar as often as on a
+  // page worth reading.
+  const theyRun = await whatTheyAlreadyRun(db, prospectId, p, kept);
+  const { tradeOf } = require('./queues.js');
+  return {
+    name: p.nameManualValue || p.name || '',
+    trade: p.trade || tradeOf(p.name) || 'other',
+    theirWork: p.theirWork || null,
+    selfDescription: p.selfDescription || null,
+    toolsInUse: p.toolsInUse || null,
+    teamSize: p.employeeCountManualValue ?? p.employeeCount ?? null,
+    yearsInBusiness: p.yearsInBusiness ?? null,
+    people: contacts.filter((c) => c.name).slice(0, 10),
+    theyRun,
+    pages: pickPages(kept),
+  };
+}
+
+async function noticeOneBusiness(db, prospectId, { ask, avoid = [], roleTitle = null, prospect = null } = {}) {
+  const evidence = await gatherEvidence(db, prospectId, prospect);
+  const result = await askForNoticing({ evidence, roleTitle, avoid, ask });
+  result.trade = evidence.trade;
+  result.theyRun = evidence.theyRun || [];
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// THE RECORD. One reading per attempt, through the append-only store — never
+// a column, never an overwrite. A could_not_tell is recorded too: "we looked
+// and could not say" must never again be indistinguishable from "never
+// looked". A business done twice has two findings, and the latest is used.
+//
+// EVERY area found is recorded — chosen for the email or not, recurring or
+// not — as a noticingArea finding whose value carries the type, department,
+// verdict, rank and choice, and whose url and quote carry the words it rests
+// on. The card shows all of them; the email names at most two.
+
+async function recordNoticing(db, prospectId, result, { sourceUrl = null } = {}) {
+  const reading = await R.startReading(db, {
+    prospectId, source: R.WEBSITE, sourceUrl,
+    reader: READER, readerVersion: READER_VERSION, model: MODEL,
+  });
+  const recordArea = (x) => R.record(db, {
+    readingId: reading.id, prospectId, field: 'noticingArea',
+    value: JSON.stringify({
+      job: x.job,
+      type: x.type,
+      department: x.department || null,
+      label: x.label || null,
+      recurs: x.recurs ?? null,
+      recursWhy: x.recursWhy ?? null,
+      plainly: x.plainly ?? null,
+      tier: x.tier ?? null,
+      hours: x.hours ?? null,
+      hoursVerified: x.hoursVerified ?? null,
+      rank: x.rank ?? null,
+      rankWhy: x.rankWhy ?? null,
+      chosen: Boolean(x.chosen),
+    }),
+    status: R.INFERRED,
+    url: x.url || null, quote: x.quote || null,
+  });
+
+  if (result && result.sentence) {
+    await R.record(db, {
+      readingId: reading.id, prospectId, field: 'noticing',
+      value: result.sentence, status: R.INFERRED,
+      confidence: result.confidence ?? null,
+      url: result.url || null, quote: result.quote || null,
+    });
+    await R.record(db, {
+      readingId: reading.id, prospectId, field: 'noticingAngle',
+      value: result.angle || 'neutral', status: R.INFERRED,
+      url: result.url || null,
+    });
+    // Each job the passage names, with its own words behind it — so Russ can
+    // always see WHAT was named and judge it. Appended like everything else.
+    for (const j of result.jobs || []) {
+      if (!j || !j.job) continue;
+      await R.record(db, {
+        readingId: reading.id, prospectId, field: 'noticingJob',
+        value: j.job, status: R.INFERRED,
+        url: j.url || result.url || null, quote: j.quote || null,
+      });
+    }
+    for (const x of result.areas || []) await recordArea(x);
+    if (result.chosenWhy) {
+      await R.record(db, {
+        readingId: reading.id, prospectId, field: 'noticingChoice',
+        value: result.chosenWhy, status: R.INFERRED,
+        url: result.url || null,
+      });
+    }
+    await R.finishReading(db, reading.id, R.READ, null);
+  } else {
+    await R.record(db, {
+      readingId: reading.id, prospectId, field: 'noticing',
+      status: R.COULD_NOT_TELL,
+    });
+    // What WAS found travels into the record even when the sentence fell
+    // back — an area that failed recurrence is a real finding, kept forever.
+    for (const x of (result && result.areas) || []) await recordArea(x);
+    await R.finishReading(db, reading.id, R.READ,
+      (result && result.couldNotTell) || 'could not tell');
+  }
+  return reading;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THE LETTER USES. The latest un-retired answer wins; a hand-typed one
+// wins over everything (currentAnswer already knows both rules). A latest
+// answer of could_not_tell means the letter keeps Russ's trade sentence —
+// that is the fallback working as designed, not a failure.
+
+async function noticingFor(db, prospectId) {
+  const best = await R.currentAnswer(db, prospectId, 'noticing');
+  if (!best || !best.value || best.status === R.COULD_NOT_TELL) return null;
+  return best.value;
+}
+
+module.exports = {
+  READER, READER_VERSION, MODEL,
+  angleFor, ANGLES, passable, normalise, pickPages, pageScore,
+  promptToFind, promptForRecurrence, promptToWrite,
+  groundingPage, askForNoticing, gatherEvidence, noticeOneBusiness,
+  recordNoticing, noticingFor,
+  kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
+  tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
+  CLAIMS_HOURS, VISIBLE_TO,
+};
