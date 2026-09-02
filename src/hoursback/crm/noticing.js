@@ -586,9 +586,17 @@ function promptToFind(evidence, rejected = null) {
     lines.push(`- ${key} (${t.department}): ${t.label}`);
   }
   lines.push('');
-  lines.push('Find EVERY type of work on that menu that plainly shows in how THIS');
-  lines.push('business works, on their own pages. One, two, three, four or more, if');
-  lines.push('they honestly qualify — never one more for the sake of the count.');
+  lines.push('Find EVERY type of work on that menu that a business like THIS one');
+  lines.push('plainly does, judging from their own pages. One, two, three, four or');
+  lines.push('more, if they honestly qualify — never one more for the sake of it.');
+  lines.push('');
+  lines.push('READ FOR MEANING, NOT FOR WORDING. Their pages will not announce their');
+  lines.push('office work. Nobody writes "we chase a lot of paperwork". You are');
+  lines.push('inferring, from what they sell, who they serve, how big they are, how');
+  lines.push('work reaches them and what they ask people to do, what a week there');
+  lines.push('actually contains. A dental practice with a new-patient form is');
+  lines.push('re-typing that form. A shop with an appointment line is booking and');
+  lines.push('rebooking all week. That is the reasoning wanted here.');
   lines.push('');
   lines.push('A customer being on the phone does NOT disqualify a job. Repeated calls');
   lines.push('are one of the biggest things software takes: phone_answering,');
@@ -630,10 +638,24 @@ function promptToFind(evidence, rejected = null) {
 }
 
 // ---------------------------------------------------------------------------
-// THE SECOND QUESTION: does each job plainly recur. A separate call, on
-// purpose — it sees only the trade and each job with its type and quote,
-// never the first call's reasoning, so it judges the evidence and not the
-// argument. An advertised service is never on its own evidence of recurrence.
+// THE SECOND QUESTION: does each job actually recur in a business like this.
+//
+// A separate call, on purpose — it sees only the trade and each job with its
+// type and quote, never the first call's reasoning, so it judges the work and
+// not the argument.
+//
+// IT IS ASKED TO REASON, NOT TO FIND A NUMBER (Russ, 2026-09-02).
+//
+// This once demanded the page show recurrence in its own words, and rejected
+// "answering incoming calls" at an auto shop because the site did not state a
+// frequency. No small business writes "we take forty calls a week". Asking for
+// a stated number is keyword matching in a different coat, and it threw away
+// four of six good businesses in one run.
+//
+// Almost everything here is INFERRED. An auto shop listing loaner cars, an
+// intake form and a phone number answers the phone all day — that is known
+// from the trade and the shape of the business, not from a sentence on the
+// page. The question is what a week at THIS business plainly looks like.
 
 function promptForRecurrence(trade, areas, note = null) {
   const lines = [];
@@ -642,18 +664,27 @@ function promptForRecurrence(trade, areas, note = null) {
     + `The business's trade: ${said(trade)}.`,
   );
   lines.push('');
-  lines.push('For each job, answer one question: does this job plainly RECUR, many');
-  lines.push('times a week, the same shape each time? Judge ONLY from the quoted');
-  lines.push("words beside it, which come from the business's own pages.");
+  lines.push('For each job, answer one question: in a business of this kind and this');
+  lines.push('size, does this job happen OVER AND OVER — many times a week, the same');
+  lines.push('shape each time?');
   lines.push('');
-  lines.push('An ADVERTISED SERVICE is never on its own evidence of recurrence. A');
-  lines.push('services menu says what the business is willing to do for whoever asks,');
-  lines.push('not where its week goes. "We assist with customs forms" proves they');
-  lines.push('offer it; it does not prove it happens many times a week. Recurrence');
-  lines.push('shows in words about hours, locations, staff numbers, service areas,');
-  lines.push('volume, seasons, forms, FAQs, portals, "call us", "email us", or how');
-  lines.push('many things they list. A one-off interaction that takes its shape from');
-  lines.push('each customer does not recur.');
+  lines.push('JUDGE THE WORK, NOT THE WORDING. You are not looking for the page to');
+  lines.push('state a frequency. It never will. No small business writes "we take');
+  lines.push('forty calls a week". Reason from what the quoted words tell you about');
+  lines.push('the business — its trade, what it sells, who it serves, how work');
+  lines.push('reaches it — and say what a week there plainly looks like.');
+  lines.push('');
+  lines.push('So: an auto shop that offers loaner cars and an intake form is');
+  lines.push('answering the phone and booking cars in all day. YES. A garden centre');
+  lines.push('open six days with an appointment line is taking booking calls all');
+  lines.push('week. YES. A property manager with two hundred units is fielding');
+  lines.push('tenant questions constantly. YES.');
+  lines.push('');
+  lines.push('Answer NO when the work genuinely is not frequent for a business like');
+  lines.push('this: a monthly newsletter, an annual filing, a once-a-year renewal, a');
+  lines.push('service so specialised or so rarely asked for that it cannot be filling');
+  lines.push('their week. NO also when the job is a one-off shaped entirely by the');
+  lines.push('customer in front of them, with nothing repeating around it.');
   lines.push('');
   lines.push('The jobs:');
   (areas || []).forEach((x, i) => {
@@ -667,8 +698,9 @@ function promptForRecurrence(trade, areas, note = null) {
   lines.push('Answer with JSON only:');
   lines.push('{"verdicts":[{"recurs":"yes" or "no","why":"one short reason","plainly":0.0-1.0}]}');
   lines.push('One verdict per job, in the same order as the jobs above. "plainly" is');
-  lines.push('how plainly the quoted words show the job recurring. When in doubt,');
-  lines.push('answer no — silence beats a wrong guess.');
+  lines.push('how sure you are that a week at this business is full of this job.');
+  lines.push('Say no when the work truly is not frequent here. Do NOT say no merely');
+  lines.push('because the page did not state a number — it never states a number.');
   return lines.join('\n');
 }
 
@@ -865,7 +897,10 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('  necessary to", "ensuring", "in order to", "utilise", "individuals",');
   lines.push('  "personnel", "requests are handled". If it reads like a form, rewrite it.');
   lines.push('- Never name or address the reader\'s job title, and never add a clause about who the reader is.');
-  lines.push('- Never invent, never assume, never assert a problem the pages do not plainly show. Say only what their own published words support.');
+  lines.push('- Say only what their own pages support. Inference is not invention:');
+  lines.push('  what a business like this plainly does is fair, and their pages need');
+  lines.push('  not announce it. What is forbidden is a claim their pages contradict,');
+  lines.push('  or one that would be equally true of any business anywhere.');
   lines.push('- The passage must be wrong for the shop down the road: it is about THIS business alone.');
   lines.push('- Never promise or count hours saved, and never name a time or money figure their own pages do not carry.');
   lines.push('- Never scold, never imply they are behind, never suggest they are doing it');
@@ -914,10 +949,61 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
 // reader hands back the words it rested on, and those words are looked for in
 // the pages it was given — not trusted on its say-so.
 
-function groundingPage(quote, pages) {
+// WHAT GROUNDS A PASSAGE (rewritten 2026-09-02, Russ: "everything is inferred").
+//
+// This demanded the quoted words appear CHARACTER FOR CHARACTER on a stored
+// page. That is keyword matching wearing a different coat, and it threw away
+// six good businesses in one run — "answering incoming phone calls",
+// "processing rental applications", "billing customers" — all plainly true of
+// those businesses, all rejected because the exact string was not on the page.
+//
+// Grounding is still real: the passage must rest on a page of THEIR site that
+// we actually hold, so nothing is written about a business we have not read.
+// What it no longer requires is that they said it in those words. Almost
+// nothing here is stated outright; it is inferred from what they sell, who
+// they serve and how work reaches them.
+//
+// Three ways a passage can be grounded, best first, and WHICH ONE is recorded
+// so a reader can always see how firm the footing was:
+//   verbatim  — their own words, found on the page
+//   echoed    — most of the distinctive words are there, in different order
+//   read from — the page is one of theirs and it is what the reading rested on
+//
+// Only a quote pointing at NO page of theirs is refused, because that is the
+// one case that means the passage came from nowhere.
+
+function groundingPage(quote, pages, url = null) {
   const q = normalise(quote);
-  if (!q || q.length < 12) return null;
-  return (pages || []).find((p) => normalise(p.text).includes(q)) || null;
+  const all = pages || [];
+  if (!all.length) return null;
+
+  // 1. Their own words, exactly.
+  if (q && q.length >= 12) {
+    const exact = all.find((p) => normalise(p.text).includes(q));
+    if (exact) return { ...exact, footing: 'verbatim' };
+  }
+
+  // 2. The substance of it — most of the distinctive words on one page. Short
+  //    and common words are ignored; it is the uncommon ones that tie a
+  //    sentence to a page.
+  const words = q.split(' ').filter((w) => w.length > 4);
+  if (words.length >= 3) {
+    for (const p of all) {
+      const t = normalise(p.text);
+      const hits = words.filter((w) => t.includes(w)).length;
+      if (hits / words.length >= 0.6) return { ...p, footing: 'echoed' };
+    }
+  }
+
+  // 3. It named a page of theirs and that page is one we hold. The passage was
+  //    read FROM their site even if they never put it in those words.
+  if (url) {
+    const named = all.find((p) => p.url === url)
+      || all.find((p) => String(p.url || '').includes(String(url).replace(/^https?:\/\//, '').split('/')[0]));
+    if (named) return { ...named, footing: 'read from' };
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1008,10 +1094,10 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     let ungrounded = null;
     const grounded = [];
     for (const x of found) {
-      const page = groundingPage(x.quote, pages);
+      const page = groundingPage(x.quote, pages, x.restsOn || x.url || null);
       if (!page) {
-        ungrounded = `the words behind "${x.job}" were not found on any stored page — every `
-          + 'area needs their own words behind it, word for word';
+        ungrounded = `"${x.job}" points at no page of theirs that we hold — every area `
+          + 'must rest on a page we actually read';
         break;
       }
       grounded.push({
@@ -1100,7 +1186,15 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       }
       const a = res.answer;
       if (a.cannotTell) { refusal = String(a.cannotTell); break; }
-      const sentence = String(a.sentence || '').trim().replace(/\s+/g, ' ');
+      // A DASH IS A TYPING HABIT, NOT A WRONG THOUGHT (2026-09-02).
+      //
+      // Obsidian Real Estate lost its passage twice over a dash and fell back
+      // to the trade sentence — a good business dropped on punctuation. The
+      // voice rule stands, so the dash goes; the sentence does not.
+      const sentence = String(a.sentence || '').trim()
+        .replace(/\s*[—–]\s*/g, ', ')
+        .replace(/,\s*,/g, ',')
+        .replace(/\s+/g, ' ');
       const check = passable(sentence, { roleTitle, avoid, jobs: mine });
       if (!check.ok) { rejected = { sentence, why: check.why }; continue; }
       const hours = sentence.match(CLAIMS_HOURS);

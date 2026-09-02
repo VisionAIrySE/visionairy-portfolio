@@ -6,6 +6,8 @@
 //   node scripts/hoursback/write-noticings.js --since=2026-09-01
 //   node scripts/hoursback/write-noticings.js --ids=<id>,<id>
 //   node scripts/hoursback/write-noticings.js --limit=20
+//   node scripts/hoursback/write-noticings.js --fresh=12   (resume: skip anyone
+//                                       noticed in the last 12 hours, per the DB)
 //
 // --look: the sentences are generated and the review page is written, but
 // NOTHING in the database is touched — no reading, no finding, no draft.
@@ -26,6 +28,19 @@
 // rejected, all through askTheReader() — the same local reader the site reads
 // use. No OpenRouter, no paid call, ever. The ceiling below is in code before
 // anything runs, because a loop that spends without one has cost real money.
+//
+// SURVIVING THE NIGHT (2026-09-02). Over ~3,000 businesses three failures are
+// certainties, and each used to ruin the run:
+//   - the reader running out of allowance mid-run STOPS the run at once —
+//     exit EXIT_READER_EXHAUSTED (75) — instead of recording hundreds of
+//     honest-looking "kept the trade sentence" fallbacks off one dead reader;
+//   - a run whose first calls all fail stops as broken — exit
+//     EXIT_BROKEN_START (74) — rather than grinding through thousands;
+//   - --fresh=N resumes: a business whose latest noticing finding is newer
+//     than N hours is skipped, counted FROM THE DATABASE, same flag and
+//     meaning as understand-businesses.js;
+//   - however the run ends, one plain line lands on docs/hoursback/last-run.md
+//     — the status board, always the last thing written.
 
 const path = require('path');
 const fs = require('fs');
@@ -33,11 +48,11 @@ const fs = require('fs');
 // HARD CEILING. However many are asked for, one run writes noticings for at
 // most this many businesses.
 const CEILING = 50;
-// How many TRADES are walked side by side. Six matches what the website read
-// settled on for this machine; --at-once= raises or lowers it for a bigger one.
-const AT_ONCE = Math.max(1, Number(arg('at-once', 6)));
 
-const { askTheReader } = require('./understand-businesses.js');   // safe: exports only; chdirs to the project root and loads .env
+const {
+  askTheReader, makeReaderGuard, writeLastRun, LAST_RUN,
+  FIRST_CALLS_MUST_ANSWER, EXIT_READER_EXHAUSTED, EXIT_BROKEN_START,
+} = require('./understand-businesses.js');   // safe: exports only; chdirs to the project root and loads .env
 const { PrismaClient } = require('@prisma/client');
 const N = require('../../src/hoursback/crm/noticing.js');
 const L = require('../../src/hoursback/crm/lanes.js');
@@ -45,10 +60,16 @@ const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js')
 const { tradeOf } = require('../../src/hoursback/crm/queues.js');
 
 const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
+
+// How many TRADES are walked side by side. Six matches what the website read
+// settled on for this machine; --at-once= raises or lowers it for a bigger one.
+const AT_ONCE = Math.max(1, Number(arg('at-once', 6)));
 const LOOK = process.argv.includes('--look');
 const SINCE = arg('since', null);
 const IDS = String(arg('ids', '')).split(',').map((s) => s.trim()).filter(Boolean);
 const LIMIT = Math.min(Number(arg('limit', CEILING)) || CEILING, CEILING);
+// --fresh=N: resume. Same flag, same meaning as understand-businesses.js.
+const FRESH = Number(arg('fresh', 0));
 
 const REVIEW_PAGE = path.resolve(__dirname, '../../docs/hoursback/messages-to-review.md');
 
@@ -61,8 +82,51 @@ function asQuote(text) {
   return String(text || '').split('\n').map((l) => `> ${l}`).join('\n');
 }
 
-async function main() {
-  const db = new PrismaClient();
+// The walk itself, separable so the stop can be proved by a test: atOnce
+// workers, each taking a whole trade and walking it in order. An ordinary
+// error on one business goes to onBusinessError and the run carries on — one
+// bad site never stops the batch. An error marked stopTheRun (thrown by the
+// reader guard) stops EVERY worker before its next business: a run must not
+// grind 3,000 businesses into honest-looking failures against a dead reader.
+async function walkTrades({ queues, atOnce, doOne, onBusinessError }) {
+  const stopState = { stop: false, error: null };
+  let nextQueue = 0;
+  const worker = async () => {
+    while (!stopState.stop) {
+      const mine = queues[nextQueue];
+      nextQueue += 1;
+      if (!mine) return;
+      for (const p of mine) {
+        if (stopState.stop) return;
+        try { await doOne(p); }
+        catch (e) {
+          if (e && e.stopTheRun) { stopState.stop = true; stopState.error = e; return; }
+          onBusinessError(p, e);
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(atOnce, queues.length)) }, worker));
+  return stopState;
+}
+
+// What this run has managed so far, for the crash report alone. A resume
+// never reads this — it counts from the database.
+const progress = { done: 0, total: 0 };
+
+async function noticingRun(injected = {}) {
+  const db = injected.db || new PrismaClient();
+  const look = injected.look ?? LOOK;
+  const ids = injected.ids ?? IDS;
+  const since = injected.since ?? SINCE;
+  const limit = Math.min(Number(injected.limit ?? LIMIT) || CEILING, CEILING);
+  const fresh = injected.fresh ?? FRESH;
+  const atOnce = injected.atOnce ?? AT_ONCE;
+  const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
+  const reviewPage = injected.reviewPage || REVIEW_PAGE;
+  const lastRunAt = injected.lastRunPath || LAST_RUN;
+  progress.done = 0; progress.total = 0;
+  let outcome = null;
   try {
     // Who this run looks at. Explicit ids are taken as given; otherwise the
     // most recently read businesses that a letter could actually reach, the
@@ -70,23 +134,44 @@ async function main() {
     // everywhere — a business Russ said never to contact gets no work done
     // on its letter at all.
     const where = { doNotContact: false };
-    if (IDS.length) {
-      where.id = { in: IDS };
+    if (ids.length) {
+      where.id = { in: ids };
     } else {
       where.siteStatus = 'READ';
       where.repliedAt = null;
       where.emailBouncedAt = null;
       where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }];
-      if (SINCE) {
-        const t = new Date(SINCE);
-        if (Number.isNaN(t.getTime())) throw new Error(`--since=${SINCE} is not a date`);
+      if (since) {
+        const t = new Date(since);
+        if (Number.isNaN(t.getTime())) throw new Error(`--since=${since} is not a date`);
         where.siteReadAt = { gte: t };
       }
     }
+
+    // PICKING UP WHERE IT STOPPED. --fresh=N: a business whose latest
+    // noticing finding is newer than N hours is already done and is skipped —
+    // read from the DATABASE, never from a file a run wrote about itself, and
+    // never from a run's own tally. A could-not-tell finding counts as done:
+    // we looked, and the look is on record. Explicit --ids are taken as
+    // given, exactly as --only is next door.
+    let skippedAsDone = 0;
+    if (fresh && !ids.length) {
+      const cutoff = new Date(Date.now() - fresh * 3600000);
+      const noticedLately = { field: 'noticing', createdAt: { gte: cutoff } };
+      skippedAsDone = await db.prospect.count({
+        where: { ...where, findings: { some: noticedLately } },
+      });
+      where.findings = { none: noticedLately };
+      const remainEligible = await db.prospect.count({ where });
+      console.log(`resume: ${skippedAsDone} noticed in the last ${fresh}h — skipped as already done; `
+        + `${remainEligible} remain eligible (this run takes at most ${limit})`);
+    }
+
     const rows = await db.prospect.findMany({
-      where, orderBy: { siteReadAt: 'desc' }, take: LIMIT,
+      where, orderBy: { siteReadAt: 'desc' }, take: limit,
     });
-    console.log(`${rows.length} businesses selected (ceiling ${CEILING})${LOOK ? ' — LOOK ONLY, nothing will be written' : ''}`);
+    progress.total = rows.length;
+    console.log(`${rows.length} businesses selected (ceiling ${CEILING})${look ? ' — LOOK ONLY, nothing will be written' : ''}`);
 
     // Every noticing already on file, latest per business, grouped by trade —
     // so two businesses in one trade can never be handed the same sentence,
@@ -137,7 +222,14 @@ async function main() {
       byTrade.get(k).push(p);
     }
     const queues = [...byTrade.values()];
-    let nextQueue = 0;
+
+    // ONE reader guard for the whole run. The moment the reader is out of
+    // allowance — or the run's first calls have all failed — it throws an
+    // error marked stopTheRun and keeps throwing without calling the reader
+    // again: every business in flight aborts BEFORE recording anything, and
+    // walkTrades starts no new business. Six honest-looking fallbacks that
+    // were really one dead reader (2026-09-02) is the failure this retires.
+    const guard = makeReaderGuard(ask);
 
     const doOne = async (p) => {
       const businessName = p.nameManualValue || p.name || '(no name)';
@@ -161,19 +253,20 @@ async function main() {
         .map((x) => x.sentence);
 
       const res = await N.noticeOneBusiness(db, p.id, {
-        ask: askTheReader, avoid, roleTitle, prospect: p,
+        ask: guard.ask, avoid, roleTitle, prospect: p,
       });
 
       if (!res.sentence) {
         // Silence beats a wrong guess: the letter keeps Russ's trade
         // sentence, and the "could not tell" is recorded as itself.
-        if (!LOOK) await N.recordNoticing(db, p.id, res, { sourceUrl: p.websiteManualValue || p.website });
+        if (!look) await N.recordNoticing(db, p.id, res, { sourceUrl: p.websiteManualValue || p.website });
         fallbacks.push({
           name: businessName, trade: tradeKey,
           theyRun: res.theyRun || [],
           areas: res.areas || [],
           reason: res.couldNotTell || 'could not tell',
         });
+        progress.done += 1;
         console.log(`  · ${businessName}: kept the trade sentence — ${res.couldNotTell}`);
         return;
       }
@@ -182,7 +275,7 @@ async function main() {
       const before = await db.outreachMessage.findFirst({ where: { prospectId: p.id, lane: 'EMAIL' } });
 
       let after = null; let status;
-      if (LOOK) {
+      if (look) {
         after = { body: draftFirstContact({ ...writeTo, noticing: res.sentence }, L.signalsOf(p)).body };
         status = before && before.sentAt ? 'already sent — a real run would leave the letter alone'
           : before && before.editedAt ? 'edited by Russ — a real run would leave the letter alone'
@@ -214,38 +307,55 @@ async function main() {
         newBody: after ? after.body : null,
         status,
       });
+      progress.done += 1;
       console.log(`  ✓ ${businessName}: ${res.sentence}`);
     };
 
-    // A worker takes a whole trade and walks it in order; AT_ONCE trades are
-    // walked side by side. A business that throws is reported and the run
-    // carries on — one bad site never stops the batch.
-    const worker = async () => {
-      while (true) {
-        const mine = queues[nextQueue];
-        nextQueue += 1;
-        if (!mine) return;
-        for (const p of mine) {
-          try { await doOne(p); }
-          catch (e) {
-            const nm = p.nameManualValue || p.name || '(no name)';
-            console.log(`  ! ${nm}: ${String((e && e.message) || e).slice(0, 110)}`);
-            fallbacks.push({
-              name: nm, trade: String(p.trade || tradeOf(p.name) || 'other').toLowerCase(),
-              theyRun: [], areas: [], reason: `the run threw: ${String((e && e.message) || e).slice(0, 160)}`,
-            });
-          }
-        }
-      }
+    // A business that throws for its own reasons is reported and the run
+    // carries on — one bad site never stops the batch. A stopTheRun error
+    // (the reader guard's) stops every worker; walkTrades tells them apart.
+    const onBusinessError = (p, e) => {
+      const nm = p.nameManualValue || p.name || '(no name)';
+      console.log(`  ! ${nm}: ${String((e && e.message) || e).slice(0, 110)}`);
+      fallbacks.push({
+        name: nm, trade: String(p.trade || tradeOf(p.name) || 'other').toLowerCase(),
+        theyRun: [], areas: [], reason: `the run threw: ${String((e && e.message) || e).slice(0, 160)}`,
+      });
+      progress.done += 1;
     };
-    await Promise.all(Array.from({ length: Math.min(AT_ONCE, queues.length) }, worker));
+    const stopState = await walkTrades({ queues, atOnce, doOne, onBusinessError });
+
+    // HOW THE RUN ENDED, counted from what actually happened. Every business
+    // in `noticed` or `fallbacks` was finished and recorded normally BEFORE
+    // any stop; every other business was never started — nothing was written
+    // for it, and it stays eligible for the next run.
+    const done = noticed.length + fallbacks.length;
+    const remaining = rows.length - done;
+    const readerOut = Boolean(stopState.error && stopState.error.readerExhausted);
+    const stopWhy = !stopState.stop ? null
+      : readerOut ? 'the reader is out of allowance and the run stopped'
+        : `the run's first calls all failed (${FIRST_CALLS_MUST_ANSWER} before a single answer) — the reader is broken, not the websites`;
+    if (stopState.stop) {
+      console.log(`\nSTOPPED — ${stopWhy}.`);
+      console.log(`${done} of ${rows.length} were done and are recorded normally; ${remaining} were not reached, `
+        + 'nothing was written for them, and they stay eligible.');
+      console.log('Rerun with --fresh=12 to resume from the database once the reader answers.');
+    }
 
     // ------------------------------------------------------------------ page
     const out = [];
     out.push('# Messages to review — the noticing pass');
     out.push('');
-    out.push(`Written ${new Date().toISOString()} by scripts/hoursback/write-noticings.js${LOOK ? ' — **a look only: nothing in the database was touched**' : ''}.`);
+    out.push(`Written ${new Date().toISOString()} by scripts/hoursback/write-noticings.js${look ? ' — **a look only: nothing in the database was touched**' : ''}.`);
     out.push('');
+    if (stopState.stop) {
+      // The page only ever shows businesses finished BEFORE the stop — each
+      // recorded normally — and says so, so a short page reads as a stopped
+      // run and never as a quiet night.
+      out.push(`**THE RUN STOPPED EARLY — ${stopWhy}.** The ${done} businesses below were done before the stop; `
+        + `${remaining} were not reached, nothing was written for them, and they stay eligible.`);
+      out.push('');
+    }
     out.push("One thing changed in each letter below: the second paragraph, which used to be the trade's week, now names at most the two hardest-hitting jobs read off that business's own site, angled to the job of the person it is addressed to. Every other word is Russ's, unchanged. Beside each is what the business already visibly runs; EVERY area of work that mapped to the tool library, each with its type, department, the words it rests on and its recurrence verdict; how the areas ranked and which reached the email, and why. The card gets everything that fits — the email names two at most. Businesses whose site could not support a specific, true sentence are at the end — they keep the trade sentence, and the reason and any areas that fell short are beside each.");
     out.push('');
 
@@ -332,17 +442,64 @@ async function main() {
       }
     }
     out.push('');
-    fs.writeFileSync(REVIEW_PAGE, out.join('\n'));
+    fs.writeFileSync(reviewPage, out.join('\n'));
 
     console.log('');
     console.log(`noticed: ${noticed.length}   kept the trade sentence: ${fallbacks.length}`);
-    if (!LOOK) console.log(`letters rewritten: ${rewritten}   left alone (sent or hand-edited): ${leftAlone}`);
-    console.log(`review page: ${REVIEW_PAGE}`);
+    if (!look) console.log(`letters rewritten: ${rewritten}   left alone (sent or hand-edited): ${leftAlone}`);
+    console.log(`review page: ${reviewPage}`);
+
+    outcome = {
+      ending: !stopState.stop ? 'finished' : readerOut ? 'reader_exhausted' : 'broken_start',
+      code: !stopState.stop ? 0 : readerOut ? EXIT_READER_EXHAUSTED : EXIT_BROKEN_START,
+      done, remaining, skippedAsDone,
+      why: stopWhy || `finished${look ? ' (a look only — nothing was written)' : ''}`,
+      needsPerson: stopState.stop
+        ? (readerOut
+          ? 'wait for the reader\'s allowance to reset, then rerun with --fresh=12'
+          : 'check the local claude reader and its login, then rerun with --fresh=12')
+        : (noticed.length && !look ? `review the ${noticed.length} letters on ${reviewPage}` : null),
+    };
   } finally {
     await db.$disconnect();
   }
+  // The status board — always the LAST thing written, whatever the ending.
+  writeLastRun({
+    script: 'write-noticings.js',
+    why: outcome.why, done: outcome.done, remaining: outcome.remaining,
+    needsPerson: outcome.needsPerson, at: lastRunAt,
+  });
+  return outcome;
 }
 
-if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });
+// However the run ends — finished, stopped by the guard, or a crash — the
+// status board gets its line. On a crash it is written here, then the error
+// carries on to whoever called.
+async function main(injected = {}) {
+  try {
+    return await noticingRun(injected);
+  } catch (e) {
+    writeLastRun({
+      script: 'write-noticings.js',
+      why: `it crashed: ${String((e && e.message) || e).slice(0, 200)}`,
+      done: progress.done,
+      remaining: Math.max(0, progress.total - progress.done),
+      needsPerson: 'read the crash above, then rerun with --fresh=12 to resume',
+      at: injected.lastRunPath || LAST_RUN,
+    });
+    throw e;
+  }
+}
 
-module.exports = { CEILING, secondParagraphOf };
+if (require.main === module) {
+  main().then((out) => {
+    // Distinct codes: 75 means "out of allowance, rerun later", 74 means
+    // "broken from the first call" — a wrapper can tell both from a crash (1).
+    if (out && out.code) process.exit(out.code);
+  }).catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+module.exports = { CEILING, secondParagraphOf, walkTrades, main };

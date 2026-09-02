@@ -157,6 +157,93 @@ function askTheReader(question) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// SURVIVING THE NIGHT (2026-09-02). Three failures at 3,000 businesses each
+// used to ruin a whole run, and this block answers all three:
+//
+//   1. The reader runs out of allowance mid-run. askTheReader detects it
+//      (readerExhausted on the result) but nothing acted on it: on 2026-09-02
+//      six businesses in a row were recorded as honest-looking failures that
+//      were really one dead reader. makeReaderGuard below turns the detection
+//      into a STOP — not one more business starts, nothing further is written,
+//      and the run exits EXIT_READER_EXHAUSTED so a wrapper can tell it from
+//      a crash.
+//   2. A run whose FIRST calls all fail is broken, not facing thousands of
+//      thin websites. FIRST_CALLS_MUST_ANSWER failures before a single answer
+//      stops the run with EXIT_BROKEN_START.
+//   3. However a run ends — finished, reader out, broken start, crash — ONE
+//      plain-English line lands on docs/hoursback/last-run.md, the last thing
+//      written. It is a status board, not a record: overwriting it is fine,
+//      and nothing ever resumes FROM it — a resume counts from the database.
+
+const LAST_RUN = path.resolve(__dirname, '../../docs/hoursback/last-run.md');
+
+// The one line that tells the owner how the last run ended. Written on EVERY
+// ending, and always the last thing written.
+function writeLastRun({ script, why, done, remaining, needsPerson = null, at = LAST_RUN }) {
+  const line = `${script} stopped ${new Date().toISOString()} — ${why}; `
+    + `${done} done, ${remaining} left; `
+    + `${needsPerson ? `needs a person: ${needsPerson}` : 'needs nobody'}.`;
+  try { fs.writeFileSync(at, `${line}\n`); } catch { /* the status board must never sink the run itself */ }
+  return line;
+}
+
+// The stop reasons as FIXED strings, so a reading closed with one of them can
+// be recognised for what it was — the run stopping, never that business
+// failing — and the business counted as unreached and still eligible.
+const READER_OUT_MSG = 'THE READER IS OUT OF ALLOWANCE — the run stops here; this business was cut off, not read';
+const BROKEN_START_MSG = 'the run could not get a single answer from the reader in its first tries — stopped as broken, not as thousands of thin websites';
+
+// How many calls may fail, before ANY has succeeded, before the run is judged
+// broken. One answered call, ever, retires this check for the whole run.
+const FIRST_CALLS_MUST_ANSWER = 5;
+
+// Distinct exit codes, so a wrapper can tell these endings from a crash (1).
+const EXIT_READER_EXHAUSTED = 75; // temporary: rerun with --fresh once the allowance resets
+const EXIT_BROKEN_START = 74;     // the reader needs a person before any rerun
+
+// Wraps the reader for ONE run. The wrapped ask behaves exactly like the real
+// one until the reader is out of allowance (readerExhausted on the result) or
+// the run's first calls have all failed — then it THROWS an error marked
+// stopTheRun, and keeps throwing without ever calling the reader again, so
+// every business in flight aborts before recording anything and no new
+// business can start. The exhausted answer itself is never handed onward:
+// handed onward it becomes a plausible "could not tell" on the record, which
+// is exactly the lie this guard exists to stop.
+function makeReaderGuard(rawAsk, { firstCallsMustAnswer = FIRST_CALLS_MUST_ANSWER } = {}) {
+  const state = {
+    readerOut: false, brokenStart: false,
+    answeredEver: false, failedBeforeFirstAnswer: 0, calls: 0,
+  };
+  const stopNow = (message, mark) => {
+    const e = new Error(message);
+    e.stopTheRun = true;
+    e[mark] = true;
+    return e;
+  };
+  const ask = async (question) => {
+    if (state.readerOut) throw stopNow(READER_OUT_MSG, 'readerExhausted');
+    if (state.brokenStart) throw stopNow(BROKEN_START_MSG, 'brokenStart');
+    const res = await rawAsk(question);
+    state.calls += 1;
+    if (res && res.readerExhausted) {
+      state.readerOut = true;
+      throw stopNow(READER_OUT_MSG, 'readerExhausted');
+    }
+    if (res && res.answer) {
+      state.answeredEver = true;
+    } else if (!state.answeredEver) {
+      state.failedBeforeFirstAnswer += 1;
+      if (state.failedBeforeFirstAnswer >= firstCallsMustAnswer) {
+        state.brokenStart = true;
+        throw stopNow(BROKEN_START_MSG, 'brokenStart');
+      }
+    }
+    return res;
+  };
+  return { ask, state };
+}
+
 // Is there a way to write to them that is not an address? Only a fact about
 // the page's own markup, which is the one place a pattern belongs.
 const A_FORM = /<form[\s\S]{0,400}?(type=["']?(email|text)|name=["']?(email|message|comments|inquiry|name))/i;
@@ -357,12 +444,25 @@ async function visitOneBusiness(db, r, deps = {}) {
   }
 }
 
-// Only read when this file is the thing being run. The OpenRouter-based read
-// borrows the saving step from here, and without this guard merely importing
-// it would start a second full pass of its own (2026-08-29).
-if (require.main === module) (async () => {
-  const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+// What this run has managed so far, for the crash report alone — the status
+// board line written when something throws needs numbers, and the throw can
+// land outside every inner scope. A resume never reads this: it counts from
+// the database.
+const progress = { done: 0, total: 0 };
+
+// The whole pass, callable. The command line runs it below; the tests run it
+// with a fake db, a fake fetch and a fake reader — the only way the stop
+// behaviours can be proved without touching a real business. A real run
+// injects nothing and behaves exactly as before.
+async function understandPass(injected = {}) {
+  const db = injected.db || new (require('@prisma/client').PrismaClient)();
+  const look = injected.look ?? LOOK;
+  const lanesWanted = injected.lanes ?? LANES;
+  const only = injected.only ?? ONLY;
+  const emailable = injected.emailable ?? EMAILABLE;
+  const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
+  const lastRunAt = injected.lastRunPath || LAST_RUN;
+  progress.done = 0; progress.total = 0;
 
   // THE WORKED LIST, and not the review pile.
   //
@@ -370,23 +470,25 @@ if (require.main === module) (async () => {
   // were screened out into NEEDS_REVIEW — they have no email, no phone and
   // mostly no website, and Russ is not working them. --review reads that pile
   // instead; it is a separate decision and never the default.
-  const REVIEW_PILE = process.argv.includes('--review');
-  const UNREAD_TRADES = process.argv.includes('--unread-trades');
+  const REVIEW_PILE = injected.reviewPile ?? process.argv.includes('--review');
+  const UNREAD_TRADES = injected.unreadTrades ?? process.argv.includes('--unread-trades');
   const TRADES_WITH_STAFF = /accounting|legal|insurance|dental|medical|veterinary|real estate|construction|trades|plumbing|electrical|hvac|auto|landscap|staffing|cleaning|manufactur|storage|professional services/i;
 
   // PICKING UP WHERE IT STOPPED. --fresh=6 means "leave alone anything
   // already read in the last six hours", which turns a restart into a resume
   // (2026-08-28). It selects which sites to VISIT — it never stops a visit
-  // that has started from storing its pages and findings.
-  const FRESH = Number(arg('fresh', 0));
+  // that has started from storing its pages and findings. The resume point is
+  // the DATABASE's siteReadAt, which writeItDown sets only when a visit truly
+  // finished — never a file a run wrote about itself, never a run's own tally.
+  const FRESH = injected.fresh ?? Number(arg('fresh', 0));
+  const freshCutoff = FRESH ? new Date(Date.now() - FRESH * 3600000) : null;
   const alreadyDone = FRESH
-    ? { OR: [{ siteReadAt: null }, { siteReadAt: { lt: new Date(Date.now() - FRESH * 3600000) } }] }
+    ? { OR: [{ siteReadAt: null }, { siteReadAt: { lt: freshCutoff } }] }
     : {};
 
-  const where = ONLY
-    ? { id: ONLY }
+  const baseWhere = only
+    ? { id: only }
     : {
-      ...alreadyDone,
       doNotContact: false,
       // One NOT list, not two. Written as two separate NOT keys the second
       // silently replaces the first and the whole scoping disappears.
@@ -399,14 +501,23 @@ if (require.main === module) (async () => {
       ...(UNREAD_TRADES ? { stage: 'NEEDS_REVIEW', siteReadAt: null } : {}),
       // --emailable: ONLY the businesses that already have a message written
       // to them, so the list Russ actually works is corrected first.
-      ...(EMAILABLE
+      ...(emailable
         ? { messages: { some: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } } } }
         : {}),
     };
+  const where = only ? baseWhere : { ...alreadyDone, ...baseWhere };
+
+  // A RESUMED RUN'S NUMBERS ARE LEGIBLE, and they come from the database.
+  if (FRESH && !only) {
+    const skippedAsDone = await db.prospect.count({ where: { ...baseWhere, siteReadAt: { gte: freshCutoff } } });
+    const remainEligible = await db.prospect.count({ where });
+    console.log(`resume: ${skippedAsDone} read in the last ${FRESH}h — skipped as already done; `
+      + `${remainEligible} remain eligible${UNREAD_TRADES ? ' (counted before the trade screen)' : ''}`);
+  }
 
   // The batch ceiling is applied IN THE QUERY: however large --limit is, no
   // run reads more than BATCH_OF_SITES businesses. Standing order.
-  const takeAtMost = Math.min(LIMIT || BATCH_OF_SITES, BATCH_OF_SITES);
+  const takeAtMost = Math.min((injected.limit ?? LIMIT) || BATCH_OF_SITES, BATCH_OF_SITES);
 
   const rows = await db.prospect.findMany({
     where,
@@ -438,8 +549,9 @@ if (require.main === module) (async () => {
     rows.push(...kept.slice(0, takeAtMost));
   }
 
+  progress.total = rows.length;
   console.log(`${rows.length} businesses with a website to read  (batch ceiling ${BATCH_OF_SITES})`);
-  console.log(LOOK ? 'LOOKING ONLY — nothing will be written\n' : `reading, ${LANES} site(s) at a time, groups in parallel within each\n`);
+  console.log(look ? 'LOOKING ONLY — nothing will be written\n' : `reading, ${lanesWanted} site(s) at a time, groups in parallel within each\n`);
 
   const tally = {
     read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, noReadableWords: 0, partial: 0,
@@ -459,6 +571,13 @@ if (require.main === module) (async () => {
   // every site being read, and the level it settles on is reported.
   const controller = makeFlightController();
 
+  // ONE reader guard for the whole run: the moment the reader is out of
+  // allowance — or the run's first calls have all failed — every lane stops
+  // before its next business, and the businesses in flight abort without
+  // recording anything on the prospect.
+  const guard = makeReaderGuard(ask);
+  const cutOffMidVisit = [];
+
   // If the reader stops answering — a rate limit, a login that expired — a
   // run of failures stops the pass, with everything read so far already
   // written and every visit's reading closed.
@@ -468,13 +587,29 @@ if (require.main === module) (async () => {
 
   const lane = async () => {
     for (;;) {
+      // THE RUN STOPS THE MOMENT THE GUARD FIRES — no lane starts another
+      // business, so nothing further is written to any record.
+      if (guard.state.readerOut || guard.state.brokenStart) return;
       const at = next; next += 1;
       if (at >= rows.length) return;
       const r = rows[at];
       // ONE BAD WEBSITE MUST NOT END THE PASS. Anything unexpected on one site
       // costs that site, not the hours behind it (2026-08-28).
       try {
-        const visit = await visitOneBusiness(db, r, { controller });
+        const visit = await visitOneBusiness(db, r, {
+          controller, askTheReader: guard.ask, look,
+          ...(injected.fetch ? { fetch: injected.fetch } : {}),
+        });
+
+        // A visit that failed WITH THE GUARD'S OWN MESSAGE was not a visit —
+        // it was the run stopping underneath it. Its reading is already
+        // closed naming the true reason, nothing landed on the prospect, and
+        // it stays eligible: counted with the unreached, never as broken.
+        if (visit.outcome === 'failed' && (visit.error === READER_OUT_MSG || visit.error === BROKEN_START_MSG)) {
+          cutOffMidVisit.push(visit.name || '(no name)');
+          continue; // the check at the top of the loop ends this lane
+        }
+        progress.done += 1;
 
         // The per-site report the run promises: pages fetched, the count in
         // each purpose, model calls, and finished or PARTIAL.
@@ -526,7 +661,7 @@ if (require.main === module) (async () => {
         else if (understood.trade) tally.tradeCorrected += 1;
         else if (understood.tradeUnsure) tally.tradeUnsure += 1;
 
-        if (LOOK && notes.length < 40) {
+        if (look && notes.length < 40) {
           const lines = [];
           lines.push(`\n${'='.repeat(74)}\n${visit.name}   ${visit.url}`);
           lines.push(`  what they are   ${understood.trade || '(could not tell)'}${understood.trade && understood.trade !== r.trade ? `   was: ${r.trade || 'none'}` : ''}`);
@@ -550,13 +685,42 @@ if (require.main === module) (async () => {
           notes.push(lines.join('\n'));
         }
       } catch (e) {
+        progress.done += 1;
         tally.brokeOnThisOne += 1;
         if (broke.length < 25) broke.push(`  ${(r.nameManualValue || r.name || '(no name)').slice(0, 30).padEnd(32)}${String((e && e.message) || e).slice(0, 90)}`);
       }
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(LANES, rows.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(lanesWanted, rows.length) }, lane));
+
+  // A STOP FROM THE GUARD: say it plainly, write the status board LAST, and
+  // hand the wrapper a distinct exit code so it can tell this from a crash.
+  // Everything already done is recorded normally; everything not reached is
+  // untouched and still eligible; nothing further is written to any record.
+  if (guard.state.readerOut || guard.state.brokenStart) {
+    const done = progress.done;
+    const remaining = rows.length - done;
+    const why = guard.state.readerOut
+      ? 'the reader is out of allowance and the run stopped'
+      : `the run's first calls all failed (${FIRST_CALLS_MUST_ANSWER} before a single answer) — the reader is broken, not the websites`;
+    console.log(`\n\nSTOPPED — ${why}.`);
+    console.log(`${done} of ${rows.length} in this batch were done and are recorded normally; ${remaining} were not reached and stay eligible.`);
+    if (cutOffMidVisit.length) console.log(`cut off mid-visit, still eligible: ${cutOffMidVisit.join(', ')}`);
+    console.log('Nothing further was written. Rerun with --fresh=12 to resume from the database once the reader answers.');
+    await db.$disconnect();
+    writeLastRun({
+      script: 'understand-businesses.js', why, done, remaining, at: lastRunAt,
+      needsPerson: guard.state.readerOut
+        ? 'wait for the reader\'s allowance to reset, then rerun with --fresh=12'
+        : 'check the local claude reader and its login, then rerun with --fresh=12',
+    });
+    return {
+      ending: guard.state.readerOut ? 'reader_exhausted' : 'broken_start',
+      code: guard.state.readerOut ? EXIT_READER_EXHAUSTED : EXIT_BROKEN_START,
+      done, remaining,
+    };
+  }
 
   const mins = ((Date.now() - started) / 60000).toFixed(1);
   console.log(notes.join('\n'));
@@ -591,7 +755,52 @@ if (require.main === module) (async () => {
   console.log(`the phone and nothing else: ${tally.phoneOnly}`);
   console.log(`scores held down:         ${tally.held}`);
   await db.$disconnect();
-})().catch((e) => { console.error('failed:', e.message); process.exit(1); });
+
+  // The status board — the last thing written, whatever the ending was.
+  const done = progress.done;
+  const remaining = rows.length - done;
+  const why = stopped
+    ? `the reader failed ${GIVE_UP_AFTER} times in a row and the pass stopped early`
+    : `finished the batch${look ? ' (a look only — nothing was written)' : ''}`;
+  writeLastRun({
+    script: 'understand-businesses.js', why, done, remaining, at: lastRunAt,
+    needsPerson: stopped ? 'check the reader, then rerun with --fresh=12 to resume' : null,
+  });
+  return { ending: stopped ? 'reader_kept_failing' : 'finished', code: 0, done, remaining };
+}
+
+// However the run ends — finished, stopped by the guard, or a crash — the
+// status board gets its line. On a crash it is written here, then the error
+// carries on to whoever called.
+async function runUnderstand(injected = {}) {
+  try {
+    return await understandPass(injected);
+  } catch (e) {
+    writeLastRun({
+      script: 'understand-businesses.js',
+      why: `it crashed: ${String((e && e.message) || e).slice(0, 200)}`,
+      done: progress.done,
+      remaining: Math.max(0, progress.total - progress.done),
+      needsPerson: 'read the crash above, then rerun with --fresh=12 to resume',
+      at: injected.lastRunPath || LAST_RUN,
+    });
+    throw e;
+  }
+}
+
+// Only read when this file is the thing being run. The OpenRouter-based read
+// borrows the saving step from here, and without this guard merely importing
+// it would start a second full pass of its own (2026-08-29).
+if (require.main === module) {
+  runUnderstand().then((out) => {
+    // The distinct codes let a wrapper tell "out of allowance, rerun later"
+    // (75) and "broken from the first call" (74) apart from a crash (1).
+    if (out && out.code) process.exit(out.code);
+  }).catch((e) => {
+    console.error('failed:', e.message);
+    process.exit(1);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Writing it down.
@@ -927,4 +1136,10 @@ module.exports = {
   writeItDown, hasContactForm, opportunityFromTheRead,
   // the whole-site visit, exported so it can be tested without a run
   visitOneBusiness, askTheReader, BATCH_OF_SITES, MODEL, READER_VERSION,
+  // surviving the night: the run itself, the reader guard that stops it the
+  // moment the reader is out, and the status board — all exported so the
+  // stop behaviours can be proved by tests instead of by a ruined night
+  runUnderstand, makeReaderGuard, writeLastRun, LAST_RUN,
+  READER_OUT_MSG, BROKEN_START_MSG, FIRST_CALLS_MUST_ANSWER,
+  EXIT_READER_EXHAUSTED, EXIT_BROKEN_START,
 };

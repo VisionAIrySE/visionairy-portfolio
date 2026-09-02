@@ -139,15 +139,35 @@ test('the reader saying cannotTell is final — no sentence, no retry', async ()
   assert.equal(ask.prompts.length, 1);
 });
 
-test('an ungrounded area is rejected: the quote must be on a stored page', async () => {
-  const ungrounded = {
-    areas: [{ job: 'shredding organizers', type: 'document_collection', quote: 'we shred every organizer on arrival' }],
+// GROUNDING IS ABOUT THEIR SITE, NOT THEIR WORDING (Russ, 2026-09-02).
+//
+// This once demanded the quoted words appear character for character on a
+// stored page, and threw away six good businesses in one run — "answering
+// incoming phone calls", "processing rental applications" — all plainly true,
+// none said in those words. Almost everything here is inferred. What must
+// still hold is that the passage rests on a page of THEIRS that we actually
+// read, so nothing is written about a business we have not seen.
+test('an area pointing at no page of theirs is rejected', async () => {
+  const nowhere = {
+    areas: [{
+      job: 'shredding organizers', type: 'document_collection',
+      quote: 'zzz qqq xxx vvv', restsOn: 'https://somebody-else.example/nope',
+    }],
   };
-  const ask = stubReader([ungrounded, ungrounded]);
+  const ask = stubReader([nowhere, nowhere]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.ok(res.couldNotTell);
-  assert.match(res.couldNotTell, /not found on any stored page/);
+  assert.match(res.couldNotTell, /points at no page of theirs/);
   assert.equal(ask.prompts.length, 2);
+});
+
+test('an inferred job standing on a page of theirs is kept, even in different words', () => {
+  const pages = [{ url: 'https://smithcpa.example/contact', text: 'Call the office and we will book you a time to come in.' }];
+  // Not their wording. It is what a business like this plainly does, and it
+  // names a page we hold — that is footing enough.
+  const g = N.groundingPage('you take booking calls all week', pages, 'https://smithcpa.example/contact');
+  assert.ok(g, 'a job read from a page of theirs stands');
+  assert.equal(g.footing, 'read from', 'and the record says how firm the footing was');
 });
 
 test('with no noticing the letter opens its third element with the trade week, unchanged', () => {
@@ -473,7 +493,13 @@ test("the recurrence check sees the trade and the jobs, never the pages or the f
   assert.match(recurPrompt, /trade: accounting/);
   assert.ok(recurPrompt.includes('chasing clients for the organizers they never sent'));
   assert.ok(recurPrompt.includes('mail or fax it to our office with your documents'));
-  assert.match(recurPrompt, /ADVERTISED SERVICE/);
+  // It must REASON about the business, not hunt for a stated frequency. The
+  // rule it once carried — "an advertised service is never on its own evidence
+  // of recurrence" — became "only accept what the page states outright", which
+  // is keyword matching in a different coat and threw away four of six good
+  // businesses in one run (Russ, 2026-09-02).
+  assert.match(recurPrompt, /JUDGE THE WORK, NOT THE WORDING/);
+  assert.match(recurPrompt, /never state a number|never states a number/i);
   assert.match(recurPrompt, /many times a week/);
   assert.ok(!recurPrompt.includes('[PAGE'));               // never the pages
   assert.ok(!recurPrompt.includes('Smith & Co CPA'));      // not even the name
