@@ -630,9 +630,12 @@ function promptToFind(evidence, rejected = null) {
   lines.push(...pagesBlock(e));
   lines.push('');
   lines.push('Answer with JSON only, one of:');
-  lines.push('{"areas":[{"job":"the work in a few plain words, as their pages show it","type":"a type key from the menu, exactly as written","quote":"the exact words on their pages that show this work"}]}');
+  lines.push('{"areas":[{"job":"the work in a few plain words","type":"a type key from the menu, exactly as written","restsOn":"the url of the page this rests on","quote":"the words on that page that led you to it"}]}');
   lines.push('{"cannotTell":"why, in one short sentence"}');
-  lines.push('Every area carries its own quote, word for word from the pages above.');
+  lines.push('EVERY AREA NAMES THE PAGE IT RESTS ON. The quote need NOT be word for');
+  lines.push('word — their pages will not say "we answer the phone all day". Quote what');
+  lines.push('led you there and name the page, and that is footing enough. What is not');
+  lines.push('allowed is a job resting on no page of theirs at all.');
   lines.push('When nothing on their pages honestly maps to the menu, answer cannotTell. Silence beats a wrong guess.');
   return lines.join('\n');
 }
