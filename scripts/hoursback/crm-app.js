@@ -286,6 +286,16 @@ async function home() {
 
 // ---------------------------------------------------------------------------
 // Every business, best first. This is the room the call list is picked from.
+// Each reason a business needs a look, in the words Russ would use.
+const WHY_IT_NEEDS_A_LOOK = {
+  address_on_another_companys_domain: "the address we write to is on another company's website",
+  address_is_a_directory: 'the address goes to a lookup site, not to them',
+  page_is_not_theirs: 'the page we found belongs to somebody else',
+  acquired: 'they say they have been acquired',
+  no_working_website: 'no working website',
+  name_is_a_page_title: 'the name on file is a web page title',
+};
+
 async function list(params) {
   const q = (params.get('q') || '').trim();
   const stage = params.get('stage') || '';
@@ -303,6 +313,16 @@ async function list(params) {
   // it alphabetically and throws the score order away. So the screen is the
   // worked list by default, with everything else one link away.
   const showAll = params.get('all') === '1';
+  // NEEDS A LOOK BEFORE IT GOES OUT (Russ, 2026-09-03).
+  //
+  // A business lands here when something about it cannot be settled from the
+  // evidence: the address we write to is on another company's domain or on a
+  // licence-lookup site, the page we found belongs to somebody else, they were
+  // acquired, they have no working website, or the name on file is really the
+  // title bar of a web page. Every one carries the words that put it here.
+  //
+  // Nothing is dropped and nothing is guessed. Russ decides.
+  const needsALook = (params.get('review') || '').trim();
   const where = { doNotContact: false };
   if (!showAll) where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }, { phone: { not: null } }];
   if (q) {
@@ -317,8 +337,23 @@ async function list(params) {
     else where.OR = searched;
   }
   if (stage) where.stage = stage;
+  if (needsALook) {
+    where.findings = {
+      some: {
+        field: 'needsResearch',
+        retiredAt: null,
+        ...(needsALook === 'any' ? {} : { value: needsALook }),
+      },
+    };
+  }
   const [rows, total] = await Promise.all([
-    db.prospect.findMany({ where, orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }], take: per, skip: (page_ - 1) * per }),
+    db.prospect.findMany({
+      where,
+      orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
+      take: per,
+      skip: (page_ - 1) * per,
+      include: { findings: { where: { field: 'needsResearch', retiredAt: null }, select: { value: true, quote: true } } },
+    }),
     db.prospect.count({ where }),
   ]);
   const pages = Math.ceil(total / per);

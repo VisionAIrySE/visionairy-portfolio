@@ -1112,14 +1112,13 @@ function betterAddressFound(r, understood, url) {
   return onTheirDomain[0];
 }
 
-// A name that is really a page title. Every one of these is a fact about the
-// STRING, which is the one place a pattern belongs — it decides only whether
-// to TRUST the name on file, never what the business is.
-const A_PAGE_TITLE = /( [-|–—] |&#|&amp;|^(home|index|welcome|about( us)?|contact( us)?|shop now|menu)$|\.(com|net|org|biz)\b|^[a-z0-9-]+\.[a-z]{2,4}$|\bnear me\b)/i;
-function nameLooksLikeAPageTitle(name) {
-  const n = String(name || '').trim();
-  return n.length > 0 && (A_PAGE_TITLE.test(n) || n.length > 70);
-}
+// ONE RULE, ONE PLACE (2026-09-03). This file had its own copy of the test for
+// "is this a name or a web page's title", and the letter had none — so the
+// reading corrected a name the letter could still say out loud, and the two
+// disagreed about which names to trust. The rule now lives beside every other
+// judgement about a name, where both can ask it, and it knows that a name
+// filed with the state is never a page title.
+const { nameLooksLikeAPageTitle } = require('../../src/hoursback/crm/names.js');
 
 async function writeItDown(db, r, understood, reach, ranked, found, opportunity, url, opts = {}) {
   // Whether their site gave up any words at all. Everything learned is still
@@ -1225,7 +1224,12 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
       // the list. Only ever where the name on file fails a STRING test, never
       // where Russ typed it himself, and the old name is kept on the record so
       // nothing is lost and the change can be read back (2026-08-28).
-      ...(understood.realName && !r.nameManualValue && nameLooksLikeAPageTitle(r.name)
+      // THE NAME THEIR OWN SITE GIVES, when what we hold is a page title.
+      // The site's answer has to be a real name too: swapping "Bend, OR
+      // Attorneys" for "Home" helps nobody. What was on file is never lost —
+      // it moves to selfDescription (Russ, 2026-09-03).
+      ...(understood.realName && !r.nameManualValue
+          && nameLooksLikeAPageTitle(r.name) && !nameLooksLikeAPageTitle(understood.realName)
         ? { name: understood.realName, selfDescription: `was on file as: ${r.name}` }
         : understood.realName ? { selfDescription: `calls itself: ${understood.realName}` } : {}),
       ...(understood.yearsInBusiness ? { yearsInBusiness: understood.yearsInBusiness } : {}),
