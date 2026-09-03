@@ -618,6 +618,92 @@ function promptToFind(evidence, rejected = null) {
     + 'to name each such area of work, or to say none can be named.',
   );
   lines.push('');
+  // THE STANDARD BELONGS AT THE EARLIEST STAGE THAT CAN MEET IT (Russ,
+  // 2026-09-03: "shouldn't the instructions incorporate the restrictive
+  // components we identified? We keep dancing around failure").
+  //
+  // Every fix tonight went into the WRITING step. But the failures kept
+  // coming from HERE: the wrong work was picked, and by the time it reached
+  // the writer no sentence could save it. Postal Connections was offered
+  // "choosing the right carrier" — the skilled part, which Russ had already
+  // ruled out weeks ago. Obsidian was offered "following up with clients",
+  // true of every broker alive. The writer was never the problem.
+  //
+  // So the bar the finished sentence has to clear is stated HERE, before a
+  // single area is named.
+  // THE WHOLE BRIEF, WRITTEN OUT ONCE (2026-09-03).
+  //
+  // Russ: "WHY DO WE HAVE TO KEEP DEFINING WHAT WE ARE DOING? I HAVE GIVEN
+  // YOU EVERYTHING NEEDED." He had. Every piece below was already said —
+  // some of it weeks ago — and it went in one fragment at a time, each fix
+  // treated as a new discovery. It is written down whole here so nobody has
+  // to say it again.
+  lines.push('WHAT THIS IS FOR, BEFORE ANYTHING ELSE.');
+  lines.push('');
+  lines.push('Russ Wright takes repetitive office work off small businesses in Central');
+  lines.push('Oregon and hands it to software and AI. He is sending one cold email. It');
+  lines.push('sells nothing and names no price. It asks for fifteen minutes on the');
+  lines.push('phone, after which he goes away and does real research for free and');
+  lines.push('comes back with one tool, what it costs, and what it would take to build');
+  lines.push('what nothing off the shelf covers.');
+  lines.push('');
+  lines.push('Whether they give him those fifteen minutes turns on ONE sentence: the');
+  lines.push('one that opens the email, about their business. It has to make them');
+  lines.push('think this person has sat in my chair. Not "looked at my website" —');
+  lines.push('every stranger does that, and they can tell instantly. Someone who has');
+  lines.push('DONE the job knows which part of it grinds.');
+  lines.push('');
+  lines.push('Your job here is earlier than that sentence. You find the work it will');
+  lines.push('be written about. If you hand up the wrong work, no sentence can save');
+  lines.push('it, and this business is wasted.');
+  lines.push('');
+  lines.push('WHAT MAKES WORK WORTH NAMING. All four, or it does not qualify.');
+  lines.push('');
+  lines.push('1. SOFTWARE COULD ACTUALLY TAKE IT. It repeats, the same shape every');
+  lines.push('   time, many times a week. It is never the judgement, the skill, the');
+  lines.push('   licence or the eye they are paid for, and never a person handling a');
+  lines.push('   physical thing. No software packs a box, welds a bracket or mows a');
+  lines.push('   lawn. But the calls, the forms, the reminders, the re-typing and the');
+  lines.push('   chasing around all of that are exactly what it takes.');
+  lines.push('   NOT: "choosing the right carrier for each package" — the skilled');
+  lines.push('   part, and offering to take it is insulting.');
+  lines.push('   YES: "answering the same question about customs paperwork".');
+  lines.push('');
+  lines.push('2. IT COSTS SOMEBODY SOMETHING YOU CAN NAME. Not the business, not the');
+  lines.push('   process — a PERSON. A process cannot be tired and nobody recognises');
+  lines.push('   themselves in one. These are the costs that land:');
+  lines.push('     - somebody\'s day, hours of it, gone to this');
+  lines.push('     - the same thing typed twice, here and then again there');
+  lines.push('     - the same question answered over and over');
+  lines.push('     - the work they are actually paid for, waiting while this gets done');
+  lines.push('     - evenings and weekends, because there is no room in the day');
+  lines.push('     - one person it always lands on, and nothing moves when they are out');
+  lines.push('     - the ones that slip: enquiries, reminders, follow-ups lost');
+  lines.push('   If you cannot say in plain words what this takes out of somebody, it');
+  lines.push('   does not qualify.');
+  lines.push('');
+  lines.push('3. IT IS THEIRS, NOT THEIR TRADE\'S. This is where most work dies.');
+  lines.push('   "Following up with clients" is true of every broker in the country,');
+  lines.push('   so it proves nothing and the email is binned. It has to attach to');
+  lines.push('   something ONLY THEY have on their pages: the towns they name, the');
+  lines.push('   brands and systems they list, the exact services on their menu, the');
+  lines.push('   seasons and deadlines their work turns on, the numbers they publish.');
+  lines.push('   Put that specific thing in the job itself.');
+  lines.push('   NOT: "following up with prospective buyers".');
+  lines.push('   YES: "keeping two hundred listings straight across La Pine, Redmond');
+  lines.push('   and Bend".');
+  lines.push('');
+  lines.push('4. IT RESTS ON THEIR OWN PAGES. Not on a guess about their trade. You');
+  lines.push('   are inferring, not inventing: what a business like this plainly does');
+  lines.push('   is fair and their pages need not announce it. What is forbidden is a');
+  lines.push('   claim their pages contradict.');
+  lines.push('');
+  lines.push('SILENCE IS A REAL ANSWER AND A BETTER ONE THAN A GENERIC PICK. A');
+  lines.push('business whose pages will not support anything specific keeps the');
+  lines.push('sentence written for its whole trade, which is true and safe. Say');
+  lines.push('cannotTell and move on. A generic area wastes the one chance this');
+  lines.push('business gets.');
+  lines.push('');
   lines.push(...businessBlock(e));
   lines.push('');
   lines.push('THE MENU. This library is the complete list of the kinds of work');
@@ -911,8 +997,60 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('and it only reads as genuine if the sentence before it has already');
   lines.push('proved you understand the work.');
   lines.push('');
-  lines.push('So: name the work, and name what it takes out of somebody. If a reader');
-  lines.push('could answer it with "yes, and?", you have not done the job.');
+  lines.push('So: name the work, and name what it takes out of somebody.');
+  lines.push('');
+  lines.push('WHAT COUNTS AS A COST. Not the business, not the process — a PERSON.');
+  lines.push('These are the ones that land:');
+  lines.push('  - somebody\'s day, hours of it, gone to this');
+  lines.push('  - the same thing typed twice, here and then again there');
+  lines.push('  - the same question answered over and over');
+  lines.push('  - the work they are actually paid for, waiting while this gets done');
+  lines.push('  - evenings and weekends, because there is no room in the day');
+  lines.push('  - one person it always lands on, and nothing moves when they are out');
+  lines.push('  - the ones that slip: enquiries, reminders, follow-ups lost');
+  lines.push('');
+  lines.push('AND MAKE IT THEIRS. This is where it is usually lost. "Calls come in all');
+  lines.push('day and somebody writes them down" is true of every business in their');
+  lines.push('trade, so it proves nothing and they bin it. Reach into their own pages');
+  lines.push('and USE something only they have: the towns they name, the tools and');
+  lines.push('brands they list, the exact services on their own menu, the numbers they');
+  lines.push('publish, the seasons and deadlines their work turns on.');
+  lines.push('');
+  lines.push('  WEAK: "You are getting calls all day about repairs and upgrades."');
+  lines.push('  THEIRS: "Somebody is working out which van goes to Terrebonne and');
+  lines.push('   which to Prineville, and every finance application is still typed');
+  lines.push('   in by hand."');
+  lines.push('');
+  lines.push('The test: could this sentence be sent, word for word, to their');
+  lines.push('competitor down the road? If yes, it is not finished. Something in it');
+  lines.push('must be wrong for anybody else.');
+  lines.push('');
+  lines.push('If a reader could answer it with "yes, and?", you have not done the job.');
+  lines.push('');
+  // REAL REJECTIONS, IN THE WORDS THEY WERE REJECTED IN (2026-09-03). Every
+  // one of these was written by a good reader, passed every mechanical check,
+  // and was thrown out by a person in that trade reading it cold. They are
+  // the sharpest teaching there is and none of them were written down.
+  lines.push('SENTENCES THAT FAILED, AND WHY. Each of these was written, checked,');
+  lines.push('and thrown out by somebody in that trade reading it cold.');
+  lines.push('');
+  lines.push('  "The intake repeats, but nothing else does."');
+  lines.push('    Describes a process. Nobody is in it, nothing is lost, and the');
+  lines.push('    second half talks the first half back down.');
+  lines.push('');
+  lines.push('  "Somebody types out every application that comes through your form."');
+  lines.push('    A person, doing it, every time. And? It never says what it takes.');
+  lines.push('');
+  lines.push('  "You are getting calls all day about repairs and upgrades."');
+  lines.push('    Generic to every company in the trade. Proves nothing.');
+  lines.push('');
+  lines.push('  "You are the one deciding which carrier fits each package."');
+  lines.push('    That is the skilled part they are paid for. Nothing should take');
+  lines.push('    it, and offering to is insulting.');
+  lines.push('');
+  lines.push('  "Following up with clients between sales is on somebody there."');
+  lines.push('    True of every broker in the country. Says what they do, not what');
+  lines.push('    it costs, and nothing in it is only theirs.');
   lines.push('');
   lines.push('---');
   lines.push('');

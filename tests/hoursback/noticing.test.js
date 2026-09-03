@@ -1159,6 +1159,71 @@ test('the cold reader also asks whether anything could take the work off them', 
   assert.match(p, /it is useless/);
 });
 
+// MAKE IT THEIRS (Russ, 2026-09-03). Four businesses in a row came back with
+// nothing, and the reason was always the same: "could describe any sales
+// business in America", "generic to every HVAC company you have ever heard
+// of". The reader was right to bin them. The fault was upstream — the writer
+// was never told to reach into their pages and use something only they have.
+// THE STANDARD BELONGS WHERE THE WORK IS CHOSEN (Russ, 2026-09-03). Every
+// fix went into the writing step, and the failures kept coming from the
+// finding step: Postal Connections was offered "choosing the right carrier"
+// (the skilled part Russ ruled out weeks ago) and Obsidian "following up with
+// clients" (true of every broker alive). No sentence could have saved either.
+test('the finding prompt states the bar before a single area is named', () => {
+  const p = N.promptToFind(EVIDENCE);
+  // the whole brief: why the email exists, before any rule about the work
+  assert.match(p, /WHAT THIS IS FOR, BEFORE ANYTHING ELSE/);
+  assert.match(p, /sat in my chair/);
+  assert.match(p, /fifteen minutes/);
+  assert.match(p, /sells nothing and names no price/);
+  // all four bars, stated
+  assert.match(p, /WHAT MAKES WORK WORTH NAMING/);
+  assert.match(p, /SOFTWARE COULD ACTUALLY TAKE IT/);
+  assert.match(p, /IT COSTS SOMEBODY SOMETHING YOU CAN NAME/);
+  assert.match(p, /IT IS THEIRS, NOT THEIR TRADE/);
+  assert.match(p, /IT RESTS ON THEIR OWN PAGES/);
+  // and the pain is DEFINED, not left abstract
+  assert.match(p, /the same thing typed twice/);
+  assert.match(p, /evenings and weekends/);
+  assert.match(p, /waiting while this gets done/);
+  assert.match(p, /one person it always lands on/);
+  // the real rejections are in it as examples, in Russ's own terms
+  assert.match(p, /choosing the right carrier/);
+  assert.match(p, /every broker in the country/);
+  // and silence is offered as the honest alternative to a generic pick
+  assert.match(p, /SILENCE IS A REAL ANSWER/);
+  // the whole brief comes BEFORE the menu of work types, not after
+  assert.ok(p.indexOf('WHAT THIS IS FOR') < p.indexOf('THE MENU'));
+});
+
+test('the write prompt demands something only this business has', () => {
+  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
+  assert.match(p, /MAKE IT THEIRS/);
+  assert.match(p, /competitor down the road/);
+  // and the cost is DEFINED here too, the same list, so both stages work
+  // from one statement of what the pain is (2026-09-03)
+  assert.match(p, /WHAT COUNTS AS A COST/);
+  assert.match(p, /the same thing typed twice/);
+  assert.match(p, /evenings and weekends/);
+  assert.match(p, /towns they name/);
+  assert.match(p, /wrong for anybody else/);
+});
+
+// EVERY REJECTION RUSS MADE IS TEACHING MATERIAL, AND NONE OF IT WAS WRITTEN
+// DOWN (2026-09-03). Each of these was written by a good reader, passed every
+// mechanical check, and was thrown out by a person in that trade reading it
+// cold. They belong in front of the writer, in the words they failed in.
+test('the write prompt carries the real sentences that failed, and why', () => {
+  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
+  assert.match(p, /SENTENCES THAT FAILED/);
+  assert.match(p, /The intake repeats, but nothing else does/);
+  assert.match(p, /talks the first half back down/);
+  assert.match(p, /which carrier fits each package/);
+  assert.match(p, /skilled part they are paid for/);
+  assert.match(p, /Following up with clients/);
+  assert.match(p, /every broker in the country/);
+});
+
 test('the judge is asked about every sentence that reaches the letter', async () => {
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, WRITE_GOOD, { passes: true }]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
