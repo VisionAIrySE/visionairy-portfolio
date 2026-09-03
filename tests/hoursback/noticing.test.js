@@ -798,18 +798,22 @@ test('a tool that does not really do the job never blocks it', async () => {
     phoneWork, RECUR_PM,
     onThePhone,                             // write
     { alreadyDoes: false, why: 'a portal does not answer the telephone' },
-    better,                                 // written again, knowing what the portal covers
-    { alreadyDoes: false, why: 'still not the telephone' },
-    { passes: true },                       // the cold reader
+    { passes: true },                       // the stranger reading it cold
   ]);
   const res = await N.askForNoticing({ evidence: PM_EVIDENCE, ask });
 
-  assert.equal(res.sentence, better.sentence, 'the work stood, said better');
+  assert.equal(res.sentence, onThePhone.sentence, 'the sentence stood, unchanged');
   // it was ASKED, plainly, about the real world
-  assert.match(ask.prompts[3], /does not answer the telephone|ACTUALLY do that job/);
+  assert.match(ask.prompts[3], /ACTUALLY do that job/);
   assert.ok(ask.prompts[3].includes('answering tenant calls about rent and repairs'));
-  // and the second go was told what the portal does and does not cover
-  assert.match(ask.prompts[4], /does not cover this work/);
+  // A TOOL THAT DOES NOT DO THE JOB IS NOT A REASON TO CHANGE A WORD
+  // (2026-09-03). This used to send the sentence back to be written again,
+  // spending both of the business's attempts on a sentence with nothing
+  // wrong with it — Obsidian Real Estate lost a passage it had passed with
+  // hours earlier, exactly that way.
+  assert.equal(ask.prompts.length, 5, 'find, recur, write, the tool question, the cold reader');
+  assert.ok(!ask.prompts.some((p) => /does not cover this work/.test(p)),
+    'nothing was sent back to be rewritten');
 });
 
 test('a job that is call-fielding AND something else is still call-fielding: the portal check sees every kind', () => {

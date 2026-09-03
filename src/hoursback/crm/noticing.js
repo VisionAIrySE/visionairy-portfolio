@@ -1566,15 +1566,13 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
           }
         }
         if (reallyDoes) { refusal = offers.why; break; }
-        // It does not. The work stands, and the writer is told plainly what
-        // the tool does and does not cover so it can say so.
-        rejected = {
-          sentence,
-          why: `they do have ${offers.suspect.toolName}, and it does not cover this work. `
-            + 'Say the same job again, and where it helps, nod to what they have in '
-            + 'passing before naming the part that still lands on a person',
-        };
-        continue;
+        // IT DOES NOT COVER THE WORK, SO THE SENTENCE STANDS (2026-09-03).
+        //
+        // This used to send the sentence back to be written again, which
+        // spent both of the business's attempts on a sentence that had
+        // nothing wrong with it, and Obsidian Real Estate lost a passage it
+        // had passed with hours earlier. A tool that does not do the job is
+        // not a reason to change a word.
       }
       const named = namesAPerson(sentence, evidence.people, evidence.name);
       if (named) {
