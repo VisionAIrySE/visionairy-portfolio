@@ -698,6 +698,27 @@ function promptToFind(evidence, rejected = null) {
   lines.push('   is fair and their pages need not announce it. What is forbidden is a');
   lines.push('   claim their pages contradict.');
   lines.push('');
+  // RUSS'S OWN TASTE LINE, spoken 2026-08-26 and never once put into these
+  // instructions until now: "Only thing might be too much insight from a cold
+  // caller might be creepy... I might be a little suspect if someone knew what
+  // software platforms I was running if I didn't make it a point of
+  // broadcasting my business. It has to be relevant, appropriate, and
+  // tasteful." He worked the line out by asking how HE would feel receiving
+  // it, which is his test for everything.
+  lines.push('RELEVANT, APPROPRIATE AND TASTEFUL. There is a line between a');
+  lines.push('stranger who has clearly read your website and a stranger who has been');
+  lines.push('looking into you. Use what they chose to publish and broadcast: their');
+  lines.push('services, their towns, their opening hours, the forms and buttons on');
+  lines.push('their own pages, the brands they advertise carrying.');
+  lines.push('');
+  lines.push('Do NOT use anything that reads as having been dug up. Never name the');
+  lines.push('software running behind their business unless their own site');
+  lines.push('advertises it. Never name an individual and what you think their day');
+  lines.push('looks like. Never anything about their finances, their staff turnover,');
+  lines.push('or how well they seem to be doing. The test is simple: would a');
+  lines.push('business owner reading this be glad someone looked, or unsettled that');
+  lines.push('they looked that hard?');
+  lines.push('');
   lines.push('SILENCE IS A REAL ANSWER AND A BETTER ONE THAN A GENERIC PICK. A');
   lines.push('business whose pages will not support anything specific keeps the');
   lines.push('sentence written for its whole trade, which is true and safe. Say');
@@ -1130,6 +1151,24 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   // stay inside. The facts that CAN be checked — offering what they already
   // run, naming a person from their pages, quoting hours — are checked in
   // code after this, and are not the writer's to remember.
+  // MIRROR THE READER, PEER TO PEER (Russ, spoken 2026-08-26): "Mirror and
+  // match my voice with the target... Keep my tone and approach but mirror,
+  // without being obsequious, the communication style, peer to peer, to the
+  // target, understand? ... I'm not going to talk conversion and ROI to a Tire
+  // Shop, and not going to talk mundane accounting to a consulting firm."
+  lines.push('WHO YOU ARE TALKING TO. Russ\'s tone never moves, but the words meet');
+  lines.push('the person where they work. He does not talk conversion rates and');
+  lines.push('return on investment to a tyre shop, and he does not talk about');
+  lines.push('mundane bookkeeping to a consulting firm. Use the words that trade');
+  lines.push('uses about its own day. Peer to peer, never talking up or down, never');
+  lines.push('flattering.');
+  lines.push('');
+  lines.push('AND TALK TO THE PAIN WITHOUT MAKING IT A PITCH (his words). You are');
+  lines.push('naming something true about their week. You are not selling, not');
+  lines.push('hinting at a solution, not implying they are behind. If the sentence');
+  lines.push('reads as the opening of a sales call, it is wrong. It reads as');
+  lines.push('recognition, and the offer comes later in the letter, from Russ.');
+  lines.push('');
   lines.push('HOW IT SOUNDS. Russ, talking. Hold this while you write.');
   lines.push('');
   lines.push('He is one working person recognising another working person\'s week.');
@@ -1751,6 +1790,9 @@ function promptToJudge(sentence, trade, roleTitle = null) {
     '- It hedges its own point, or talks itself back down after making it.',
     '- It reads like a consultant, a brochure, or a form.',
     '- It gets something about your work plainly wrong.',
+    '- It knows something you never published. A stranger who has read your',
+    '  website is fine. A stranger who seems to have been looking INTO you is',
+    '  not, and you would not reply to that one.',
     '',
     'Answer with JSON only:',
     '{"passes":true or false,"why":"one short sentence in your own words"}',

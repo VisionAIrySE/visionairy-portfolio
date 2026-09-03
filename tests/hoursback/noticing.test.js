@@ -1200,6 +1200,39 @@ test('the finding prompt states the bar before a single area is named', () => {
   assert.ok(p.indexOf('WHAT THIS IS FOR') < p.indexOf('THE MENU'));
 });
 
+// RUSS'S OWN DIRECTION, SPOKEN 2026-08-26 AND NEVER PUT IN UNTIL NOW.
+//
+// "Only thing might be too much insight from a cold caller might be creepy...
+// I might be a little suspect if someone knew what software platforms I was
+// running if I didn't make it a point of broadcasting my business. It has to
+// be relevant, appropriate, and tasteful." He drew the line by asking how HE
+// would feel receiving it.
+test('the taste line is in the instructions, at every stage that needs it', () => {
+  const find = N.promptToFind(EVIDENCE);
+  assert.match(find, /RELEVANT, APPROPRIATE AND TASTEFUL/);
+  assert.match(find, /what they chose to publish/);
+  assert.match(find, /reads as having been dug up/);
+  assert.match(find, /glad someone looked, or unsettled/);
+  // and the stranger reading it cold turns down anything that oversteps
+  const judge = N.promptToJudge('A sentence.', 'trades');
+  assert.match(judge, /knows something you never published/);
+  assert.match(judge, /looking INTO you/);
+});
+
+// "Mirror and match my voice with the target... peer to peer... I'm not going
+// to talk conversion and ROI to a Tire Shop, and not going to talk mundane
+// accounting to a consulting firm." (Russ, spoken 2026-08-26.)
+test('the writer is told to meet the reader where they work, and never to pitch', () => {
+  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
+  assert.match(p, /WHO YOU ARE TALKING TO/);
+  assert.match(p, /conversion rates and/);
+  assert.match(p, /tyre shop/);
+  assert.match(p, /Peer to peer/);
+  // "Talk to the pain without making it a sales pitch" — his words
+  assert.match(p, /WITHOUT MAKING IT A PITCH/);
+  assert.match(p, /reads as the opening of a sales call, it is wrong/);
+});
+
 test('the write prompt demands something only this business has', () => {
   const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
   assert.match(p, /MAKE IT THEIRS/);
