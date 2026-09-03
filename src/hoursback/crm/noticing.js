@@ -875,11 +875,37 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   const two = jobs.length >= 2;
   const lines = [];
 
+  // WHAT THIS SENTENCE IS FOR, SAID FIRST AND SAID ALONE (Russ, 2026-09-03).
+  //
+  // This instruction had grown into twelve prohibitions and no purpose. Every
+  // correction got bolted on as another ban, so a writer could satisfy every
+  // rule and still miss the point entirely — "the intake repeats, but nothing
+  // else does" breaks no rule and lands nothing. Nobody had ever told it what
+  // the sentence was FOR.
+  //
+  // It is for one thing, and everything below is a consequence of it.
+  lines.push('WHAT THIS SENTENCE IS FOR. Read it first. Everything else follows from it.');
+  lines.push('');
+  lines.push('A stranger opens this email. In one sentence you have to make them');
+  lines.push('think: this person has sat in my chair. Not "this person looked at my');
+  lines.push('website" — anyone can do that, and they can tell the difference');
+  lines.push('instantly. Someone who has DONE the job knows which part of it grinds.');
+  lines.push('');
+  lines.push('If they believe that, they give up fifteen minutes. That is the whole');
+  lines.push('purpose of the sentence. It is not selling anything. Nobody buys');
+  lines.push('software from a cold email, and there is no price anywhere in this');
+  lines.push('letter. The offer that follows is free research with nothing to sign,');
+  lines.push('and it only reads as genuine if the sentence before it has already');
+  lines.push('proved you understand the work.');
+  lines.push('');
+  lines.push('So: name the work, and name what it takes out of somebody. If a reader');
+  lines.push('could answer it with "yes, and?", you have not done the job.');
+  lines.push('');
+  lines.push('---');
+  lines.push('');
   lines.push(
-    'A first email is being written to a small business. ONE short passage '
-    + 'of it must name, warmly and plainly, the work listed below — which was '
-    + "read off the business's own pages and checked. Your job is to write "
-    + 'that passage, or to say it cannot be written.',
+    'The work below was read off this business\'s own pages and checked. Write '
+    + 'the passage, or say it cannot be written.',
   );
   lines.push('');
 
@@ -925,40 +951,63 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('problem nobody ever named, and the whole message falls apart. Describing');
   lines.push('their work back to them tells them nothing they do not know.');
   lines.push('');
-  lines.push('So the passage names the work AND why it costs them. End on the cost, in');
-  lines.push('their own terms: it repeats, it eats the day, it lands on one person, it');
-  lines.push('waits while something better waits longer, it is the same thing over and');
-  lines.push('over. Never a number, never a promise, never a scolding. One clause is');
-  lines.push('enough. If a reader could finish the passage with "yes, and?", it is not');
-  lines.push('done.');
+  lines.push('So the passage names the work AND what it costs. One clause is enough.');
+  lines.push('Never a number, never a promise, never a scolding.');
   lines.push('');
-  lines.push('  NOT: "You are taking down their name and phone before they sit down');
-  lines.push('        with an attorney." — that is only what they do.');
-  lines.push('  YES: "You are taking down their name and phone before they sit down');
-  lines.push('        with an attorney, and it is the same handful of questions every');
-  lines.push('        time." — the work, and what it costs.');
+  lines.push('THE COST FALLS ON A PERSON AND THEIR TIME — never on the process. A');
+  lines.push('workflow cannot be tired. Somebody is doing this, it is taking their');
+  lines.push('day, and it is the same every time. Say THAT.');
   lines.push('');
-  lines.push('How the passage must read:');
-  lines.push('- Say it the way you would say it out loud to them, across a counter.');
-  lines.push('- Plain, short, everyday words. It names a real job somebody actually does.');
-  lines.push('- Where it is true, put it on THEM: "that comes back to you", "somebody has');
-  lines.push('  to", "you are the one who". A named person doing a real task beats a');
-  lines.push('  described process every time.');
-  lines.push('- One job: one sentence, two short ones at the very most. Two jobs: two or');
-  lines.push('  three short sentences. Never a paragraph, never a list.');
-  lines.push('- No marketing words: never "leverage", "streamline", "solutions", "optimize", "seamless". No flattery of any kind. No exclamation mark. No question. No dashes.');
-  lines.push('- Nothing stiff or official. Never "must manage", "are required to", "it is');
-  lines.push('  necessary to", "ensuring", "in order to", "utilise", "individuals",');
-  lines.push('  "personnel", "requests are handled". If it reads like a form, rewrite it.');
-  lines.push('- Never name or address the reader\'s job title, and never add a clause about who the reader is.');
-  lines.push('- Say only what their own pages support. Inference is not invention:');
-  lines.push('  what a business like this plainly does is fair, and their pages need');
-  lines.push('  not announce it. What is forbidden is a claim their pages contradict,');
-  lines.push('  or one that would be equally true of any business anywhere.');
-  lines.push('- The passage must be wrong for the shop down the road: it is about THIS business alone.');
-  lines.push('- Never promise or count hours saved, and never name a time or money figure their own pages do not carry.');
-  lines.push('- Never scold, never imply they are behind, never suggest they are doing it');
-  lines.push('  wrong. It is a fact about their week, said kindly, not a criticism.');
+  lines.push('  NOT: "The intake repeats, but nothing else does." — that describes a');
+  lines.push('       process. Nobody is in it, and nothing is being lost.');
+  lines.push('  YES: "Somebody is typing the same details in all day." — a person, a');
+  lines.push('       day, gone.');
+  lines.push('');
+  lines.push('AND NEVER TALK YOURSELF OUT OF IT. Do not add a clause that shrinks what');
+  lines.push('you just said: not "but nothing else does", not "though it is only part');
+  lines.push('of it", not "at least the rest varies". The passage says the thing and');
+  lines.push('stops. The concession comes in the NEXT sentence of the letter, which is');
+  lines.push('already written and is not yours to add.');
+  lines.push('');
+  lines.push('If a reader could answer the passage with "yes, and?", it is not done.');
+  lines.push('');
+  // HOW RUSS SOUNDS, NOT A LIST OF DON'TS (2026-09-03).
+  //
+  // These were twelve prohibitions in a row, and a writer obeying all twelve
+  // still wrote a sentence with nobody in it. What could not be checked by
+  // code belongs here, said as a voice to be held rather than a fence to
+  // stay inside. The facts that CAN be checked — offering what they already
+  // run, naming a person from their pages, quoting hours — are checked in
+  // code after this, and are not the writer's to remember.
+  lines.push('HOW IT SOUNDS. Russ, talking. Hold this while you write.');
+  lines.push('');
+  lines.push('He is one working person recognising another working person\'s week.');
+  lines.push('Warm, easy, sure of itself. He says it out loud across a counter, in');
+  lines.push('plain short everyday words, and then he stops. Somebody is always IN the');
+  lines.push('sentence: "that comes back to you", "somebody has to", "you are the one');
+  lines.push('who". A person doing a real job beats a described process every time —');
+  lines.push('a process cannot be tired, and nobody recognises themselves in one.');
+  lines.push('');
+  lines.push('He is never a consultant and never a report. Nothing stiff or official:');
+  lines.push('no "must manage", no "are required to", no "ensuring", no "requests are');
+  lines.push('handled". If it reads like a form, it is wrong. No marketing words —');
+  lines.push('"leverage", "streamline", "solutions", "optimize", "seamless" are all');
+  lines.push('his tell for someone who has not done the work. No flattery, no');
+  lines.push('exclamation mark, no question, no dashes.');
+  lines.push('');
+  lines.push('He never scolds and never implies they are behind. It is a fact about');
+  lines.push('their week said kindly, not a criticism. And he never tells them who');
+  lines.push('they are: no job title, no clause about the reader.');
+  lines.push('');
+  lines.push('LENGTH. One job: one sentence, two short ones at the very most. Two');
+  lines.push('jobs: two or three short sentences. Never a paragraph, never a list.');
+  lines.push('');
+  lines.push('IT MUST BE WRONG FOR THE SHOP DOWN THE ROAD. Say only what their own');
+  lines.push('pages support — but inference is not invention. What a business like');
+  lines.push('this plainly does is fair game and their pages need not announce it.');
+  lines.push('What is forbidden is a claim their pages contradict, or one that would');
+  lines.push('be equally true of any business anywhere. Never promise or count hours,');
+  lines.push('and never name a time or money figure their pages do not carry.');
   lines.push('');
   const runs = (Array.isArray(e.theyRun) ? e.theyRun : []).filter((r) => r && r.name);
   if (runs.length) {
@@ -1089,7 +1138,12 @@ function groundingPage(quote, pages, url = null) {
 // each is twelve, and eight cut the walk off after the second area. Sixteen
 // buys the whole walk with headroom. Almost every business finishes in three
 // or four; the ceiling only bites on the stubborn ones.
-const MOST_ROUNDS_PER_BUSINESS = 16;
+//
+// RAISED AGAIN TO TWENTY (2026-09-03) when the judge was added: every
+// sentence now costs one more round to be read back cold, and four pairings
+// at two writes and two judgings each is sixteen on top of the four the
+// finding and recurrence stages take.
+const MOST_ROUNDS_PER_BUSINESS = 20;
 
 // AND A CEILING ON HOW MANY AREAS ARE WALKED. Every qualifying area gets its
 // turn, but a business that found a dozen does not get a dozen goes — the
@@ -1293,6 +1347,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     rejected = null;
     let refusal = null;
     let wrote = null;
+    let judged = null;
     let stumbled = 0;
     for (let go = 0; go < attempts; go++) {
       const res = await ask(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
@@ -1361,7 +1416,24 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       if (a.sure !== undefined && a.sure !== null && Number(a.sure) < 0.6) {
         return { couldNotTell: 'the reader was not sure enough of it', areas };
       }
-      wrote = { sentence, sure: a.sure };
+      // THE JUDGE. Every check above is a ban; this one asks whether the
+      // sentence did its job. A cold reader, given only the sentence and the
+      // trade, says whether it sounds like somebody who has sat in that
+      // chair. Its verdict is not a rejection of the WORK — the work is
+      // fine — so a failure sends the same work back to be said better,
+      // in the judge's own words.
+      const verdict = await ask(promptToJudge(sentence, evidence.trade, roleTitle));
+      if (verdict && verdict.answer && verdict.answer.passes === false) {
+        judged = { sentence, why: String(verdict.answer.why || 'it would not make me stop reading') };
+        rejected = {
+          sentence,
+          why: `a person in that trade read it cold and said: ${judged.why}. `
+            + 'Say the same work again so it lands: somebody real, their time, and what '
+            + 'it takes out of them',
+        };
+        continue;
+      }
+      wrote = { sentence, sure: a.sure, judged: verdict && verdict.answer ? verdict.answer.why : null };
       break;
     }
     if (wrote) {
@@ -1373,6 +1445,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         url: mine[0].url,
         quote: mine[0].quote,
         confidence: wrote.sure === undefined || wrote.sure === null ? null : Number(wrote.sure),
+        judgedWhy: wrote.judged || null,
         angle,
       };
     }
@@ -1381,7 +1454,9 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     // finished. The reason lands on the areas — kept forever with them — and
     // the next-ranked qualifying area gets its turn.
     const why = refusal
-      || `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`;
+      || (judged
+        ? `a person in that trade read it cold and it did not land: ${judged.why}`
+        : `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`);
     for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = why; }
     refusals.push(`"${mine.map((c) => c.job).join('" and "')}" did not stand (${why}).`);
     pool = pool.filter((x) => !mine.includes(x));
@@ -1395,6 +1470,62 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       + ` — ${refusals.join(' ')}`,
     areas,
   };
+}
+
+// ---------------------------------------------------------------------------
+// THE JUDGE (Russ, 2026-09-03).
+//
+// Every check before this one is a BAN: no dashes, no hours, no naming a
+// person, no offering what they already run. Twelve of them, each added the
+// day Russ caught something. And a sentence can pass all twelve and still be
+// worthless — "the intake repeats, but nothing else does" broke no rule and
+// landed nothing, because no check ever asked whether the sentence did its
+// job.
+//
+// So this one asks. It is deliberately given ONLY the finished sentence and
+// the trade — never the instructions it was written under, never the pages it
+// was drawn from, never the reasoning that produced it. It reads the way the
+// recipient reads: cold, in an inbox, with no context and no patience.
+//
+// One question, and it is the whole purpose of the letter: does this sound
+// like somebody who has sat in my chair, or somebody who read my website?
+//
+// This is the only check that can catch a fault nobody has thought of yet,
+// which is every fault Russ has had to find himself.
+
+function promptToJudge(sentence, trade, roleTitle = null) {
+  const who = roleTitle ? `You are the ${roleTitle}.` : 'You run the place.';
+  return [
+    `You work at a small ${said(trade)} business. ${who} You are busy.`,
+    '',
+    'A cold email arrives from a stranger. This is its opening:',
+    '',
+    `  "${sentence}"`,
+    '',
+    'You have no idea who sent it and no reason to care. Answer honestly, as',
+    'yourself, reading it for the first time:',
+    '',
+    'Does this sound like somebody who has actually DONE this job and sat in a',
+    'place like yours? Or like somebody who skimmed your website an hour ago?',
+    '',
+    'It passes when it names something real about your week AND says what it',
+    'takes out of somebody — a person, their time, the same thing over and over.',
+    'You should half-wonder how they knew.',
+    '',
+    'It fails when any of these is true:',
+    '- It describes a process with nobody in it, and nothing being lost.',
+    '- It only says what you do. You know what you do. So what.',
+    '- It would be just as true of any other business in your trade.',
+    '- It hedges its own point, or talks itself back down after making it.',
+    '- It reads like a consultant, a brochure, or a form.',
+    '- It gets something about your work plainly wrong.',
+    '',
+    'Answer with JSON only:',
+    '{"passes":true or false,"why":"one short sentence in your own words"}',
+    '',
+    'Be honest rather than kind. A sentence that would not make you stop is a',
+    'sentence that fails.',
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -1535,7 +1666,7 @@ async function noticingFor(db, prospectId) {
 module.exports = {
   READER, READER_VERSION, MODEL,
   angleFor, ANGLES, passable, normalise, pickPages, pageScore,
-  promptToFind, promptForRecurrence, promptToWrite,
+  promptToFind, promptForRecurrence, promptToWrite, promptToJudge,
   groundingPage, askForNoticing, gatherEvidence, noticeOneBusiness,
   recordNoticing, noticingFor,
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,

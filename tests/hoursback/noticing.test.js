@@ -675,7 +675,7 @@ test('the write prompt names exactly the chosen work and forbids figures', () =>
   assert.ok(prompt.includes('chasing clients for the organizers they never sent'));
   assert.ok(prompt.includes(CHOSEN_ONE[0].quote));
   assert.match(prompt, /Exactly this one job/);
-  assert.match(prompt, /Never promise or count hours saved/);
+  assert.match(prompt, /Never promise or count hours/);
   assert.ok(prompt.includes(`"${C.tradeCopy('accounting').week}"`));  // register only
   assert.match(prompt, /do not mention or invent any system/);        // nothing visibly run
 });
@@ -1031,7 +1031,7 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
   assert.equal(res.sentence, nextArea.sentence);
   assert.equal(res.jobs.length, 1);
   assert.equal(res.jobs[0].type, 'email_and_newsletter');
-  assert.equal(ask.prompts.length, 4);                      // find, recur, refused write, next write
+  assert.equal(ask.prompts.length, 5);            // find, recur, refused write, next write, the judge
   assert.ok(ask.prompts[3].includes('staying in front of past clients'));
   // the refusal landed on the area it refused, kept with it forever
   const doc = res.areas.find((a) => a.type === 'document_collection');
@@ -1057,11 +1057,59 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
 // nineteen, two of them holding thirty pages of their own words. The reader
 // tripped; the business had plenty to say. So it is asked again, and the
 // stumble does not spend one of the tries the business gets to be understood.
+// THE JUDGE (Russ, 2026-09-03).
+//
+// Every other check is a BAN. A sentence can pass all twelve of them and
+// still be worthless: "the intake repeats, but nothing else does" broke no
+// rule and landed nothing. So one check asks whether the sentence did its
+// job, reading it the way the recipient reads — cold, with no context.
+test('a sentence that would not make the reader stop is sent back, and the work is kept', async () => {
+  const flat = { sentence: 'The intake repeats, but nothing else does.', sure: 0.9 };
+  const fails = { passes: false, why: 'that describes a process, nobody is in it and nothing is being lost' };
+  const lands = { sentence: 'Somebody there is typing the same handful of details in all day.', sure: 0.9 };
+  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, lands, { passes: true }]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+
+  assert.equal(res.sentence, lands.sentence);
+  // the judge was given the sentence, and NOT the instructions or the evidence
+  const judgePrompt = ask.prompts[3];
+  assert.ok(judgePrompt.includes(flat.sentence), 'the judge saw the sentence');
+  assert.ok(!judgePrompt.includes(GOOD_QUOTE), 'the judge never saw the pages');
+  assert.ok(!/HOW IT SOUNDS|WHAT THIS SENTENCE IS FOR/.test(judgePrompt),
+    'the judge never saw the instructions it was written under');
+  assert.match(judgePrompt, /sat in my chair|sat in a\s+place like yours/);
+  // the rewrite carried the reader's OWN reason back, in their words
+  assert.match(ask.prompts[4], /nobody is in it/);
+  // and the work was never blamed: the same job was said again, not dropped
+  assert.equal(res.jobs[0].type, 'document_collection');
+  assert.equal(res.areas[0].refused, null);
+});
+
+test('the judge is asked about every sentence that reaches the letter', async () => {
+  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, WRITE_GOOD, { passes: true }]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.equal(res.sentence, GOOD_SENTENCE);
+  assert.equal(ask.prompts.length, 4, 'find, recur, write, judge');
+  assert.match(ask.prompts[3], /Answer with JSON only/);
+});
+
+// A judge that keeps refusing does not hold a business hostage: the work
+// moves on like any other refusal, and silence is honest about why.
+test('a sentence the reader keeps turning away ends in the trade sentence, saying so', async () => {
+  const flat = { sentence: 'The intake repeats, but nothing else does.', sure: 0.9 };
+  const fails = { passes: false, why: 'it would not make me stop reading' };
+  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, flat, fails, flat, fails]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.ok(res.couldNotTell);
+  assert.equal(res.sentence, undefined);
+  assert.match(res.couldNotTell, /read it cold/);
+});
+
 test('a reply that could not be read is asked again, and does not cost the business its line', async () => {
   const ask = rawReader([UNREADABLE, { answer: FIND_CHASE }, { answer: RECUR_ONE_YES }, { answer: WRITE_GOOD }]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.equal(res.sentence, GOOD_SENTENCE);
-  assert.equal(ask.prompts.length, 4, 'the stumble was retried and cost the business nothing');
+  assert.equal(ask.prompts.length, 5, 'the stumble was retried and cost the business nothing');
   // the second ask told the reader plainly what went wrong
   assert.match(ask.prompts[1], /JSON on its own/);
 });
@@ -1109,7 +1157,7 @@ test('wording rejected twice drops that area too, and the next-ranked gets its t
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.equal(res.sentence, nextArea.sentence);
   assert.equal(res.jobs[0].type, 'email_and_newsletter');
-  assert.equal(ask.prompts.length, 5);              // find, recur, two rejected goes, then the next area
+  assert.equal(ask.prompts.length, 6);   // find, recur, two rejected goes, the next area, the judge
   // the rejection landed on the area it belonged to, kept with it forever
   const doc = res.areas.find((a) => a.type === 'document_collection');
   assert.equal(doc.refused, true);
