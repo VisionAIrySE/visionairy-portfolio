@@ -413,8 +413,21 @@ function offersWhatTheyHave(sentence, jobs, theyRun) {
     if (nodded) continue; // the go-past shape: nodded to in passing, stepped past
     for (const t of texts) {
       if (kindsOf(t).includes(sys.covers)) {
+        // A SUSPICION, NOT A VERDICT (Russ, 2026-09-03).
+        //
+        // The kinds are coarse on purpose, and "enquiries" catches every job
+        // with the word call, email, question or answer in it. So Team Wieche,
+        // who have a portal for routine requests and payments, had ANSWERING
+        // THE PHONE ruled out as already handled — three good areas in a row,
+        // and the business kept the generic trade sentence. A portal does not
+        // answer phones.
+        //
+        // Word-matching cannot tell the difference and should never have been
+        // asked to. It raises the suspicion; whether the tool genuinely does
+        // that job is a question of meaning, and it goes to the reader.
         return {
           ok: false,
+          suspect: { toolName: sys.name, does: sys.does, job: t },
           why: `offers work ${sys.name} visibly already does (${sys.does}) — never `
             + 'offer what they already have; nod to it and step past it to what it '
             + 'does not cover, or name different work',
@@ -1402,7 +1415,29 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       // reason is kept against the area that was refused, and only when every
       // area has been refused does the trade sentence stand.
       const offers = offersWhatTheyHave(sentence, mine, (evidence && evidence.theyRun) || []);
-      if (!offers.ok) { refusal = offers.why; break; }
+      if (!offers.ok) {
+        // The word-match raised a suspicion. Whether the tool they have
+        // GENUINELY does that job is a question of meaning, so it goes to the
+        // reader before a good area is thrown away over a shared word.
+        let reallyDoes = true;
+        if (offers.suspect) {
+          const t = offers.suspect;
+          const said = await ask(promptToCheckOverlap(t.toolName, t.does, t.job));
+          if (said && said.answer && said.answer.alreadyDoes === false) {
+            reallyDoes = false;
+          }
+        }
+        if (reallyDoes) { refusal = offers.why; break; }
+        // It does not. The work stands, and the writer is told plainly what
+        // the tool does and does not cover so it can say so.
+        rejected = {
+          sentence,
+          why: `they do have ${offers.suspect.toolName}, and it does not cover this work. `
+            + 'Say the same job again, and where it helps, nod to what they have in '
+            + 'passing before naming the part that still lands on a person',
+        };
+        continue;
+      }
       const named = namesAPerson(sentence, evidence.people, evidence.name);
       if (named) {
         rejected = {
@@ -1472,6 +1507,40 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
   };
 }
 
+
+// DOES THAT TOOL ACTUALLY DO THAT JOB? (Russ, 2026-09-03.)
+//
+// Asked only when the word-match above has raised a suspicion, so it costs
+// nothing on the businesses where nothing clashes. The reader is given the
+// tool, what it plainly does, and the job — and nothing else. It is a
+// question about the real world, not about this letter.
+function promptToCheckOverlap(toolName, does, job) {
+  return [
+    'A small business visibly uses this on their own website:',
+    '',
+    `  ${toolName}${does ? ` — ${does}` : ''}`,
+    '',
+    'Somebody wants to offer to take this job off them:',
+    '',
+    `  ${job}`,
+    '',
+    'One question. Does the tool they already have ACTUALLY do that job, so',
+    'that offering it would be offering them something they have?',
+    '',
+    'Think about what the tool really does, not what it sounds like. A portal',
+    'where customers submit routine requests does not answer the telephone. An',
+    'online booking page does not chase the people who did not turn up. A',
+    'contact form does not follow anything up. Tools cover the part they cover',
+    'and no more, and the work either side of them is still somebody\'s job.',
+    '',
+    'Answer with JSON only:',
+    '{"alreadyDoes":true or false,"why":"one short sentence"}',
+    '',
+    'Say true only when the tool plainly and fully does that job. Where it does',
+    'part of it and a person still does the rest, say false.',
+  ].join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // THE JUDGE (Russ, 2026-09-03).
 //
@@ -1508,11 +1577,27 @@ function promptToJudge(sentence, trade, roleTitle = null) {
     'Does this sound like somebody who has actually DONE this job and sat in a',
     'place like yours? Or like somebody who skimmed your website an hour ago?',
     '',
-    'It passes when it names something real about your week AND says what it',
-    'takes out of somebody — a person, their time, the same thing over and over.',
-    'You should half-wonder how they knew.',
+    'Two things have to be true. Check them one at a time, in order.',
+    '',
+    'ONE: does it name something real about your week? Something specific to',
+    'you, not to your trade in general. You should half-wonder how they knew.',
+    '',
+    'TWO: does it say what that work COSTS? Not that it happens — you know it',
+    'happens. What it takes: somebody\'s whole day, the same thing over and',
+    'over, the second time you have typed it, the good work waiting while this',
+    'gets done. A sentence that names a person DOING something has still only',
+    'told you what you do. The cost has to be IN the words, not left for you',
+    'to work out.',
+    '',
+    '  "Somebody types out every application that comes in." — FAILS. Yes. And?',
+    '  "Somebody types out every application, and it is the same eight boxes',
+    '   every time." — passes. Now you know what it takes.',
+    '',
+    'If you cannot point at the words that say what it costs, it fails. Not',
+    'implied, not obvious to you: in the sentence.',
     '',
     'It fails when any of these is true:',
+    '- You cannot point at what the work costs. IT MUST SAY.',
     '- It describes a process with nobody in it, and nothing being lost.',
     '- It only says what you do. You know what you do. So what.',
     '- It would be just as true of any other business in your trade.',
@@ -1666,7 +1751,7 @@ async function noticingFor(db, prospectId) {
 module.exports = {
   READER, READER_VERSION, MODEL,
   angleFor, ANGLES, passable, normalise, pickPages, pageScore,
-  promptToFind, promptForRecurrence, promptToWrite, promptToJudge,
+  promptToFind, promptForRecurrence, promptToWrite, promptToJudge, promptToCheckOverlap,
   groundingPage, askForNoticing, gatherEvidence, noticeOneBusiness,
   recordNoticing, noticingFor,
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,

@@ -746,8 +746,53 @@ test('a business with a portal is never pitched portal work: the covered passage
   // passage that way in one batch. It moves to the next-ranked work instead,
   // so there is no second attempt at this one. Here the business had only the
   // one area, so the trade sentence rightly stands.
-  assert.equal(stubborn.prompts.length, 3, 'the same covered work is not written twice');
-  assert.match(res.couldNotTell, /already|refus/i, 'and the reason names why');
+  // Four asks: find, recur, write, and then one asking whether the portal
+  // GENUINELY does that job (2026-09-03). Here it does — tenants submit
+  // maintenance requests through it — so the work is rightly turned away, and
+  // the same covered work is never written a second time.
+  assert.equal(stubborn.prompts.length, 4, 'the same covered work is not written twice');
+  assert.match(stubborn.prompts[3], /Does the tool they already have ACTUALLY do that job/);
+  assert.match(res.couldNotTell, /already|refus|did not stand/i, 'and the reason names why');
+});
+
+// A TOOL DOES NOT GET TO VETO WORK IT DOES NOT DO (Russ, 2026-09-03).
+//
+// Team Wieche have a portal for routine requests and payments, and three good
+// areas in a row were thrown out as "already handled" — including ANSWERING
+// THE PHONE. A portal does not answer phones. The word-match cannot tell the
+// difference and should never have been the one deciding.
+test('a tool that does not really do the job never blocks it', async () => {
+  const onThePhone = {
+    sentence: 'The calls still come in all day and somebody there picks up every one.',
+    sure: 0.9,
+  };
+  const better = {
+    sentence: 'Routine requests go through the portal. It is the calls that still land on somebody all day.',
+    sure: 0.9,
+  };
+  const phoneWork = {
+    areas: [{
+      job: 'answering tenant calls about rent and repairs',
+      type: 'client_communication',
+      quote: 'Tenants can pay rent and submit maintenance requests',
+    }],
+  };
+  const ask = stubReader([
+    phoneWork, RECUR_PM,
+    onThePhone,                             // write
+    { alreadyDoes: false, why: 'a portal does not answer the telephone' },
+    better,                                 // written again, knowing what the portal covers
+    { alreadyDoes: false, why: 'still not the telephone' },
+    { passes: true },                       // the cold reader
+  ]);
+  const res = await N.askForNoticing({ evidence: PM_EVIDENCE, ask });
+
+  assert.equal(res.sentence, better.sentence, 'the work stood, said better');
+  // it was ASKED, plainly, about the real world
+  assert.match(ask.prompts[3], /does not answer the telephone|ACTUALLY do that job/);
+  assert.ok(ask.prompts[3].includes('answering tenant calls about rent and repairs'));
+  // and the second go was told what the portal does and does not cover
+  assert.match(ask.prompts[4], /does not cover this work/);
 });
 
 test('a job that is call-fielding AND something else is still call-fielding: the portal check sees every kind', () => {
