@@ -197,6 +197,39 @@ test('with no noticing the letter opens on the trade week, straight after the gr
   assert.match(parts[2], /Central Oregon/);
 });
 
+// THE CONNECTION REQUEST CARRIES THEIR OWN LINE TOO (2026-09-03).
+//
+// Measured across 2026 B2B outreach: a connection request with a personalised
+// note replies at 9.4% against 5.4% with none, and what separates the teams
+// at 15-25% from the ones at 1-5% is anchoring every message to a real signal
+// about that business. A generic trade line is not a signal.
+test('the LinkedIn connection request carries their own line, inside the limit', () => {
+  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
+  const p = { name: 'Smith & Co CPA', trade: 'accounting', email: 'info@smithcpa.example' };
+
+  const plain = draftLinkedIn(p, []);
+  assert.ok(plain.inviteBody.length <= 300);
+
+  const theirs = draftLinkedIn({ ...p, noticing: GOOD_SENTENCE }, []);
+  assert.ok(theirs.inviteBody.length <= 300, `${theirs.inviteBody.length} characters`);
+  assert.ok(theirs.inviteBody.includes(GOOD_SENTENCE.replace(/[.]$/, '')),
+    'their own line is in the request');
+  // it stands as its own sentence, never welded on after a colon
+  assert.ok(!/:\s*[A-Z]/.test(theirs.inviteBody.replace('Hi ', '')),
+    'no sentence hanging off a colon');
+});
+
+test('a line too long for the request drops the sign-off, never a thought', () => {
+  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
+  const long = 'You collect borrower, realtor and lender details on every single '
+    + 'certification order that comes in, and then spend the next two whole days '
+    + 'answering the very same status question from each one of them separately.';
+  const built = draftLinkedIn({ name: 'AAA Contracting', trade: 'construction', email: 'a@b.c', noticing: long }, []);
+  assert.ok(built.inviteBody.length <= 300, `${built.inviteBody.length} characters`);
+  // whatever was kept ends on a full stop — nothing is cut mid-sentence
+  assert.match(built.inviteBody.trim(), /[.!?]$/);
+});
+
 // THE NOTE GETS THE SAME SENTENCE AS THE EMAIL (Russ, 2026-09-03). It always
 // used the trade's generic week, even where the business's own site had been
 // read. Russ sends both to the same person by hand, so a personal email and a

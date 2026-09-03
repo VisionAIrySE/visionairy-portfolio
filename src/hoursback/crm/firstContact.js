@@ -320,9 +320,41 @@ function draftLinkedInInvite(prospect) {
   const what = V.pick(INVITE_WHAT_I_DO, seed, 'invite:what');
   const close = V.pick(INVITE_CLOSES, seed, 'invite:close');
 
-  let body = detail
-    ? `${open} ${what}: ${detail}. ${close}`
-    : `${open} ${what}. ${close}`;
+  // THE CONNECTION NOTE CARRIES THEIR OWN LINE WHEN IT FITS (2026-09-03).
+  //
+  // Measured across 2026 B2B outreach: a connection request with a
+  // personalised note replies at 9.4% against 5.4% with none, and what
+  // separates the teams at 15-25% from the ones at 1-5% is anchoring every
+  // message to a real signal about that business. A generic trade line is
+  // not a signal. Their own sentence is.
+  //
+  // Their sentence can run longer than the whole note is allowed, so only
+  // its FIRST sentence is used, and only when the finished note fits inside
+  // the limit. Nothing is ever truncated mid-thought: it falls back to the
+  // trade detail, then to no detail at all.
+  const theirLine = prospect.noticing
+    ? String(prospect.noticing).split(/(?<=[.!?])\s+/)[0].trim().replace(/[.]$/, '')
+    : null;
+  //
+  // Their line stands as its OWN sentence, never welded on after a colon the
+  // way the trade detail is: "I take repetitive office work off businesses:
+  // Somebody at your desk is walking through applications all day" does not
+  // read as English.
+  let body = null;
+  if (theirLine) {
+    for (const shape of [
+      `${open} ${what}. ${theirLine}. ${close}`,
+      `${open} ${what}. ${theirLine}.`,
+      `${open} ${theirLine}. ${close}`,
+    ]) {
+      if (shape.length <= INVITE_MAX) { body = shape; break; }
+    }
+  }
+  if (!body) {
+    body = detail
+      ? `${open} ${what}: ${detail}. ${close}`
+      : `${open} ${what}. ${close}`;
+  }
   // Never over the limit, whatever the wording does. Drop the trade detail
   // first, then the close, rather than sending something truncated.
   if (body.length > INVITE_MAX) body = `${open} ${what}. ${close}`;
