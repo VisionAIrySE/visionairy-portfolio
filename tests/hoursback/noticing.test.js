@@ -197,56 +197,6 @@ test('with no noticing the letter opens on the trade week, straight after the gr
   assert.match(parts[2], /Central Oregon/);
 });
 
-// THE CONNECTION REQUEST CARRIES THEIR OWN LINE TOO (2026-09-03).
-//
-// Measured across 2026 B2B outreach: a connection request with a personalised
-// note replies at 9.4% against 5.4% with none, and what separates the teams
-// at 15-25% from the ones at 1-5% is anchoring every message to a real signal
-// about that business. A generic trade line is not a signal.
-test('the LinkedIn connection request carries their own line, inside the limit', () => {
-  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
-  const p = { name: 'Smith & Co CPA', trade: 'accounting', email: 'info@smithcpa.example' };
-
-  const plain = draftLinkedIn(p, []);
-  assert.ok(plain.inviteBody.length <= 300);
-
-  const theirs = draftLinkedIn({ ...p, noticing: GOOD_SENTENCE }, []);
-  assert.ok(theirs.inviteBody.length <= 300, `${theirs.inviteBody.length} characters`);
-  assert.ok(theirs.inviteBody.includes(GOOD_SENTENCE.replace(/[.]$/, '')),
-    'their own line is in the request');
-  // it stands as its own sentence, never welded on after a colon
-  assert.ok(!/:\s*[A-Z]/.test(theirs.inviteBody.replace('Hi ', '')),
-    'no sentence hanging off a colon');
-});
-
-test('a line too long for the request drops the sign-off, never a thought', () => {
-  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
-  const long = 'You collect borrower, realtor and lender details on every single '
-    + 'certification order that comes in, and then spend the next two whole days '
-    + 'answering the very same status question from each one of them separately.';
-  const built = draftLinkedIn({ name: 'AAA Contracting', trade: 'construction', email: 'a@b.c', noticing: long }, []);
-  assert.ok(built.inviteBody.length <= 300, `${built.inviteBody.length} characters`);
-  // whatever was kept ends on a full stop — nothing is cut mid-sentence
-  assert.match(built.inviteBody.trim(), /[.!?]$/);
-});
-
-// THE NOTE GETS THE SAME SENTENCE AS THE EMAIL (Russ, 2026-09-03). It always
-// used the trade's generic week, even where the business's own site had been
-// read. Russ sends both to the same person by hand, so a personal email and a
-// generic note is worse than either on its own.
-test('the LinkedIn note carries the business\'s own sentence, not the trade line', () => {
-  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
-  const p = { name: 'Smith & Co CPA', trade: 'accounting', email: 'info@smithcpa.example' };
-  const generic = draftLinkedIn(p, []);
-  assert.ok(generic.body.includes(C.TRADES.accounting.week), 'with no sentence, the trade line stands');
-
-  const theirs = draftLinkedIn({ ...p, noticing: GOOD_SENTENCE }, []);
-  assert.ok(theirs.body.includes(GOOD_SENTENCE), 'their own sentence reached the note');
-  assert.ok(!theirs.body.includes(C.TRADES.accounting.week), 'and it replaced the trade line');
-  // the concession that follows it is untouched, exactly as in the email
-  assert.match(theirs.body, /solved already|handled|covered by now/);
-});
-
 test('a latest finding of could_not_tell means no noticing reaches the letter', async () => {
   const db = { finding: { findMany: async () => [{ value: null, status: 'could_not_tell', reading: { source: 'website' } }] } };
   assert.equal(await N.noticingFor(db, 'p1'), null);
@@ -725,7 +675,7 @@ test('the write prompt names exactly the chosen work and forbids figures', () =>
   assert.ok(prompt.includes('chasing clients for the organizers they never sent'));
   assert.ok(prompt.includes(CHOSEN_ONE[0].quote));
   assert.match(prompt, /Exactly this one job/);
-  assert.match(prompt, /Never promise or count hours/);
+  assert.match(prompt, /Never promise or count hours saved/);
   assert.ok(prompt.includes(`"${C.tradeCopy('accounting').week}"`));  // register only
   assert.match(prompt, /do not mention or invent any system/);        // nothing visibly run
 });
@@ -796,57 +746,8 @@ test('a business with a portal is never pitched portal work: the covered passage
   // passage that way in one batch. It moves to the next-ranked work instead,
   // so there is no second attempt at this one. Here the business had only the
   // one area, so the trade sentence rightly stands.
-  // Four asks: find, recur, write, and then one asking whether the portal
-  // GENUINELY does that job (2026-09-03). Here it does — tenants submit
-  // maintenance requests through it — so the work is rightly turned away, and
-  // the same covered work is never written a second time.
-  assert.equal(stubborn.prompts.length, 4, 'the same covered work is not written twice');
-  assert.match(stubborn.prompts[3], /Does the tool they already have ACTUALLY do that job/);
-  assert.match(res.couldNotTell, /already|refus|did not stand/i, 'and the reason names why');
-});
-
-// A TOOL DOES NOT GET TO VETO WORK IT DOES NOT DO (Russ, 2026-09-03).
-//
-// Team Wieche have a portal for routine requests and payments, and three good
-// areas in a row were thrown out as "already handled" — including ANSWERING
-// THE PHONE. A portal does not answer phones. The word-match cannot tell the
-// difference and should never have been the one deciding.
-test('a tool that does not really do the job never blocks it', async () => {
-  const onThePhone = {
-    sentence: 'Tenant calls still come in all day and somebody there picks up every one.',
-    sure: 0.9,
-  };
-  const better = {
-    sentence: 'Routine requests go through the portal. It is the tenant calls that still land on somebody all day.',
-    sure: 0.9,
-  };
-  const phoneWork = {
-    areas: [{
-      job: 'answering tenant calls about rent and repairs',
-      type: 'client_communication',
-      quote: 'Tenants can pay rent and submit maintenance requests',
-    }],
-  };
-  const ask = stubReader([
-    phoneWork, RECUR_PM,
-    onThePhone,                             // write
-    { alreadyDoes: false, why: 'a portal does not answer the telephone' },
-    { passes: true },                       // the stranger reading it cold
-  ]);
-  const res = await N.askForNoticing({ evidence: PM_EVIDENCE, ask });
-
-  assert.equal(res.sentence, onThePhone.sentence, 'the sentence stood, unchanged');
-  // it was ASKED, plainly, about the real world
-  assert.match(ask.prompts[3], /ACTUALLY do that job/);
-  assert.ok(ask.prompts[3].includes('answering tenant calls about rent and repairs'));
-  // A TOOL THAT DOES NOT DO THE JOB IS NOT A REASON TO CHANGE A WORD
-  // (2026-09-03). This used to send the sentence back to be written again,
-  // spending both of the business's attempts on a sentence with nothing
-  // wrong with it — Obsidian Real Estate lost a passage it had passed with
-  // hours earlier, exactly that way.
-  assert.equal(ask.prompts.length, 5, 'find, recur, write, the tool question, the cold reader');
-  assert.ok(!ask.prompts.some((p) => /does not cover this work/.test(p)),
-    'nothing was sent back to be rewritten');
+  assert.equal(stubborn.prompts.length, 3, 'the same covered work is not written twice');
+  assert.match(res.couldNotTell, /already|refus/i, 'and the reason names why');
 });
 
 test('a job that is call-fielding AND something else is still call-fielding: the portal check sees every kind', () => {
@@ -1122,7 +1023,7 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
   };
   const refusal = { cannotTell: "chasing organizers is Dale Smith's own licensed casework, not something the office handles" };
   const nextArea = {
-    sentence: 'Clients across Bend hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
     sure: 0.8,
   };
   const ask = stubReader([twoRanks, strongAndWeak, refusal, nextArea]);
@@ -1130,7 +1031,7 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
   assert.equal(res.sentence, nextArea.sentence);
   assert.equal(res.jobs.length, 1);
   assert.equal(res.jobs[0].type, 'email_and_newsletter');
-  assert.equal(ask.prompts.length, 5);            // find, recur, refused write, next write, the judge
+  assert.equal(ask.prompts.length, 4);                      // find, recur, refused write, next write
   assert.ok(ask.prompts[3].includes('staying in front of past clients'));
   // the refusal landed on the area it refused, kept with it forever
   const doc = res.areas.find((a) => a.type === 'document_collection');
@@ -1156,236 +1057,11 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
 // nineteen, two of them holding thirty pages of their own words. The reader
 // tripped; the business had plenty to say. So it is asked again, and the
 // stumble does not spend one of the tries the business gets to be understood.
-// THE JUDGE (Russ, 2026-09-03).
-//
-// Every other check is a BAN. A sentence can pass all twelve of them and
-// still be worthless: "the intake repeats, but nothing else does" broke no
-// rule and landed nothing. So one check asks whether the sentence did its
-// job, reading it the way the recipient reads — cold, with no context.
-test('a sentence that would not make the reader stop is sent back, and the work is kept', async () => {
-  const flat = { sentence: 'The organizer intake repeats, but nothing else does.', sure: 0.9 };
-  const fails = { passes: false, why: 'that describes a process, nobody is in it and nothing is being lost' };
-  const lands = { sentence: 'Somebody there is typing the same handful of organizer details in all day.', sure: 0.9 };
-  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, lands, { passes: true }]);
-  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
-
-  assert.equal(res.sentence, lands.sentence);
-  // the judge was given the sentence, and NOT the instructions or the evidence
-  const judgePrompt = ask.prompts[3];
-  assert.ok(judgePrompt.includes(flat.sentence), 'the judge saw the sentence');
-  assert.ok(!judgePrompt.includes(GOOD_QUOTE), 'the judge never saw the pages');
-  assert.ok(!/HOW IT SOUNDS|WHAT THIS SENTENCE IS FOR/.test(judgePrompt),
-    'the judge never saw the instructions it was written under');
-  assert.match(judgePrompt, /sat in my chair|sat in a\s+place like yours/);
-  // the rewrite carried the reader's OWN reason back, in their words
-  assert.match(ask.prompts[4], /nobody is in it/);
-  // and the work was never blamed: the same job was said again, not dropped
-  assert.equal(res.jobs[0].type, 'document_collection');
-  assert.equal(res.areas[0].refused, null);
-});
-
-// AND THE PAIN HAS TO BE LIFTABLE (Russ, 2026-09-03: "is the pain still tied
-// to the automation and/or AI solution?"). The work is CHOSEN from the tool
-// library, so it always could be — but nothing checked the finished sentence,
-// which could drift onto real pain nothing can help with. True and useless.
-test('the cold reader also asks whether anything could take the work off them', () => {
-  const p = N.promptToJudge('You are the one deciding which carrier fits each package.', 'shipping');
-  assert.match(p, /could actually be taken off you/);
-  assert.match(p, /judgement, the/);
-  assert.match(p, /true and/);
-  assert.match(p, /it is useless/);
-});
-
-// MAKE IT THEIRS (Russ, 2026-09-03). Four businesses in a row came back with
-// nothing, and the reason was always the same: "could describe any sales
-// business in America", "generic to every HVAC company you have ever heard
-// of". The reader was right to bin them. The fault was upstream — the writer
-// was never told to reach into their pages and use something only they have.
-// THE STANDARD BELONGS WHERE THE WORK IS CHOSEN (Russ, 2026-09-03). Every
-// fix went into the writing step, and the failures kept coming from the
-// finding step: Postal Connections was offered "choosing the right carrier"
-// (the skilled part Russ ruled out weeks ago) and Obsidian "following up with
-// clients" (true of every broker alive). No sentence could have saved either.
-test('the finding prompt states the bar before a single area is named', () => {
-  const p = N.promptToFind(EVIDENCE);
-  // the whole brief: why the email exists, before any rule about the work
-  assert.match(p, /WHAT THIS IS FOR, BEFORE ANYTHING ELSE/);
-  assert.match(p, /sat in my chair/);
-  assert.match(p, /fifteen minutes/);
-  assert.match(p, /sells nothing and names no price/);
-  // all four bars, stated
-  assert.match(p, /WHAT MAKES AN AREA STRONG/);
-  // FIND EVERYTHING, THEN RANK IT (2026-09-03). The four bars started life as
-  // a gate — "all four, or it does not qualify" — and the average areas found
-  // per business fell from 6.4 to 2.0, with businesses holding 108 and 167
-  // usable things on their pages coming back with nothing. They rank; they
-  // never stop an area being named.
-  assert.match(p, /Name everything you find/);
-  assert.match(p, /still goes on the list/);
-  assert.match(p, /Four to six areas is/);
-  assert.match(p, /stopped looking/);
-  assert.match(p, /SOFTWARE COULD ACTUALLY TAKE IT/);
-  assert.match(p, /IT COSTS SOMEBODY SOMETHING YOU CAN NAME/);
-  assert.match(p, /IT IS THEIRS, NOT THEIR TRADE/);
-  assert.match(p, /IT RESTS ON THEIR OWN PAGES/);
-  // and the pain is DEFINED, not left abstract
-  assert.match(p, /the same thing typed twice/);
-  assert.match(p, /evenings and weekends/);
-  assert.match(p, /waiting while this gets done/);
-  assert.match(p, /one person it always lands on/);
-  // the real rejections are in it as examples, in Russ's own terms
-  assert.match(p, /choosing the right carrier/);
-  assert.match(p, /every broker in the country/);
-  // and silence is offered as the honest alternative to a generic pick
-  assert.match(p, /cannotTell only when their pages genuinely show no repeating/);
-  assert.match(p, /never merely because nothing/);
-  // the whole brief comes BEFORE the menu of work types, not after
-  assert.ok(p.indexOf('WHAT THIS IS FOR') < p.indexOf('THE MENU'));
-});
-
-// RUSS'S OWN DIRECTION, SPOKEN 2026-08-26 AND NEVER PUT IN UNTIL NOW.
-//
-// "Only thing might be too much insight from a cold caller might be creepy...
-// I might be a little suspect if someone knew what software platforms I was
-// running if I didn't make it a point of broadcasting my business. It has to
-// be relevant, appropriate, and tasteful." He drew the line by asking how HE
-// would feel receiving it.
-// IS ANYTHING IN IT ONLY THEIRS? (Russ, 2026-09-03, after the analysis.)
-//
-// Measured across all 278 sentences ever written: those saying what the work
-// COSTS went 43% -> 70% once that was demanded. Those naming something only
-// that business has went 10% -> 17%. One in six. Every sentence Russ called
-// good has one — Terrebonne, GreenSky, La Pine, the Apply Now button, notary
-// and mailbox slots — and every one he rejected has none.
-//
-// Demanding it in words did not move it, and the stranger who reads the
-// sentence cold CANNOT judge it: shown six real town names off a business's
-// own pages it said "what every broker does". So it is a lookup against their
-// pages, not an opinion.
-test('a sentence must carry something that appears on their own pages', () => {
-  const pages = [{ url: 'https://x.example/', text:
-    'We serve Terrebonne, Prineville and Three Rivers every day. Financing is '
-    + 'through GreenSky and GoodLeap. Over 200 listings across La Pine and Redmond. '
-    + 'We offer notary service, mailbox rental and international shipping.' }];
-
-  // their names, their numbers, and the particular things they sell
-  assert.deepEqual(N.onlyTheirs('Somebody routes vans across Terrebonne and Prineville.', pages),
-    ['Terrebonne', 'Prineville']);
-  assert.ok(N.onlyTheirs('Every GreenSky application is pushed through by hand.', pages).includes('GreenSky'));
-  assert.ok(N.onlyTheirs('Keeping 200 listings straight is a day in itself.', pages).includes('200'));
-  assert.ok(N.onlyTheirs('Calls all day about notary availability and mailbox slots.', pages).includes('notary'));
-
-  // and nothing at all for a sentence that would read the same to anybody
-  for (const flat of [
-    'You are dispatching technicians throughout Central Oregon for service visits.',
-    'You are getting calls all day and somebody writes down what they need.',
-    'Following up with clients between sales is on somebody there.',
-    'The intake repeats, but nothing else does.',
-  ]) {
-    assert.deepEqual(N.onlyTheirs(flat, pages), [], `"${flat}" is true of anybody`);
-  }
-});
-
-test('an ordinary word on their page proves nothing', () => {
-  const pages = [{ url: 'https://x.example/', text:
-    'We work across Central Oregon and through the whole year. Contact us for '
-    + 'more information about the services we provide and the options available.' }];
-  assert.deepEqual(N.onlyTheirs('The work comes through and lands on somebody, across the week.', pages), []);
-});
-
-// A site carrying no names and no numbers at all cannot satisfy this, and
-// blocking on the impossible would cost that business its sentence for a
-// fault that is not the writer's.
-test('a business whose pages name nothing is not held to it', () => {
-  const bare = [{ url: 'https://x.example/', text:
-    'we do the work and we do it well for the people who come to us, and we have '
-    + 'been doing it a while now, so get in touch and we will see what we can do '
-    + 'for you and yours, whatever it is that you need doing today or any day.' }];
-  assert.equal(N.theirOwnWords(bare).size, 0,
-    'their pages offer nothing to use, so nothing can be asked of the sentence');
-  // and a real site always offers something — a town, a brand, a number, a service
-  assert.ok(N.theirOwnWords(PAGES).size > 0);
-});
-
-test('the taste line is in the instructions, at every stage that needs it', () => {
-  const find = N.promptToFind(EVIDENCE);
-  assert.match(find, /RELEVANT, APPROPRIATE AND TASTEFUL/);
-  assert.match(find, /what they chose to publish/);
-  assert.match(find, /reads as having been dug up/);
-  assert.match(find, /glad someone looked, or unsettled/);
-  // and the stranger reading it cold turns down anything that oversteps
-  const judge = N.promptToJudge('A sentence.', 'trades');
-  assert.match(judge, /knows something you never published/);
-  assert.match(judge, /looking INTO you/);
-});
-
-// "Mirror and match my voice with the target... peer to peer... I'm not going
-// to talk conversion and ROI to a Tire Shop, and not going to talk mundane
-// accounting to a consulting firm." (Russ, spoken 2026-08-26.)
-test('the writer is told to meet the reader where they work, and never to pitch', () => {
-  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
-  assert.match(p, /WHO YOU ARE TALKING TO/);
-  assert.match(p, /conversion rates and/);
-  assert.match(p, /tyre shop/);
-  assert.match(p, /Peer to peer/);
-  // "Talk to the pain without making it a sales pitch" — his words
-  assert.match(p, /WITHOUT MAKING IT A PITCH/);
-  assert.match(p, /reads as the opening of a sales call, it is wrong/);
-});
-
-test('the write prompt demands something only this business has', () => {
-  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
-  assert.match(p, /MAKE IT THEIRS/);
-  assert.match(p, /competitor down the road/);
-  // and the cost is DEFINED here too, the same list, so both stages work
-  // from one statement of what the pain is (2026-09-03)
-  assert.match(p, /WHAT COUNTS AS A COST/);
-  assert.match(p, /the same thing typed twice/);
-  assert.match(p, /evenings and weekends/);
-  assert.match(p, /towns they name/);
-  assert.match(p, /wrong for anybody else/);
-});
-
-// EVERY REJECTION RUSS MADE IS TEACHING MATERIAL, AND NONE OF IT WAS WRITTEN
-// DOWN (2026-09-03). Each of these was written by a good reader, passed every
-// mechanical check, and was thrown out by a person in that trade reading it
-// cold. They belong in front of the writer, in the words they failed in.
-test('the write prompt carries the real sentences that failed, and why', () => {
-  const p = N.promptToWrite(EVIDENCE, CHOSEN_ONE, null, []);
-  assert.match(p, /SENTENCES THAT FAILED/);
-  assert.match(p, /The intake repeats, but nothing else does/);
-  assert.match(p, /talks the first half back down/);
-  assert.match(p, /which carrier fits each package/);
-  assert.match(p, /skilled part they are paid for/);
-  assert.match(p, /Following up with clients/);
-  assert.match(p, /every broker in the country/);
-});
-
-test('the judge is asked about every sentence that reaches the letter', async () => {
-  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, WRITE_GOOD, { passes: true }]);
-  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
-  assert.equal(res.sentence, GOOD_SENTENCE);
-  assert.equal(ask.prompts.length, 4, 'find, recur, write, judge');
-  assert.match(ask.prompts[3], /Answer with JSON only/);
-});
-
-// A judge that keeps refusing does not hold a business hostage: the work
-// moves on like any other refusal, and silence is honest about why.
-test('a sentence the reader keeps turning away ends in the trade sentence, saying so', async () => {
-  const flat = { sentence: 'The organizer intake repeats, but nothing else does.', sure: 0.9 };
-  const fails = { passes: false, why: 'it would not make me stop reading' };
-  const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, flat, fails, flat, fails]);
-  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
-  assert.ok(res.couldNotTell);
-  assert.equal(res.sentence, undefined);
-  assert.match(res.couldNotTell, /read it cold/);
-});
-
 test('a reply that could not be read is asked again, and does not cost the business its line', async () => {
   const ask = rawReader([UNREADABLE, { answer: FIND_CHASE }, { answer: RECUR_ONE_YES }, { answer: WRITE_GOOD }]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.equal(res.sentence, GOOD_SENTENCE);
-  assert.equal(ask.prompts.length, 5, 'the stumble was retried and cost the business nothing');
+  assert.equal(ask.prompts.length, 4, 'the stumble was retried and cost the business nothing');
   // the second ask told the reader plainly what went wrong
   assert.match(ask.prompts[1], /JSON on its own/);
 });
@@ -1426,14 +1102,14 @@ test('wording rejected twice drops that area too, and the next-ranked gets its t
   const promisesHours = { sentence: 'Automating that chase would save you 5 hours a week.', sure: 0.9 };
   const promisesAgain = { sentence: 'That chase gets you back 6 hours a week.', sure: 0.9 };
   const nextArea = {
-    sentence: 'Clients across Bend hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
     sure: 0.8,
   };
   const ask = stubReader([twoRanks, bothRecur, promisesHours, promisesAgain, nextArea]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.equal(res.sentence, nextArea.sentence);
   assert.equal(res.jobs[0].type, 'email_and_newsletter');
-  assert.equal(ask.prompts.length, 6);   // find, recur, two rejected goes, the next area, the judge
+  assert.equal(ask.prompts.length, 5);              // find, recur, two rejected goes, then the next area
   // the rejection landed on the area it belonged to, kept with it forever
   const doc = res.areas.find((a) => a.type === 'document_collection');
   assert.equal(doc.refused, true);

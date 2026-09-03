@@ -413,21 +413,8 @@ function offersWhatTheyHave(sentence, jobs, theyRun) {
     if (nodded) continue; // the go-past shape: nodded to in passing, stepped past
     for (const t of texts) {
       if (kindsOf(t).includes(sys.covers)) {
-        // A SUSPICION, NOT A VERDICT (Russ, 2026-09-03).
-        //
-        // The kinds are coarse on purpose, and "enquiries" catches every job
-        // with the word call, email, question or answer in it. So Team Wieche,
-        // who have a portal for routine requests and payments, had ANSWERING
-        // THE PHONE ruled out as already handled — three good areas in a row,
-        // and the business kept the generic trade sentence. A portal does not
-        // answer phones.
-        //
-        // Word-matching cannot tell the difference and should never have been
-        // asked to. It raises the suspicion; whether the tool genuinely does
-        // that job is a question of meaning, and it goes to the reader.
         return {
           ok: false,
-          suspect: { toolName: sys.name, does: sys.does, job: t },
           why: `offers work ${sys.name} visibly already does (${sys.does}) — never `
             + 'offer what they already have; nod to it and step past it to what it '
             + 'does not cover, or name different work',
@@ -617,130 +604,6 @@ function promptToFind(evidence, rejected = null) {
     + 'below, which the business published on its own website. Your job is '
     + 'to name each such area of work, or to say none can be named.',
   );
-  lines.push('');
-  // THE STANDARD BELONGS AT THE EARLIEST STAGE THAT CAN MEET IT (Russ,
-  // 2026-09-03: "shouldn't the instructions incorporate the restrictive
-  // components we identified? We keep dancing around failure").
-  //
-  // Every fix tonight went into the WRITING step. But the failures kept
-  // coming from HERE: the wrong work was picked, and by the time it reached
-  // the writer no sentence could save it. Postal Connections was offered
-  // "choosing the right carrier" — the skilled part, which Russ had already
-  // ruled out weeks ago. Obsidian was offered "following up with clients",
-  // true of every broker alive. The writer was never the problem.
-  //
-  // So the bar the finished sentence has to clear is stated HERE, before a
-  // single area is named.
-  // THE WHOLE BRIEF, WRITTEN OUT ONCE (2026-09-03).
-  //
-  // Russ: "WHY DO WE HAVE TO KEEP DEFINING WHAT WE ARE DOING? I HAVE GIVEN
-  // YOU EVERYTHING NEEDED." He had. Every piece below was already said —
-  // some of it weeks ago — and it went in one fragment at a time, each fix
-  // treated as a new discovery. It is written down whole here so nobody has
-  // to say it again.
-  lines.push('WHAT THIS IS FOR, BEFORE ANYTHING ELSE.');
-  lines.push('');
-  lines.push('Russ Wright takes repetitive office work off small businesses in Central');
-  lines.push('Oregon and hands it to software and AI. He is sending one cold email. It');
-  lines.push('sells nothing and names no price. It asks for fifteen minutes on the');
-  lines.push('phone, after which he goes away and does real research for free and');
-  lines.push('comes back with one tool, what it costs, and what it would take to build');
-  lines.push('what nothing off the shelf covers.');
-  lines.push('');
-  lines.push('Whether they give him those fifteen minutes turns on ONE sentence: the');
-  lines.push('one that opens the email, about their business. It has to make them');
-  lines.push('think this person has sat in my chair. Not "looked at my website" —');
-  lines.push('every stranger does that, and they can tell instantly. Someone who has');
-  lines.push('DONE the job knows which part of it grinds.');
-  lines.push('');
-  lines.push('Your job here is earlier than that sentence. You find the work it will');
-  lines.push('be written about. If you hand up the wrong work, no sentence can save');
-  lines.push('it, and this business is wasted.');
-  lines.push('');
-  // FIND EVERYTHING, THEN RANK IT (Russ, 2026-09-03, and measured).
-  //
-  // The version running at 8pm said "find EVERY type of work this business
-  // plainly does — one, two, three, four or more" and averaged 6.4 areas a
-  // business, with 64% getting a sentence, the best rate of the night. Adding
-  // four bars to clear and "silence is a better answer than a generic pick"
-  // turned hunting into refusing: the average fell to 2.0 and businesses with
-  // 108 and 167 usable things on their pages came back with nothing.
-  //
-  // Fewer areas means fewer chances, and the checks further down already turn
-  // away anything weak. So this is what makes an area STRONG, for ranking —
-  // never a gate that stops it being named.
-  lines.push('WHAT MAKES AN AREA STRONG. Name everything you find; these decide');
-  lines.push('which ones lead. An area weak on one of them still goes on the list.');
-  lines.push('');
-  lines.push('1. SOFTWARE COULD ACTUALLY TAKE IT. It repeats, the same shape every');
-  lines.push('   time, many times a week. It is never the judgement, the skill, the');
-  lines.push('   licence or the eye they are paid for, and never a person handling a');
-  lines.push('   physical thing. No software packs a box, welds a bracket or mows a');
-  lines.push('   lawn. But the calls, the forms, the reminders, the re-typing and the');
-  lines.push('   chasing around all of that are exactly what it takes.');
-  lines.push('   NOT: "choosing the right carrier for each package" — the skilled');
-  lines.push('   part, and offering to take it is insulting.');
-  lines.push('   YES: "answering the same question about customs paperwork".');
-  lines.push('');
-  lines.push('2. IT COSTS SOMEBODY SOMETHING YOU CAN NAME. Not the business, not the');
-  lines.push('   process — a PERSON. A process cannot be tired and nobody recognises');
-  lines.push('   themselves in one. These are the costs that land:');
-  lines.push('     - somebody\'s day, hours of it, gone to this');
-  lines.push('     - the same thing typed twice, here and then again there');
-  lines.push('     - the same question answered over and over');
-  lines.push('     - the work they are actually paid for, waiting while this gets done');
-  lines.push('     - evenings and weekends, because there is no room in the day');
-  lines.push('     - one person it always lands on, and nothing moves when they are out');
-  lines.push('     - the ones that slip: enquiries, reminders, follow-ups lost');
-  lines.push('   If you cannot say in plain words what this takes out of somebody, it');
-  lines.push('   does not qualify.');
-  lines.push('');
-  lines.push('3. IT IS THEIRS, NOT THEIR TRADE\'S. This is where most work dies.');
-  lines.push('   "Following up with clients" is true of every broker in the country,');
-  lines.push('   so it proves nothing and the email is binned. It has to attach to');
-  lines.push('   something ONLY THEY have on their pages: the towns they name, the');
-  lines.push('   brands and systems they list, the exact services on their menu, the');
-  lines.push('   seasons and deadlines their work turns on, the numbers they publish.');
-  lines.push('   Put that specific thing in the job itself.');
-  lines.push('   NOT: "following up with prospective buyers".');
-  lines.push('   YES: "keeping two hundred listings straight across La Pine, Redmond');
-  lines.push('   and Bend".');
-  lines.push('');
-  lines.push('4. IT RESTS ON THEIR OWN PAGES. Not on a guess about their trade. You');
-  lines.push('   are inferring, not inventing: what a business like this plainly does');
-  lines.push('   is fair and their pages need not announce it. What is forbidden is a');
-  lines.push('   claim their pages contradict.');
-  lines.push('');
-  // RUSS'S OWN TASTE LINE, spoken 2026-08-26 and never once put into these
-  // instructions until now: "Only thing might be too much insight from a cold
-  // caller might be creepy... I might be a little suspect if someone knew what
-  // software platforms I was running if I didn't make it a point of
-  // broadcasting my business. It has to be relevant, appropriate, and
-  // tasteful." He worked the line out by asking how HE would feel receiving
-  // it, which is his test for everything.
-  lines.push('RELEVANT, APPROPRIATE AND TASTEFUL. There is a line between a');
-  lines.push('stranger who has clearly read your website and a stranger who has been');
-  lines.push('looking into you. Use what they chose to publish and broadcast: their');
-  lines.push('services, their towns, their opening hours, the forms and buttons on');
-  lines.push('their own pages, the brands they advertise carrying.');
-  lines.push('');
-  lines.push('Do NOT use anything that reads as having been dug up. Never name the');
-  lines.push('software running behind their business unless their own site');
-  lines.push('advertises it. Never name an individual and what you think their day');
-  lines.push('looks like. Never anything about their finances, their staff turnover,');
-  lines.push('or how well they seem to be doing. The test is simple: would a');
-  lines.push('business owner reading this be glad someone looked, or unsettled that');
-  lines.push('they looked that hard?');
-  lines.push('');
-  lines.push('NAME EVERYTHING, THEN LET THE RANKING DECIDE. Four to six areas is');
-  lines.push('normal for a real business with a real website. Two is usually a sign');
-  lines.push('you stopped looking, not that they only have two. Every area you leave');
-  lines.push('out is a chance this business does not get, because the strongest one');
-  lines.push('might be the fifth thing you would have thought of.');
-  lines.push('');
-  lines.push('Say cannotTell only when their pages genuinely show no repeating');
-  lines.push('office work at all — which is rare, and never merely because nothing');
-  lines.push('looked outstanding.');
   lines.push('');
   lines.push(...businessBlock(e));
   lines.push('');
@@ -1012,89 +875,11 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   const two = jobs.length >= 2;
   const lines = [];
 
-  // WHAT THIS SENTENCE IS FOR, SAID FIRST AND SAID ALONE (Russ, 2026-09-03).
-  //
-  // This instruction had grown into twelve prohibitions and no purpose. Every
-  // correction got bolted on as another ban, so a writer could satisfy every
-  // rule and still miss the point entirely — "the intake repeats, but nothing
-  // else does" breaks no rule and lands nothing. Nobody had ever told it what
-  // the sentence was FOR.
-  //
-  // It is for one thing, and everything below is a consequence of it.
-  lines.push('WHAT THIS SENTENCE IS FOR. Read it first. Everything else follows from it.');
-  lines.push('');
-  lines.push('A stranger opens this email. In one sentence you have to make them');
-  lines.push('think: this person has sat in my chair. Not "this person looked at my');
-  lines.push('website" — anyone can do that, and they can tell the difference');
-  lines.push('instantly. Someone who has DONE the job knows which part of it grinds.');
-  lines.push('');
-  lines.push('If they believe that, they give up fifteen minutes. That is the whole');
-  lines.push('purpose of the sentence. It is not selling anything. Nobody buys');
-  lines.push('software from a cold email, and there is no price anywhere in this');
-  lines.push('letter. The offer that follows is free research with nothing to sign,');
-  lines.push('and it only reads as genuine if the sentence before it has already');
-  lines.push('proved you understand the work.');
-  lines.push('');
-  lines.push('So: name the work, and name what it takes out of somebody.');
-  lines.push('');
-  lines.push('WHAT COUNTS AS A COST. Not the business, not the process — a PERSON.');
-  lines.push('These are the ones that land:');
-  lines.push('  - somebody\'s day, hours of it, gone to this');
-  lines.push('  - the same thing typed twice, here and then again there');
-  lines.push('  - the same question answered over and over');
-  lines.push('  - the work they are actually paid for, waiting while this gets done');
-  lines.push('  - evenings and weekends, because there is no room in the day');
-  lines.push('  - one person it always lands on, and nothing moves when they are out');
-  lines.push('  - the ones that slip: enquiries, reminders, follow-ups lost');
-  lines.push('');
-  lines.push('AND MAKE IT THEIRS. This is where it is usually lost. "Calls come in all');
-  lines.push('day and somebody writes them down" is true of every business in their');
-  lines.push('trade, so it proves nothing and they bin it. Reach into their own pages');
-  lines.push('and USE something only they have: the towns they name, the tools and');
-  lines.push('brands they list, the exact services on their own menu, the numbers they');
-  lines.push('publish, the seasons and deadlines their work turns on.');
-  lines.push('');
-  lines.push('  WEAK: "You are getting calls all day about repairs and upgrades."');
-  lines.push('  THEIRS: "Somebody is working out which van goes to Terrebonne and');
-  lines.push('   which to Prineville, and every finance application is still typed');
-  lines.push('   in by hand."');
-  lines.push('');
-  lines.push('The test: could this sentence be sent, word for word, to their');
-  lines.push('competitor down the road? If yes, it is not finished. Something in it');
-  lines.push('must be wrong for anybody else.');
-  lines.push('');
-  lines.push('If a reader could answer it with "yes, and?", you have not done the job.');
-  lines.push('');
-  // REAL REJECTIONS, IN THE WORDS THEY WERE REJECTED IN (2026-09-03). Every
-  // one of these was written by a good reader, passed every mechanical check,
-  // and was thrown out by a person in that trade reading it cold. They are
-  // the sharpest teaching there is and none of them were written down.
-  lines.push('SENTENCES THAT FAILED, AND WHY. Each of these was written, checked,');
-  lines.push('and thrown out by somebody in that trade reading it cold.');
-  lines.push('');
-  lines.push('  "The intake repeats, but nothing else does."');
-  lines.push('    Describes a process. Nobody is in it, nothing is lost, and the');
-  lines.push('    second half talks the first half back down.');
-  lines.push('');
-  lines.push('  "Somebody types out every application that comes through your form."');
-  lines.push('    A person, doing it, every time. And? It never says what it takes.');
-  lines.push('');
-  lines.push('  "You are getting calls all day about repairs and upgrades."');
-  lines.push('    Generic to every company in the trade. Proves nothing.');
-  lines.push('');
-  lines.push('  "You are the one deciding which carrier fits each package."');
-  lines.push('    That is the skilled part they are paid for. Nothing should take');
-  lines.push('    it, and offering to is insulting.');
-  lines.push('');
-  lines.push('  "Following up with clients between sales is on somebody there."');
-  lines.push('    True of every broker in the country. Says what they do, not what');
-  lines.push('    it costs, and nothing in it is only theirs.');
-  lines.push('');
-  lines.push('---');
-  lines.push('');
   lines.push(
-    'The work below was read off this business\'s own pages and checked. Write '
-    + 'the passage, or say it cannot be written.',
+    'A first email is being written to a small business. ONE short passage '
+    + 'of it must name, warmly and plainly, the work listed below — which was '
+    + "read off the business's own pages and checked. Your job is to write "
+    + 'that passage, or to say it cannot be written.',
   );
   lines.push('');
 
@@ -1140,81 +925,40 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('problem nobody ever named, and the whole message falls apart. Describing');
   lines.push('their work back to them tells them nothing they do not know.');
   lines.push('');
-  lines.push('So the passage names the work AND what it costs. One clause is enough.');
-  lines.push('Never a number, never a promise, never a scolding.');
+  lines.push('So the passage names the work AND why it costs them. End on the cost, in');
+  lines.push('their own terms: it repeats, it eats the day, it lands on one person, it');
+  lines.push('waits while something better waits longer, it is the same thing over and');
+  lines.push('over. Never a number, never a promise, never a scolding. One clause is');
+  lines.push('enough. If a reader could finish the passage with "yes, and?", it is not');
+  lines.push('done.');
   lines.push('');
-  lines.push('THE COST FALLS ON A PERSON AND THEIR TIME — never on the process. A');
-  lines.push('workflow cannot be tired. Somebody is doing this, it is taking their');
-  lines.push('day, and it is the same every time. Say THAT.');
+  lines.push('  NOT: "You are taking down their name and phone before they sit down');
+  lines.push('        with an attorney." — that is only what they do.');
+  lines.push('  YES: "You are taking down their name and phone before they sit down');
+  lines.push('        with an attorney, and it is the same handful of questions every');
+  lines.push('        time." — the work, and what it costs.');
   lines.push('');
-  lines.push('  NOT: "The intake repeats, but nothing else does." — that describes a');
-  lines.push('       process. Nobody is in it, and nothing is being lost.');
-  lines.push('  YES: "Somebody is typing the same details in all day." — a person, a');
-  lines.push('       day, gone.');
-  lines.push('');
-  lines.push('AND NEVER TALK YOURSELF OUT OF IT. Do not add a clause that shrinks what');
-  lines.push('you just said: not "but nothing else does", not "though it is only part');
-  lines.push('of it", not "at least the rest varies". The passage says the thing and');
-  lines.push('stops. The concession comes in the NEXT sentence of the letter, which is');
-  lines.push('already written and is not yours to add.');
-  lines.push('');
-  lines.push('If a reader could answer the passage with "yes, and?", it is not done.');
-  lines.push('');
-  // HOW RUSS SOUNDS, NOT A LIST OF DON'TS (2026-09-03).
-  //
-  // These were twelve prohibitions in a row, and a writer obeying all twelve
-  // still wrote a sentence with nobody in it. What could not be checked by
-  // code belongs here, said as a voice to be held rather than a fence to
-  // stay inside. The facts that CAN be checked — offering what they already
-  // run, naming a person from their pages, quoting hours — are checked in
-  // code after this, and are not the writer's to remember.
-  // MIRROR THE READER, PEER TO PEER (Russ, spoken 2026-08-26): "Mirror and
-  // match my voice with the target... Keep my tone and approach but mirror,
-  // without being obsequious, the communication style, peer to peer, to the
-  // target, understand? ... I'm not going to talk conversion and ROI to a Tire
-  // Shop, and not going to talk mundane accounting to a consulting firm."
-  lines.push('WHO YOU ARE TALKING TO. Russ\'s tone never moves, but the words meet');
-  lines.push('the person where they work. He does not talk conversion rates and');
-  lines.push('return on investment to a tyre shop, and he does not talk about');
-  lines.push('mundane bookkeeping to a consulting firm. Use the words that trade');
-  lines.push('uses about its own day. Peer to peer, never talking up or down, never');
-  lines.push('flattering.');
-  lines.push('');
-  lines.push('AND TALK TO THE PAIN WITHOUT MAKING IT A PITCH (his words). You are');
-  lines.push('naming something true about their week. You are not selling, not');
-  lines.push('hinting at a solution, not implying they are behind. If the sentence');
-  lines.push('reads as the opening of a sales call, it is wrong. It reads as');
-  lines.push('recognition, and the offer comes later in the letter, from Russ.');
-  lines.push('');
-  lines.push('HOW IT SOUNDS. Russ, talking. Hold this while you write.');
-  lines.push('');
-  lines.push('He is one working person recognising another working person\'s week.');
-  lines.push('Warm, easy, sure of itself. He says it out loud across a counter, in');
-  lines.push('plain short everyday words, and then he stops. Somebody is always IN the');
-  lines.push('sentence: "that comes back to you", "somebody has to", "you are the one');
-  lines.push('who". A person doing a real job beats a described process every time —');
-  lines.push('a process cannot be tired, and nobody recognises themselves in one.');
-  lines.push('');
-  lines.push('He is never a consultant and never a report. Nothing stiff or official:');
-  lines.push('no "must manage", no "are required to", no "ensuring", no "requests are');
-  lines.push('handled". If it reads like a form, it is wrong. No marketing words —');
-  lines.push('"leverage", "streamline", "solutions", "optimize", "seamless" are all');
-  lines.push('his tell for someone who has not done the work. No flattery, no');
-  lines.push('exclamation mark, no question, no dashes.');
-  lines.push('');
-  lines.push('He never scolds and never implies they are behind. It is a fact about');
-  lines.push('their week said kindly, not a criticism. And he never tells them who');
-  lines.push('they are: no job title, no clause about the reader.');
-  lines.push('');
-  lines.push('LENGTH. One job: one sentence, two short ones at the very most. Two');
-  lines.push('jobs: two or three short sentences. Never a paragraph, never a list.');
-  lines.push('');
-  lines.push('IT MUST BE WRONG FOR THE SHOP DOWN THE ROAD. Say only what their own');
-  lines.push('pages support — but inference is not invention. What a business like');
-  lines.push('this plainly does is fair game and their pages need not announce it.');
-  lines.push('What is forbidden is a claim their pages contradict, or one that would');
-  lines.push('be equally true of any business anywhere. Never promise or count hours,');
-  lines.push('and never name a time or money figure their pages do not carry.');
+  lines.push('How the passage must read:');
+  lines.push('- Say it the way you would say it out loud to them, across a counter.');
+  lines.push('- Plain, short, everyday words. It names a real job somebody actually does.');
+  lines.push('- Where it is true, put it on THEM: "that comes back to you", "somebody has');
+  lines.push('  to", "you are the one who". A named person doing a real task beats a');
+  lines.push('  described process every time.');
+  lines.push('- One job: one sentence, two short ones at the very most. Two jobs: two or');
+  lines.push('  three short sentences. Never a paragraph, never a list.');
+  lines.push('- No marketing words: never "leverage", "streamline", "solutions", "optimize", "seamless". No flattery of any kind. No exclamation mark. No question. No dashes.');
+  lines.push('- Nothing stiff or official. Never "must manage", "are required to", "it is');
+  lines.push('  necessary to", "ensuring", "in order to", "utilise", "individuals",');
+  lines.push('  "personnel", "requests are handled". If it reads like a form, rewrite it.');
+  lines.push('- Never name or address the reader\'s job title, and never add a clause about who the reader is.');
+  lines.push('- Say only what their own pages support. Inference is not invention:');
+  lines.push('  what a business like this plainly does is fair, and their pages need');
+  lines.push('  not announce it. What is forbidden is a claim their pages contradict,');
+  lines.push('  or one that would be equally true of any business anywhere.');
+  lines.push('- The passage must be wrong for the shop down the road: it is about THIS business alone.');
+  lines.push('- Never promise or count hours saved, and never name a time or money figure their own pages do not carry.');
+  lines.push('- Never scold, never imply they are behind, never suggest they are doing it');
+  lines.push('  wrong. It is a fact about their week, said kindly, not a criticism.');
   lines.push('');
   const runs = (Array.isArray(e.theyRun) ? e.theyRun : []).filter((r) => r && r.name);
   if (runs.length) {
@@ -1345,12 +1089,7 @@ function groundingPage(quote, pages, url = null) {
 // each is twelve, and eight cut the walk off after the second area. Sixteen
 // buys the whole walk with headroom. Almost every business finishes in three
 // or four; the ceiling only bites on the stubborn ones.
-//
-// RAISED AGAIN TO TWENTY (2026-09-03) when the judge was added: every
-// sentence now costs one more round to be read back cold, and four pairings
-// at two writes and two judgings each is sixteen on top of the four the
-// finding and recurrence stages take.
-const MOST_ROUNDS_PER_BUSINESS = 20;
+const MOST_ROUNDS_PER_BUSINESS = 16;
 
 // AND A CEILING ON HOW MANY AREAS ARE WALKED. Every qualifying area gets its
 // turn, but a business that found a dozen does not get a dozen goes — the
@@ -1554,7 +1293,6 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     rejected = null;
     let refusal = null;
     let wrote = null;
-    let judged = null;
     let stumbled = 0;
     for (let go = 0; go < attempts; go++) {
       const res = await ask(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
@@ -1609,50 +1347,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       // reason is kept against the area that was refused, and only when every
       // area has been refused does the trade sentence stand.
       const offers = offersWhatTheyHave(sentence, mine, (evidence && evidence.theyRun) || []);
-      if (!offers.ok) {
-        // The word-match raised a suspicion. Whether the tool they have
-        // GENUINELY does that job is a question of meaning, so it goes to the
-        // reader before a good area is thrown away over a shared word.
-        let reallyDoes = true;
-        if (offers.suspect) {
-          const t = offers.suspect;
-          const said = await ask(promptToCheckOverlap(t.toolName, t.does, t.job));
-          if (said && said.answer && said.answer.alreadyDoes === false) {
-            reallyDoes = false;
-          }
-        }
-        if (reallyDoes) { refusal = offers.why; break; }
-        // IT DOES NOT COVER THE WORK, SO THE SENTENCE STANDS (2026-09-03).
-        //
-        // This used to send the sentence back to be written again, which
-        // spent both of the business's attempts on a sentence that had
-        // nothing wrong with it, and Obsidian Real Estate lost a passage it
-        // had passed with hours earlier. A tool that does not do the job is
-        // not a reason to change a word.
-      }
-      // IS ANYTHING IN IT ONLY THEIRS? Checked here, not judged. Measured
-      // 2026-09-03: only 17% of sentences carried anything specific to that
-      // business, and every sentence Russ called good had one while every one
-      // he rejected had none. Demanding it in words did not move it; the
-      // stranger who reads it cold cannot see their website and was turning
-      // DOWN six real town names as generic. So it is a lookup against their
-      // own pages, and it is not optional.
-      // Only asked of a business whose pages actually offer something to
-      // use. A site carrying no names and no numbers at all cannot satisfy
-      // it, and blocking on the impossible would cost that business its
-      // sentence for a fault that is not the writer's.
-      const theyOffer = theirOwnWords(pages).size > 0;
-      const mine2 = theyOffer ? onlyTheirs(sentence, pages) : ['(their pages name nothing)'];
-      if (!mine2.length) {
-        rejected = {
-          sentence,
-          why: 'nothing in it is only theirs — this would read the same sent to their '
-            + 'competitor down the road. Their own pages are above: use a place they '
-            + 'name, a brand or system they list, a service on their menu, or a number '
-            + 'they publish, and put it IN the sentence',
-        };
-        continue;
-      }
+      if (!offers.ok) { refusal = offers.why; break; }
       const named = namesAPerson(sentence, evidence.people, evidence.name);
       if (named) {
         rejected = {
@@ -1666,24 +1361,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       if (a.sure !== undefined && a.sure !== null && Number(a.sure) < 0.6) {
         return { couldNotTell: 'the reader was not sure enough of it', areas };
       }
-      // THE JUDGE. Every check above is a ban; this one asks whether the
-      // sentence did its job. A cold reader, given only the sentence and the
-      // trade, says whether it sounds like somebody who has sat in that
-      // chair. Its verdict is not a rejection of the WORK — the work is
-      // fine — so a failure sends the same work back to be said better,
-      // in the judge's own words.
-      const verdict = await ask(promptToJudge(sentence, evidence.trade, roleTitle));
-      if (verdict && verdict.answer && verdict.answer.passes === false) {
-        judged = { sentence, why: String(verdict.answer.why || 'it would not make me stop reading') };
-        rejected = {
-          sentence,
-          why: `a person in that trade read it cold and said: ${judged.why}. `
-            + 'Say the same work again so it lands: somebody real, their time, and what '
-            + 'it takes out of them',
-        };
-        continue;
-      }
-      wrote = { sentence, sure: a.sure, judged: verdict && verdict.answer ? verdict.answer.why : null };
+      wrote = { sentence, sure: a.sure };
       break;
     }
     if (wrote) {
@@ -1695,7 +1373,6 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         url: mine[0].url,
         quote: mine[0].quote,
         confidence: wrote.sure === undefined || wrote.sure === null ? null : Number(wrote.sure),
-        judgedWhy: wrote.judged || null,
         angle,
       };
     }
@@ -1704,9 +1381,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     // finished. The reason lands on the areas — kept forever with them — and
     // the next-ranked qualifying area gets its turn.
     const why = refusal
-      || (judged
-        ? `a person in that trade read it cold and it did not land: ${judged.why}`
-        : `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`);
+      || `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`;
     for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = why; }
     refusals.push(`"${mine.map((c) => c.job).join('" and "')}" did not stand (${why}).`);
     pool = pool.filter((x) => !mine.includes(x));
@@ -1720,240 +1395,6 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
       + ` — ${refusals.join(' ')}`,
     areas,
   };
-}
-
-
-// DOES THAT TOOL ACTUALLY DO THAT JOB? (Russ, 2026-09-03.)
-//
-// Asked only when the word-match above has raised a suspicion, so it costs
-// nothing on the businesses where nothing clashes. The reader is given the
-// tool, what it plainly does, and the job — and nothing else. It is a
-// question about the real world, not about this letter.
-function promptToCheckOverlap(toolName, does, job) {
-  return [
-    'A small business visibly uses this on their own website:',
-    '',
-    `  ${toolName}${does ? ` — ${does}` : ''}`,
-    '',
-    'Somebody wants to offer to take this job off them:',
-    '',
-    `  ${job}`,
-    '',
-    'One question. Does the tool they already have ACTUALLY do that job, so',
-    'that offering it would be offering them something they have?',
-    '',
-    'Think about what the tool really does, not what it sounds like. A portal',
-    'where customers submit routine requests does not answer the telephone. An',
-    'online booking page does not chase the people who did not turn up. A',
-    'contact form does not follow anything up. Tools cover the part they cover',
-    'and no more, and the work either side of them is still somebody\'s job.',
-    '',
-    'Answer with JSON only:',
-    '{"alreadyDoes":true or false,"why":"one short sentence"}',
-    '',
-    'Say true only when the tool plainly and fully does that job. Where it does',
-    'part of it and a person still does the rest, say false.',
-  ].join('\n');
-}
-
-
-// IS ANYTHING IN THIS SENTENCE ONLY THEIRS? (Russ, 2026-09-03.)
-//
-// Measured across every sentence ever written for these businesses: the ones
-// that say what the work COSTS went from 43% to 70% once that was demanded.
-// The ones naming something only that business has went from 10% to 17%. One
-// in six. Every sentence Russ called good has one — Terrebonne, Prineville,
-// GreenSky, La Pine, the Apply Now button, notary and mailbox slots — and
-// every one he rejected has none.
-//
-// Demanding it in words did not work, and the stranger who reads the sentence
-// cold CANNOT judge it: shown six real town names it said "what every broker
-// does", because it has no way to know those towns are real. It was rejecting
-// the very thing it should reward.
-//
-// So it is checked here instead, mechanically and unarguably: does the
-// sentence carry a distinctive word or number that appears on their own
-// pages? Not a judgement — a lookup. Common words are ignored, so "calls"
-// and "appointments" prove nothing; "Terrebonne", "GreenSky" and "200" do.
-
-// Words too common to prove anything, however true. Kept deliberately short:
-// anything a business of any trade would say about its own week.
-const NOT_DISTINCTIVE = new Set(`
-the a an and or but of to in on at for with from by is are was were be been
-you your yours they their them we our us it its this that these those
-i he she him her his hers who whom whose which what when where why how
-all any both each few more most other some such no nor not only own same
-so than too very can will just should now then there here
-day days week weeks month months year years time times hour hours morning
-call calls calling called phone phones email emails message messages text
-book books booking bookings booked appointment appointments schedule
-scheduling scheduled reschedule rescheduling customer customers client
-clients people person somebody someone work works working job jobs
-service services request requests form forms order orders quote quotes
-invoice invoices payment payments follow following up back over again
-every each same still comes come coming lands land landing takes take
-taking gets get getting keeps keep keeping does do doing done make makes
-making need needs needed want wants new one two three four five
-business businesses office offices team teams staff shop shops company
-across through around before after during between within without into onto
-another others already always never usually often sometimes something
-someone anything everything nothing anyone everyone whether because
-though although however therefore instead rather really simply actually
-please thanks thank welcome contact about below above right left
-online offline website websites number numbers detail details
-information provide provided providing provider offer offers offering
-include includes including available availability options option
-process processes handle handles handling manage manages managing
-schedule schedules support supports supporting help helps helping
-answer answers answering complete completed together throughout
-whatever whenever wherever whoever however anywhere everywhere nowhere
-yourself myself ourselves themselves himself herself itself
-getting having making taking coming going looking seeing knowing
-little enough almost mostly nearly hardly barely quite pretty
-`.trim().split(/\s+/));
-
-/// Every distinctive word and number this business's own pages carry.
-function theirOwnWords(pages) {
-  const seen = new Set();
-  for (const p of pages || []) {
-    const text = String((p && p.text) || '');
-    // Numbers they publish: 200 units, 24 hours, 1998.
-    for (const n of text.match(/\b\d[\d,]*\+?\b/g) || []) {
-      const bare = n.replace(/[,+]/g, '');
-      if (bare.length >= 2) seen.add(bare);
-    }
-    // NAMES, not merely uncommon words. "across" and "through" appear on
-    // every page ever written and prove nothing; Terrebonne, GreenSky and
-    // Redmond are theirs. So a word counts where their own pages use it as a
-    // NAME — capitalised somewhere other than the start of a sentence.
-    for (const m of text.matchAll(/([^.!?\n]\s+)([A-Z][A-Za-z'-]{2,})/g)) {
-      const w = m[2];
-      const low = w.toLowerCase();
-      if (NOT_DISTINCTIVE.has(low)) continue;
-      seen.add(low);
-    }
-    // AND THE PARTICULAR THINGS THEY SELL, which are usually lowercase:
-    // notary, mailbox, backflow, radioiodine, escrow, organizer. Every good
-    // sentence Russ picked out carries one. Six letters or more, and never a
-    // word any business would use about any week.
-    for (const w of text.match(/\b[a-z][a-z'-]{5,}\b/g) || []) {
-      if (NOT_DISTINCTIVE.has(w)) continue;
-      seen.add(w);
-    }
-  }
-  return seen;
-}
-
-/// What in this sentence is only theirs, drawn from their own pages. An empty
-/// list means the sentence would read the same to their competitor.
-function onlyTheirs(sentence, pages) {
-  const theirs = theirOwnWords(pages);
-  const found = [];
-  const text = String(sentence || '');
-  for (const n of text.match(/\b\d[\d,]*\+?\b/g) || []) {
-    const bare = n.replace(/[,+]/g, '');
-    if (bare.length >= 2 && theirs.has(bare)) found.push(n);
-  }
-  for (const w of text.match(/\b[A-Za-z][A-Za-z'-]{2,}\b/g) || []) {
-    const low = w.toLowerCase();
-    if (NOT_DISTINCTIVE.has(low)) continue;
-    if (theirs.has(low)) found.push(w);
-  }
-  return [...new Set(found)];
-}
-
-// ---------------------------------------------------------------------------
-// THE JUDGE (Russ, 2026-09-03).
-//
-// Every check before this one is a BAN: no dashes, no hours, no naming a
-// person, no offering what they already run. Twelve of them, each added the
-// day Russ caught something. And a sentence can pass all twelve and still be
-// worthless — "the intake repeats, but nothing else does" broke no rule and
-// landed nothing, because no check ever asked whether the sentence did its
-// job.
-//
-// So this one asks. It is deliberately given ONLY the finished sentence and
-// the trade — never the instructions it was written under, never the pages it
-// was drawn from, never the reasoning that produced it. It reads the way the
-// recipient reads: cold, in an inbox, with no context and no patience.
-//
-// One question, and it is the whole purpose of the letter: does this sound
-// like somebody who has sat in my chair, or somebody who read my website?
-//
-// This is the only check that can catch a fault nobody has thought of yet,
-// which is every fault Russ has had to find himself.
-
-function promptToJudge(sentence, trade, roleTitle = null) {
-  const who = roleTitle ? `You are the ${roleTitle}.` : 'You run the place.';
-  return [
-    `You work at a small ${said(trade)} business. ${who} You are busy.`,
-    '',
-    'A cold email arrives from a stranger. This is its opening:',
-    '',
-    `  "${sentence}"`,
-    '',
-    'You have no idea who sent it and no reason to care. Answer honestly, as',
-    'yourself, reading it for the first time:',
-    '',
-    'Does this sound like somebody who has actually DONE this job and sat in a',
-    'place like yours? Or like somebody who skimmed your website an hour ago?',
-    '',
-    'Two things have to be true. Check them one at a time, in order.',
-    '',
-    'ONE: does it name something real about your week? Something specific to',
-    'you, not to your trade in general. You should half-wonder how they knew.',
-    '',
-    'Assume the specifics are real. If it names a town, a brand or a number,',
-    'somebody has checked those against their website already. You are judging',
-    'whether it LANDS, not whether it is true.',
-    '',
-    'TWO: does it say what that work COSTS? Not that it happens — you know it',
-    'happens. What it takes: somebody\'s whole day, the same thing over and',
-    'over, the second time you have typed it, the good work waiting while this',
-    'gets done. A sentence that names a person DOING something has still only',
-    'told you what you do. The cost has to be IN the words, not left for you',
-    'to work out.',
-    '',
-    '  "Somebody types out every application that comes in." — FAILS. Yes. And?',
-    '  "Somebody types out every application, and it is the same eight boxes',
-    '   every time." — passes. Now you know what it takes.',
-    '',
-    'If you cannot point at the words that say what it costs, it fails. Not',
-    'implied, not obvious to you: in the sentence.',
-    '',
-    'THREE: is this something that could actually be taken off you? Imagine',
-    'you gave them the fifteen minutes. Is the work they named the kind of',
-    'thing software or a bit of automation could plainly carry — the repeating,',
-    'predictable, same-shape-every-time part? Or is it the judgement, the',
-    'skill, the thing only a person can do?',
-    '',
-    'Nobody wants fifteen minutes about the part that cannot be helped. If the',
-    'sentence names real pain that nothing could lift, it fails: it is true and',
-    'it is useless.',
-    '',
-    'It fails when any of these is true:',
-    '- You cannot point at what the work costs. IT MUST SAY.',
-    '- The work named is judgement or skill, not the repeating part around it.',
-    '- It describes a process with nobody in it, and nothing being lost.',
-    '- It only says what you do. You know what you do. So what.',
-    // NOT asked whether it is specific enough. It cannot tell: shown six real
-    // town names off a business's own pages it said "what every broker does".
-    // Whether anything in the sentence is only theirs is checked against
-    // their pages in code, where it can actually be known (2026-09-03).
-
-    '- It hedges its own point, or talks itself back down after making it.',
-    '- It reads like a consultant, a brochure, or a form.',
-    '- It gets something about your work plainly wrong.',
-    '- It knows something you never published. A stranger who has read your',
-    '  website is fine. A stranger who seems to have been looking INTO you is',
-    '  not, and you would not reply to that one.',
-    '',
-    'Answer with JSON only:',
-    '{"passes":true or false,"why":"one short sentence in your own words"}',
-    '',
-    'Be honest rather than kind. A sentence that would not make you stop is a',
-    'sentence that fails.',
-  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -2094,11 +1535,11 @@ async function noticingFor(db, prospectId) {
 module.exports = {
   READER, READER_VERSION, MODEL,
   angleFor, ANGLES, passable, normalise, pickPages, pageScore,
-  promptToFind, promptForRecurrence, promptToWrite, promptToJudge, promptToCheckOverlap,
+  promptToFind, promptForRecurrence, promptToWrite,
   groundingPage, askForNoticing, gatherEvidence, noticeOneBusiness,
   recordNoticing, noticingFor,
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
   tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
   CLAIMS_HOURS, VISIBLE_TO,
-  notAJob, namesAPerson, onlyTheirs, theirOwnWords,
+  notAJob, namesAPerson,
 };
