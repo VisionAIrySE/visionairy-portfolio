@@ -175,10 +175,54 @@ async function spreadOffer(message, prospect) {
   if (!written) return null;
   const found = SPREAD.whatHeChanged(written.body, message.body);
   if (!found) return null;
+  // A REORDER IS AN INSTRUCTION ABOUT THE LETTER, NOT A LINE ABOUT ONE READER,
+  // so it carries no risk of a private note reaching strangers and is offered
+  // as it is. A rewording is still checked for naming the business or person.
+  if (found.kind === 'order') return found;
+  if (found.kind === 'cannot_tell') return found;
   if (SPREAD.looksPersonal(found.now, resolveField(prospect, 'name'), prospect.contactName || prospect.ownerName)) return null;
   const already = await db.voiceWording.findFirst({ where: { slot: found.slot, wording: found.now, retiredAt: null } });
   if (already) return null;
   return found;
+}
+
+// WHAT THE PAGE SAYS ABOUT AN EDIT (2026-09-03).
+//
+// Three things can be true, and one of them used to be silence. Russ rewrote
+// twenty-three letters believing his changes were spreading; not one offer was
+// ever made, because a letter saved from the browser came back as a single
+// paragraph and nothing could be compared. Now it always says something.
+function spreadCard(messageId, found) {
+  const box = (colour, edge, inner) => `<div class="card" style="background:${colour};border-color:${edge};margin:8px 0">${inner}</div>`;
+
+  if (found.kind === 'cannot_tell') {
+    return box('#fef3c7', '#d97706',
+      `<b>You changed this letter and I cannot work out what to spread.</b>
+       <p class="muted" style="margin:6px 0">${esc(found.why)}. Your letter is saved exactly as you wrote it; nothing else has changed.</p>`);
+  }
+
+  if (found.kind === 'order') {
+    const say = (list) => list.map((sl) => SLOT_NAMES[sl] || sl).join(' → ');
+    const lost = (found.dropped || []).map((sl) => SLOT_NAMES[sl] || sl);
+    return box('#e0f2fe', '#0284c7',
+      `<b>You put the paragraphs in a different order.</b>
+       <p class="muted" style="margin:6px 0">The letter is written: ${esc(say(found.was))}</p>
+       <p style="margin:6px 0">You want: ${esc(say(found.now))}</p>
+       ${lost.length ? `<p class="muted" style="margin:6px 0">and you took out: ${esc(lost.join(', '))}</p>` : ''}
+       <form method="POST" action="/spread/${messageId}"
+         onsubmit="return confirm('Write every future letter in this order?')">
+         <button class="primary">Write every letter this way</button>
+         <span class="muted"> &mdash; it changes the order for everybody, not the words.</span></form>`);
+  }
+
+  return box('#e0f2fe', '#0284c7',
+    `<b>You rewrote ${esc(SLOT_NAMES[found.slot] || 'a line every message uses')}.</b>
+     <p class="muted" style="margin:6px 0">Was: ${esc(String(found.was).slice(0, 150))}${String(found.was).length > 150 ? '…' : ''}</p>
+     <p style="margin:6px 0">Yours: ${esc(found.now)}</p>
+     <form method="POST" action="/spread/${messageId}"
+       onsubmit="return confirm('Use your version everywhere? It joins the other ways of saying that line, so no two businesses get the same letter.')">
+       <button class="primary">Use this everywhere</button>
+       <span class="muted"> &mdash; it joins the other wordings of that line rather than replacing them.</span></form>`);
 }
 
 const SLOT_NAMES = {
@@ -668,12 +712,30 @@ async function emailScreen(params) {
       some: { field: 'noticing', retiredAt: null, value: { not: null }, status: { not: 'could_not_tell' } },
     },
   };
+  // READ RIGHT THROUGH (Russ, 2026-09-03: "the filter should show everything
+  // read with messages written from these latest full reads").
+  //
+  // The test is behaviour, never a date or a batch name — both lie after a
+  // re-run. A business qualifies when a live reading of their WEBSITE came
+  // back read AND holds at least one page with words in it. The words are the
+  // test, not the stamp: six businesses carried a read date and held nothing,
+  // and the stamp said they were done.
+  const WAS_READ_RIGHT_THROUGH = {
+    readings: {
+      some: {
+        source: 'website',
+        outcome: 'read',
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      },
+    },
+  };
   const orderKey = `${onlyTrade}|${floor}|${review}`;
   const prospectWhere = { doNotContact: false, repliedAt: null };
   if (onlyTrade) prospectWhere.trade = onlyTrade;
   if (floor > 0) prospectWhere.automationScore = { gte: floor };
   if (review === 'personal') Object.assign(prospectWhere, HAS_ITS_OWN_LINE);
   if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
+  if (review === 'readthrough') Object.assign(prospectWhere, WAS_READ_RIGHT_THROUGH);
 
   const [left, ready, sent, batch] = await Promise.all([
     L.emailsLeftToday(db, weeks),
@@ -817,6 +879,7 @@ async function emailScreen(params) {
   <form method="GET" action="/email" class="row" style="margin:8px 0 14px">
     <select name="review" style="width:auto">
       <option value=""${review ? '' : ' selected'}>every message</option>
+      <option value="readthrough"${review === 'readthrough' ? ' selected' : ''}>read right through — their whole site is on file</option>
       <option value="personal"${review === 'personal' ? ' selected' : ''}>ready to review — opens on their own website</option>
       <option value="trade"${review === 'trade' ? ' selected' : ''}>still opens on the trade sentence</option>
     </select>
@@ -832,6 +895,7 @@ async function emailScreen(params) {
     <a class="btn" href="/email?rerank=1${onlyTrade ? `&trade=${encodeURIComponent(onlyTrade)}` : ''}${floor ? `&floor=${floor}` : ''}${review ? `&review=${review}` : ''}">Re-rank</a>
   </form>
   ${review === 'personal' ? `<p class="mini">${matching} of ${waitingTotal} open on a sentence written from their own website — what they do, in their words. The rest open on the sentence written for their trade.</p>` : ''}
+  ${review === 'readthrough' ? `<p class="mini">${matching} of ${waitingTotal} have had their whole website read and their words kept — every one of these is written from what the business actually says about itself.</p>` : ''}
   ${review === 'trade' ? '<p class="mini">These still open on the sentence written for their whole trade. Nothing is wrong with them — their website simply had not been read closely enough yet to say something only about them.</p>' : ''}
   <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
   <!-- Tick the ones to go out, then one button at the bottom. A button under
@@ -1284,15 +1348,7 @@ async function businessCard(id, saved) {
   ${p.messages.length ? p.messages.map((m) => `<div class="card">
     <div class="row"><div><b>${m.lane === 'EMAIL' ? 'Email' : 'LinkedIn note'}</b>
       <span class="muted">${esc(m.state)}${m.editedAt ? ' · you rewrote this' : ''}${m.openedWith ? ` · opens on: ${esc(m.openedWith)}` : ''}</span></div></div>
-    ${offers[m.id] ? `<div class="card" style="background:#e0f2fe;border-color:#0284c7;margin:8px 0">
-      <b>You rewrote ${esc(SLOT_NAMES[offers[m.id].slot] || 'a line every message uses')}.</b>
-      <p class="muted" style="margin:6px 0">Was: ${esc(offers[m.id].was.slice(0, 150))}${offers[m.id].was.length > 150 ? '…' : ''}</p>
-      <p style="margin:6px 0">Yours: ${esc(offers[m.id].now)}</p>
-      <form method="POST" action="/spread/${m.id}"
-        onsubmit="return confirm('Use your version everywhere? It joins the other ways of saying that line, so no two businesses get the same letter.')">
-        <button class="primary">Use this everywhere</button>
-        <span class="muted"> — it joins the other wordings of that line rather than replacing them.</span></form>
-    </div>` : ''}
+    ${offers[m.id] ? spreadCard(m.id, offers[m.id]) : ''}
     ${m.lane === 'EMAIL' ? `<input name="m.${m.id}.subject" value="${esc(m.subject || '')}" style="font-weight:600">` : ''}
     <textarea name="m.${m.id}.body" rows="${m.lane === 'EMAIL' ? 14 : 8}" style="margin-top:6px">${esc(m.body)}</textarea>
   </div>`).join('') : '<p class="muted">Nothing written for them yet.</p>'}
@@ -1996,11 +2052,28 @@ const server = http.createServer(async (req, res) => {
       if (route === 'spread' && id) {
         const m = await db.outreachMessage.findUnique({ where: { id }, include: { prospect: true } });
         const found = m ? await spreadOffer(m, m.prospect) : null;
-        if (found) {
-          await db.voiceWording.create({
-            data: { slot: found.slot, wording: found.now, fromBusiness: resolveField(m.prospect, 'name') },
-          });
+        if (found && found.kind !== 'cannot_tell') {
           const C = require('../../src/hoursback/crm/campaign.js');
+          // AN ORDER IS SAVED THE SAME WAY A WORDING IS: one row, under the
+          // name of the thing it changes. It REPLACES the order rather than
+          // joining a list of alternatives, because a letter has one shape.
+          if (found.kind === 'order') {
+            await db.voiceWording.updateMany({
+              where: { slot: C.LETTER_ORDER_SLOT, retiredAt: null },
+              data: { retiredAt: new Date() },
+            });
+            await db.voiceWording.create({
+              data: {
+                slot: C.LETTER_ORDER_SLOT,
+                wording: found.now.join(' '),
+                fromBusiness: resolveField(m.prospect, 'name'),
+              },
+            });
+          } else {
+            await db.voiceWording.create({
+              data: { slot: found.slot, wording: found.now, fromBusiness: resolveField(m.prospect, 'name') },
+            });
+          }
           await C.loadHisWordings(db);
           rewriteEverythingInBackground();
         }

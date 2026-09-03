@@ -16,8 +16,17 @@
 
 const CAMPAIGN = require('./campaign.js');
 
+// A LETTER SAVED FROM THE BROWSER ARRIVES WITH WINDOWS LINE ENDINGS.
+//
+// This split on \n\n only. A textarea posts \r\n\r\n between paragraphs, so
+// every letter Russ edited on screen came back as ONE paragraph, the comparison
+// below had nothing to compare, and the offer to spread his wording was never
+// made once in twenty-three edits. He believed it was working the whole time.
+//
+// So the split accepts either ending, and any blank line between paragraphs.
 const paragraphsOf = (body) => String(body || '')
-  .split(/\n\n+/)
+  .replace(/\r\n/g, '\n')
+  .split(/\n[ \t]*\n+/)
   .map((p) => p.trim())
   .filter(Boolean);
 
@@ -38,25 +47,66 @@ function slotOf(paragraph) {
   return null;
 }
 
-// What changed between the message as written and the message as he saved it.
-// Returns null when nothing maps onto a known sentence — a one-off edit about
-// that business alone, which must never spread.
+/// The order of the message's known sentences, as a list of slot names. An
+/// unrecognised paragraph (the greeting, the sign-off, a line he wrote from
+/// scratch) is not part of the order and is left out.
+function orderOf(body) {
+  return paragraphsOf(body).map(slotOf).filter(Boolean);
+}
+
+// WHAT HE CHANGED, AND SAYING SO WHEN IT CANNOT BE TOLD.
+//
+// Three answers, never a silent nothing:
+//
+//   wording      one known sentence swapped for different words. His wording
+//                can become everybody's.
+//   order        the same sentences, in a different sequence. That is an
+//                instruction about how the letter is built, and it is the edit
+//                he actually made twenty-three times while this file noticed
+//                none of them.
+//   cannot_tell  something else. Said out loud, with what it saw, because
+//                silence is what let him believe it was working.
+//
+// Nothing moves until he says yes. That has not changed.
 function whatHeChanged(generatedBody, editedBody) {
   const was = paragraphsOf(generatedBody);
   const now = paragraphsOf(editedBody);
   const gone = was.filter((p) => !now.includes(p));
   const fresh = now.filter((p) => !was.includes(p));
 
-  // More than one paragraph moved, or none did: too uncertain to offer.
-  if (gone.length !== 1 || fresh.length !== 1) return null;
+  // ONE SENTENCE REWRITTEN.
+  if (gone.length === 1 && fresh.length === 1) {
+    const slot = slotOf(gone[0]);
+    if (slot) return { kind: 'wording', slot, was: gone[0], now: fresh[0] };
+  }
 
-  const slot = slotOf(gone[0]);
-  if (!slot) return null;
+  // THE SAME SENTENCES, MOVED. Judged on the slots, not the words, so a
+  // reorder is still recognised when he also reworded a line inside it.
+  const wasOrder = orderOf(generatedBody);
+  const nowOrder = orderOf(editedBody);
+  const sameSet = wasOrder.length === nowOrder.length
+    && [...wasOrder].sort().join() === [...nowOrder].sort().join();
+  if (sameSet && wasOrder.join() !== nowOrder.join()) {
+    return { kind: 'order', was: wasOrder, now: nowOrder };
+  }
 
-  // A paragraph naming this business by name is about them, not about the
-  // wording. Offering to send it to 869 strangers is exactly the harm this
-  // whole check exists to prevent — so it is never offered.
-  return { slot, was: gone[0], now: fresh[0] };
+  // A SENTENCE DROPPED, OR ONE ADDED, alongside a move. Still an order change
+  // worth offering, but it is named for what it is.
+  if (wasOrder.length && nowOrder.length && wasOrder.join() !== nowOrder.join()) {
+    const dropped = wasOrder.filter((x) => !nowOrder.includes(x));
+    const added = nowOrder.filter((x) => !wasOrder.includes(x));
+    return {
+      kind: 'order', was: wasOrder, now: nowOrder, dropped, added,
+    };
+  }
+
+  return {
+    kind: 'cannot_tell',
+    why: gone.length === 0 && fresh.length === 0
+      ? 'nothing in this letter differs from what would be written now'
+      : `${gone.length} paragraph${gone.length === 1 ? '' : 's'} changed and `
+        + `${fresh.length} took their place, which does not map onto one sentence`,
+  };
 }
 
 // A wording that mentions a specific business, a person's name, or a place is
@@ -69,4 +119,4 @@ function looksPersonal(wording, businessName, personName) {
   return false;
 }
 
-module.exports = { paragraphsOf, slotOf, whatHeChanged, looksPersonal };
+module.exports = { paragraphsOf, slotOf, orderOf, whatHeChanged, looksPersonal };
