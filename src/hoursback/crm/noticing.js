@@ -657,7 +657,20 @@ function promptToFind(evidence, rejected = null) {
   lines.push('be written about. If you hand up the wrong work, no sentence can save');
   lines.push('it, and this business is wasted.');
   lines.push('');
-  lines.push('WHAT MAKES WORK WORTH NAMING. All four, or it does not qualify.');
+  // FIND EVERYTHING, THEN RANK IT (Russ, 2026-09-03, and measured).
+  //
+  // The version running at 8pm said "find EVERY type of work this business
+  // plainly does — one, two, three, four or more" and averaged 6.4 areas a
+  // business, with 64% getting a sentence, the best rate of the night. Adding
+  // four bars to clear and "silence is a better answer than a generic pick"
+  // turned hunting into refusing: the average fell to 2.0 and businesses with
+  // 108 and 167 usable things on their pages came back with nothing.
+  //
+  // Fewer areas means fewer chances, and the checks further down already turn
+  // away anything weak. So this is what makes an area STRONG, for ranking —
+  // never a gate that stops it being named.
+  lines.push('WHAT MAKES AN AREA STRONG. Name everything you find; these decide');
+  lines.push('which ones lead. An area weak on one of them still goes on the list.');
   lines.push('');
   lines.push('1. SOFTWARE COULD ACTUALLY TAKE IT. It repeats, the same shape every');
   lines.push('   time, many times a week. It is never the judgement, the skill, the');
@@ -719,11 +732,15 @@ function promptToFind(evidence, rejected = null) {
   lines.push('business owner reading this be glad someone looked, or unsettled that');
   lines.push('they looked that hard?');
   lines.push('');
-  lines.push('SILENCE IS A REAL ANSWER AND A BETTER ONE THAN A GENERIC PICK. A');
-  lines.push('business whose pages will not support anything specific keeps the');
-  lines.push('sentence written for its whole trade, which is true and safe. Say');
-  lines.push('cannotTell and move on. A generic area wastes the one chance this');
-  lines.push('business gets.');
+  lines.push('NAME EVERYTHING, THEN LET THE RANKING DECIDE. Four to six areas is');
+  lines.push('normal for a real business with a real website. Two is usually a sign');
+  lines.push('you stopped looking, not that they only have two. Every area you leave');
+  lines.push('out is a chance this business does not get, because the strongest one');
+  lines.push('might be the fifth thing you would have thought of.');
+  lines.push('');
+  lines.push('Say cannotTell only when their pages genuinely show no repeating');
+  lines.push('office work at all — which is rare, and never merely because nothing');
+  lines.push('looked outstanding.');
   lines.push('');
   lines.push(...businessBlock(e));
   lines.push('');

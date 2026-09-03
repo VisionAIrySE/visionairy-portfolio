@@ -1214,7 +1214,16 @@ test('the finding prompt states the bar before a single area is named', () => {
   assert.match(p, /fifteen minutes/);
   assert.match(p, /sells nothing and names no price/);
   // all four bars, stated
-  assert.match(p, /WHAT MAKES WORK WORTH NAMING/);
+  assert.match(p, /WHAT MAKES AN AREA STRONG/);
+  // FIND EVERYTHING, THEN RANK IT (2026-09-03). The four bars started life as
+  // a gate — "all four, or it does not qualify" — and the average areas found
+  // per business fell from 6.4 to 2.0, with businesses holding 108 and 167
+  // usable things on their pages coming back with nothing. They rank; they
+  // never stop an area being named.
+  assert.match(p, /Name everything you find/);
+  assert.match(p, /still goes on the list/);
+  assert.match(p, /Four to six areas is/);
+  assert.match(p, /stopped looking/);
   assert.match(p, /SOFTWARE COULD ACTUALLY TAKE IT/);
   assert.match(p, /IT COSTS SOMEBODY SOMETHING YOU CAN NAME/);
   assert.match(p, /IT IS THEIRS, NOT THEIR TRADE/);
@@ -1228,7 +1237,8 @@ test('the finding prompt states the bar before a single area is named', () => {
   assert.match(p, /choosing the right carrier/);
   assert.match(p, /every broker in the country/);
   // and silence is offered as the honest alternative to a generic pick
-  assert.match(p, /SILENCE IS A REAL ANSWER/);
+  assert.match(p, /cannotTell only when their pages genuinely show no repeating/);
+  assert.match(p, /never merely because nothing/);
   // the whole brief comes BEFORE the menu of work types, not after
   assert.ok(p.indexOf('WHAT THIS IS FOR') < p.indexOf('THE MENU'));
 });
