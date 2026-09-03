@@ -186,8 +186,17 @@ function kindsOf(text) {
 // never a real job whose words brush past one of these subjects.
 
 const NEVER_A_JOB = [
-  ['a language offered', /\b(se habla|hablamos|we speak)\b|\bespa[ñn]ol\b|\b(bilingual|spanish)[- ]?(spoken|speaking staff)\b/i],
-  ['an accreditation', /\b(accredit\w+|better business bureau|bbb|certifi(?:ed|cation)s?)\b/i],
+  // Offering or speaking a language is a fact about the business. TRANSLATING
+  // into one is real work, and is deliberately left alone.
+  ['a language offered', /\b(se habla|hablamos|we speak)\b|\bespa[ñn]ol\b|\bbilingual\b|\b(?:speaks?|speaking|offer(?:s|ing)?|available|service|support|help|assistance|staff)\b[^.]{0,24}\b(?:in\s+)?spanish\b|\bspanish[- ]?(?:spoken|speaking)\b/i],
+  // A BADGE IS A CLAIM ABOUT THEMSELVES, NOT A WORD THEY USED (2026-09-02).
+  //
+  // "certification" caught AAA Contracting, whose entire business is issuing
+  // engineered foundation certifications — the word was their product, and a
+  // keyword rule threw it out as a boast. So the pattern now wants the shape
+  // of a claim: accredited, BBB, a certified this-or-that. Issuing, ordering
+  // or delivering certifications is work, and reads as work.
+  ['an accreditation', /\b(accredit\w+|better business bureau|\bbbb\b)|\b(?:we(?:'re| are)|is|are|fully|factory)\s+certified\b|\b(?:[a-z]{2,5}|factory|manufacturer|master|fully)?[- ]?certified\s+(?:dealer|installer|technician|mechanic|contractor|partner|professional|specialist|shop|staff|team|centre|center)s?\b/i],
   ['a licence or registration number', /\b(lic(?:en[cs]ed?)?|ccb|reg(?:istration)?)\b\.?\s*(?:no\.?|number|#)?\s*#?\d{3,}/i],
   ['a slogan', /\b(slogan|motto|tagline)\b/i],
   ['an award', /\b(award\w*|prize|winner|voted best|best of \w+|top[- ]rated|readers'? choice)\b/i],
@@ -195,9 +204,25 @@ const NEVER_A_JOB = [
   ['a payment method accepted', /\b(?:we (?:accept|take)|accept(?:s|ed|ing)?|payments? (?:by|via|in))\b[^.]{0,40}\b(?:visa|mastercard|amex|american express|discover|cash|checks?|credit|debit|apple ?pay|venmo|paypal|financing)\b|\b(?:visa|mastercard|amex|american express|discover|apple ?pay|venmo|paypal)\b[^.]{0,30}\baccepted\b/i],
 ];
 
+// A BADGE OFFERED AS EVIDENCE IS A FRAGMENT; A REAL PASSAGE IS A SENTENCE.
+//
+// The job — the reader's own statement of what the work IS — is always
+// judged. The supporting quote is judged only when it is SHORT, because a
+// short quote is the reader holding up the badge itself ("Se Habla Español",
+// "CCB #204158", "ASE Certified technicians") while a real sentence off a
+// services page is allowed to mention a licence or an award in passing.
+//
+// Judging every quote is what cost AAA Contracting its opening line four
+// times over: their whole business is issuing engineered foundation
+// certifications, and a passage describing that work was thrown out as a
+// boast about the business (2026-09-02).
+const A_BADGE_IS_SHORT = 70;
+
 function notAJob(area) {
-  const text = `${(area && area.job) || ''} ${(area && area.quote) || ''}`;
-  for (const [what, re] of NEVER_A_JOB) if (re.test(text)) return what;
+  const job = String((area && area.job) || '');
+  const quote = String((area && area.quote) || '');
+  const judged = quote.trim().length <= A_BADGE_IS_SHORT ? `${job} ${quote}` : job;
+  for (const [what, re] of NEVER_A_JOB) if (re.test(judged)) return what;
   return null;
 }
 
@@ -419,7 +444,12 @@ const ABOUT_THE_READER = /\bas (the|an?|your) [a-z][a-z ]{0,24}\b(owner|founder|
 // hours figures order the areas internally, and the one thing the library
 // says about them out loud is that an unverified figure (source: null) may
 // never be quoted to a client — so no figure, verified or not, is quoted here.
-const CLAIMS_HOURS = /\b(sav(?:e|es|ed|ing)|free(?:s|d)? up|get(?:s|ting)? back|tak(?:e|es|en|ing) back|win(?:s|ning)? back|giv(?:e|es|ing) (?:you |them )?back)\b[^.]{0,80}?\bhours?\b|\bhours?\b[^.]{0,40}?\b(back|saved|freed)\b/i;
+// WHOEVER IT IS HANDED BACK TO, IT IS STILL A PROMISE (2026-09-02).
+//
+// "gets you back 6 hours a week" walked straight through: the phrase needed
+// the verb and "back" side by side, and the word in between let it past. Any
+// of the usual objects may sit in the middle now.
+const CLAIMS_HOURS = /\b(sav(?:e|es|ed|ing)|free(?:s|d)? up|get(?:s|ting)?|tak(?:e|es|en|ing)|win(?:s|ning)?|giv(?:e|es|ing)|hand(?:s|ed|ing)?|buy(?:s|ing)?)\b(?: (?:you|them|him|her|us|the team|your \w+))? back\b[^.]{0,80}?\bhours?\b|\b(sav(?:e|es|ed|ing)|free(?:s|d)? up)\b[^.]{0,80}?\bhours?\b|\bhours?\b[^.]{0,40}?\b(back|saved|freed)\b/i;
 
 function normalise(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -852,6 +882,7 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
     + 'that passage, or to say it cannot be written.',
   );
   lines.push('');
+
   lines.push(...businessBlock(e));
   lines.push('');
   lines.push(roleTitle
@@ -1031,7 +1062,28 @@ function groundingPage(quote, pages, url = null) {
 // took a quarter of an hour. The stages are all still there; the business just
 // cannot cost more than this many rounds in total. Running out is a real
 // answer — Russ's trade sentence stands and the reason is recorded.
-const MOST_ROUNDS_PER_BUSINESS = 8;
+//
+// RAISED FROM EIGHT TO SIXTEEN (2026-09-02). Eight was set before every area
+// got its turn below, and it was too small for the rule it now has to serve:
+// finding (2) plus the recurrence check (2) plus four pairings at two goes
+// each is twelve, and eight cut the walk off after the second area. Sixteen
+// buys the whole walk with headroom. Almost every business finishes in three
+// or four; the ceiling only bites on the stubborn ones.
+const MOST_ROUNDS_PER_BUSINESS = 16;
+
+// AND A CEILING ON HOW MANY AREAS ARE WALKED. Every qualifying area gets its
+// turn, but a business that found a dozen does not get a dozen goes — the
+// ranking put the hardest-hitting first, and by the fifth pairing the work
+// being offered is no longer the work worth opening on.
+const MOST_PAIRINGS_TRIED = 4;
+
+// AND HOW MANY TIMES THE READER MAY STUMBLE at one stage before we stop
+// asking. A stumble is a reply that could not be read at all — prose where
+// JSON was asked for, an answer cut off part way. It is the reader tripping,
+// not the business having nothing to say, so it does not spend one of the
+// tries this business gets to be understood. The overall round ceiling above
+// still holds, so a reader stumbling forever cannot run away with the night.
+const MOST_STUMBLES = 2;
 
 async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: rawAsk, attempts = 2 }) {
   let rounds = 0;
@@ -1051,12 +1103,36 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
   // verifies the key exists — and stand on words actually held in the store.
   let areas = null;
   let rejected = null;
+  let stumbles = 0;
   for (let go = 0; go < attempts; go++) {
     const res = await ask(promptToFind(evidence, rejected));
+    // A STUMBLE IS NOT AN ANSWER (2026-09-02).
+    //
+    // A reply that could not be read — prose where JSON was asked for, a
+    // sentence cut off part way — used to end the whole attempt on the spot,
+    // and the business kept its generic trade sentence. Three in one batch of
+    // nineteen, two of them holding thirty pages of their own words. It is
+    // the reader that stumbled, not the business that had nothing to say, so
+    // it is asked again. Only a reader that is genuinely out, or a business
+    // that has used up its rounds, ends it here.
     if (!res || !res.answer) {
-      return { couldNotTell: ranOut
-        ? `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands`
-        : (res && res.why) || 'the reader did not answer' };
+      if (res && res.readerExhausted) return { couldNotTell: res.why, readerExhausted: true };
+      if (ranOut) {
+        return { couldNotTell: `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands` };
+      }
+      // A stumble does not spend one of the tries this business gets to be
+      // UNDERSTOOD — those are for answers that were read and found wanting.
+      if (stumbles < MOST_STUMBLES) {
+        stumbles += 1;
+        go -= 1;
+        rejected = {
+          what: 'a reply that could not be read',
+          why: `${(res && res.why) || 'the reader did not answer'} — answer with the JSON on its own, `
+            + 'nothing before it and nothing after it',
+        };
+        continue;
+      }
+      return { couldNotTell: (res && res.why) || 'the reader did not answer' };
     }
     const a = res.answer;
     if (a.cannotTell) return { couldNotTell: String(a.cannotTell) };
@@ -1139,6 +1215,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
   let note = null;
   for (let go = 0; go < attempts; go++) {
     const res = await ask(promptForRecurrence(evidence.trade, areas, note));
+    if (res && res.readerExhausted) return { couldNotTell: res.why, readerExhausted: true, areas };
     const v = res && res.answer && Array.isArray(res.answer.verdicts) ? res.answer.verdicts : null;
     if (v && v.length === areas.length && v.every((x) => x && (x.recurs === 'yes' || x.recurs === 'no'))) {
       verdicts = v;
@@ -1178,21 +1255,45 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
   // qualifying area has been refused, or the passages for one were all
   // rejected. And the passage never names a person from their pages: work
   // that belongs to the business is written about the business.
+  //
+  // Fourth amendment (2026-09-02): a REJECTION now walks on too. A refusal
+  // moved to the next area; a rejection — the writer's wording failing the
+  // checks twice — still ended the whole attempt, and a business lost its
+  // passage over a form of words rather than over its work. Both endings now
+  // do the same thing: record why against those areas, and give the next
+  // ranked area its turn. Silence comes only when every area has had one.
   let pool = [...ranked];
   const refusals = [];
-  while (pool.length) {
+  let tried = 0;
+  while (pool.length && tried < MOST_PAIRINGS_TRIED) {
+    tried += 1;
     const pick = chooseForEmail(pool);
     const mine = pick.chosen;
     for (const c of mine) c.chosen = true;
     rejected = null;
     let refusal = null;
     let wrote = null;
+    let stumbled = 0;
     for (let go = 0; go < attempts; go++) {
       const res = await ask(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
+      // The same rule as at the finding step: a reply that could not be read
+      // is the reader stumbling, and it gets asked again.
       if (!res || !res.answer) {
-        return { couldNotTell: ranOut
-          ? `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands`
-          : (res && res.why) || 'the reader did not answer', areas };
+        if (res && res.readerExhausted) return { couldNotTell: res.why, readerExhausted: true, areas };
+        if (ranOut) {
+          return { couldNotTell: `no sentence stood inside ${MOST_ROUNDS_PER_BUSINESS} rounds — the trade sentence stands`, areas };
+        }
+        if (stumbled < MOST_STUMBLES) {
+          stumbled += 1;
+          go -= 1;
+          rejected = {
+            sentence: '',
+            why: `${(res && res.why) || 'the reader did not answer'} — answer with the JSON on its own, `
+              + 'nothing before it and nothing after it',
+          };
+          continue;
+        }
+        return { couldNotTell: (res && res.why) || 'the reader did not answer', areas };
       }
       const a = res.answer;
       if (a.cannotTell) { refusal = String(a.cannotTell); break; }
@@ -1215,8 +1316,18 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         };
         continue;
       }
+      // OFFERING WHAT THEY HAVE IS THE WRONG WORK, NOT WRONG WORDING (2026-09-02).
+      //
+      // This retried the SAME work in different words, burned both attempts on
+      // it, and the business lost its passage entirely — three good businesses
+      // in one batch, all told they already book online. Nothing was wrong
+      // with those businesses; the work chosen was simply already handled.
+      //
+      // So it stops rewriting and moves to the NEXT-RANKED work instead. The
+      // reason is kept against the area that was refused, and only when every
+      // area has been refused does the trade sentence stand.
       const offers = offersWhatTheyHave(sentence, mine, (evidence && evidence.theyRun) || []);
-      if (!offers.ok) { rejected = { sentence, why: offers.why }; continue; }
+      if (!offers.ok) { refusal = offers.why; break; }
       const named = namesAPerson(sentence, evidence.people, evidence.name);
       if (named) {
         rejected = {
@@ -1245,21 +1356,23 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         angle,
       };
     }
-    if (refusal) {
-      // The reason lands on the areas it refused — kept forever with them —
-      // and the next-ranked qualifying area gets its turn.
-      for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = refusal; }
-      refusals.push(`"${mine.map((c) => c.job).join('" and "')}" was refused at the writing step (${refusal}).`);
-      pool = pool.filter((x) => !mine.includes(x));
-      continue;
-    }
-    return {
-      couldNotTell: `every passage was rejected — last: ${rejected ? rejected.why : 'no answer stood'}`,
-      areas,
-    };
+    // Refused (the writer said this work does not warrant a passage) or
+    // rejected (its wording failed the checks): either way this pairing is
+    // finished. The reason lands on the areas — kept forever with them — and
+    // the next-ranked qualifying area gets its turn.
+    const why = refusal
+      || `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`;
+    for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = why; }
+    refusals.push(`"${mine.map((c) => c.job).join('" and "')}" did not stand (${why}).`);
+    pool = pool.filter((x) => !mine.includes(x));
   }
+  const left = pool.length;
   return {
-    couldNotTell: `refused at the writing step for every qualifying area — ${refusals.join(' ')}`,
+    couldNotTell: (tried === 1
+      ? 'the one area that qualified did not stand'
+      : `all ${tried} areas that were tried came to nothing`)
+      + (left ? `, and ${left} more ranked below them were not reached` : '')
+      + ` — ${refusals.join(' ')}`,
     areas,
   };
 }

@@ -54,3 +54,6 @@ MEMORY.md
 # Holds a live API key. Never goes through git — keys belong in the
 # deployment platform's settings, not in the repository.
 .mcp.json
+
+# The status board — one line, rewritten by every run. A board, not a record.
+docs/hoursback/last-run.md

@@ -102,6 +102,19 @@ const CHOSEN_ONE = [{
 
 // A stub reader: hand it a script of answers, it hands them back in order and
 // keeps every prompt it was asked.
+// The reader's whole result, not just the answer inside it — so a test can
+// stage a reply that could not be read, or a reader that is out of allowance.
+const UNREADABLE = { answer: null, why: 'the reader answered with no JSON' };
+function rawReader(results) {
+  const prompts = [];
+  const ask = async (prompt) => {
+    prompts.push(prompt);
+    return results[Math.min(prompts.length - 1, results.length - 1)];
+  };
+  ask.prompts = prompts;
+  return ask;
+}
+
 function stubReader(answers) {
   const prompts = [];
   const ask = async (prompt) => {
@@ -719,8 +732,15 @@ test('a business with a portal is never pitched portal work: the covered passage
   // the write prompt named what they run and forbade offering it back
   assert.match(stubborn.prompts[2], /tenant portal/);
   assert.match(stubborn.prompts[2], /Never offer them anything on that list/);
-  // and the rejection said why, in the reader's face
-  assert.match(stubborn.prompts[3], /never\s+offer what they already have/);
+  // OFFERING WHAT THEY HAVE IS THE WRONG WORK, NOT WRONG WORDING (2026-09-02).
+  //
+  // It used to rewrite the same work a second time, burn both attempts and
+  // leave the business with nothing — three good businesses lost their
+  // passage that way in one batch. It moves to the next-ranked work instead,
+  // so there is no second attempt at this one. Here the business had only the
+  // one area, so the trade sentence rightly stands.
+  assert.equal(stubborn.prompts.length, 3, 'the same covered work is not written twice');
+  assert.match(res.couldNotTell, /already|refus/i, 'and the reason names why');
 });
 
 test('a job that is call-fielding AND something else is still call-fielding: the portal check sees every kind', () => {
@@ -1014,8 +1034,80 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
   assert.equal(news.chosen, true);
   assert.equal(news.refused, null);
   // and the choice explains the road taken
-  assert.match(res.chosenWhy, /refused at the writing step/);
+  assert.match(res.chosenWhy, /did not stand/);
   assert.ok(res.chosenWhy.includes('chasing clients for the organizers'));
+});
+
+// A REJECTION IS NOT A DEAD END EITHER (2026-09-02). A refusal already moved
+// on to the next-ranked area; a rejection — the writer's WORDING failing the
+// checks twice — still ended the whole attempt, so a business lost its
+// passage over a form of words rather than over its work. Both endings now
+// walk on.
+// A STUMBLE IS NOT AN ANSWER (2026-09-02). A reply that could not be read —
+// prose where JSON was asked for — used to end the whole attempt on the spot
+// and the business kept its generic trade sentence. Three in one batch of
+// nineteen, two of them holding thirty pages of their own words. The reader
+// tripped; the business had plenty to say. So it is asked again, and the
+// stumble does not spend one of the tries the business gets to be understood.
+test('a reply that could not be read is asked again, and does not cost the business its line', async () => {
+  const ask = rawReader([UNREADABLE, { answer: FIND_CHASE }, { answer: RECUR_ONE_YES }, { answer: WRITE_GOOD }]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.equal(res.sentence, GOOD_SENTENCE);
+  assert.equal(ask.prompts.length, 4, 'the stumble was retried and cost the business nothing');
+  // the second ask told the reader plainly what went wrong
+  assert.match(ask.prompts[1], /JSON on its own/);
+});
+
+test('a reader that will not answer readably at all ends in silence, not a crash', async () => {
+  const ask = rawReader([UNREADABLE, UNREADABLE, UNREADABLE, UNREADABLE, UNREADABLE, UNREADABLE]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.ok(res.couldNotTell);
+  assert.equal(res.sentence, undefined);
+  assert.match(res.couldNotTell, /no JSON/);
+  assert.ok(ask.prompts.length <= 4, `it stopped asking — ${ask.prompts.length} tries`);
+});
+
+// A reader that is OUT OF ALLOWANCE is not a stumble and must never be retried
+// into the ground — it is the one failure that has to stop everything.
+test('a reader out of allowance stops at once and says so', async () => {
+  const ask = rawReader([{ answer: null, why: 'THE READER IS OUT OF ALLOWANCE — this is not a thin website', readerExhausted: true }]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.equal(res.readerExhausted, true);
+  assert.match(res.couldNotTell, /OUT OF ALLOWANCE/);
+  assert.equal(ask.prompts.length, 1, 'it did not ask again');
+});
+
+test('wording rejected twice drops that area too, and the next-ranked gets its turn', async () => {
+  const twoRanks = {
+    areas: [
+      { job: 'chasing clients for the organizers they never sent', type: 'document_collection', quote: GOOD_QUOTE },
+      { job: 'staying in front of past clients between seasons', type: 'email_and_newsletter', quote: 'serving individuals and small businesses' },
+    ],
+  };
+  const bothRecur = {
+    verdicts: [
+      { recurs: 'yes', why: 'every client, every season', plainly: 0.9 },
+      { recurs: 'yes', why: 'past clients pile up year on year', plainly: 0.3 },
+    ],
+  };
+  // Both goes at the first area promise time back, which the code refuses.
+  const promisesHours = { sentence: 'Automating that chase would save you 5 hours a week.', sure: 0.9 };
+  const promisesAgain = { sentence: 'That chase gets you back 6 hours a week.', sure: 0.9 };
+  const nextArea = {
+    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sure: 0.8,
+  };
+  const ask = stubReader([twoRanks, bothRecur, promisesHours, promisesAgain, nextArea]);
+  const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
+  assert.equal(res.sentence, nextArea.sentence);
+  assert.equal(res.jobs[0].type, 'email_and_newsletter');
+  assert.equal(ask.prompts.length, 5);              // find, recur, two rejected goes, then the next area
+  // the rejection landed on the area it belonged to, kept with it forever
+  const doc = res.areas.find((a) => a.type === 'document_collection');
+  assert.equal(doc.refused, true);
+  assert.match(doc.refusedWhy, /no passage for it stood/);
+  assert.equal(doc.chosen, false);
+  assert.equal(res.areas.find((a) => a.type === 'email_and_newsletter').chosen, true);
 });
 
 test('when every qualifying area is refused, silence — with each refusal recorded against its area', async () => {
@@ -1024,7 +1116,7 @@ test('when every qualifying area is refused, silence — with each refusal recor
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
   assert.ok(res.couldNotTell);
   assert.equal(res.sentence, undefined);
-  assert.match(res.couldNotTell, /refused at the writing step for every qualifying area/);
+  assert.match(res.couldNotTell, /the one area that qualified did not stand/);
   assert.equal(ask.prompts.length, 3);                      // one refusal, no areas left, no retry
   assert.equal(res.areas[0].refused, true);
   assert.match(res.areas[0].refusedWhy, /own licensed work/);
@@ -1078,6 +1170,43 @@ test('a badge is never the job: language, accreditation, licence number, slogan,
   assert.equal(N.notAJob({ job: 'chasing clients for the organizers they never sent', quote: GOOD_QUOTE }), null);
   assert.equal(N.notAJob(FIND_PM.areas[0]), null);
   assert.equal(N.notAJob(FIND_LEADS.areas[0]), null);
+});
+
+// THE WORD IS SOMETIMES THE PRODUCT (2026-09-02). AAA Contracting's entire
+// business is issuing engineered foundation certifications. Four times over,
+// a passage describing that work was thrown out as a boast about the
+// business, and they kept the generic trade sentence with four good pages on
+// file. A badge is a claim a business makes ABOUT itself; the same word
+// naming what they sell is work.
+test('a word that is their product is work, not a badge', () => {
+  const theirWork = [
+    { job: 'issuing engineered foundation certifications', quote: 'FHA/VA/HUD Engineered Foundation Certifications' },
+    { job: 'taking certification orders through the form', quote: 'Get a manufactured home engineer foundation certification within a 2-3 day turnaround. Get Started.' },
+    { job: 'booking installs across the service area', quote: 'AAA Contracting serves the I5 - Hwy 97 Corridor in Oregon from north border to south border. Please call us at 541-504-0799 if you are in outlying areas.' },
+    { job: 'translating quotes into Spanish for customers', quote: 'Quotes can be sent in English or Spanish, whichever the customer asks for.' },
+  ];
+  for (const w of theirWork) {
+    assert.equal(N.notAJob(w), null, `"${w.job}" is work, not a badge`);
+  }
+  // and the badge shapes still fail, because a claim about themselves reads
+  // as a claim however the sentence is arranged
+  assert.equal(N.notAJob({ job: 'being an ASE certified shop', quote: 'ASE Certified technicians on staff' }), 'an accreditation');
+  assert.equal(N.notAJob({ job: 'being BBB accredited', quote: 'A+ rating with the Better Business Bureau' }), 'an accreditation');
+});
+
+// A long passage off a services page is allowed to mention a licence, an
+// award or a card in passing. Only a SHORT quote is the reader holding up
+// the badge itself as its evidence.
+test('a badge in passing does not disqualify real work described around it', () => {
+  const inPassing = {
+    job: 'scheduling technicians across the service area',
+    quote: 'Licensed and bonded, CCB #204158, and voted Best of Bend in 2024. We accept Visa and '
+      + 'Mastercard. Our crews cover the whole corridor and most jobs are booked the same week, '
+      + 'with the office ringing round to fit people in when a slot opens up.',
+  };
+  assert.equal(N.notAJob(inPassing), null);
+  // the same badge offered ON ITS OWN is still refused
+  assert.equal(N.notAJob({ job: 'holding their licence', quote: 'CCB #204158' }), 'a licence or registration number');
 });
 
 const OSCAR_TEXT = "Oscar's Auto Repair. Brake service and repair, oil changes, engine "

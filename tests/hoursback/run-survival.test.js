@@ -38,6 +38,10 @@ const aPage = (name) => path.join(scratch, `${name}-review.md`);
 
 const EXHAUSTED = { answer: null, why: 'THE READER IS OUT OF ALLOWANCE — this is not a thin website', readerExhausted: true };
 const NO_ANSWER = { answer: null, why: 'the reader answered with no JSON' };
+// An honest "I read it and there is nothing specific to say" — valid JSON,
+// the reader working perfectly, the website simply thin. It must never look
+// like a broken reader, however many businesses in a row give it (2026-09-02).
+const COULD_NOT_TELL = { answer: { cannotTell: 'their site says almost nothing about how the work reaches them' }, why: null };
 
 function fakeReader(script) {
   // script: (callNumber) => result. Counts every call it actually receives.
@@ -281,14 +285,16 @@ test('write-noticings stops as broken when its first calls all fail, exits 74', 
 
   assert.equal(out.code, EXIT_BROKEN_START);
   assert.equal(out.ending, 'broken_start');
+  // Stopped AT the verdict and not one call after it. A business now asks
+  // again when a reply cannot be read, so the verdict no longer lands on a
+  // whole number of businesses — the count that matters is the calls.
   assert.equal(ask.calls.length, FIRST_CALLS_MUST_ANSWER, 'stopped at the verdict, not after');
-  // The businesses before the verdict were recorded honestly as could-not-tell.
-  assert.equal(out.done, FIRST_CALLS_MUST_ANSWER - 1);
-  assert.equal(db.writes.readings.length, FIRST_CALLS_MUST_ANSWER - 1);
-  // The business the verdict landed on, and everything behind it, got nothing.
+  // Whatever was finished before the verdict was recorded honestly, and every
+  // business behind it got nothing at all and stays eligible.
+  assert.equal(db.writes.readings.length, out.done);
+  assert.ok(out.done < 6, 'the run did not quietly finish');
+  assert.equal(out.done + out.remaining, 6, 'every business is accounted for');
   assert.ok(!db.touched.has('p6'), 'p6 was never started');
-  const forP5 = db.writes.readings.filter((r) => r.prospectId === 'p5');
-  assert.equal(forP5.length, 0, 'the cut-off business has no record');
   const board = fs.readFileSync(aBoard('wn-broken'), 'utf8');
   assert.match(board, /first calls all failed/);
 });
@@ -303,9 +309,10 @@ test('write-noticings --fresh skips the already-noticed and processes the rest',
     noticingProspect('todo2', 'plumbing'),
     noticingProspect('todo3', 'plumbing'),
   ]);
-  // The reader answers nothing useful — three honest could-not-tells, well
-  // under the broken-start threshold, so the run finishes.
-  const ask = fakeReader(() => NO_ANSWER);
+  // The reader works perfectly and reads three thin websites: three honest
+  // could-not-tells. That is not a broken reader and must never be mistaken
+  // for one, however many arrive in a row.
+  const ask = fakeReader(() => COULD_NOT_TELL);
   const out = await noticingMain({
     db, ask, atOnce: 1, look: false, fresh: 12,
     lastRunPath: aBoard('wn-resume'), reviewPage: aPage('wn-resume'),
@@ -343,13 +350,17 @@ test('write-noticings writes the status board even when it crashes', async () =>
 
 // --- a fake database for the understanding run ------------------------------
 
-function understandProspect(id, siteReadAt = null) {
+// `wordsHeld` is how many pages of theirs we actually hold with words on
+// them. A business stamped read that holds none was never read, whatever the
+// stamp says, and the run has to come back for it (2026-09-02).
+function understandProspect(id, siteReadAt = null, { wordsHeld = 3, visits = 1 } = {}) {
   return {
     id, name: `${id} Co`, nameManualValue: null, trade: 'plumbing', phone: null,
     website: 'https://biz.example', websiteManualValue: null,
     email: null, emailManualValue: null, automationScore: null, scoreEvidence: null,
     stage: 'NO_CONTACT', addressManualValue: null, employeeCountManualValue: null,
     ownerName: null, phoneManualValue: null, siteReadAt,
+    wordsHeld, visits,
   };
 }
 
@@ -364,14 +375,28 @@ function fakeUnderstandDb(prospects) {
     return true;
   };
   const sift = (where = {}) => prospects.filter((p) => {
-    if (where.OR && !where.OR.some((c) => ('siteReadAt' in c ? passesDate(p, c.siteReadAt) : true))) return false;
+    if (where.OR && !where.OR.some((c) => {
+      if ('siteReadAt' in c) return passesDate(p, c.siteReadAt);
+      if (c.id && Array.isArray(c.id.in)) return c.id.in.includes(p.id);
+      return true;
+    })) return false;
     if (!where.OR && 'siteReadAt' in where && !passesDate(p, where.siteReadAt)) return false;
+    // "holds not one page with words on it" — the real query is a nested
+    // `readings: { none: { pages: { some: ... } } }`; here it is the count.
+    if (where.readings && where.readings.none && (p.wordsHeld ?? 0) > 0) return false;
+    if (where.NOT && where.NOT.id && Array.isArray(where.NOT.id.in)
+      && where.NOT.id.in.includes(p.id)) return false;
     return true;
   });
   return {
     writes,
     prospect: {
-      findMany: async ({ where = {}, take } = {}) => (take ? sift(where).slice(0, take) : sift(where)),
+      findMany: async ({ where = {}, take, select } = {}) => {
+        const rows = take ? sift(where).slice(0, take) : sift(where);
+        return select && select._count
+          ? rows.map((p) => ({ id: p.id, _count: { readings: p.visits ?? 1 } }))
+          : rows;
+      },
       count: async ({ where = {} } = {}) => sift(where).length,
       update: async (a) => { writes.prospectUpdates.push(a); return {}; },
     },
@@ -454,6 +479,57 @@ test('understand-businesses --fresh skips the recently read and visits the rest'
   const board = fs.readFileSync(aBoard('ub-resume'), 'utf8');
   assert.match(board, /finished the batch/);
   assert.match(board, /3 done, 0 left/);
+});
+
+// READ MEANS PAGES STORED (2026-09-02). Six businesses in the first fifty
+// carried a read date and held not one word — visits stamped finished before
+// anything landed. The resume filter trusted the stamp and never went back,
+// so they were invisible: not unread, not failed, just absent, surfacing
+// weeks later as "their site's words are not on file". The stamp is no
+// longer the test. The words are.
+test('understand-businesses goes back for a business stamped read that holds no words', async () => {
+  const now = Date.now();
+  const db = fakeUnderstandDb([
+    understandProspect('reallyread', new Date(now - 1 * 3600000), { wordsHeld: 5 }),
+    understandProspect('stampedonly', new Date(now - 1 * 3600000), { wordsHeld: 0, visits: 1 }),
+    understandProspect('triedenough', new Date(now - 1 * 3600000), { wordsHeld: 0, visits: 3 }),
+  ]);
+  const ask = fakeReader(() => { throw new Error('no visit should reach the reader'); });
+  const out = await runUnderstand({
+    db, ask, fetch: makeFetch({}), lanes: 2, look: false, fresh: 6, limit: 50,
+    lastRunPath: aBoard('ub-stamped'),
+  });
+
+  assert.equal(out.ending, 'finished');
+  const visited = new Set(db.writes.readings.map((r) => r.prospectId));
+  assert.deepEqual([...visited], ['stampedonly'],
+    'the one holding no words was visited; the genuinely read one was left alone');
+  assert.ok(!visited.has('triedenough'),
+    'three visits with nothing landing is an answer — the emptiness stands, it does not loop');
+});
+
+// The other half of the same rule: a visit that stores no words does not get
+// to stamp itself READ on the way out. A site whose pages come back empty is
+// counted as its own outcome and left eligible, so the next run comes back
+// for it rather than reading the stamp and moving on.
+test('a visit where every page came back empty is not stamped read', async () => {
+  const db = fakeUnderstandDb([understandProspect('blankpages', null)]);
+  const ask = fakeReader(() => NO_ANSWER);
+  const out = await runUnderstand({
+    db, ask, fetch: makeFetch({ '/': '<html><body></body></html>' }),
+    lanes: 1, look: false, fresh: 0, limit: 1, lastRunPath: aBoard('ub-blank'),
+  });
+
+  assert.equal(out.ending, 'finished');
+  assert.equal(db.writes.readings.length, 1, 'it did visit them');
+  const stamped = db.writes.prospectUpdates.find((u) => u.data && u.data.siteReadAt);
+  assert.equal(stamped, undefined, 'nothing landed, so nothing claimed to be read');
+  const status = db.writes.prospectUpdates
+    .map((u) => u.data && u.data.siteStatus).filter(Boolean);
+  assert.ok(!status.includes('READ'), `it must not say READ — said ${status.join(', ') || 'nothing'}`);
+  // and the reading itself says what happened, kept forever
+  const closed = db.writes.readingUpdates.find((u) => u.id === db.writes.readings[0].id);
+  assert.ok(closed && /no readable words|came back empty/i.test(String(closed.note)));
 });
 
 test('understand-businesses writes the status board even when it crashes', async () => {

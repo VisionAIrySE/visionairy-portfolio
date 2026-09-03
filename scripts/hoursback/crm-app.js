@@ -52,6 +52,9 @@ const OUTCOME_LABELS = {
 };
 const SITE_STATUS_LABELS = {
   READ: 'website read', NO_WEBSITE: 'no website', UNREACHABLE: 'website would not load',
+  // The site opened and published nothing we could keep — a robot check, or
+  // pages built entirely by script. Not a read, and it says so (2026-09-02).
+  UNREADABLE: 'website opened but gave up no words',
 };
 const EMAIL_STATUS_LABELS = {
   FOUND_ON_SITE: 'found on their site', FOUND_LOW_CONFIDENCE: 'found, but might be wrong',
@@ -645,10 +648,32 @@ async function emailScreen(params) {
   const onlyTrade = (params.get('trade') || '').trim();
   const floor = Number(params.get('floor') || 0);
   const reRank = params.get('rerank') === '1';
-  const orderKey = `${onlyTrade}|${floor}`;
+
+  // WORK THE ONES THAT HAVE BEEN REBUILT (Russ, 2026-09-02: "so I can select
+  // 'final review list' and work through the companies with the corrected
+  // messages").
+  //
+  // Every business gets an opening sentence. Most get the one written for
+  // their whole trade — true, but the same for everyone in it. Some get a
+  // sentence written from their own website, naming work only they do. Those
+  // are the ones worth reading first, and until now there was no way to ask
+  // for them: 869 messages, and the rebuilt ones scattered through.
+  //
+  // The test is not a date or a batch number, both of which lie after a
+  // re-run. It is whether a live, un-retired reading of THIS business
+  // actually produced a sentence — the same record the letter itself reads.
+  const review = (params.get('review') || '').trim();
+  const HAS_ITS_OWN_LINE = {
+    findings: {
+      some: { field: 'noticing', retiredAt: null, value: { not: null }, status: { not: 'could_not_tell' } },
+    },
+  };
+  const orderKey = `${onlyTrade}|${floor}|${review}`;
   const prospectWhere = { doNotContact: false, repliedAt: null };
   if (onlyTrade) prospectWhere.trade = onlyTrade;
   if (floor > 0) prospectWhere.automationScore = { gte: floor };
+  if (review === 'personal') Object.assign(prospectWhere, HAS_ITS_OWN_LINE);
+  if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
 
   const [left, ready, sent, batch] = await Promise.all([
     L.emailsLeftToday(db, weeks),
@@ -693,6 +718,15 @@ async function emailScreen(params) {
   const waitingTotal = await db.outreachMessage.count({
     where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
   });
+  // HOW MANY THE FILTER ACTUALLY MATCHES — not how many exist. "25 of 865"
+  // read as "25 messages match out of 865", which is not what it meant: 25 is
+  // simply one page. With a filter on, the honest second number is how many
+  // that filter finds (2026-09-02).
+  const matching = (onlyTrade || floor || review)
+    ? await db.outreachMessage.count({
+      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: prospectWhere },
+    })
+    : waitingTotal;
   const reachable = await db.prospect.count({
     where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
   });
@@ -776,8 +810,16 @@ async function emailScreen(params) {
       : 'Nothing tells this site when an address fails or somebody answers, so a bounce goes unnoticed and a person who replied keeps getting chased. Add RESEND_WEBHOOK_SECRET in the site settings and point the mail service at /mail-events.'}
   </div>
 
-  <h2>Written and waiting (${ready.length}${onlyTrade || floor ? ` of ${waitingTotal}` : ''})</h2>
+  <h2>Written and waiting (${onlyTrade || floor || review
+    ? `${matching} match${matching === 1 ? 'es' : ''}, of ${waitingTotal} in all`
+    : waitingTotal})</h2>
+  ${ready.length < matching ? `<p class="mini">Showing the first ${ready.length}. Work through these and the next come up.</p>` : ''}
   <form method="GET" action="/email" class="row" style="margin:8px 0 14px">
+    <select name="review" style="width:auto">
+      <option value=""${review ? '' : ' selected'}>every message</option>
+      <option value="personal"${review === 'personal' ? ' selected' : ''}>ready to review — opens on their own website</option>
+      <option value="trade"${review === 'trade' ? ' selected' : ''}>still opens on the trade sentence</option>
+    </select>
     <select name="trade" style="width:auto">
       <option value="">every trade</option>
       ${TRADE_OPTIONS.map((t) => `<option value="${esc(t)}"${onlyTrade === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
@@ -786,9 +828,11 @@ async function emailScreen(params) {
       ${[0, 60, 70, 80, 90].map((f) => `<option value="${f}"${floor === f ? ' selected' : ''}>${f ? `score ${f} and up` : 'any score'}</option>`).join('')}
     </select>
     <button>Show these</button>
-    ${onlyTrade || floor ? '<a class="btn" href="/email">Clear</a>' : ''}
-    <a class="btn" href="/email?rerank=1${onlyTrade ? `&trade=${encodeURIComponent(onlyTrade)}` : ''}${floor ? `&floor=${floor}` : ''}">Re-rank</a>
+    ${onlyTrade || floor || review ? '<a class="btn" href="/email">Clear</a>' : ''}
+    <a class="btn" href="/email?rerank=1${onlyTrade ? `&trade=${encodeURIComponent(onlyTrade)}` : ''}${floor ? `&floor=${floor}` : ''}${review ? `&review=${review}` : ''}">Re-rank</a>
   </form>
+  ${review === 'personal' ? `<p class="mini">${matching} of ${waitingTotal} open on a sentence written from their own website — what they do, in their words. The rest open on the sentence written for their trade.</p>` : ''}
+  ${review === 'trade' ? '<p class="mini">These still open on the sentence written for their whole trade. Nothing is wrong with them — their website simply had not been read closely enough yet to say something only about them.</p>' : ''}
   <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
   <!-- Tick the ones to go out, then one button at the bottom. A button under
        every single message meant 645 separate clicks and no way to see what
@@ -1001,6 +1045,41 @@ async function businessCard(id, saved) {
     if (o) offers[m.id] = o;
   }
 
+  // EVERYTHING THE READ FOUND, NOT JUST WHAT REACHED THE LETTER (2026-09-02).
+  //
+  // Reading a business turns up several places software could take work off
+  // them. At most two of those reach the email — the two that hit hardest —
+  // and until now the rest were written down and never shown, so the only
+  // way to know what else had been spotted was to query the store by hand.
+  // Russ works these on the phone: the areas that did NOT make the email are
+  // exactly what he needs in front of him when they pick up.
+  //
+  // Every area from the most recent read, in rank order, with what happened
+  // to it and why. Never invented here — it is read back from what was
+  // recorded at the time, retired answers left out.
+  const areaRows = await db.finding.findMany({
+    where: { prospectId: p.id, field: 'noticingArea', retiredAt: null },
+    select: { value: true, url: true, quote: true, readingId: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 40,
+  });
+  const newestRead = areaRows.length ? areaRows[0].readingId : null;
+  const areas = areaRows
+    .filter((f) => f.readingId === newestRead)
+    .map((f) => {
+      try { return { ...JSON.parse(f.value), url: f.url, quote: f.quote }; } catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.chosen !== b.chosen) return a.chosen ? -1 : 1;
+      return (a.rank ?? 99) - (b.rank ?? 99);
+    });
+  const whyThisOne = await db.finding.findFirst({
+    where: { prospectId: p.id, field: 'noticingChoice', retiredAt: null },
+    orderBy: { createdAt: 'desc' },
+    select: { value: true },
+  });
+
   const emailLine = resolveField(p, 'email')
     ? `${esc(resolveField(p, 'email'))} <span class="muted">— ${esc(EMAIL_STATUS_LABELS[p.emailStatus] || p.emailStatus || '')}${p.emailConfidence ? `, ${Math.round(p.emailConfidence * 100)}% sure` : ''}</span>`
     : `<span class="muted">${esc(EMAIL_STATUS_LABELS[p.emailStatus] || 'not looked for yet')}</span>`;
@@ -1068,6 +1147,30 @@ async function businessCard(id, saved) {
       <form method="POST" action="/usetheirs/${w.id}"><button>Use theirs</button></form>
       <form method="POST" action="/keepmine/${w.id}"><button>Keep mine</button></form>
     </div>`).join('')}
+  </div>` : ''}
+
+  ${areas.length ? `<div class="card">
+    <h2 style="margin-top:0">What software could take off them</h2>
+    <p class="muted" style="margin:4px 0 12px">Every place the read found, hardest-hitting first. The
+      ones marked <b>in the email</b> are what the message opens on — at most two, so it stays a
+      sentence and not a sales list. The rest are for the phone: they were found, they are real, and
+      they are here so you have them when someone picks up.</p>
+    ${areas.map((a) => {
+    const label = a.chosen ? '<span class="pill">in the email</span>'
+      : (a.recurs === 'no' ? '<span class="pill cool">not often enough</span>'
+        : (a.refused ? '<span class="pill warm">held back</span>'
+          : '<span class="pill cool">found, not used</span>'));
+    const why = a.chosen ? (a.rankWhy || '')
+      : (a.recurs === 'no' ? (a.recursWhy || 'it does not come round often enough to be worth automating')
+        : (a.refusedWhy || a.rankWhy || 'ranked below the two the email opens on'));
+    return `<div class="tell" style="border-left-color:${a.chosen ? 'var(--moss)' : '#94a3b8'}">
+      <b>${esc(a.job)} ${label}</b>
+      <span class="muted">${esc(a.label || a.type || '')}${a.department ? ` · ${esc(a.department)}` : ''}${a.rank ? ` · ranked ${a.rank}` : ''}</span><br>
+      <span class="muted">${esc(why)}</span>
+      ${a.quote ? `<br><span class="muted">their words: "${esc(String(a.quote).slice(0, 220))}"${a.url ? ` — <a href="${esc(a.url)}" target="_blank">seen here</a>` : ''}</span>` : ''}
+    </div>`;
+  }).join('')}
+    ${whyThisOne ? `<p class="muted" style="margin-top:12px"><b>Why those two:</b> ${esc(whyThisOne.value)}</p>` : ''}
   </div>` : ''}
 
   <h2>Everything, editable</h2>

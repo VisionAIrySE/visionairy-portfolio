@@ -50,7 +50,9 @@ const {
 const { howToReachThem, callOrderScore } = require('../../src/hoursback/reachable.js');
 const { recordGroupedRead, READER } = require('../../src/hoursback/recordTheRead.js');
 const R = require('../../src/hoursback/readings.js');
+const { readAnswer } = require('../../src/hoursback/readAnswer.js');
 const { detectedTools } = require('../../src/hoursback/siteRead.js');
+const { looksLikeARealPage } = require('../../src/hoursback/browserRead.js');
 
 // Which model answered, and which version of this reader asked. Both are kept
 // on every reading, so a batch that turns out to be wrong can be found and set
@@ -149,10 +151,11 @@ function askTheReader(question) {
       if (/session limit|usage limit|rate limit|resets at|out of (credit|quota)/i.test(text.slice(0, 400))) {
         return answer({ answer: null, why: 'THE READER IS OUT OF ALLOWANCE — this is not a thin website', readerExhausted: true });
       }
-      const m = text.match(/\{[\s\S]*\}/);
-      if (!m) return answer({ answer: null, why: 'the reader answered with no JSON' });
-      try { answer({ answer: JSON.parse(m[0]), why: null }); }
-      catch { answer({ answer: null, why: 'the reader answered with broken JSON' }); }
+      // Prose in front of it, a code fence around it, a trailing comma, the
+      // model's own curly quotes, a line break inside a sentence: every one
+      // of those used to be "broken JSON" and cost the business its opening
+      // line. They are read properly now (src/hoursback/readAnswer.js).
+      answer(readAnswer(text));
     });
   });
 }
@@ -426,11 +429,43 @@ async function visitOneBusiness(db, r, deps = {}) {
     visit.opportunity = opportunity;
     visit.ranked = ranked;
 
+    // READ MEANS PAGES STORED (2026-09-02).
+    //
+    // If not one page of theirs landed with words on it, this visit did not
+    // read them — whatever else it worked out along the way. Stamping it READ
+    // anyway is what made six businesses permanently invisible: the resume
+    // filter trusted the stamp and never came back, and they surfaced weeks
+    // later at the writing step as "their site's words are not on file". The
+    // visit is still recorded in full; it simply does not claim to be a read.
+    //
+    // AND A ROBOT CHECK IS NOT WORDS (2026-09-02). Deschutes Heating stored
+    // one page of perfectly good English — "verify you are human, this
+    // process is automatic" — and the run counted it as read, so the browser
+    // pass that exists precisely for challenge pages never saw them. The
+    // test is not "is there text" but "does anything here look like a
+    // business talking": a phone number, an email, an address, or two of
+    // navigation, service descriptions and a real body of varied words.
+    //
+    // Judged across the WHOLE SITE, never page by page — a real Contact page
+    // can be three lines long, and it is the site as a whole that either
+    // spoke to us or did not.
+    const anyWords = (crawl.pages || [])
+      .some((pg) => String((pg && pg.text) || '').trim().length > 0);
+    const anythingReal = (crawl.pages || [])
+      .some((pg) => looksLikeARealPage(String((pg && pg.text) || '')));
+    const wordsLanded = anyWords && anythingReal;
     if (!look) {
-      await writeItDown(db, r, understood, reach, ranked, found, opportunity, url);
+      await writeItDown(db, r, understood, reach, ranked, found, opportunity, url, { wordsLanded });
     }
-    if (reading) await R.finishReading(db, reading.id, R.READ, partialNote || null);
-    visit.outcome = 'read';
+    if (reading) {
+      await R.finishReading(db, reading.id, wordsLanded ? R.READ : R.FAILED,
+        wordsLanded ? (partialNote || null)
+          : (anyWords
+            ? 'nothing on the site read as a business talking — a challenge page or a shell; '
+              + 'this is not a read, and it needs a browser'
+            : 'every page of theirs came back empty — nothing was stored, so this is not a read'));
+    }
+    visit.outcome = wordsLanded ? 'read' : 'no_readable_words';
     return visit;
   } catch (e) {
     // However a visit breaks, its reading is CLOSED as failed — never left
@@ -482,8 +517,57 @@ async function understandPass(injected = {}) {
   // finished — never a file a run wrote about itself, never a run's own tally.
   const FRESH = injected.fresh ?? Number(arg('fresh', 0));
   const freshCutoff = FRESH ? new Date(Date.now() - FRESH * 3600000) : null;
+
+  // READ MEANS PAGES STORED (2026-09-02).
+  //
+  // Six businesses in the first fifty carried a read date and held not one
+  // word. Read by hand afterwards they had five, four, twenty, seven and
+  // twenty-three readable pages each — the visit had been stamped finished
+  // before anything landed. The resume filter then treated the stamp as
+  // proof and never went back, so they were permanently invisible: not in
+  // the unread pile, not in the failures, just quietly absent, and they
+  // showed up at the writing step as "their site's words are not on file".
+  //
+  // So the stamp is no longer the test. A business is read when we HOLD
+  // WORDS from their site. One that does not is put back in the queue
+  // however recently it was stamped, and it is counted separately at the
+  // end so a thin-website tally never absorbs it.
+  //
+  // The cap stops a genuinely wordless site looping forever: after this many
+  // website visits on file we stop retrying and the emptiness stands as the
+  // answer it is.
+  const MOST_RETRIES_WHEN_NOTHING_LANDED = 3;
+  const holdsNoWords = {
+    readings: {
+      none: {
+        source: R.WEBSITE,
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      },
+    },
+  };
+  let neverActuallyRead = [];
+  if (FRESH && !only) {
+    const marked = await db.prospect.findMany({
+      where: { doNotContact: false, siteReadAt: { gte: freshCutoff }, ...holdsNoWords },
+      select: { id: true, _count: { select: { readings: true } } },
+    });
+    neverActuallyRead = marked
+      .filter((m) => m._count.readings < MOST_RETRIES_WHEN_NOTHING_LANDED)
+      .map((m) => m.id);
+    if (neverActuallyRead.length) {
+      console.log(`${neverActuallyRead.length} marked read but holding no words — `
+        + 'put back in the queue (the stamp is not the test, the words are)');
+    }
+  }
+
   const alreadyDone = FRESH
-    ? { OR: [{ siteReadAt: null }, { siteReadAt: { lt: freshCutoff } }] }
+    ? {
+      OR: [
+        { siteReadAt: null },
+        { siteReadAt: { lt: freshCutoff } },
+        ...(neverActuallyRead.length ? [{ id: { in: neverActuallyRead } }] : []),
+      ],
+    }
     : {};
 
   const baseWhere = only
@@ -509,7 +593,13 @@ async function understandPass(injected = {}) {
 
   // A RESUMED RUN'S NUMBERS ARE LEGIBLE, and they come from the database.
   if (FRESH && !only) {
-    const skippedAsDone = await db.prospect.count({ where: { ...baseWhere, siteReadAt: { gte: freshCutoff } } });
+    const skippedAsDone = await db.prospect.count({
+      where: {
+        ...baseWhere,
+        siteReadAt: { gte: freshCutoff },
+        NOT: { id: { in: neverActuallyRead } },
+      },
+    });
     const remainEligible = await db.prospect.count({ where });
     console.log(`resume: ${skippedAsDone} read in the last ${FRESH}h — skipped as already done; `
       + `${remainEligible} remain eligible${UNREAD_TRADES ? ' (counted before the trade screen)' : ''}`);
@@ -903,7 +993,10 @@ function nameLooksLikeAPageTitle(name) {
   return n.length > 0 && (A_PAGE_TITLE.test(n) || n.length > 70);
 }
 
-async function writeItDown(db, r, understood, reach, ranked, found, opportunity, url) {
+async function writeItDown(db, r, understood, reach, ranked, found, opportunity, url, opts = {}) {
+  // Whether their site gave up any words at all. Everything learned is still
+  // written; only the READ stamp is withheld, so the next run comes back.
+  const wordsLanded = opts.wordsLanded !== false;
   // Everything behind the number, in the shape the account card already reads:
   // a list of tells, then one line saying what reaching them costs the score.
   // The evidence already on file is not always a list. An earlier version of
@@ -1017,8 +1110,9 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
       // value (2026-09-01, docs/hoursback/evidence-store.md).
       separateOperations: Number.isFinite(understood.separateOperations)
         ? understood.separateOperations : null,
-      siteStatus: 'READ',
-      siteReadAt: new Date(),
+      ...(wordsLanded
+        ? { siteStatus: 'READ', siteReadAt: new Date() }
+        : { siteStatus: 'UNREADABLE' }),
       // OFF THE REVIEW PILE. 31,318 records were screened out for having no
       // way to reach them. If reading their own site turned one up, the reason
       // they were set aside no longer holds and the record belongs on the

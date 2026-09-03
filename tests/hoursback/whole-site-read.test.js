@@ -801,14 +801,28 @@ test("an unread group's fields are recorded could_not_tell with the reason, neve
 // the visit itself — scripts/hoursback/understand-businesses.js
 // ===========================================================================
 
+// A PRACTICE SITE HAS TO LOOK LIKE A REAL ONE (2026-09-02). The run now
+// asks of every site "does anything here read as a business talking" — a
+// phone number, an address, real sections, service descriptions — because a
+// robot-check page is fluent English and was being counted as a read. A
+// fixture thinner than any genuine small-business site would make that check
+// look wrong when it is right, so the practice site says what a real one says.
 function visitSite() {
-  const identityBody = 'Blue Widget Co is a family business making fine widgets with care and patience for years.';
+  const identityBody = 'Blue Widget Co is a family business in Bend, Oregon making fine widgets '
+    + 'with care and patience since 2013. We build to order for shops across Central Oregon, '
+    + 'and every widget leaves our floor checked by hand. Our team of twelve has been together '
+    + 'for most of that time, and most of our work comes from customers who came back.';
   return {
     '/': htmlPage('Blue Widget Co', identityBody, [
       ['/about', 'About'], ['/contact', 'Contact'], ['/privacy-policy', 'Privacy'],
     ]),
-    '/about': htmlPage('About', `${identityBody} Founded long ago by careful people who loved widgets.`),
-    '/contact': htmlPage('Contact', 'Contact us at [email info@bluewidget.example] or ring 541-555-1234. The office is at 12 Main Street, Bend.'),
+    '/about': htmlPage('About', `${identityBody} Founded long ago by careful people who loved widgets. `
+      + 'We started in a garage on Greenwood Avenue with one press and a telephone, and we still '
+      + 'answer that telephone ourselves. Ring 541-555-1234 and somebody here will pick it up.'),
+    '/contact': htmlPage('Contact', 'Contact us at [email info@bluewidget.example] or ring 541-555-1234. '
+      + 'The office is at 12 Main Street, Bend, Oregon 97701. We are open Monday to Friday, eight until '
+      + 'five, and Saturday mornings by appointment. Quotes for custom work usually come back the same '
+      + 'day, and repairs are booked in over the phone.'),
     '/privacy-policy': htmlPage('Privacy', 'The legal words about privacy, cookies and other solemn matters.'),
   };
 }
@@ -857,6 +871,32 @@ test('one visit is one reading: pages, findings and the finish all hang off one 
   assert.ok(db.rows.readings[0].finishedAt, 'the visit has an end');
   const trade = db.rows.findings.filter((f) => f.field === 'trade');
   assert.ok(trade.length >= 2, 'each group that answered trade left its own finding');
+});
+
+// A ROBOT CHECK IS NOT WORDS (2026-09-02). Deschutes Heating stored one page
+// of perfectly fluent English — "verify you are human, this process is
+// automatic" — and the run counted it as read. So the browser pass that
+// exists precisely for challenge pages never went near them, and at the
+// writing step they looked like a business with nothing to say.
+test('a site that serves only a robot check is not counted as read', async () => {
+  const db = fakeDb();
+  const challenge = 'Verify you are human by completing the action below. '
+    + 'www.example.com needs to review the security of your connection before proceeding. '
+    + 'This process is automatic. Your browser will redirect to your requested content shortly. '
+    + 'Please allow up to five seconds. Ray ID: 8f2a1c9d0e3b4a55. Performance and security by a '
+    + 'content delivery network. If you are a site owner, please read our documentation.';
+  const visit = await runVisit(db, { site: { '/': htmlPage('Just a moment', challenge) } });
+
+  assert.equal(visit.outcome, 'no_readable_words',
+    'fluent English that is not a business talking is not a read');
+  // The page is still KEPT — the evidence rule — and the reading says why.
+  assert.ok(db.rows.pages.length >= 1, 'the challenge page is stored, never discarded');
+  assert.equal(db.rows.readings[0].outcome, 'failed');
+  assert.match(String(db.rows.readings[0].note), /needs a browser/);
+  // Nothing claimed the business had been read.
+  const stamped = db.rows.prospectUpdates
+    .filter((u) => u.data && (u.data.siteReadAt || u.data.siteStatus === 'READ'));
+  assert.equal(stamped.length, 0, 'no read stamp, so the next run comes back for them');
 });
 
 test('a skipped page is stored with sentToModel false; a read page with true', async () => {

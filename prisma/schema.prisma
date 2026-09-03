@@ -57,7 +57,8 @@ model Prospect {
   headcountPublishedAs String? // "8-20" when the site published a range
 
   // --- read from the business's own website (free: no key, no fee) --------
-  // siteStatus: READ | NO_WEBSITE | UNREACHABLE. scoreEvidence is the list of
+  // siteStatus: READ | NO_WEBSITE | UNREACHABLE | UNREADABLE (opened, no words
+  // stored, so not a read). scoreEvidence is the list of
   // tells behind the score - which signal, what it is worth, where it was
   // seen - so the number is never a black box on the call screen.
   siteStatus      String?
