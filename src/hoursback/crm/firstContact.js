@@ -413,6 +413,7 @@ Grab a time on my calendar: https://calendly.com/visionairy/new-meeting`;
 const FOLLOW_UP_DAYS = [0, 4, 8];   // first contact, four days, then eight (Russ, 2026-08-26)
 
 const SIGN_OFF = `Best regards,
+
 Russ Wright
 Founder
 VisionAIry
@@ -506,7 +507,7 @@ function toolsLine() { return ''; }
 function toolsNoteForRuss(prospect) {
   const tools = String(prospect.toolsInUse || '').split(',').map((t) => t.trim()).filter(Boolean);
   if (!tools.length) return null;
-  return `They already run ${tools.slice(0, 3).join(', ')}. Worth raising on the call, not in writing — they never published it.`;
+  return `They already run ${tools.slice(0, 3).join(', ')}. Worth raising on the call, not in writing, they never published it.`;
 }
 
 // Pick the tell this message should lead with. Something read off their own
@@ -532,8 +533,20 @@ const NOT_A_NAME = /[{}<>]|^\s*$|^(null|undefined|n\/a|unknown|business ?name|co
 
 function businessNameOf(prospect) {
   const { resolveField } = require('../overrides.js');
+  const { nameLooksLikeAPageTitle } = require('./names.js');
   const given = String(resolveField(prospect || {}, 'name') || '');
   if (NOT_A_NAME.test(given.trim())) return 'your business';
+  // NEVER SAY A PAGE TITLE BACK TO THEM (Russ, 2026-09-03).
+  //
+  // 229 businesses are on file under the title bar of a web page rather than
+  // their name: "HOME", "Best Vet Hospital In Redmond, OR", "Storage In
+  // Oregon: Home". The day-four letter is addressed "The part that matters,
+  // {business}", so one of those would have gone out as "The part that
+  // matters, Home". A name Russ typed himself is never questioned; anything
+  // else that reads like a page title becomes "your business", which is
+  // plain and true, instead of a guess at what they are called.
+  if (!String(prospect && prospect.nameManualValue || '').trim()
+      && nameLooksLikeAPageTitle(given)) return 'your business';
   return given.replace(/, (LLC|Inc|Ltd)\.?$/i, '');
 }
 
@@ -541,15 +554,27 @@ function businessNameOf(prospect) {
 // name rather than saying "Hi there," which reads like a circular the moment
 // somebody reads it cold (2026-08-26).
 function greetingFor(prospect) {
-  const { nameFromEmail, firstNameOf } = require('./names.js');
+  const {
+    nameFromEmail, firstNameOf, firstNameOfMarked, doctorGreetingFor,
+  } = require('./names.js');
+  const address = prospect.emailManualValue || prospect.email;
+  // A DOCTOR IS GREETED AS ONE (Russ, 2026-09-03). Before anything else, and
+  // only where the record actually says so: the title on their own name, a
+  // doctor's job in their role, or their own dr-something address. A practice
+  // being a dental practice proves nothing about the person reading.
+  const doctor = doctorGreetingFor({
+    name: prospect.contactName || prospect.ownerName,
+    role: prospect.contactRole,
+    email: address,
+  });
+  if (doctor) return doctor;
   // A name we were told beats a name we worked out.
   // Who Russ typed or ticked beats who the machine found, and one given name is
   // enough when it came from him.
-  const { firstNameOfMarked } = require('./names.js');
   const known = firstNameOfMarked(prospect.contactName) || firstNameOf(prospect.ownerName);
   if (known) return known;
   // "dale@..." is Dale, but only when it is genuinely a name.
-  const fromAddress = nameFromEmail(prospect.emailManualValue || prospect.email);
+  const fromAddress = nameFromEmail(address);
   return fromAddress || null;
 }
 

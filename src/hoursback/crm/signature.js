@@ -80,12 +80,31 @@ ${CONTACT.calendly}`;
 
 // Turn the written message into the version a mail app draws, sign-off and
 // all. The words are never rewritten here — only wrapped.
+// THE ONE THING THAT IS FREE, IN BOLD (Russ, 2026-09-03).
+//
+// The offer paragraph says he does the research at no cost. That is the whole
+// reason to reply, and in a wall of plain paragraphs it reads past. Bolding
+// happens HERE, where the typed letter becomes the mail that is actually sent,
+// so the letter Russ reads and edits stays plain text and nothing has to be
+// escaped or stripped when he rewrites a line.
+//
+// Only this phrase, only where it already appears. Nothing is added to a
+// letter that did not already say it.
+const THE_FREE_PART = /\bat no cost(?: to you)?\b/i;
+
+function boldTheFreePart(html) {
+  return html.replace(THE_FREE_PART, (said) => `<strong>${said}</strong>`);
+}
+
 function toHtmlEmail(plainBody) {
   // Everything from "Best," onward is the sign-off; the drawn version
   // renders it, so the typed one is trimmed first.
   const withoutSignOff = String(plainBody).split(/\n\nBest\b/)[0];
   const paragraphs = withoutSignOff.split(/\n\n+/)
-    .map((p) => `<p style="margin:0 0 14px">${p.replace(/\n/g, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`)
+    .map((p) => {
+      const safe = p.replace(/\n/g, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      return `<p style="margin:0 0 14px">${boldTheFreePart(safe)}</p>`;
+    })
     .join('\n');
   return `<div style="font:15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a;max-width:600px">
 ${paragraphs}
@@ -95,5 +114,5 @@ ${signatureHtml()}
 
 module.exports = {
   CONTACT, LOGO_WIDTH, LOGO_HEIGHT, GREEN, LEAF,
-  logoDataUri, signatureHtml, signatureText, toHtmlEmail,
+  logoDataUri, signatureHtml, signatureText, toHtmlEmail, boldTheFreePart, THE_FREE_PART,
 };

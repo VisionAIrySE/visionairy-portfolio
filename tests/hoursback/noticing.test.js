@@ -1262,3 +1262,117 @@ test('the find prompt says plainly what is never a job, and that a thin site get
   assert.match(prompt, /payment method accepted/);
   assert.match(prompt, /When a site is thin, the honest answer is cannotTell/);
 });
+
+// --- greeting a doctor (Russ, 2026-09-03) ------------------------------------
+//
+// Four letters were sitting in the queue opening "Hi Dr.," with no name, and
+// the letter otherwise only ever used a first name.
+
+const NM = require('../../src/hoursback/crm/names.js');
+
+test('a doctor is greeted as one, by surname', () => {
+  assert.equal(NM.doctorGreetingFor({ name: 'Dr. Dennis Holly', role: 'dentist' }), 'Dr. Holly');
+  assert.equal(NM.doctorGreetingFor({ name: 'Dr. Cochran', role: 'veterinarian' }), 'Dr. Cochran',
+    'a surname alone after the title is still a surname');
+  assert.equal(NM.doctorGreetingFor({ name: 'Dr. Carl E. Berg', role: 'Practice Owner' }), 'Dr. Berg',
+    'a middle initial is not the surname');
+});
+
+test('the role alone can settle it, and so can their own address', () => {
+  assert.equal(NM.doctorGreetingFor({ name: 'John Davis', role: 'veterinarian' }), 'Dr. Davis',
+    'the title is missing from the name but the job says it plainly');
+  assert.equal(
+    NM.doctorGreetingFor({ name: 'Andrew Noel Torchio', email: 'drandrew@pangeachiropractic.com' }),
+    'Dr. Torchio',
+    'their own address opening dr-something is evidence, and is how Russ read it',
+  );
+});
+
+test('nobody becomes a doctor without evidence', () => {
+  assert.equal(NM.doctorGreetingFor({ name: 'Maria Ramos', role: 'office manager' }), null,
+    'a dental practice has an office manager too');
+  assert.equal(NM.doctorGreetingFor({ name: 'Sarah Lin', email: 'info@clinic.com' }), null);
+});
+
+test('there is no such thing as a nameless doctor', () => {
+  assert.equal(NM.doctorGreetingFor({ name: 'Dr.', role: 'dentist' }), null,
+    '"Hi Dr.," went out four times; a title with no surname is not a greeting');
+  assert.equal(NM.doctorGreetingFor({ name: '', role: 'dentist' }), null);
+  assert.equal(NM.doctorGreetingFor({ name: 'Jessica Henderson Treasurer: Dr', role: 'x' }), null,
+    'a scraped heading is never a name');
+});
+
+// --- the letter carries no em-dashes (Russ, 2026-09-03) ----------------------
+
+test('no wording that reaches a reader contains an em-dash', () => {
+  const C = require('../../src/hoursback/crm/campaign.js');
+  const FC = require('../../src/hoursback/crm/firstContact.js');
+  const offenders = [];
+  const walk = (value, where) => {
+    if (typeof value === 'string') { if (value.includes('—')) offenders.push(`${where}: ${value.slice(0, 60)}`); return; }
+    if (Array.isArray(value)) { value.forEach((v, i) => walk(v, `${where}[${i}]`)); return; }
+    if (value && typeof value === 'object') { for (const [k, v] of Object.entries(value)) walk(v, `${where}.${k}`); }
+  };
+  walk(C, 'campaign');
+  walk(FC, 'firstContact');
+  assert.deepEqual(offenders, [], `em-dashes still in the wording:\n${offenders.join('\n')}`);
+});
+
+// --- an edit that never got noticed (Russ, 2026-09-03) -----------------------
+//
+// He rewrote twenty-three letters believing his changes were spreading to the
+// rest. Not one offer was ever made. A letter saved from the browser comes back
+// with Windows line endings, the split understood only Unix ones, and the whole
+// letter was read as a single paragraph — so there was nothing to compare and
+// nothing was ever said.
+
+const SP = require('../../src/hoursback/crm/spreadEdit.js');
+const CP = require('../../src/hoursback/crm/campaign.js');
+
+test('a letter saved from the browser is still read as paragraphs', () => {
+  const fromABrowser = 'Hi Kristin,\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.';
+  assert.equal(SP.paragraphsOf(fromABrowser).length, 3,
+    'Windows line endings must not collapse the whole letter into one paragraph');
+  assert.equal(SP.paragraphsOf('a\n\nb').length, 2, 'and the ordinary kind still works');
+  assert.equal(SP.paragraphsOf('a\n \nb').length, 2, 'a line with a space on it is still a blank line');
+});
+
+test('moving the paragraphs is recognised as an instruction about the letter', () => {
+  const t = { week: 'Their week.', they: 'firms', hook: 'x', task: 'y', firstLook: 'z' };
+  const asBuilt = CP.dayZero('Kristin', t, 'seed');
+  const paras = asBuilt.split('\n\n');
+  // Swap the third and fourth paragraphs, which is what he did by hand.
+  const moved = [paras[0], paras[1], paras[3], paras[2], ...paras.slice(4)].join('\r\n\r\n');
+  const found = SP.whatHeChanged(asBuilt, moved);
+  assert.equal(found.kind, 'order', 'a reorder is its own kind of edit, not an unreadable one');
+  assert.notDeepEqual(found.now, found.was, 'and it says what the new order is');
+  assert.deepEqual([...found.now].sort(), [...found.was].sort(), 'the same paragraphs, moved');
+});
+
+test('one paragraph rewritten is still offered as a wording', () => {
+  const t = { week: 'Their week.', they: 'firms', hook: 'x', task: 'y', firstLook: 'z' };
+  const asBuilt = CP.dayZero('Kristin', t, 'seed');
+  const paras = asBuilt.split('\n\n');
+  const whyme = paras.findIndex((p) => /offices I'm offering to fix|businesses of my own|done the work/i.test(p));
+  assert.ok(whyme > 0, 'the letter must contain the why-me paragraph');
+  paras[whyme] = 'I have run these offices myself and I am not guessing.';
+  const found = SP.whatHeChanged(asBuilt, paras.join('\r\n\r\n'));
+  assert.equal(found.kind, 'wording');
+  assert.equal(found.slot, 'whyme');
+});
+
+test('when it cannot tell, it says so instead of going quiet', () => {
+  const found = SP.whatHeChanged('One paragraph.\n\nTwo.', 'Something else entirely, all new.');
+  assert.equal(found.kind, 'cannot_tell', 'silence is what let him believe it was working');
+  assert.ok(found.why && found.why.length > 10, 'and it says what it saw');
+});
+
+test('the letter is built in the order Russ has set, when he has set one', () => {
+  const t = { week: 'Their week.', they: 'firms', hook: 'x', task: 'y', firstLook: 'z' };
+  assert.deepEqual(CP.orderOfTheLetter(), CP.THE_ORDER_AS_BUILT,
+    'with nothing saved, the built-in order stands');
+  const body = CP.dayZero('Kristin', t, 'seed');
+  const order = SP.orderOf(body);
+  assert.deepEqual(order, CP.THE_ORDER_AS_BUILT,
+    'and the letter it writes is actually in that order');
+});

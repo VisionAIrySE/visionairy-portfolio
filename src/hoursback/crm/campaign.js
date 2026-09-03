@@ -47,11 +47,19 @@ const ALREADY_HANDLED = [
   'You may well have that one handled. Most {they} still have three or four more like it burning time in the wings.',
 ];
 
+// WHAT IS ACTUALLY TRUE (Russ, 2026-09-03).
+//
+// Three of these used to say he had RUN the offices he is offering to fix. He
+// has not run an insurance agency or a dental practice, and the letter goes to
+// both. What is true is that he has run businesses of his own and has worked
+// with companies like theirs for years, in finance and in construction. Every
+// wording below claims only that. No em-dashes anywhere: his instruction, same
+// day.
 const WHY_ME = [
-  "I've run the offices I'm offering to fix — finance, construction, my own businesses. I'm not a software person guessing at how your week works.",
-  "I've sat in the offices I'm offering to fix: finance, construction, businesses of my own. This isn't a software person guessing at how your week runs.",
-  "Finance, construction, my own companies — I've run the offices I'm offering to fix, so I'm not guessing at how the week actually goes.",
-  "I've done the job I'm offering to take off you, in finance, in construction and in my own businesses. Not a software person guessing at your week.",
+  "I've sat in the offices I'm offering to fix: finance, construction, businesses of my own. This isn't just a software person guessing at how your week runs.",
+  "I've run businesses of my own and spent years working with companies like yours, in finance and in construction. This isn't a software person guessing at how your week runs.",
+  "Finance, construction, businesses of my own. I've sat in the offices I'm offering to fix, so I'm not guessing at how the week actually goes.",
+  "I've done the work I'm offering to take off you, in my own businesses and alongside plenty of others. Not a software person guessing at your week.",
 ];
 
 // The offer, whole, and the only place the deliverable is described. Note what
@@ -68,14 +76,14 @@ const THE_OFFER = [
 const ASK_DAY0 = [
   'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
   'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
-  "There's no charge for the review and nothing to sign — just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply, or take a time from my calendar below.",
+  "There's no charge for the review and nothing to sign, just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply, or take a time from my calendar below.",
   'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour? Reply here, or grab a time from my calendar below.',
 ];
 
 const ASK_DAY4 = [
   'No charge, nothing to sign, and you get my best recommendation for a tool that will save your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
   'No charge and nothing to sign, and what you get is my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
-  "There's no charge and nothing to sign — just my best recommendation for a tool that will save your team time and money. Fifteen minutes? Reply, or take a time from my calendar below.",
+  "There's no charge and nothing to sign, just my best recommendation for a tool that will save your team time and money. Fifteen minutes? Reply, or take a time from my calendar below.",
   'Free, nothing to sign, and you come away with my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or grab a time from my calendar below.',
 ];
 
@@ -87,17 +95,17 @@ const DAY4_THE_PART = [
 ];
 
 const DAY4_WHAT_ID_LOOK_FOR = [
-  "That number and those tasks are what I'd go looking for in fifteen minutes — not to sell you on anything, but so you know what it's worth before you decide whether to fix it.",
-  "That number, and the tasks behind it, are what I'd go looking for in fifteen minutes. Not to sell you anything — so you know what it's worth before deciding whether to fix it.",
+  "That number and those tasks are what I'd go looking for in fifteen minutes, not to sell you on anything, but so you know what it's worth before you decide whether to fix it.",
+  "That number, and the tasks behind it, are what I'd go looking for in fifteen minutes. Not to sell you anything, so you know what it's worth before deciding whether to fix it.",
   "Fifteen minutes is enough to find that number and the tasks behind it. Nothing is being sold on the call; the point is that you know what it's worth before you decide anything.",
-  "What I'd go looking for in fifteen minutes is that number and the tasks behind it — not to sell you on anything, but so the decision about fixing it gets made with a real figure in front of you.",
+  "What I'd go looking for in fifteen minutes is that number and the tasks behind it, not to sell you on anything, but so the decision about fixing it gets made with a real figure in front of you.",
 ];
 
 const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final note from me.', 'Last one from me.'];
 
 const DAY8_THATS_WHAT_ITS_FOR = [
   "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you.",
-  "That's what the fifteen minutes is for — I come back with the specific product, its cost, and why it fits you.",
+  "That's what the fifteen minutes is for, I come back with the specific product, its cost, and why it fits you.",
   "That's the job of the fifteen minutes. I go away and come back with the specific product, what it costs, and why it suits you.",
   "The fifteen minutes is for exactly that. I come back to you with the product, what it costs, and why it's the right one for you.",
 ];
@@ -112,7 +120,7 @@ const DAY8_CLOSE = [
 const NOTE_CLOSE = [
   'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?',
   'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour?',
-  "There's no charge and nothing to sign — just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?",
+  "There's no charge and nothing to sign, just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?",
   'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour?',
 ];
 
@@ -273,6 +281,25 @@ async function loadHisWordings(db) {
   return rows.length;
 }
 
+// THE ORDER OF THE FIRST LETTER, WHEN RUSS HAS SET ONE.
+//
+// Saved exactly like a wording: one row, under this name, holding the slot
+// names in the order he put them. Reordering the paragraphs on screen and
+// pressing "write every letter this way" is what sets it. Nothing here is a
+// list of alternatives — a letter has one shape — so the newest row wins and
+// the built-in order below stands until he sets one.
+const LETTER_ORDER_SLOT = 'dayZeroOrder';
+const THE_ORDER_AS_BUILT = ['handled', 'who', 'whyme', 'offer', 'ask0'];
+
+function orderOfTheLetter() {
+  const his = HIS_OWN.get(LETTER_ORDER_SLOT);
+  if (!his || !his.length) return THE_ORDER_AS_BUILT;
+  const said = String(his[his.length - 1]).split(/\s+/).filter(Boolean);
+  // Only names this letter actually knows, and never an empty letter.
+  const kept = said.filter((sl) => THE_ORDER_AS_BUILT.includes(sl));
+  return kept.length ? kept : THE_ORDER_AS_BUILT;
+}
+
 // The written wordings plus anything he has added for that line.
 function waysToSay(list, slot) {
   const his = HIS_OWN.get(slot);
@@ -312,13 +339,31 @@ function slotsOfTheMessage() {
 // So the first paragraph is theirs, and the second is his — who he is, what
 // he does, and why him, run together as one thought instead of two paragraphs
 // that say the same thing twice.
+// THE ORDER, SETTLED (Russ, 2026-09-03, from the format he wrote out himself):
+//
+//   their week  ->  who I am  ->  why me  ->  the offer  ->  the ask
+//
+// Who he is is its own paragraph now instead of being run together with why
+// him.
+//
+// WHY HIM COMES BEFORE THE OFFER. The format Russ wrote out put it after; his
+// own hands put it before, in NINE of the twenty-three letters he rewrote by
+// hand, against two the other way. What settled it was his next instruction:
+// bold the words in "the next to last paragraph" about doing the research at
+// no cost. That phrase is in the OFFER, and the offer is only next-to-last
+// when why-him sits above it. The edits are the truth; the pasted format was
+// written from memory.
 function dayZero(name, t, seed = '') {
+  const paragraph = {
+    handled: () => `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
+    who: () => pick(waysToSay(WHO_I_AM, 'who'), seed, 'who'),
+    whyme: () => pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme'),
+    offer: () => pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
+    ask0: () => pick(waysToSay(ASK_DAY0, 'ask0'), seed, 'ask0'),
+  };
   return [
     name ? `Hi ${name},` : 'Hello,',
-    `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
-    `${pick(waysToSay(WHO_I_AM, 'who'), seed, 'who')} ${pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme')}`,
-    pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
-    pick(waysToSay(ASK_DAY0, 'ask0'), seed, 'ask0'),
+    ...orderOfTheLetter().map((slot) => paragraph[slot]()),
   ].join('\n\n');
 }
 
@@ -378,16 +423,27 @@ function subjectDayFour(t) { return `The cost of ${t.hook}`; }
 const WHO_I_AM_SHORT =
   "I'm local to Central Oregon and I take repetitive office work off small businesses and hand it to software automations and AI supported solutions.";
 
+// THE SAME ORDER AS THE LETTER, ABBREVIATED (Russ, 2026-09-03).
+//
+// The note used to greet and introduce Russ in one breath, and only then say
+// anything about them. It now follows the letter exactly:
+//
+//   their week  ->  who I am  ->  the offer  ->  the close
+//
+// Why-him is the paragraph the shortening drops, because the profile beside
+// the message already carries it. Nothing else is cut to hit a length.
 function linkedInNote(name, t, seed = '') {
   return [
-    `${name ? `Hi ${name},` : 'Hello,'} ${WHO_I_AM_SHORT}`,
+    name ? `Hi ${name},` : 'Hello,',
     `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
+    WHO_I_AM_SHORT,
     pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
     pick(waysToSay(NOTE_CLOSE, 'noteclose'), seed, 'noteclose'),
   ].join('\n\n');
 }
 
 module.exports = {
+  LETTER_ORDER_SLOT, THE_ORDER_AS_BUILT, orderOfTheLetter,
   WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, TRADES,
   tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,
   loadHisWordings, waysToSay, slotsOfTheMessage,
