@@ -101,11 +101,16 @@ const DAY4_THE_PART = [
   "Here's what most owners have never really weighed up. It isn't {task}. It's that the person doing it was hired for a different job, and that job waits while the repetitive, tedious work gets done.",
 ];
 
+// THERE WAS NEVER A NUMBER (Russ, 2026-09-03). Every wording opened "That
+// number and those tasks", and no number appears in this letter or the one
+// before it. The reader has nothing to attach it to. Each version now names
+// the hours plainly, and says what the waiting costs — the same correction as
+// the opening line: name the work AND what it costs.
 const DAY4_WHAT_ID_LOOK_FOR = [
-  "That number and those tasks are what I'd go looking for in fifteen minutes, not to sell you on anything, but so you know what it's worth before you decide whether to fix it.",
-  "That number, and the tasks behind it, are what I'd go looking for in fifteen minutes. Not to sell you anything, so you know what it's worth before deciding whether to fix it.",
-  "Fifteen minutes is enough to find that number and the tasks behind it. Nothing is being sold on the call; the point is that you know what it's worth before you decide anything.",
-  "What I'd go looking for in fifteen minutes is that number and the tasks behind it, not to sell you on anything, but so the decision about fixing it gets made with a real figure in front of you.",
+  "So there are two costs, not one: the hours themselves, and the work that never gets done because those hours went somewhere else. Fifteen minutes is enough for me to put a number on both, and nothing is being sold on the call.",
+  "That is two costs. The hours it takes, and the job that waits while it happens. Fifteen minutes is enough to put a real figure on each, and I am not selling anything on the call.",
+  "Two things are being paid for there: the hours, and whatever did not get done instead. Fifteen minutes is enough to work out what each is costing, with nothing sold at the end of it.",
+  "There are two bills arriving, not one: the time it takes, and the work sitting behind it. Fifteen minutes is enough to price both, and nothing gets sold on the call.",
 ];
 
 const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final note from me.', 'Last one from me.'];
@@ -394,6 +399,19 @@ function dayFour(name, t, seed = '') {
   ].join('\n\n');
 }
 
+// THE THIRD MESSAGE (day eight). One question, answerable in a line, and no
+// calendar. It names their week again — briefly — so the question has
+// something to sit against, then asks and explains why it is asking.
+function daySmallAsk(name, t, seed = '') {
+  const C = require('./firstContact.js');
+  return [
+    name ? `Hi ${name},` : 'Hello,',
+    `I wrote about ${t.hook}. No reply needed on that one.`,
+    pick(waysToSay(C.THIRD_ASK, 'ask3'), seed, 'ask3'),
+    pick(waysToSay(C.THIRD_WHY, 'why3'), seed, 'why3'),
+  ].join('\n\n');
+}
+
 function dayEight(name, t, tradeWord, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
@@ -460,6 +478,7 @@ function linkedInNote(name, t, seed = '') {
 }
 
 module.exports = {
+  daySmallAsk,
   LETTER_ORDER_SLOT, THE_ORDER_AS_BUILT, orderOfTheLetter,
   WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, TRADES,
   tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,

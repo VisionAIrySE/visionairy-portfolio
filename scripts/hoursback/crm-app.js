@@ -286,6 +286,33 @@ async function home() {
 
 // ---------------------------------------------------------------------------
 // Every business, best first. This is the room the call list is picked from.
+// THE WHOLE SEQUENCE, BEFORE ANY OF IT IS SENT (Russ, 2026-09-03).
+//
+// The second, third and fourth messages are written at the moment the one
+// before them is sent, so until now there was no way to read them. This shows
+// what each WILL say for this business, from the same code that will write it.
+// Nothing here is stored: it is generated for the page and thrown away.
+function sequenceTabs(prospect) {
+  const FC = require('../../src/hoursback/crm/firstContact.js');
+  const days = FC.FOLLOW_UP_DAYS;
+  const written = [];
+  try {
+    const first = FC.draftFirstContact(prospect, JSON.parse(prospect.scoreEvidence || '[]'));
+    if (first) written.push({ day: days[0], subject: first.subject, body: first.body });
+  } catch { /* a business with nothing to open on has no sequence */ }
+  for (const touch of [2, 3, 4]) {
+    try {
+      const b = FC.draftFollowUpTouch(prospect, 'trade_week', touch);
+      if (b) written.push({ day: days[touch - 1], subject: b.subject, body: b.body });
+    } catch { /* one that will not build is left out rather than breaking the page */ }
+  }
+  if (!written.length) return '<p class="muted">Nothing to write to them yet.</p>';
+  return written.map((m, i) => `<details class="card"${i === 0 ? ' open' : ''}>
+    <summary><b>Day ${m.day}</b> &nbsp; ${esc(m.subject)}</summary>
+    <pre style="white-space:pre-wrap;font:inherit;margin:10px 0 0">${esc(m.body)}</pre>
+  </details>`).join('');
+}
+
 // Each reason a business needs a look, in the words Russ would use.
 const WHY_IT_NEEDS_A_LOOK = {
   address_on_another_companys_domain: "the address we write to is on another company's website",
@@ -1387,6 +1414,10 @@ async function businessCard(id, saved) {
   <h2>The price</h2>
   <p>${priceLine}</p>
   <p class="muted"><b>${esc(p.trade || tradeOfName(p))}</b> · Team size: ${count === null || count === undefined ? 'unknown' : count}${p.headcountPublishedAs && p.headcountPublishedAs !== String(count) ? ` (their site says ${esc(p.headcountPublishedAs)})` : ''}${p.headcountSourceUrl ? ` — <a href="${esc(p.headcountSourceUrl)}" target="_blank">where it says so</a>` : ''}</p>
+
+  <h2>The whole sequence</h2>
+  <p class="mini">Four messages over two weeks. Only the first exists yet — the rest are written when the one before it is sent, so these are what they WILL say. Nothing here can be edited; edit the first one below and the rest follow it.</p>
+  ${sequenceTabs(p)}
 
   <h2>Their messages (${p.messages.length})</h2>
   ${p.messages.length ? p.messages.map((m) => `<div class="card">

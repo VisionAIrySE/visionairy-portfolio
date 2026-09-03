@@ -410,7 +410,40 @@ Grab a time on my calendar: https://calendly.com/visionairy/new-meeting`;
 // or "circling back", which are the two phrases that tell a reader they are on
 // a list.
 
-const FOLLOW_UP_DAYS = [0, 4, 8];   // first contact, four days, then eight (Russ, 2026-08-26)
+// FOUR MESSAGES, OVER TWO WEEKS (Russ, 2026-09-03).
+//
+// It was three, all asking for the same thing: fifteen minutes on a call. A
+// person who is interested but will not book a calendar slot was never heard
+// from, and that is the likeliest reason a good prospect goes quiet.
+//
+// The third message now lowers the bar instead of repeating the ask: reply
+// with the one task that eats your week, and get an answer by email, no call.
+// It costs them ten seconds, and a one-line reply says more about whether they
+// are worth calling than a booked slot does.
+//
+// The close moves to day fourteen. Four messages in eight days is a drumbeat;
+// over a fortnight it is a follow-up.
+const FOLLOW_UP_DAYS = [0, 4, 8, 14];
+
+// THE THIRD MESSAGE: a smaller ask, not the same ask again.
+//
+// One question, answerable in a line, no calendar. It deliberately does NOT
+// give away what the fifteen minutes is for — Russ answers whether a tool
+// exists, not which one it is, what it costs, or what to build. That is still
+// the call.
+const THIRD_ASK = [
+  "Different question, and you can answer it in one line: what is the single task that eats the most time in your week? Reply and tell me, and I will tell you whether there is something off the shelf that handles it. No call, no calendar, just an answer.",
+  "Let me make this easier. Tell me the one job that takes the most time out of your week, in a sentence, and I will come back and tell you whether a tool exists for it. That is the whole thing. No call needed.",
+  "One question instead of fifteen minutes: what is the task that costs you the most time every week? Hit reply with it and I will tell you straight whether there is a tool that does it. Nothing to book.",
+  "Simpler than a call: name the one thing that eats your week, in a line, and I will tell you whether somebody has already built the answer to it. Reply is all it takes.",
+];
+
+const THIRD_WHY = [
+  'I ask because the tools worth having are the boring ones that take a specific job off a specific person, and I cannot point at the right one without knowing which job it is.',
+  'I ask because the right tool is always the one aimed at a particular job, and until I know which job, anything I suggested would be a guess.',
+  'The reason I ask: what makes one of these worth the money is that it takes a named task off a named person. Without the task, I would be guessing.',
+  'I ask because a tool is only worth it when it takes a specific job off somebody. Which one it is changes the answer completely.',
+];
 
 const SIGN_OFF = `Best regards,
 
@@ -780,7 +813,7 @@ function draftLinkedIn(prospect, signals = []) {
 // opened on. Returns null when there is nothing honest to say.
 function draftFollowUpTouch(prospect, openedWith, touch) {
   const { tradeOf } = require('./queues.js');
-  if (touch !== 2 && touch !== 3) return null;
+  if (touch !== 2 && touch !== 3 && touch !== 4) return null;
   const business = businessNameOf(prospect);
   const who = greetingFor(prospect);
   const trade = prospect.trade || tradeOf(prospect.name);
@@ -797,17 +830,22 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   const C = require('./campaign.js');
   const t = C.tradeCopy(trade);
   const tradeWord = C.tradeWordFor(trade);
-  const body = `${touch === 2 ? C.dayFour(who, t, business) : C.dayEight(who, t, tradeWord, business)}\n\n${SIGN_OFF}`
+  const written = touch === 2 ? C.dayFour(who, t, business)
+    : touch === 3 ? C.daySmallAsk(who, t, business)
+      : C.dayEight(who, t, tradeWord, business);
+  const body = `${written}\n\n${SIGN_OFF}`
     .replace(/\{business\}/g, business)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n +/g, '\n');
-  const subject = touch === 2 ? C.subjectDayFour(t) : 'Closing the loop';
+  const subject = touch === 2 ? C.subjectDayFour(t)
+    : touch === 3 ? 'One question'
+      : 'Closing the loop';
   return { subject, body, openedWith: `touch_${touch}` };
 }
 
 module.exports = {
   CREDIBILITY, longevityLine, toolsLine, toolsNoteForRuss, bandFacts, yearLineFor,
-  FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS,
+  FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS, THIRD_ASK, THIRD_WHY,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
   chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
