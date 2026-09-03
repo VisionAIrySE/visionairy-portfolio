@@ -461,6 +461,9 @@ async function noticingRun(injected = {}) {
         : (noticed.length && !look ? `review the ${noticed.length} letters on ${reviewPage}` : null),
     };
   } finally {
+    // The readers kept waiting for the next question are closed with the
+    // run — a warm reader is a real process and must not outlive it.
+    try { require('./understand-businesses.js').closeReaderPool(); } catch { /* nothing to close */ }
     await db.$disconnect();
   }
   // The status board — always the LAST thing written, whatever the ending.

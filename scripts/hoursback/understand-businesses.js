@@ -106,7 +106,48 @@ fs.mkdirSync(ROOM, { recursive: true });
 // call and no paid call, rather than assert it.
 const callLog = [];
 
+// READERS THAT ARE ALREADY AWAKE (2026-09-03).
+//
+// Every question below starts a reader from cold, and that start-up alone was
+// measured at 7.5 seconds for a question with nothing in it to think about.
+// A business asks five to seven questions, so most of a night went on
+// watching the same program wake up.
+//
+// A couple of readers are kept started and waiting now, so a question is
+// handed to one already awake. Each still answers exactly ONE question and is
+// then closed — the steps are deliberately blind to each other and a shared
+// conversation would destroy that. Two, not more: four idle readers cost 1.26
+// GB, which on this machine is a worse trade than the time it buys.
+//
+// If the pool cannot start for any reason, every question falls back to the
+// cold path below and the run is slow rather than broken.
+const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
+let thePool = null;
+function readerPool() {
+  if (thePool === null) {
+    try {
+      thePool = makeReaderPool({
+        size: Number(process.env.HOURSBACK_WARM_READERS || 2),
+        hardKillMs: HARD_KILL_MS,
+        cwd: ROOM,
+        onCall: ({ ms, answered }) => callLog.push({ via: 'local claude', model: 'haiku', ms, answered, warm: true }),
+      });
+    } catch { thePool = false; }
+  }
+  return thePool;
+}
+function closeReaderPool() {
+  if (thePool) { try { thePool.close(); } catch { /* gone */ } }
+  thePool = false;
+}
+
 function askTheReader(question) {
+  const pool = readerPool();
+  if (pool) return pool.ask(question);
+  return askTheReaderCold(question);
+}
+
+function askTheReaderCold(question) {
   const began = Date.now();
   return new Promise((resolve) => {
     // A HUNG READ MUST NOT HOLD THE RUN.
@@ -865,6 +906,7 @@ async function understandPass(injected = {}) {
     if (cutOffMidVisit.length) console.log(`cut off mid-visit, still eligible: ${cutOffMidVisit.join(', ')}`);
     console.log('Nothing further was written. Rerun with --fresh=12 to resume from the database once the reader answers.');
     try { await require('../../src/hoursback/browserRead.js').closeSharedBrowser(); } catch { /* nothing to close */ }
+    closeReaderPool();
     await db.$disconnect();
     writeLastRun({
       script: 'understand-businesses.js', why, done, remaining, at: lastRunAt,
@@ -914,6 +956,7 @@ async function understandPass(injected = {}) {
   console.log(`scores held down:         ${tally.held}`);
   // The browser is a real process; it does not outlive the run that opened it.
   try { await require('../../src/hoursback/browserRead.js').closeSharedBrowser(); } catch { /* nothing to close */ }
+  closeReaderPool();
   await db.$disconnect();
 
   // The status board — the last thing written, whatever the ending was.
@@ -1299,7 +1342,7 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
 module.exports = {
   writeItDown, hasContactForm, opportunityFromTheRead,
   // the whole-site visit, exported so it can be tested without a run
-  visitOneBusiness, askTheReader, BATCH_OF_SITES, MODEL, READER_VERSION,
+  visitOneBusiness, askTheReader, closeReaderPool, BATCH_OF_SITES, MODEL, READER_VERSION,
   // surviving the night: the run itself, the reader guard that stops it the
   // moment the reader is out, and the status board — all exported so the
   // stop behaviours can be proved by tests instead of by a ruined night
