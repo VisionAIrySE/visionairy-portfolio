@@ -309,7 +309,11 @@ async function visitOneBusiness(db, r, deps = {}) {
   const controller = deps.controller || makeFlightController();
   const look = deps.look === undefined ? LOOK : deps.look;
   const name = r.nameManualValue || r.name || '';
-  const url = r.websiteManualValue || r.website;
+  // THE FRONT DOOR. Their address with any advertising tracking taken off it —
+  // 109 businesses' addresses were copied off a Google listing with tracking
+  // attached, and opened as given they bounce and hand back nothing. What is
+  // stored is not changed; this is only how we knock.
+  const url = ps.frontDoor(r.websiteManualValue || r.website);
 
   const visit = {
     name, url, outcome: null, fetched: 0, failures: 0, skipped: 0,
@@ -386,6 +390,11 @@ async function visitOneBusiness(db, r, deps = {}) {
 
     visit.fetched = crawl.pages.length;
     visit.failures = crawl.failures.length;
+    // A CRAWL THAT STOPPED EARLY MUST SAY WHY (Russ, 2026-09-03: "watch for
+    // stalls"). Ran-out-of-time and stopped-answering both ended as the same
+    // word on screen, so a stall was invisible in a run of big sites.
+    visit.stalled = Boolean(crawl.stalled);
+    visit.saidNothingNew = Boolean(crawl.saidNothingNew);
 
     if (!crawl.pages.length) {
       if (reading) await R.finishReading(db, reading.id, R.UNREACHABLE, crawl.error || 'no page could be opened');
@@ -747,7 +756,7 @@ async function understandPass(injected = {}) {
 
   const tally = {
     read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, noReadableWords: 0, partial: 0,
-    viaBrowser: 0, wordsRecovered: 0,
+    viaBrowser: 0, wordsRecovered: 0, browserBroke: 0, stalled: 0, nothingNew: 0,
     tradeConfirmed: 0, tradeCorrected: 0, tradeUnsure: 0,
     people: 0, roles: 0, rolesUnderstood: 0, emails: 0, directLines: 0, profiles: 0,
     sharedInbox: 0, formOnly: 0, phoneOnly: 0, held: 0, newlyScored: 0,
@@ -807,12 +816,15 @@ async function understandPass(injected = {}) {
         // The per-site report the run promises: pages fetched, the count in
         // each purpose, model calls, and finished or PARTIAL.
         const byP = PURPOSES.map((g) => `${g} ${visit.byPurpose[g] ?? 0}`).join('  ');
-        console.log(`  ${String(visit.name).slice(0, 34).padEnd(36)} ${String(visit.fetched).padStart(3)} pages  (${byP})  ${visit.modelCalls} calls  ${visit.partial ? 'PARTIAL' : visit.outcome}`);
+        console.log(`  ${String(visit.name).slice(0, 34).padEnd(36)} ${String(visit.fetched).padStart(3)} pages  (${byP})  ${visit.modelCalls} calls  ${visit.stalled ? 'STALLED' : (visit.saidNothingNew ? 'SAID-NOTHING-NEW' : (visit.partial ? 'PARTIAL' : visit.outcome))}${visit.browserError ? `  browser would not open: ${visit.browserError}` : ''}`);
 
         tally.modelCalls += visit.modelCalls;
         tally.pagesFetched += visit.fetched;
         if (visit.partial) tally.partial += 1;
 
+        if (visit.browserError) tally.browserBroke += 1;
+        if (visit.stalled) tally.stalled += 1;
+        if (visit.saidNothingNew) tally.nothingNew += 1;
         if (visit.outcome === 'not_their_site') { tally.notTheirSite += 1; continue; }
         if (visit.outcome === 'unreachable') { tally.siteDown += 1; continue; }
         if (visit.outcome === 'failed') {
@@ -928,6 +940,9 @@ async function understandPass(injected = {}) {
   console.log(`website was not theirs:   ${tally.notTheirSite}`);
   console.log(`site would not answer:    ${tally.siteDown}`);
   console.log(`reader gave no answer:    ${tally.readerFailed}`);
+  if (tally.browserBroke) console.log(`browser would NOT start:  ${tally.browserBroke}   (these are not thin websites — we never got to look)`);
+  if (tally.stalled) console.log(`site stopped answering:   ${tally.stalled}   (six minutes with no new page; kept what we had)`);
+  if (tally.nothingNew) console.log(`stopped saying anything new: ${tally.nothingNew}   (a run of pages that only repeated what the site had already said)`);
   console.log(`read through a browser:    ${tally.viaBrowser}   (a plain fetch saw nothing; ${tally.wordsRecovered.toLocaleString()} chars recovered)`);
   console.log(`site published no words:  ${tally.noReadableWords}   (nothing came back even with a real browser)`);
   if (tally.brokeOnThisOne) {

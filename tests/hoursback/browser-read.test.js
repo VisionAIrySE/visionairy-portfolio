@@ -146,13 +146,18 @@ test('a crawl over a never-clearing challenge returns the page with its words, m
   assert.equal(crawl.pages.length, 1, 'the page is RETURNED, not dropped');
   const pg = crawl.pages[0];
   assert.equal(typeof pg.text, 'string');
-  // A CHALLENGE SCREEN IS NOT THE SITE. Its words are kept — we waited and
-  // this is what it showed — but the page's own text is emptied so nothing
-  // downstream mistakes the screen for the business's own words. Empty text
-  // means "we opened it and it published nothing", which leaves the business
-  // eligible for another attempt rather than marked read.
-  assert.equal(pg.text, '', 'the challenge screen never stands as the site text');
-  assert.match(pg.challengeText, /checking your site connection/i, 'the words it DID show are kept');
+  // THE WORDS ARE KEPT, WHATEVER THEY TURNED OUT TO BE (2026-09-03, replacing
+  // the emptying this test used to assert). The page's text used to be wiped
+  // whenever it never became a full business page, and moved to a field
+  // nothing reads — which destroyed 91 characters of real answer on Bisnett
+  // Insurance ("now a part of ... (800) 303-0419") for the crime of being
+  // short. Nothing downstream needs the emptying: every judgement that must
+  // not mistake a robot-check screen for the site asks looksLikeARealPage,
+  // which this screen fails on its own merits.
+  assert.match(pg.text, /checking your site connection/i,
+    'the words it showed are KEPT — a reading is never erased');
+  assert.equal(pg.neverBecameAPage, true,
+    'and the page says plainly that it never became a full business page');
   assert.equal(pg.challengeNeverCleared, true, 'the page says the challenge never cleared');
   assert.ok(pg.challengeNote, 'and says why, in words');
   assert.deepEqual(crawl.challengesNeverCleared, [`${HOST}/`]);

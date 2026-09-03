@@ -570,6 +570,87 @@ const SAME_SHAPE_LIMIT = 10;          // ten of one path shape, then stop that p
 const STALL_AFTER_MS = 360000;
 const WHOLE_SITE_PAGE_CEILING = 500;  // no site is infinite; this is what stops a huge one now
 
+// A SITE THAT HAS STOPPED SAYING ANYTHING NEW (Russ, 2026-09-03).
+//
+// Prineville Insurance served 473 pages in fifteen minutes. They were not
+// pages: they were the same page with a town swapped into it —
+// best-independent-insurance-agents-bend-oregon, -redmond-oregon,
+// -madras-oregon — and then the same again for every trade. The ten-of-one-
+// shape stop never saw it, because every one of them sits at the top level
+// under a different name, so each counts as its own shape.
+//
+// The stop is therefore on WHAT A PAGE SAYS, not on what it is called. Every
+// page's words are compared against every word read so far on this site. A
+// page that is almost entirely words we already have has told us nothing new.
+// A run of those means the site has stopped giving, and the crawl ends —
+// partial, everything kept, and the reason recorded.
+//
+// Checked against the pages already on file before it was written: it would
+// have stopped Prineville at 25 pages instead of 473 and Greenbar at 131 of
+// 222, and would not have touched Lar-Moon (41), Central Oregon Radiology
+// (21), Rockpoint (16), York Bros (8), Beyond Real Estate (18), Crooked Tails
+// (10) or Interface Engineering (11) at all — their longest dull run was two.
+const JUDGE_NEWNESS_AFTER = 15;   // a small site is never judged: it has no tail to cut
+const NEW_WORDS_FLOOR = 0.05;     // under 5% words we have never seen = nothing new
+const NOTHING_NEW_RUN = 10;       // ten such pages in a row and the site has stopped giving
+
+/// The words a page actually contributes, lowercased, four letters or more.
+/// Short words are dropped because every page has them and they say nothing
+/// about whether this page is different from the last one.
+function wordsOf(text) {
+  return new Set(String(text || '').toLowerCase().match(/[a-z]{4,}/g) || []);
+}
+
+/// What share of this page's words we have never read on this site before.
+/// 1 = entirely new, 0 = every word already seen. An empty page returns null:
+/// it is not evidence either way and must never count towards a dull run.
+function shareOfWordsNotSeen(text, seen) {
+  const w = wordsOf(text);
+  if (!w.size) return null;
+  let fresh = 0;
+  for (const word of w) if (!seen.has(word)) fresh += 1;
+  return fresh / w.size;
+}
+
+// THE FRONT DOOR, NOT THE ADVERTISING SIDE ENTRANCE (Russ, 2026-09-03).
+//
+// 109 businesses' web addresses on file carry advertising tracking on the end
+// — Severson Electric's is seversonelectric.com/?utm_source=google&utm_medium=
+// local&utm_campaign=gbp_bend, copied off a Google listing. Opened, that
+// address bounces, and both Seversons came back holding not one word while
+// their sites are perfectly readable.
+//
+// So a business's address is cleaned before it is opened. Only tags that are
+// known to be advertising tracking are removed — anything a site might
+// actually need to show the right page is left exactly as it was.
+const TRACKING_TAGS = [
+  /^utm_/,           // Google's campaign tags: utm_source, utm_medium, utm_campaign, ...
+  /^gclid$/, /^dclid$/, /^wbraid$/, /^gbraid$/,   // Google click identifiers
+  /^fbclid$/, /^igshid$/,                          // Facebook and Instagram
+  /^msclkid$/, /^ttclid$/, /^twclid$/, /^li_fat_id$/,
+  /^mc_(cid|eid)$/,  // Mailchimp
+  /^_hs(enc|mi)$/,   // HubSpot
+  /^yclid$/, /^vero_(id|conv)$/, /^_ga$/, /^_gl$/,
+];
+
+/// A business's own address with advertising tracking taken off it. Anything
+/// that is not recognisably tracking is left alone, and an address we cannot
+/// read at all is handed back untouched rather than guessed at.
+function frontDoor(website) {
+  const raw = String(website || '').trim();
+  if (!raw) return raw;
+  let u;
+  try { u = new URL(raw.startsWith('http') ? raw : `https://${raw}`); } catch { return raw; }
+  let removed = 0;
+  for (const key of [...u.searchParams.keys()]) {
+    if (TRACKING_TAGS.some((tag) => tag.test(key))) { u.searchParams.delete(key); removed += 1; }
+  }
+  if (!removed) return raw;
+  let out = u.toString();
+  if (![...u.searchParams.keys()].length) out = out.replace(/\?$/, '');
+  return out;
+}
+
 // One key per SHAPE of address, so /products/red-widget and /products/blue-widget
 // count against the same stop while /about and /contact stay distinct. The rule:
 // a single-segment path IS its own shape; a deeper path is its first segment
@@ -665,6 +746,9 @@ async function crawlWholeSite(website, options = {}) {
   let partial = false;
   let stalled = false;
   let lastPageAt = Date.now();
+  const wordsSeen = new Set();      // every word this site has said so far
+  let dullRun = 0;                  // pages in a row that said nothing new
+  let saidNothingNew = false;
 
   // The queue holds { url, exempt } — exempt means this address came from
   // linksBelow() on a real team page, and the ten-same-shape stop does not
@@ -727,6 +811,25 @@ async function crawlWholeSite(website, options = {}) {
     });
     lastPageAt = Date.now();   // a page landed; the stall clock starts again
 
+    // HAS THIS PAGE SAID ANYTHING WE DID NOT ALREADY HAVE? An empty page is
+    // not evidence either way and never counts towards the run.
+    const justRead = pages[pages.length - 1].text;
+    const shareNew = shareOfWordsNotSeen(justRead, wordsSeen);
+    if (shareNew !== null) {
+      for (const w of wordsOf(justRead)) wordsSeen.add(w);
+      const bigEnoughToJudge = pages.length > (options.judgeNewnessAfter ?? JUDGE_NEWNESS_AFTER);
+      if (bigEnoughToJudge && shareNew < (options.newWordsFloor ?? NEW_WORDS_FLOOR)) {
+        dullRun += 1;
+        if (dullRun >= (options.nothingNewRun ?? NOTHING_NEW_RUN)) {
+          partial = true;
+          saidNothingNew = true;
+          break;
+        }
+      } else {
+        dullRun = 0;
+      }
+    }
+
     if (skippedBy && FOLLOW_NOTHING_BELOW.has(skippedBy)) continue;
 
     // What this page links to. Everything same-host goes in the queue —
@@ -758,7 +861,7 @@ async function crawlWholeSite(website, options = {}) {
 
   if (queue.length && Date.now() - startedAt > timeLimit) partial = true;
 
-  return { pages, failures, partial, stalled, stoppedShapes: [...stoppedShapes], error: pages.length ? null : 'no page could be opened' };
+  return { pages, failures, partial, stalled, saidNothingNew, stoppedShapes: [...stoppedShapes], error: pages.length ? null : 'no page could be opened' };
 }
 
 function peopleFromSite(pages) {
@@ -797,4 +900,6 @@ module.exports = {
   // the whole-site crawl (2026-09-01)
   crawlWholeSite, pathShape, dateInPath, whySkip, titleOf,
   SKIP_RULES, CRAWL_TIME_LIMIT_MS, SAME_SHAPE_LIMIT, WHOLE_SITE_PAGE_CEILING,
+  frontDoor, shareOfWordsNotSeen, wordsOf,
+  JUDGE_NEWNESS_AFTER, NEW_WORDS_FLOOR, NOTHING_NEW_RUN, STALL_AFTER_MS,
 };

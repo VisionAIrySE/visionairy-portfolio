@@ -349,13 +349,30 @@ async function crawlWithBrowser(url, options = {}) {
         // rather than marked read (CLAUDE.md rule 1: absence is data).
         const stillNotAPage = !looksLikeARealPage(wait.text || '', SUBSTANTIAL_TEXT_CHARS);
         pg.challengeNote = stillNotAPage
-          ? `never became a business page after ${Math.round(wait.waitedMs / 1000)}s — kept with the words it showed`
+          ? `never became a full business page after ${Math.round(wait.waitedMs / 1000)}s`
           : `cleared late, after ${Math.round(wait.waitedMs / 1000)}s`;
-        if (stillNotAPage) {
-          pg.challengeText = String(pg.text || wait.text || '');
-          pg.text = '';
-          pg.html = '';
-        }
+        // THE WORDS ARE NEVER ERASED (Russ, 2026-09-03).
+        //
+        // This used to empty pg.text whenever the page did not reach the bar
+        // of a full business page, and tuck the words into pg.challengeText —
+        // a field NOTHING reads. So the words were not set aside, they were
+        // destroyed, and the business came back "published no words".
+        //
+        // Bisnett Insurance is the case that found it. Their whole website
+        // reads "Bisnett Insurance is now a part of ... (800) 303-0419" — 91
+        // characters, and a real answer: the business has been acquired. It
+        // was deleted for being short.
+        //
+        // Nothing downstream needs the emptying. Every judgement that must not
+        // mistake a robot-check screen for the site already asks
+        // looksLikeARealPage, which a challenge screen fails on its own
+        // merits. So the words stay, the page carries a mark saying it never
+        // became a full business page, and what that MEANS is decided by
+        // whoever reads it — not by throwing the evidence away first.
+        //
+        // This is the repository's own rule: a reading is an event, written
+        // once and kept forever. Nothing overwrites a reading.
+        pg.neverBecameAPage = stillNotAPage;
         challengesNeverCleared.push(pg.url);
       }
     }

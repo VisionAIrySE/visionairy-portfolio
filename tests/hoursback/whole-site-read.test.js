@@ -1088,3 +1088,109 @@ test('a blank page is never used as the held copy of another page', async () => 
   assert.ok(asked, 'it must look for an earlier identical copy');
   assert.deepEqual(asked.where.NOT, { text: '' }, 'a blank row can never be the copy pointed at');
 });
+
+// --- the front door: an address with advertising tracking on it -------------
+//
+// Russ, 2026-09-03. 109 businesses' addresses were copied off a Google listing
+// with tracking attached. Opened as given they bounce and hand back nothing.
+
+test('advertising tracking is taken off a business address before we open it', () => {
+  const { frontDoor } = require('../../src/hoursback/peopleSweep.js');
+  assert.equal(
+    frontDoor('https://seversonelectric.com/?utm_source=google&utm_medium=local&utm_campaign=gbp_bend'),
+    'https://seversonelectric.com/',
+    'the real front door, not the advertising side entrance',
+  );
+  assert.equal(frontDoor('https://x.test/?gclid=abc'), 'https://x.test/');
+  assert.equal(frontDoor('https://x.test/?fbclid=abc&utm_source=fb'), 'https://x.test/');
+});
+
+test('anything that is not tracking is left exactly as it was', () => {
+  const { frontDoor } = require('../../src/hoursback/peopleSweep.js');
+  assert.equal(frontDoor('https://x.test/page?id=7'), 'https://x.test/page?id=7',
+    'a tag the site may need to show the right page is never removed');
+  assert.equal(frontDoor('https://x.test/a?id=7&utm_source=g'), 'https://x.test/a?id=7',
+    'the tracking goes, what the site needs stays');
+  assert.equal(frontDoor('https://x.test/team'), 'https://x.test/team');
+  assert.equal(frontDoor(''), '', 'no address is not an address to guess at');
+  assert.equal(frontDoor('not a url at all'), 'not a url at all',
+    'an address we cannot read is handed back untouched, never invented');
+});
+
+// --- the page farm: a site that has stopped saying anything new --------------
+//
+// Prineville Insurance served 473 pages that were one page with a town swapped
+// into it. Every one sat at the top level under its own name, so the
+// ten-of-one-shape stop never saw them.
+
+test('a page of words we already have counts as nothing new', () => {
+  const { shareOfWordsNotSeen } = require('../../src/hoursback/peopleSweep.js');
+  const seen = new Set(['insurance', 'agents', 'oregon', 'independent', 'best']);
+  const share = shareOfWordsNotSeen('Best independent insurance agents Oregon', seen);
+  assert.equal(share, 0, 'every word already read: this page said nothing new');
+});
+
+test('a genuinely different page is not mistaken for a repeat', () => {
+  const { shareOfWordsNotSeen } = require('../../src/hoursback/peopleSweep.js');
+  const seen = new Set(['insurance', 'agents']);
+  const share = shareOfWordsNotSeen('Meet Dana Whitfield, our commercial lines manager since 1998', seen);
+  assert.ok(share > 0.5, `a page about a person is new: got ${share}`);
+});
+
+test('an empty page is not evidence either way', () => {
+  const { shareOfWordsNotSeen } = require('../../src/hoursback/peopleSweep.js');
+  assert.equal(shareOfWordsNotSeen('', new Set()), null,
+    'a page with no words must never count towards a run of dull ones');
+  assert.equal(shareOfWordsNotSeen(null, new Set()), null);
+});
+
+test('a run of pages that only repeat stops the crawl, and says so', async () => {
+  const ps = require('../../src/hoursback/peopleSweep.js');
+  // One page of real words, then forty that repeat it with a town swapped in.
+  const towns = ['bend', 'redmond', 'madras', 'sisters', 'prineville', 'lapine',
+    'terrebonne', 'culver', 'metolius', 'powell', 'crooked', 'alfalfa',
+    'tumalo', 'sunriver', 'brothers', 'millican', 'hampton', 'ashwood',
+    'antelope', 'shaniko', 'maupin', 'dufur', 'mosier', 'boyd', 'kent',
+    'grass', 'moro', 'wasco', 'rufus', 'arlington', 'ione', 'lexington',
+    'heppner', 'echo', 'stanfield', 'umatilla', 'irrigon', 'boardman',
+    'pilot', 'condon'];
+  const body = 'independent insurance agents serving commercial property auto '
+    + 'home liability umbrella workers compensation coverage quotes local office';
+  const site = { '/': `<a href="/t-${towns[0]}">x</a>${towns.map((t) => `<a href="/t-${t}">${t}</a>`).join('')}<p>${body}</p>` };
+  for (const t of towns) site[`/t-${t}`] = `<p>${body} ${t}</p>`;
+  const fetch = async (u) => {
+    const path = new URL(u).pathname;
+    return site[path] !== undefined
+      ? { ok: true, status: 200, text: async () => site[path] }
+      : { ok: false, status: 404, text: async () => '' };
+  };
+  const out = await ps.crawlWholeSite('https://farm.test/', { fetch, delayMs: 0 });
+  assert.equal(out.saidNothingNew, true, 'the crawl must say why it stopped');
+  assert.equal(out.partial, true, 'a crawl cut short is partial, and what it has is kept');
+  assert.ok(out.pages.length < towns.length,
+    `it must stop before reading them all: read ${out.pages.length} of ${towns.length + 1}`);
+  assert.ok(out.pages.length >= ps.JUDGE_NEWNESS_AFTER,
+    'a small site is never judged — the stop only applies once there is a tail to cut');
+});
+
+test('a real site of many different pages is never cut short by the repeat stop', async () => {
+  const ps = require('../../src/hoursback/peopleSweep.js');
+  // Thirty staff pages, each about a different person in different words.
+  const people = Array.from({ length: 30 }, (_, i) => `person${i}`);
+  const site = { '/': people.map((p) => `<a href="/team/${p}">${p}</a>`).join('') };
+  people.forEach((p, i) => {
+    site[`/team/${p}`] = `<p>${p} joined in ${1990 + i} and looks after `
+      + `${['excavation', 'grading', 'septic', 'utilities', 'demolition', 'paving'][i % 6]} `
+      + `work across ${['Deschutes', 'Crook', 'Jefferson', 'Klamath', 'Lake', 'Harney'][i % 6]} county. `
+      + `Reach ${p} on extension ${100 + i} or at ${p}@site.test about ${['permits', 'bids', 'scheduling', 'invoices', 'safety', 'equipment'][i % 6]}.</p>`;
+  });
+  const fetch = async (u) => {
+    const path = new URL(u).pathname;
+    return site[path] !== undefined
+      ? { ok: true, status: 200, text: async () => site[path] }
+      : { ok: false, status: 404, text: async () => '' };
+  };
+  const out = await ps.crawlWholeSite('https://real.test/', { fetch, delayMs: 0 });
+  assert.equal(out.saidNothingNew, false,
+    'pages that each say something different must never read as a farm');
+});
