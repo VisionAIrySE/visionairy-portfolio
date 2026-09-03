@@ -94,11 +94,20 @@ const ASK_DAY4 = [
   'Free, nothing to sign, and you come away with my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or grab a time from my calendar below.',
 ];
 
+// WE DO NOT KNOW WHO THEY HIRED (Russ, 2026-09-03).
+//
+// Every wording asserted that the person doing this work "was hired to do
+// something else, and that work waits". We have never seen their staffing.
+// It is a plausible-sounding claim stated as fact, to somebody who knows the
+// truth of it and will notice.
+//
+// The thought is still worth putting in front of them; it just belongs to them
+// to answer, not to Russ to assert. So it is asked, not claimed.
 const DAY4_THE_PART = [
-  "Here's the part most owners have never really considered. It isn't {task}. It's that the person doing it was hired to do something else, and that work waits while they spend time on repetitive, tedious tasks.",
-  "Here's the part most owners have never really priced. It isn't {task} itself. It's that the person doing it was hired for something else, and that job waits while they work through repetitive, tedious tasks.",
-  "The part most owners have never really considered isn't {task}. It's that whoever does it was hired to do something else, and that work sits waiting while they get through the repetitive, tedious stuff.",
-  "Here's what most owners have never really weighed up. It isn't {task}. It's that the person doing it was hired for a different job, and that job waits while the repetitive, tedious work gets done.",
+  "The bit worth pricing is not {task} itself. It is whoever ends up doing it, and what they would be doing instead. Only you know that, and it is usually the more expensive half.",
+  "Here is the question I would ask about {task}: who actually does it, and what does not get done while they are? That second answer is usually worth more than the first.",
+  "What makes {task} expensive is rarely the task. It is who it lands on, and what that person is not doing while it does. You are the only one who can put a name to that.",
+  "{task} has a second cost that never shows up anywhere: whoever it falls to, and whatever they would otherwise be doing. You would know better than me whether that is a real number here.",
 ];
 
 // THERE WAS NEVER A NUMBER (Russ, 2026-09-03). Every wording opened "That
@@ -115,11 +124,14 @@ const DAY4_WHAT_ID_LOOK_FOR = [
 
 const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final note from me.', 'Last one from me.'];
 
+// SAY THAT IT IS FREE, IN THE LAST MESSAGE (Russ, 2026-09-03). The close named
+// what comes back and never said it costs nothing — the one fact most likely
+// to make somebody reply to a fourth email.
 const DAY8_THATS_WHAT_ITS_FOR = [
-  "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you.",
-  "That's what the fifteen minutes is for, I come back with the specific product, its cost, and why it fits you.",
-  "That's the job of the fifteen minutes. I go away and come back with the specific product, what it costs, and why it suits you.",
-  "The fifteen minutes is for exactly that. I come back to you with the product, what it costs, and why it's the right one for you.",
+  "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you, all at no cost to you.",
+  "That's what the fifteen minutes is for: I come back with the specific product, its cost, and why it fits you. None of that costs you anything.",
+  "That's the job of the fifteen minutes. I go away and come back with the specific product, what it costs and why it suits you, at no cost to you.",
+  "The fifteen minutes is for exactly that. I come back with the product, what it costs, and why it's the right one for you, and none of it costs you a thing.",
 ];
 
 const DAY8_CLOSE = [

@@ -1454,3 +1454,52 @@ test('a wording Russ approved is still recognised as the line it replaced', () =
     }
   }
 });
+
+// --- nothing claims what we have not seen (Russ, 2026-09-03) -----------------
+//
+// The day-four letter told every reader that "the person doing it was hired to
+// do something else, and that work waits". We have never seen anybody's
+// staffing. It was a plausible-sounding claim stated as fact, to the one person
+// who knows whether it is true.
+//
+// Two places in the letter describe the READER's business rather than Russ or
+// his offer: the trade's opening line, and the day-four paragraph about what
+// the task really costs. Everywhere else is about him. So those two are the
+// ones held to a rule:
+//
+//   describe their business only as a general claim ("at most X offices...")
+//   or as a question they answer themselves ("only you know that") — never as
+//   an observed fact about them.
+//
+// A sentence written off their OWN website is exempt: that one has evidence.
+
+const CAMPAIGN2 = require('../../src/hoursback/crm/campaign.js');
+
+// Words that mark a claim as general, conditional, or theirs to answer.
+const HEDGED = /(\?|\b(at most|in most|most|many|some|plenty|usually|often|typically|may|might|would|could|rarely|whether|unless|only you|you are the only|you would know|i would|i'd|is not|it is not|isn't)\b)/i;
+
+test("every trade's opening line is a claim about the TRADE, not about them", () => {
+  const trades = CAMPAIGN2.everyTradeCopy ? CAMPAIGN2.everyTradeCopy() : null;
+  const weeks = trades
+    ? Object.values(trades).map((t) => t.week)
+    : ['accounting', 'construction', 'dental', 'medical', 'veterinary', 'legal',
+      'insurance', 'real estate', 'manufacturing', 'auto', 'trades', 'landscaping',
+      'cleaning', 'storage & logistics', 'staffing', 'agriculture', 'retail & food',
+      'personal care', 'fitness & recreation', 'professional services',
+      'nonprofit & community', 'education & childcare', 'other']
+      .map((tr) => CAMPAIGN2.tradeCopy(tr).week);
+  const unhedged = weeks.filter((w) => w && !HEDGED.test(w));
+  assert.deepEqual(unhedged, [],
+    `a trade line must be general, never an observed fact about the reader:\n${unhedged.join('\n')}`);
+});
+
+test('the day-four paragraph never states a fact about their staffing', () => {
+  for (const wording of CAMPAIGN2.slotsOfTheMessage().part) {
+    assert.ok(HEDGED.test(wording),
+      `"${String(wording).slice(0, 70)}..." tells the reader something about their own `
+      + 'business with no hedge. We have never seen their staffing.');
+    assert.ok(!/was hired (to|for)|that work waits|that job waits/i.test(wording),
+      `"${String(wording).slice(0, 70)}..." claims who they hired and what is waiting. `
+      + 'Neither is anything we have ever seen.');
+  }
+});

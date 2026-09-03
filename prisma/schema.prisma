@@ -323,6 +323,16 @@ model Contact {
   linkedIn   String?
   source     String    @default("WEBSITE")
   foundOn    String? // the page it was read from
+
+  /// SET ASIDE, NEVER DELETED (Russ, 2026-09-03). The website reader saves
+  /// anything on a page shaped like a name, and on a practice site that means
+  /// "Neck Pain", "Schedule Appointment" and "Spinal Adjustments" arrive as
+  /// staff. They are hidden from the people list rather than removed: a wrong
+  /// call costs nothing to undo, and a deleted person cannot be got back.
+  /// The same field carries a duplicate that was merged into another row.
+  setAsideAt     DateTime?
+  setAsideReason String?
+  mergedIntoId   String?
   /// WHICH OFFICE THIS PERSON SITS IN, where the pages said so — and null
   /// where they did not, which on a firm-wide staff list is most people.
   ///
