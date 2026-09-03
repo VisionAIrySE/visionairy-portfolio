@@ -1376,3 +1376,57 @@ test('the letter is built in the order Russ has set, when he has set one', () =>
   assert.deepEqual(order, CP.THE_ORDER_AS_BUILT,
     'and the letter it writes is actually in that order');
 });
+
+// --- a sentence already found is not undone by a later blank -----------------
+//
+// Prineville Coffee's letter carried a sentence read off their own site. Two
+// re-reads later it was gone and the letter had fallen back to the line written
+// for every coffee shop in the county. Nothing had been deleted; the newest
+// reading simply won, and the newest was "could not tell".
+
+const NOTICE = require('../../src/hoursback/crm/noticing.js');
+const RD = require('../../src/hoursback/readings.js');
+
+const fakeFindings = (rows) => ({
+  finding: { findMany: async () => rows },
+});
+
+test('a blank read after a real one does not take the sentence away', async () => {
+  const db = fakeFindings([
+    { value: null, status: RD.COULD_NOT_TELL, createdAt: new Date('2026-09-03'), reading: { source: RD.WEBSITE } },
+    { value: 'You book meetings and book clubs.', status: RD.INFERRED, createdAt: new Date('2026-09-02'), reading: { source: RD.WEBSITE } },
+  ]);
+  assert.equal(await NOTICE.noticingFor(db, 'p1'), 'You book meetings and book clubs.',
+    'an absence is not a correction of a finding');
+});
+
+test('the newest sentence still wins over an older sentence', async () => {
+  const db = fakeFindings([
+    { value: 'The newer one.', status: RD.OBSERVED, createdAt: new Date('2026-09-03'), reading: { source: RD.WEBSITE } },
+    { value: 'The older one.', status: RD.INFERRED, createdAt: new Date('2026-09-01'), reading: { source: RD.WEBSITE } },
+  ]);
+  assert.equal(await NOTICE.noticingFor(db, 'p1'), 'The newer one.');
+});
+
+test('nothing ever found means nothing, and the trade sentence takes over', async () => {
+  const db = fakeFindings([
+    { value: null, status: RD.COULD_NOT_TELL, createdAt: new Date('2026-09-03'), reading: { source: RD.WEBSITE } },
+    { value: null, status: RD.COULD_NOT_TELL, createdAt: new Date('2026-09-01'), reading: { source: RD.WEBSITE } },
+  ]);
+  assert.equal(await NOTICE.noticingFor(db, 'p1'), null);
+  assert.equal(await NOTICE.noticingFor(fakeFindings([]), 'p1'), null);
+});
+
+test('what Russ typed himself beats every reading, including his clearing it', async () => {
+  const cleared = fakeFindings([
+    { value: 'A sentence the reader found.', status: RD.OBSERVED, createdAt: new Date('2026-09-03'), reading: { source: RD.WEBSITE } },
+    { value: null, status: RD.COULD_NOT_TELL, createdAt: new Date('2026-09-02'), reading: { source: RD.HAND } },
+  ]);
+  assert.equal(await NOTICE.noticingFor(cleared, 'p1'), null,
+    'him clearing it is a decision, not an absence');
+  const his = fakeFindings([
+    { value: 'What the reader found.', status: RD.OBSERVED, createdAt: new Date('2026-09-03'), reading: { source: RD.WEBSITE } },
+    { value: 'What Russ wrote.', status: RD.CONFIRMED, createdAt: new Date('2026-09-02'), reading: { source: RD.HAND } },
+  ]);
+  assert.equal(await NOTICE.noticingFor(his, 'p1'), 'What Russ wrote.');
+});

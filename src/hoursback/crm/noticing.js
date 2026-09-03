@@ -1526,10 +1526,43 @@ async function recordNoticing(db, prospectId, result, { sourceUrl = null } = {})
 // answer of could_not_tell means the letter keeps Russ's trade sentence —
 // that is the fallback working as designed, not a failure.
 
+// A SENTENCE WE ALREADY FOUND IS NOT UNDONE BY A LATER BLANK (Russ, 2026-09-03).
+//
+// Prineville Coffee's letter carried "You're booking meetings and book clubs,
+// managing the no-shows that come with it" — read off their own site. Two
+// re-reads later it was gone and the letter had fallen back to the sentence
+// written for every coffee shop in the county.
+//
+// Nothing had been deleted: all three readings are on file, exactly as the
+// rules require. The newest simply won, and the newest was "could not tell".
+// But "I looked and found nothing" is not a correction of "I looked and found
+// this" — it is an absence, and an absence must not beat a finding.
+//
+// So: the most recent reading that actually FOUND something stands. A blank
+// only wins when no reading ever found anything, and then the trade's sentence
+// takes over as it always did. What Russ typed himself still beats everything,
+// including his own decision to clear it.
+//
+// The risk, named: a business that changed its website and genuinely stopped
+// doing the thing would keep an old sentence. It is small — the sentence is
+// about how their work runs, never a price or a claim about them — and every
+// one is dated and traceable to the visit that found it.
 async function noticingFor(db, prospectId) {
-  const best = await R.currentAnswer(db, prospectId, 'noticing');
-  if (!best || !best.value || best.status === R.COULD_NOT_TELL) return null;
-  return best.value;
+  const said = await db.finding.findMany({
+    where: { prospectId, field: 'noticing', retiredAt: null },
+    include: { reading: { select: { source: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!said.length) return null;
+
+  // What Russ typed is the answer, whatever it says, including nothing.
+  const his = said.find((f) => f.reading.source === R.HAND);
+  if (his) {
+    return his.value && his.status !== R.COULD_NOT_TELL ? his.value : null;
+  }
+
+  const found = said.find((f) => f.value && f.status !== R.COULD_NOT_TELL);
+  return found ? found.value : null;
 }
 
 module.exports = {

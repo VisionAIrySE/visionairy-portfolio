@@ -40,11 +40,18 @@ const WHO_I_AM = [
 // The concession. It is the line that keeps the email alive when the reader has
 // already solved the thing being described — Russ, 2026-08-30, after asking
 // what happens when the dentist already sends automated reminders.
+// NAME THE THING (Russ, 2026-09-03: "three or four more whats like it?").
+//
+// Every version said "three or four more like it burning time in the wings",
+// and the reader has to work backwards to find what "it" points at. "In the
+// wings" is a theatre metaphor that does not fit "burning time" either. Each
+// wording now says plainly what there are three or four more of: jobs, tasks,
+// work that repeats.
 const ALREADY_HANDLED = [
-  'Some {they} may have that task handled, but many have three or four more like it burning time in the wings.',
-  'Some {they} will have that one solved already. Most have three or four more like it burning time in the wings.',
-  'Plenty of {they} have that task covered by now, and still have three or four more like it burning time in the wings.',
-  'You may well have that one handled. Most {they} still have three or four more like it burning time in the wings.',
+  'Some {they} may have that task handled. Most have three or four more jobs of the same kind still eating the week.',
+  'Some {they} will have that one solved already. Most have three or four other tasks that repeat exactly the same way.',
+  'Plenty of {they} have that one covered by now, and still have three or four repetitive jobs costing them the same hours.',
+  'You may well have that one handled. Most {they} have three or four more tasks that quietly take the same time.',
 ];
 
 // WHAT IS ACTUALLY TRUE (Russ, 2026-09-03).
@@ -139,13 +146,13 @@ const TRADES = {
     firstLook: 'the document chase. There are tools now that request, chase and file client paperwork without anybody having to remember',
   },
   construction: {
-    week: 'At most construction offices half the change orders are sitting somewhere unsigned, and somebody has to chase every one.',
+    week: 'At most construction offices half the change orders are sitting somewhere unsigned, so the work is already done before anybody can bill for it.',
     they: 'outfits', task: 'the chasing', hook: 'chasing change orders',
     firstLook: 'the change orders. There are tools now that send one out, chase the signature and file it without anybody remembering to',
   },
   dental: {
-    week: 'At most dental practices somebody spends part of every week phoning patients who were due back six months ago.',
-    they: 'practices', task: 'the phoning', hook: 'the recall calls',
+    week: 'At most dental practices somebody spends part of every week calling patients who were due back six months ago, and the ones nobody gets to simply do not come back.',
+    they: 'practices', task: 'the calling', hook: 'the recall calls',
     firstLook: 'the recall list. There are tools now that send the reminders on their own and check a claim for the missing field before it leaves',
   },
   medical: {
@@ -154,8 +161,8 @@ const TRADES = {
     firstLook: 'the records requests and the authorisations. There are tools now that answer a records request without a phone call, and check a claim before it goes rather than after it comes back',
   },
   veterinary: {
-    week: 'At most veterinary clinics the shot reminders go out when somebody at the front desk finds a spare ten minutes.',
-    they: 'clinics', task: 'the phoning', hook: 'the shot reminders',
+    week: 'At most veterinary clinics the shot reminders go out when somebody at the front desk finds a spare ten minutes, which means the visits they would have booked never get booked.',
+    they: 'clinics', task: 'the calling', hook: 'the shot reminders',
     firstLook: 'the reminders and the charts. There are tools now that send the shot and check-up reminders on their own, and have the chart finished before the next one walks in',
   },
   legal: {
@@ -164,17 +171,17 @@ const TRADES = {
     firstLook: 'intake. There are tools now that take the client details once and open the file the day it comes in',
   },
   insurance: {
-    week: 'At most insurance agencies certificates get typed into the carrier portal and then typed again into the agency system.',
+    week: 'At most insurance agencies certificates get typed into the carrier portal and then typed again into the agency system, and the second typing is where the errors a client calls about come from.',
     they: 'agencies', task: 'the typing', hook: 'certificates typed twice',
     firstLook: 'renewals and certificates. There are tools now that surface a renewal weeks ahead instead of the day it lands, and enter the details once for every system',
   },
   'real estate': {
     week: 'At most real estate offices the deals that go quiet mostly go quiet because nobody had time to follow up.',
     they: 'offices', task: 'the following up', hook: 'the follow-up nobody had time for',
-    firstLook: 'the follow-up. There are tools now that keep after an enquiry whether or not anybody remembers, and enter the client details once',
+    firstLook: 'the follow-up. There are tools now that keep after an inquiry whether or not anybody remembers, and enter the client details once',
   },
   manufacturing: {
-    week: 'At most manufacturing offices the quote becomes a work order becomes a packing slip, and each one is typed fresh.',
+    week: 'At most manufacturing offices the quote becomes a work order becomes a packing slip, each one typed fresh, and one wrong number carries all the way to the customer.',
     they: 'shops', task: 'the typing', hook: 'the same numbers typed into three documents',
     firstLook: 'the quote-to-shipment chain. There are tools now that carry a quote through to work order and packing slip without it being typed again',
   },
@@ -184,27 +191,27 @@ const TRADES = {
     firstLook: 'the estimates. There are tools now that chase every one without anybody having to remember, and order parts without somebody sitting on hold',
   },
   trades: {
-    week: 'At most trade shops one person knows where every truck is, and none of it is written down anywhere.',
+    week: 'At most trade shops one person knows where every truck is and none of it is written down, so the day that person is out nobody can answer a customer.',
     they: 'shops', task: 'the remembering', hook: "the schedule living in one person's head",
     firstLook: "the schedule. There are tools now that hold it somewhere other than one person's head and send the callbacks out on their own",
   },
   landscaping: {
     week: 'At most landscaping outfits one rainy Tuesday turns the week into three phone calls per customer.',
-    they: 'outfits', task: 'the phoning', hook: 'what the weather does to your week',
+    they: 'outfits', task: 'the calling', hook: 'what the weather does to your week',
     firstLook: 'the schedule. There are tools now that move it when the weather moves, and tell the crew without three phone calls',
   },
   'cleaning & facilities': {
     week: 'At most cleaning companies one cancellation at seven in the morning is half an hour of phone calls.',
-    they: 'companies', task: 'the phoning', hook: 'what one cancellation costs you in phone calls',
+    they: 'companies', task: 'the calling', hook: 'what one cancellation costs you in phone calls',
     firstLook: 'the morning reroute. There are tools now that move the crew when one job drops, without a morning of calls',
   },
   'storage & logistics': {
-    week: 'At most logistics offices the same ticket gets re-typed at dispatch, in the cab, and again for the customer.',
+    week: 'At most logistics offices the same ticket gets re-typed at dispatch, in the cab, and again for the customer, and every retype is another chance the invoice goes out wrong.',
     they: 'operations', task: 'the re-typing', hook: 'the same ticket typed three times',
     firstLook: 'the ticket. There are tools now that write it once and carry it through dispatch, driver and customer without it being typed again',
   },
   staffing: {
-    week: 'At most staffing offices applications come in one format and timesheets in another, and somebody types both into payroll.',
+    week: 'At most staffing offices applications come in one format and timesheets in another, and somebody types both into payroll while the good candidates are already taking other work.',
     they: 'agencies', task: 'the typing', hook: 'moving applications and timesheets into payroll',
     firstLook: 'payroll. There are tools now that land applications and timesheets in it without anybody moving them across',
   },
@@ -214,18 +221,18 @@ const TRADES = {
     firstLook: 'the field paperwork. There are tools now that capture load tickets and compliance records once, in the field, rather than again at night',
   },
   'retail & food': {
-    week: 'At most shops and kitchens ordering runs on somebody walking the shelves, and one call-out rebuilds the whole schedule.',
-    they: 'places', task: 'the walking and the phoning', hook: 'ordering off what somebody saw on the shelf',
-    firstLook: 'ordering and the rota. There are tools now that order off what actually sold, and fill the schedule when somebody calls in',
+    week: 'At most shops and kitchens ordering runs on somebody walking the shelves, so you buy what you already have and run out of what actually sells.',
+    they: 'places', task: 'the walking and the calling', hook: 'ordering off what somebody saw on the shelf',
+    firstLook: 'ordering and the schedule. There are tools now that order off what actually sold, and fill the schedule when somebody calls in',
   },
   'personal care': {
-    week: 'At most salons and studios every gap in the day is money that was already booked, and filling it means phoning round.',
-    they: 'places', task: 'the phoning round', hook: 'the gaps in the day',
-    firstLook: 'the gaps. There are tools now that fill a cancellation without anybody at the desk phoning round',
+    week: 'At most salons and studios every gap in the day is money that was already booked, and unless somebody stops to call down the list it simply stays empty.',
+    they: 'places', task: 'the calling around', hook: 'the gaps in the day',
+    firstLook: 'the gaps. There are tools now that fill a cancellation without anybody at the desk calling down the list',
   },
   'fitness & recreation': {
-    week: 'At most gyms and studios the members who quietly stopped coming are the ones nobody has time to ring.',
-    they: 'places', task: 'the ringing', hook: 'the members nobody had time to ring',
+    week: 'At most gyms and studios the members who quietly stopped coming are the ones nobody has time to call, so they cancel and you find out from the bank.',
+    they: 'places', task: 'the calling', hook: 'the members nobody had time to call',
     firstLook: 'the lapsed members. There are tools now that chase them without anybody getting to it, and get waivers signed before people arrive',
   },
   'professional services': {
@@ -234,12 +241,12 @@ const TRADES = {
     firstLook: 'the follow-up. There are tools now that keep after a proposal whether or not anybody remembers, and enter the details once',
   },
   'nonprofit & community': {
-    week: 'At most nonprofits the thank-you that matters most is the one nobody had time to send.',
-    they: 'organisations', task: 'the writing', hook: 'the donor thank-you that slips',
+    week: 'At most nonprofits the thank-you that matters most is the one nobody had time to send, and the donor who does not hear back gives to somebody else next year.',
+    they: 'organizations', task: 'the writing', hook: 'the donor thank-you that slips',
     firstLook: 'donor communication. There are tools now that thank people without anybody finding the time, and assemble grant reporting rather than writing it',
   },
   'education & childcare': {
-    week: 'At most preschools and daycares one family gets typed into three systems before their child sets foot in the building.',
+    week: 'At most preschools and daycares one family gets typed into three systems before their child sets foot in the building, and every one of those typings is a chance a parent has to be asked twice.',
     they: 'places', task: 'the typing', hook: 'one family typed into three systems',
     firstLook: 'enrollment. There are tools now that take a family once and show them in enrollment, records and billing',
   },

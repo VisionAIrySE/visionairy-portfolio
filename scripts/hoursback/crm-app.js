@@ -329,18 +329,27 @@ async function list(params) {
     <td class="muted">${resolveField(p, 'email') ? esc(resolveField(p, 'email'))
       : resolveField(p, 'phone') ? '<span style="color:#b45309">phone only</span>'
       : '<span style="color:#b91c1c">no way to reach them</span>'}</td>
-    <td class="muted">${esc(p.stage)}</td>
+    <td class="muted">${esc(p.stage)}${(p.findings || []).length
+      ? `<div style="color:#b45309;margin-top:2px">${(p.findings || []).map((f) => esc(WHY_IT_NEEDS_A_LOOK[f.value] || f.value)).join('; ')}</div>` : ''}</td>
   </tr>`).join('');
-  const link = (n) => `<a class="btn" href="/list?page=${n}${q ? `&q=${encodeURIComponent(q)}` : ''}${stage ? `&stage=${stage}` : ''}${showAll ? '&all=1' : ''}">${n === page_ - 1 ? 'Previous' : 'Next'}</a>`;
-  return page(`<h1>${showAll ? 'Every business on file' : 'Businesses you can reach'} (${total.toLocaleString()})</h1>
+  const link = (n) => `<a class="btn" href="/list?page=${n}${q ? `&q=${encodeURIComponent(q)}` : ''}${stage ? `&stage=${stage}` : ''}${showAll ? '&all=1' : ''}${needsALook ? `&review=${encodeURIComponent(needsALook)}` : ''}">${n === page_ - 1 ? 'Previous' : 'Next'}</a>`;
+  return page(`<h1>${needsALook ? 'Businesses that need a look' : showAll ? 'Every business on file' : 'Businesses you can reach'} (${total.toLocaleString()})</h1>
   <p class="muted">${showAll
     ? 'Everything from the state register, most of it with no way to contact them. <a href="/list">Show only the ones you can reach</a>'
     : 'Best first. These have an email address or a phone number. <a href="/list?all=1">Show every business on file</a>'}</p>
   <form method="GET" action="/list" class="row" style="margin:12px 0">
     <input name="q" value="${esc(q)}" placeholder="search a name, a town, an email" style="flex:1">
+    ${showAll ? '<input type="hidden" name="all" value="1">' : ''}
+    <select name="review" style="width:auto">
+      <option value=""${needsALook ? '' : ' selected'}>every business</option>
+      <option value="any"${needsALook === 'any' ? ' selected' : ''}>needs a look before it goes out</option>
+      ${Object.entries(WHY_IT_NEEDS_A_LOOK).map(([v, said]) => `<option value="${v}"${needsALook === v ? ' selected' : ''}>${esc(said)}</option>`).join('')}
+    </select>
     <button class="primary">Search</button>
+    ${needsALook || q ? `<a class="btn" href="/list${showAll ? '?all=1' : ''}">Clear</a>` : ''}
     <a class="btn" href="/add">+ Add a business</a>
   </form>
+  ${needsALook ? `<p class="mini" style="color:#b45309">${total.toLocaleString()} ${needsALook === 'any' ? 'need a look' : 'match'}. Nothing here is dropped or guessed at, and each row says what is in the way.</p>` : ''}
   <p class="muted">Sorted by how manual they still look — the highest numbers are the ones most worth a call.</p>
   <table><tr><th>Score</th><th>Business</th><th>Phone</th><th>Email</th><th>Stage</th></tr>${rowHtml}</table>
   <p class="row">${page_ > 1 ? link(page_ - 1) : '<span></span>'}<span class="muted">page ${page_} of ${pages || 1}</span>${page_ < pages ? link(page_ + 1) : '<span></span>'}</p>`);
