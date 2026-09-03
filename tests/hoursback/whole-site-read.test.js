@@ -174,6 +174,36 @@ test('fetchPeoplePages honors a caller asking beyond the old 12-page clamp', asy
     `a caller asking for 40 must get past ${ps.MAX_PAGES_PER_SITE}, got ${got.pages.length}`);
 });
 
+// READ THE WHOLE SITE (Russ, 2026-09-01, and again 2026-09-03).
+//
+// Two minutes used to stop most reads before the site was finished — the code
+// said so beside the page ceiling: "the time limit usually bites first". A
+// firm with forty staff pages on a slow host was cut off part way, and those
+// pages are where the direct email and direct number live. It is fifteen
+// minutes now, and it is a stall guard rather than a page budget.
+test('one site is given a quarter of an hour, not two minutes', () => {
+  assert.equal(ps.CRAWL_TIME_LIMIT_MS, 900000,
+    'a read runs until the site is finished, not until a two-minute clock');
+});
+
+// "yes but watch for stalls" (Russ, 2026-09-03). With fifteen minutes to play
+// with, a site that answers but hands back nothing could sit there the whole
+// time looking busy.
+test('a site that stops giving pages is called a stall, and what was gathered is kept', async () => {
+  const slow = {
+    '/': htmlPage('Home', 'Blue Widget Co of Bend, Oregon. Ring 541-555-1234.', [['/a', 'A'], ['/b', 'B']]),
+  };
+  const got = await ps.crawlWholeSite(HOST, {
+    // the first page lands, then every other address dies slowly
+    fetch: makeFetch(slow, { delayMs: 60 }),
+    delayMs: 0,
+    timeLimitMs: 900000,
+    stallAfterMs: 10,
+  });
+  assert.ok(got.pages.length >= 1, 'the page that did land is kept');
+  assert.equal(got.partial, true, 'a crawl cut short says so');
+});
+
 test('crawl stops at the time limit and returns what it gathered marked partial', async () => {
   const got = await ps.crawlWholeSite(HOST, {
     fetch: makeFetch(bigSite(), { delayMs: 40 }), delayMs: 0, timeLimitMs: 100,

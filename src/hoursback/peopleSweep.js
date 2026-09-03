@@ -549,9 +549,26 @@ function personOnTheirOwnPage(page) {
 // Skipping means "not handed to the model". It never means "not kept": a wrong
 // skip must be recoverable without a second visit.
 
-const CRAWL_TIME_LIMIT_MS = 120000;   // two minutes a business. A standing bound, not a tunable.
+// HOW LONG ONE SITE MAY TAKE (Russ, 2026-09-03: read the whole site).
+//
+// Two minutes used to stop most reads before the site was finished, and the
+// note beside the page ceiling said so outright: "the time limit usually bites
+// first". A firm with forty staff pages on a slow host was cut off part way,
+// which is exactly what Russ ruled out on 2026-09-01 — every page, including
+// each person's own profile, because that is where the direct email and the
+// direct number live.
+//
+// So it is fifteen minutes, and it is a STALL GUARD rather than a work limit:
+// no honest site takes that long, and one that does is broken or hostile. The
+// real bounds on how much gets read are the ones that judge the site itself —
+// ten pages of any one shape, staff profiles exempt; five hundred pages in
+// all; and logins, carts, calendars and search results never opened.
+const CRAWL_TIME_LIMIT_MS = 900000;   // fifteen minutes: a stall guard, not a page budget.
 const SAME_SHAPE_LIMIT = 10;          // ten of one path shape, then stop that path
-const WHOLE_SITE_PAGE_CEILING = 500;  // no site is infinite; the time limit usually bites first
+// Six minutes without a single new page is a stall, not a big site. Ends the
+// crawl and keeps everything already gathered (Russ, 2026-09-03).
+const STALL_AFTER_MS = 360000;
+const WHOLE_SITE_PAGE_CEILING = 500;  // no site is infinite; this is what stops a huge one now
 
 // One key per SHAPE of address, so /products/red-widget and /products/blue-widget
 // count against the same stop while /about and /contact stay distinct. The rule:
@@ -646,6 +663,8 @@ async function crawlWholeSite(website, options = {}) {
   const shapeCounts = new Map();     // shape -> pages fetched of that shape
   const stoppedShapes = new Set();
   let partial = false;
+  let stalled = false;
+  let lastPageAt = Date.now();
 
   // The queue holds { url, exempt } — exempt means this address came from
   // linksBelow() on a real team page, and the ten-same-shape stop does not
@@ -661,6 +680,16 @@ async function crawlWholeSite(website, options = {}) {
 
   while (queue.length && pages.length < WHOLE_SITE_PAGE_CEILING) {
     if (Date.now() - startedAt > timeLimit) { partial = true; break; }
+    // A STALL IS NOT THE SAME AS A LONG SITE (Russ, 2026-09-03: "watch for
+    // stalls"). With fifteen minutes to play with, a site that answers but
+    // gives nothing back could sit there the whole time and look busy. Six
+    // minutes with no new page is a stall, and it ends the crawl as partial
+    // with everything gathered so far kept.
+    if (pages.length && Date.now() - lastPageAt > (options.stallAfterMs || STALL_AFTER_MS)) {
+      partial = true;
+      stalled = true;
+      break;
+    }
     const { url, exempt } = queue.shift();
     let u;
     try { u = new URL(url); } catch { continue; }
@@ -696,6 +725,7 @@ async function crawlWholeSite(website, options = {}) {
       skipFromReading: Boolean(skippedBy),
       skippedBy: skippedBy || null,
     });
+    lastPageAt = Date.now();   // a page landed; the stall clock starts again
 
     if (skippedBy && FOLLOW_NOTHING_BELOW.has(skippedBy)) continue;
 
@@ -728,7 +758,7 @@ async function crawlWholeSite(website, options = {}) {
 
   if (queue.length && Date.now() - startedAt > timeLimit) partial = true;
 
-  return { pages, failures, partial, stoppedShapes: [...stoppedShapes], error: pages.length ? null : 'no page could be opened' };
+  return { pages, failures, partial, stalled, stoppedShapes: [...stoppedShapes], error: pages.length ? null : 'no page could be opened' };
 }
 
 function peopleFromSite(pages) {
