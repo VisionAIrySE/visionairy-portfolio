@@ -302,12 +302,21 @@ function slotsOfTheMessage() {
 // on every redraft and differently from the shop down the road. The salt makes
 // each line choose separately — without it, two businesses landing on the same
 // wording for one line land on it for every line and the whole letter matches.
+// THEIR WEEK COMES FIRST (Russ, 2026-09-03).
+//
+// It used to open by introducing Russ, and only then say anything about
+// them. Read cold that is a stranger talking about himself to someone who
+// has no reason to care yet. Their own week earns the introduction: by the
+// time he says who he is, the reader already knows he understands the work.
+//
+// So the first paragraph is theirs, and the second is his — who he is, what
+// he does, and why him, run together as one thought instead of two paragraphs
+// that say the same thing twice.
 function dayZero(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
-    pick(waysToSay(WHO_I_AM, 'who'), seed, 'who'),
     `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
-    pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme'),
+    `${pick(waysToSay(WHO_I_AM, 'who'), seed, 'who')} ${pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme')}`,
     pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),
     pick(waysToSay(ASK_DAY0, 'ask0'), seed, 'ask0'),
   ].join('\n\n');

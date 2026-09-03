@@ -183,11 +183,18 @@ test('an inferred job standing on a page of theirs is kept, even in different wo
   assert.equal(g.footing, 'read from', 'and the record says how firm the footing was');
 });
 
-test('with no noticing the letter opens its third element with the trade week, unchanged', () => {
+// THEIR WEEK COMES FIRST (Russ, 2026-09-03). The letter used to introduce
+// Russ and only then say anything about the reader. Their own week now opens
+// it — the paragraph straight after the greeting — and the introduction comes
+// second, having earned itself.
+test('with no noticing the letter opens on the trade week, straight after the greeting', () => {
   const p = { name: 'Smith & Co CPA', trade: 'accounting', email: 'info@smithcpa.example' };
   const built = draftFirstContact(p, []);
   const parts = built.body.split('\n\n');
-  assert.ok(parts[2].startsWith(C.TRADES.accounting.week));
+  assert.match(parts[0], /^(Hi .+,|Hello,)$/, 'the greeting is still first');
+  assert.ok(parts[1].startsWith(C.TRADES.accounting.week), `opened with: ${parts[1].slice(0, 60)}`);
+  // and who Russ is comes next, not before them
+  assert.match(parts[2], /Central Oregon/);
 });
 
 test('a latest finding of could_not_tell means no noticing reaches the letter', async () => {
@@ -921,17 +928,18 @@ test('only the trade-week sentence moves; every other byte of the letter stands'
   const b = after.body.split('\n\n');
   assert.equal(a.length, b.length);
 
-  // Part 2 is `${week} ${concession}`. The week is replaced; the concession
-  // that follows it — Russ's line, seeded by the business name — stands.
+  // Part 1 is `${week} ${concession}` — their week opens the letter now
+  // (2026-09-03). The week is replaced; the concession that follows it —
+  // Russ's line, seeded by the business name — stands.
   const week = C.TRADES.accounting.week;
-  assert.ok(a[2].startsWith(week));
-  const concession = a[2].slice(week.length);
-  assert.equal(b[2], `${GOOD_SENTENCE}${concession}`);
+  assert.ok(a[1].startsWith(week));
+  const concession = a[1].slice(week.length);
+  assert.equal(b[1], `${GOOD_SENTENCE}${concession}`);
 
-  // Every other part: greeting, WHO_I_AM, WHY_ME, THE_OFFER, ASK_DAY0 and
-  // the sign-off, byte for byte.
+  // Every other part: greeting, who Russ is and why him, THE_OFFER, ASK_DAY0
+  // and the sign-off, byte for byte.
   for (let i = 0; i < a.length; i++) {
-    if (i === 2) continue;
+    if (i === 1) continue;
     assert.equal(b[i], a[i], `part ${i} of the letter moved`);
   }
 });
