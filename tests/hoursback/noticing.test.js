@@ -197,6 +197,23 @@ test('with no noticing the letter opens on the trade week, straight after the gr
   assert.match(parts[2], /Central Oregon/);
 });
 
+// THE NOTE GETS THE SAME SENTENCE AS THE EMAIL (Russ, 2026-09-03). It always
+// used the trade's generic week, even where the business's own site had been
+// read. Russ sends both to the same person by hand, so a personal email and a
+// generic note is worse than either on its own.
+test('the LinkedIn note carries the business\'s own sentence, not the trade line', () => {
+  const { draftLinkedIn } = require('../../src/hoursback/crm/firstContact.js');
+  const p = { name: 'Smith & Co CPA', trade: 'accounting', email: 'info@smithcpa.example' };
+  const generic = draftLinkedIn(p, []);
+  assert.ok(generic.body.includes(C.TRADES.accounting.week), 'with no sentence, the trade line stands');
+
+  const theirs = draftLinkedIn({ ...p, noticing: GOOD_SENTENCE }, []);
+  assert.ok(theirs.body.includes(GOOD_SENTENCE), 'their own sentence reached the note');
+  assert.ok(!theirs.body.includes(C.TRADES.accounting.week), 'and it replaced the trade line');
+  // the concession that follows it is untouched, exactly as in the email
+  assert.match(theirs.body, /solved already|handled|covered by now/);
+});
+
 test('a latest finding of could_not_tell means no noticing reaches the letter', async () => {
   const db = { finding: { findMany: async () => [{ value: null, status: 'could_not_tell', reading: { source: 'website' } }] } };
   assert.equal(await N.noticingFor(db, 'p1'), null);

@@ -703,7 +703,16 @@ function draftLinkedIn(prospect, signals = []) {
   // the build line and the five-to-twenty hours to fit 700 characters without
   // saying so — his words, quietly removed. The note runs to about 950 now and
   // that is the right trade (2026-08-30).
-  const body = C.linkedInNote(who, C.tradeCopy(trade), businessNameOf(prospect));
+  // THE SAME SENTENCE THE EMAIL GOT (Russ, 2026-09-03).
+  //
+  // The note always used the trade's generic week, even for a business whose
+  // own site had been read and whose email opened on something only true of
+  // them. Russ sends both to the same person by hand: a personal email and a
+  // generic note is worse than either alone.
+  const t = prospect.noticing
+    ? { ...C.tradeCopy(trade), week: String(prospect.noticing) }
+    : C.tradeCopy(trade);
+  const body = C.linkedInNote(who, t, businessNameOf(prospect));
   const invite = draftLinkedInInvite(prospect);
   return { subject: null, body, openedWith: key, trade, inviteBody: invite.body };
 }
