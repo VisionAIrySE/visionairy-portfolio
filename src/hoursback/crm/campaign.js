@@ -315,20 +315,30 @@ function waysToSay(list, slot) {
 
 // Every line the message is assembled from, by the name used to pick it. This
 // is what lets an edit be traced back to the sentence it replaced.
+// RUSS'S OWN WORDINGS COUNT TOO (2026-09-03).
+//
+// This returned only the wordings written into this file, so the moment one of
+// his approved versions was used in a letter, the paragraph it produced matched
+// nothing — and every edit he made to that letter came back "I cannot tell what
+// you changed". Which is exactly what happened the day after his four "why me"
+// versions went in.
+//
+// waysToSay is what the letter itself uses to choose a line. Asking the same
+// question here means the matcher can always recognise what the letter wrote.
 function slotsOfTheMessage() {
   return {
-    who: WHO_I_AM,
-    handled: ALREADY_HANDLED,
-    whyme: WHY_ME,
-    offer: THE_OFFER,
-    ask0: ASK_DAY0,
-    ask4: ASK_DAY4,
-    part: DAY4_THE_PART,
-    look: DAY4_WHAT_ID_LOOK_FOR,
-    last: DAY8_OPEN,
-    forthat: DAY8_THATS_WHAT_ITS_FOR,
-    close8: DAY8_CLOSE,
-    noteclose: NOTE_CLOSE,
+    who: waysToSay(WHO_I_AM, 'who'),
+    handled: waysToSay(ALREADY_HANDLED, 'handled'),
+    whyme: waysToSay(WHY_ME, 'whyme'),
+    offer: waysToSay(THE_OFFER, 'offer'),
+    ask0: waysToSay(ASK_DAY0, 'ask0'),
+    ask4: waysToSay(ASK_DAY4, 'ask4'),
+    part: waysToSay(DAY4_THE_PART, 'part'),
+    look: waysToSay(DAY4_WHAT_ID_LOOK_FOR, 'look'),
+    last: waysToSay(DAY8_OPEN, 'last'),
+    forthat: waysToSay(DAY8_THATS_WHAT_ITS_FOR, 'forthat'),
+    close8: waysToSay(DAY8_CLOSE, 'close8'),
+    noteclose: waysToSay(NOTE_CLOSE, 'noteclose'),
   };
 }
 

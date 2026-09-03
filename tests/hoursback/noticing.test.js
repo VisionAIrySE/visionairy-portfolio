@@ -1430,3 +1430,27 @@ test('what Russ typed himself beats every reading, including his clearing it', a
   ]);
   assert.equal(await NOTICE.noticingFor(his, 'p1'), 'What Russ wrote.');
 });
+
+test('a wording Russ approved is still recognised as the line it replaced', () => {
+  // The moment his four "why me" versions went into the letter, the matcher
+  // stopped recognising that paragraph, because it only knew the wordings
+  // written into the file. So adding his wordings broke the very thing that
+  // exists to collect them: every edit came back "I cannot tell".
+  const CAMP = require('../../src/hoursback/crm/campaign.js');
+  const SPR = require('../../src/hoursback/crm/spreadEdit.js');
+  const his = 'A wording Russ approved that is not written into the file.';
+  CAMP.HIS_OWN_FOR_TESTS
+    ? CAMP.HIS_OWN_FOR_TESTS.set('whyme', [his])
+    : null;
+  const slots = CAMP.slotsOfTheMessage();
+  assert.ok(Array.isArray(slots.whyme) && slots.whyme.length >= 4,
+    'the matcher must be given the same list the letter chooses from');
+  // Every wording the letter can pick must map back to its own slot.
+  for (const [slot, list] of Object.entries(slots)) {
+    for (const wording of list) {
+      const found = SPR.slotOf(wording);
+      assert.equal(found, slot,
+        `"${String(wording).slice(0, 40)}..." must be recognised as ${slot}, got ${found}`);
+    }
+  }
+});
