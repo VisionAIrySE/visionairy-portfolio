@@ -878,6 +878,63 @@ test('one visit is one reading: pages, findings and the finish all hang off one 
 // automatic" — and the run counted it as read. So the browser pass that
 // exists precisely for challenge pages never went near them, and at the
 // writing step they looked like a business with nothing to say.
+// READING A SITE MEANS READING ALL OF IT (Russ, 2026-09-03).
+//
+// About two sites in five hand a plain fetch nothing but a page title —
+// their words appear only once a browser has run the page's scripts, or a
+// robot check stands in front of them. Recovering those used to be a
+// separate pass that had to be remembered and pointed at them, and mostly
+// was not: twenty-one of fifty in one batch sat unread with the tool to read
+// them sitting right there. It is not a separate pass. One visit reads the
+// site by whatever means it takes.
+test('a site a plain fetch cannot read is opened in a browser inside the same visit', async () => {
+  const db = fakeDb();
+  const realWords = 'Blue Widget Co makes fine widgets to order for shops across Central Oregon. '
+    + 'Ring 541-555-1234 or come to 12 Main Street, Bend, Oregon 97701. Quotes for '
+    + 'custom work come back the same day and repairs are booked in over the phone. '
+    + 'We have been doing this since 2013 and most of our work comes from people who came back.';
+  let browserAsked = 0;
+  const visit = await runVisit(db, {
+    // the plain fetch gets a page title and nothing else
+    site: { '/': htmlPage('Blue Widget Co', '') },
+    deps: {
+      crawlWithBrowser: async () => {
+        browserAsked += 1;
+        return { pages: [{ url: `${HOST}/`, title: 'Blue Widget Co', text: realWords }],
+          failures: [], partial: false, stoppedShapes: [], challengesNeverCleared: [] };
+      },
+    },
+  });
+
+  assert.equal(browserAsked, 1, 'the browser was opened, once, inside this visit');
+  assert.equal(visit.readVia, 'browser');
+  assert.equal(visit.outcome, 'read', 'a site read through a browser is read');
+  assert.ok(visit.wordsRecovered > 200, `recovered ${visit.wordsRecovered} chars`);
+  // ONE reading holds it all, and what the plain fetch saw is kept beside
+  // what the browser saw — both are real events (the evidence rule).
+  assert.equal(db.rows.readings.length, 1);
+  assert.ok(db.rows.pages.length >= 2,
+    `both attempts stored, saw ${db.rows.pages.length} page rows`);
+  assert.ok(db.rows.pages.some((pg) => (pg.text || '').includes('541-555-1234')),
+    "the browser's words are on file");
+  // and it was stamped read, because it genuinely was
+  const stamped = db.rows.prospectUpdates.find((u) => u.data && u.data.siteReadAt);
+  assert.ok(stamped, 'a site read through a browser carries a read date like any other');
+});
+
+// The browser is not opened when it is not needed — it is slow and heavy,
+// and a site a plain fetch can read belongs to the plain fetch.
+test('a site a plain fetch can read never opens a browser', async () => {
+  const db = fakeDb();
+  let browserAsked = 0;
+  const visit = await runVisit(db, {
+    deps: { crawlWithBrowser: async () => { browserAsked += 1; return { pages: [] }; } },
+  });
+  assert.equal(browserAsked, 0);
+  assert.equal(visit.readVia, 'fetch');
+  assert.equal(visit.outcome, 'read');
+});
+
 test('a site that serves only a robot check is not counted as read', async () => {
   const db = fakeDb();
   const challenge = 'Verify you are human by completing the action below. '

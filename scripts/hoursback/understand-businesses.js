@@ -293,6 +293,56 @@ async function visitOneBusiness(db, r, deps = {}) {
     } catch (e) {
       crawl = { pages: [], failures: [], partial: false, stoppedShapes: [], error: e.message };
     }
+    // READING A SITE MEANS READING ALL OF IT (Russ, 2026-09-03).
+    //
+    // About two sites in five hand an ordinary fetch nothing but a page
+    // title: their words only appear once a browser has run the page's
+    // scripts, or a robot check stands in front of them. Recovering those
+    // was a separate pass that had to be remembered and pointed at them, and
+    // so it mostly was not — twenty-one of fifty in one batch sat unread with
+    // the tool to read them sitting right there.
+    //
+    // It is not a separate pass any more. When nothing on a site reads as a
+    // business talking, this visit opens a real browser and reads it again,
+    // itself, before deciding anything. One visit, one reading, whatever it
+    // takes to actually read them.
+    //
+    // The ordinary attempt is NOT thrown away: what a plain fetch saw is a
+    // real event and is stored beside what the browser saw. Both are kept.
+    visit.readVia = 'fetch';
+    visit.wordsRecovered = 0;
+    let alsoStore = [];
+    const spokeToUs = (pages) => (pages || [])
+      .some((pg) => looksLikeARealPage(String((pg && pg.text) || '')));
+    //
+    // A visit handed a stand-in way to fetch — which is every test — must
+    // never quietly launch a real browser against the real internet. It gets
+    // a stand-in browser or it gets none.
+    const openBrowser = deps.crawlWithBrowser
+      || (deps.fetch ? null : require('../../src/hoursback/browserRead.js').crawlWithBrowser);
+    if (openBrowser && !spokeToUs(crawl.pages)) {
+      try {
+        // probe:false — we have already proved a plain fetch cannot read it.
+        const viaBrowser = await openBrowser(url, { probe: false, delayMs: deps.delayMs });
+        if (spokeToUs(viaBrowser.pages)) {
+          alsoStore = crawl.pages;                     // what the plain fetch saw, kept
+          visit.wordsRecovered = viaBrowser.pages
+            .reduce((n, pg) => n + String((pg && pg.text) || '').length, 0);
+          crawl = {
+            ...crawl,
+            pages: viaBrowser.pages,
+            failures: viaBrowser.failures || crawl.failures,
+            partial: crawl.partial || Boolean(viaBrowser.partial),
+          };
+          visit.readVia = 'browser';
+        }
+      } catch (e) {
+        // A browser that will not start is worth recording and is never worth
+        // sinking the visit: the ordinary read stands as what we have.
+        visit.browserError = String((e && e.message) || e);
+      }
+    }
+
     visit.fetched = crawl.pages.length;
     visit.failures = crawl.failures.length;
 
@@ -328,6 +378,17 @@ async function visitOneBusiness(db, r, deps = {}) {
           title: page.title || null,
           text: page.text,
           sentToModel: read.sentUrls.has(page.url),
+        });
+      }
+      // What the plain fetch saw before the browser was opened. A real
+      // event, kept beside the browser's, never instead of it — that is how
+      // a site that starts hiding its words can be recognised later.
+      for (const page of alsoStore) {
+        await R.keepPage(db, reading.id, {
+          url: page.url,
+          title: page.title || null,
+          text: page.text,
+          sentToModel: false,
         });
       }
     }
@@ -645,6 +706,7 @@ async function understandPass(injected = {}) {
 
   const tally = {
     read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, noReadableWords: 0, partial: 0,
+    viaBrowser: 0, wordsRecovered: 0,
     tradeConfirmed: 0, tradeCorrected: 0, tradeUnsure: 0,
     people: 0, roles: 0, rolesUnderstood: 0, emails: 0, directLines: 0, profiles: 0,
     sharedInbox: 0, formOnly: 0, phoneOnly: 0, held: 0, newlyScored: 0,
@@ -720,6 +782,10 @@ async function understandPass(injected = {}) {
         // The site opened and published nothing readable. Counted apart from a
         // reader failure, and it must NEVER trip the give-up counter — a run of
         // script-driven sites is not the reader breaking.
+        if (visit.readVia === 'browser') {
+          tally.viaBrowser += 1;
+          tally.wordsRecovered += visit.wordsRecovered || 0;
+        }
         if (visit.outcome === 'no_readable_words') { tally.noReadableWords += 1; inARow = 0; continue; }
         if (visit.outcome === 'reader_failed') {
           tally.readerFailed += 1; failed.push(visit.name);
@@ -798,6 +864,7 @@ async function understandPass(injected = {}) {
     console.log(`${done} of ${rows.length} in this batch were done and are recorded normally; ${remaining} were not reached and stay eligible.`);
     if (cutOffMidVisit.length) console.log(`cut off mid-visit, still eligible: ${cutOffMidVisit.join(', ')}`);
     console.log('Nothing further was written. Rerun with --fresh=12 to resume from the database once the reader answers.');
+    try { await require('../../src/hoursback/browserRead.js').closeSharedBrowser(); } catch { /* nothing to close */ }
     await db.$disconnect();
     writeLastRun({
       script: 'understand-businesses.js', why, done, remaining, at: lastRunAt,
@@ -819,7 +886,8 @@ async function understandPass(injected = {}) {
   console.log(`website was not theirs:   ${tally.notTheirSite}`);
   console.log(`site would not answer:    ${tally.siteDown}`);
   console.log(`reader gave no answer:    ${tally.readerFailed}`);
-  console.log(`site published no words:  ${tally.noReadableWords}   (its text needs a browser, or a challenge page was served)`);
+  console.log(`read through a browser:    ${tally.viaBrowser}   (a plain fetch saw nothing; ${tally.wordsRecovered.toLocaleString()} chars recovered)`);
+  console.log(`site published no words:  ${tally.noReadableWords}   (nothing came back even with a real browser)`);
   if (tally.brokeOnThisOne) {
     console.log(`something broke on:       ${tally.brokeOnThisOne}   (the pass carried on; each reading closed as failed)`);
     console.log(broke.join('\n'));
@@ -844,6 +912,8 @@ async function understandPass(injected = {}) {
   console.log(`a form and nothing else:  ${tally.formOnly}`);
   console.log(`the phone and nothing else: ${tally.phoneOnly}`);
   console.log(`scores held down:         ${tally.held}`);
+  // The browser is a real process; it does not outlive the run that opened it.
+  try { await require('../../src/hoursback/browserRead.js').closeSharedBrowser(); } catch { /* nothing to close */ }
   await db.$disconnect();
 
   // The status board — the last thing written, whatever the ending was.
