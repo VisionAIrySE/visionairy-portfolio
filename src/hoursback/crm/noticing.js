@@ -1613,6 +1613,29 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
         // had passed with hours earlier. A tool that does not do the job is
         // not a reason to change a word.
       }
+      // IS ANYTHING IN IT ONLY THEIRS? Checked here, not judged. Measured
+      // 2026-09-03: only 17% of sentences carried anything specific to that
+      // business, and every sentence Russ called good had one while every one
+      // he rejected had none. Demanding it in words did not move it; the
+      // stranger who reads it cold cannot see their website and was turning
+      // DOWN six real town names as generic. So it is a lookup against their
+      // own pages, and it is not optional.
+      // Only asked of a business whose pages actually offer something to
+      // use. A site carrying no names and no numbers at all cannot satisfy
+      // it, and blocking on the impossible would cost that business its
+      // sentence for a fault that is not the writer's.
+      const theyOffer = theirOwnWords(pages).size > 0;
+      const mine2 = theyOffer ? onlyTheirs(sentence, pages) : ['(their pages name nothing)'];
+      if (!mine2.length) {
+        rejected = {
+          sentence,
+          why: 'nothing in it is only theirs — this would read the same sent to their '
+            + 'competitor down the road. Their own pages are above: use a place they '
+            + 'name, a brand or system they list, a service on their menu, or a number '
+            + 'they publish, and put it IN the sentence',
+        };
+        continue;
+      }
       const named = namesAPerson(sentence, evidence.people, evidence.name);
       if (named) {
         rejected = {
@@ -1716,6 +1739,112 @@ function promptToCheckOverlap(toolName, does, job) {
   ].join('\n');
 }
 
+
+// IS ANYTHING IN THIS SENTENCE ONLY THEIRS? (Russ, 2026-09-03.)
+//
+// Measured across every sentence ever written for these businesses: the ones
+// that say what the work COSTS went from 43% to 70% once that was demanded.
+// The ones naming something only that business has went from 10% to 17%. One
+// in six. Every sentence Russ called good has one — Terrebonne, Prineville,
+// GreenSky, La Pine, the Apply Now button, notary and mailbox slots — and
+// every one he rejected has none.
+//
+// Demanding it in words did not work, and the stranger who reads the sentence
+// cold CANNOT judge it: shown six real town names it said "what every broker
+// does", because it has no way to know those towns are real. It was rejecting
+// the very thing it should reward.
+//
+// So it is checked here instead, mechanically and unarguably: does the
+// sentence carry a distinctive word or number that appears on their own
+// pages? Not a judgement — a lookup. Common words are ignored, so "calls"
+// and "appointments" prove nothing; "Terrebonne", "GreenSky" and "200" do.
+
+// Words too common to prove anything, however true. Kept deliberately short:
+// anything a business of any trade would say about its own week.
+const NOT_DISTINCTIVE = new Set(`
+the a an and or but of to in on at for with from by is are was were be been
+you your yours they their them we our us it its this that these those
+i he she him her his hers who whom whose which what when where why how
+all any both each few more most other some such no nor not only own same
+so than too very can will just should now then there here
+day days week weeks month months year years time times hour hours morning
+call calls calling called phone phones email emails message messages text
+book books booking bookings booked appointment appointments schedule
+scheduling scheduled reschedule rescheduling customer customers client
+clients people person somebody someone work works working job jobs
+service services request requests form forms order orders quote quotes
+invoice invoices payment payments follow following up back over again
+every each same still comes come coming lands land landing takes take
+taking gets get getting keeps keep keeping does do doing done make makes
+making need needs needed want wants new one two three four five
+business businesses office offices team teams staff shop shops company
+across through around before after during between within without into onto
+another others already always never usually often sometimes something
+someone anything everything nothing anyone everyone whether because
+though although however therefore instead rather really simply actually
+please thanks thank welcome contact about below above right left
+online offline website websites number numbers detail details
+information provide provided providing provider offer offers offering
+include includes including available availability options option
+process processes handle handles handling manage manages managing
+schedule schedules support supports supporting help helps helping
+answer answers answering complete completed together throughout
+whatever whenever wherever whoever however anywhere everywhere nowhere
+yourself myself ourselves themselves himself herself itself
+getting having making taking coming going looking seeing knowing
+little enough almost mostly nearly hardly barely quite pretty
+`.trim().split(/\s+/));
+
+/// Every distinctive word and number this business's own pages carry.
+function theirOwnWords(pages) {
+  const seen = new Set();
+  for (const p of pages || []) {
+    const text = String((p && p.text) || '');
+    // Numbers they publish: 200 units, 24 hours, 1998.
+    for (const n of text.match(/\b\d[\d,]*\+?\b/g) || []) {
+      const bare = n.replace(/[,+]/g, '');
+      if (bare.length >= 2) seen.add(bare);
+    }
+    // NAMES, not merely uncommon words. "across" and "through" appear on
+    // every page ever written and prove nothing; Terrebonne, GreenSky and
+    // Redmond are theirs. So a word counts where their own pages use it as a
+    // NAME — capitalised somewhere other than the start of a sentence.
+    for (const m of text.matchAll(/([^.!?\n]\s+)([A-Z][A-Za-z'-]{2,})/g)) {
+      const w = m[2];
+      const low = w.toLowerCase();
+      if (NOT_DISTINCTIVE.has(low)) continue;
+      seen.add(low);
+    }
+    // AND THE PARTICULAR THINGS THEY SELL, which are usually lowercase:
+    // notary, mailbox, backflow, radioiodine, escrow, organizer. Every good
+    // sentence Russ picked out carries one. Six letters or more, and never a
+    // word any business would use about any week.
+    for (const w of text.match(/\b[a-z][a-z'-]{5,}\b/g) || []) {
+      if (NOT_DISTINCTIVE.has(w)) continue;
+      seen.add(w);
+    }
+  }
+  return seen;
+}
+
+/// What in this sentence is only theirs, drawn from their own pages. An empty
+/// list means the sentence would read the same to their competitor.
+function onlyTheirs(sentence, pages) {
+  const theirs = theirOwnWords(pages);
+  const found = [];
+  const text = String(sentence || '');
+  for (const n of text.match(/\b\d[\d,]*\+?\b/g) || []) {
+    const bare = n.replace(/[,+]/g, '');
+    if (bare.length >= 2 && theirs.has(bare)) found.push(n);
+  }
+  for (const w of text.match(/\b[A-Za-z][A-Za-z'-]{2,}\b/g) || []) {
+    const low = w.toLowerCase();
+    if (NOT_DISTINCTIVE.has(low)) continue;
+    if (theirs.has(low)) found.push(w);
+  }
+  return [...new Set(found)];
+}
+
 // ---------------------------------------------------------------------------
 // THE JUDGE (Russ, 2026-09-03).
 //
@@ -1757,6 +1886,10 @@ function promptToJudge(sentence, trade, roleTitle = null) {
     'ONE: does it name something real about your week? Something specific to',
     'you, not to your trade in general. You should half-wonder how they knew.',
     '',
+    'Assume the specifics are real. If it names a town, a brand or a number,',
+    'somebody has checked those against their website already. You are judging',
+    'whether it LANDS, not whether it is true.',
+    '',
     'TWO: does it say what that work COSTS? Not that it happens — you know it',
     'happens. What it takes: somebody\'s whole day, the same thing over and',
     'over, the second time you have typed it, the good work waiting while this',
@@ -1786,7 +1919,11 @@ function promptToJudge(sentence, trade, roleTitle = null) {
     '- The work named is judgement or skill, not the repeating part around it.',
     '- It describes a process with nobody in it, and nothing being lost.',
     '- It only says what you do. You know what you do. So what.',
-    '- It would be just as true of any other business in your trade.',
+    // NOT asked whether it is specific enough. It cannot tell: shown six real
+    // town names off a business's own pages it said "what every broker does".
+    // Whether anything in the sentence is only theirs is checked against
+    // their pages in code, where it can actually be known (2026-09-03).
+
     '- It hedges its own point, or talks itself back down after making it.',
     '- It reads like a consultant, a brochure, or a form.',
     '- It gets something about your work plainly wrong.',
@@ -1946,5 +2083,5 @@ module.exports = {
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
   tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
   CLAIMS_HOURS, VISIBLE_TO,
-  notAJob, namesAPerson,
+  notAJob, namesAPerson, onlyTheirs, theirOwnWords,
 };

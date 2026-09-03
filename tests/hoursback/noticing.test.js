@@ -813,11 +813,11 @@ test('a business with a portal is never pitched portal work: the covered passage
 // difference and should never have been the one deciding.
 test('a tool that does not really do the job never blocks it', async () => {
   const onThePhone = {
-    sentence: 'The calls still come in all day and somebody there picks up every one.',
+    sentence: 'Tenant calls still come in all day and somebody there picks up every one.',
     sure: 0.9,
   };
   const better = {
-    sentence: 'Routine requests go through the portal. It is the calls that still land on somebody all day.',
+    sentence: 'Routine requests go through the portal. It is the tenant calls that still land on somebody all day.',
     sure: 0.9,
   };
   const phoneWork = {
@@ -1122,7 +1122,7 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
   };
   const refusal = { cannotTell: "chasing organizers is Dale Smith's own licensed casework, not something the office handles" };
   const nextArea = {
-    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sentence: 'Clients across Bend hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
     sure: 0.8,
   };
   const ask = stubReader([twoRanks, strongAndWeak, refusal, nextArea]);
@@ -1163,9 +1163,9 @@ test('a genuine refusal records its reason and the next-ranked area is tried bef
 // rule and landed nothing. So one check asks whether the sentence did its
 // job, reading it the way the recipient reads — cold, with no context.
 test('a sentence that would not make the reader stop is sent back, and the work is kept', async () => {
-  const flat = { sentence: 'The intake repeats, but nothing else does.', sure: 0.9 };
+  const flat = { sentence: 'The organizer intake repeats, but nothing else does.', sure: 0.9 };
   const fails = { passes: false, why: 'that describes a process, nobody is in it and nothing is being lost' };
-  const lands = { sentence: 'Somebody there is typing the same handful of details in all day.', sure: 0.9 };
+  const lands = { sentence: 'Somebody there is typing the same handful of organizer details in all day.', sure: 0.9 };
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, lands, { passes: true }]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
 
@@ -1240,6 +1240,63 @@ test('the finding prompt states the bar before a single area is named', () => {
 // running if I didn't make it a point of broadcasting my business. It has to
 // be relevant, appropriate, and tasteful." He drew the line by asking how HE
 // would feel receiving it.
+// IS ANYTHING IN IT ONLY THEIRS? (Russ, 2026-09-03, after the analysis.)
+//
+// Measured across all 278 sentences ever written: those saying what the work
+// COSTS went 43% -> 70% once that was demanded. Those naming something only
+// that business has went 10% -> 17%. One in six. Every sentence Russ called
+// good has one — Terrebonne, GreenSky, La Pine, the Apply Now button, notary
+// and mailbox slots — and every one he rejected has none.
+//
+// Demanding it in words did not move it, and the stranger who reads the
+// sentence cold CANNOT judge it: shown six real town names off a business's
+// own pages it said "what every broker does". So it is a lookup against their
+// pages, not an opinion.
+test('a sentence must carry something that appears on their own pages', () => {
+  const pages = [{ url: 'https://x.example/', text:
+    'We serve Terrebonne, Prineville and Three Rivers every day. Financing is '
+    + 'through GreenSky and GoodLeap. Over 200 listings across La Pine and Redmond. '
+    + 'We offer notary service, mailbox rental and international shipping.' }];
+
+  // their names, their numbers, and the particular things they sell
+  assert.deepEqual(N.onlyTheirs('Somebody routes vans across Terrebonne and Prineville.', pages),
+    ['Terrebonne', 'Prineville']);
+  assert.ok(N.onlyTheirs('Every GreenSky application is pushed through by hand.', pages).includes('GreenSky'));
+  assert.ok(N.onlyTheirs('Keeping 200 listings straight is a day in itself.', pages).includes('200'));
+  assert.ok(N.onlyTheirs('Calls all day about notary availability and mailbox slots.', pages).includes('notary'));
+
+  // and nothing at all for a sentence that would read the same to anybody
+  for (const flat of [
+    'You are dispatching technicians throughout Central Oregon for service visits.',
+    'You are getting calls all day and somebody writes down what they need.',
+    'Following up with clients between sales is on somebody there.',
+    'The intake repeats, but nothing else does.',
+  ]) {
+    assert.deepEqual(N.onlyTheirs(flat, pages), [], `"${flat}" is true of anybody`);
+  }
+});
+
+test('an ordinary word on their page proves nothing', () => {
+  const pages = [{ url: 'https://x.example/', text:
+    'We work across Central Oregon and through the whole year. Contact us for '
+    + 'more information about the services we provide and the options available.' }];
+  assert.deepEqual(N.onlyTheirs('The work comes through and lands on somebody, across the week.', pages), []);
+});
+
+// A site carrying no names and no numbers at all cannot satisfy this, and
+// blocking on the impossible would cost that business its sentence for a
+// fault that is not the writer's.
+test('a business whose pages name nothing is not held to it', () => {
+  const bare = [{ url: 'https://x.example/', text:
+    'we do the work and we do it well for the people who come to us, and we have '
+    + 'been doing it a while now, so get in touch and we will see what we can do '
+    + 'for you and yours, whatever it is that you need doing today or any day.' }];
+  assert.equal(N.theirOwnWords(bare).size, 0,
+    'their pages offer nothing to use, so nothing can be asked of the sentence');
+  // and a real site always offers something — a town, a brand, a number, a service
+  assert.ok(N.theirOwnWords(PAGES).size > 0);
+});
+
 test('the taste line is in the instructions, at every stage that needs it', () => {
   const find = N.promptToFind(EVIDENCE);
   assert.match(find, /RELEVANT, APPROPRIATE AND TASTEFUL/);
@@ -1305,7 +1362,7 @@ test('the judge is asked about every sentence that reaches the letter', async ()
 // A judge that keeps refusing does not hold a business hostage: the work
 // moves on like any other refusal, and silence is honest about why.
 test('a sentence the reader keeps turning away ends in the trade sentence, saying so', async () => {
-  const flat = { sentence: 'The intake repeats, but nothing else does.', sure: 0.9 };
+  const flat = { sentence: 'The organizer intake repeats, but nothing else does.', sure: 0.9 };
   const fails = { passes: false, why: 'it would not make me stop reading' };
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, flat, fails, flat, fails, flat, fails]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
@@ -1359,7 +1416,7 @@ test('wording rejected twice drops that area too, and the next-ranked gets its t
   const promisesHours = { sentence: 'Automating that chase would save you 5 hours a week.', sure: 0.9 };
   const promisesAgain = { sentence: 'That chase gets you back 6 hours a week.', sure: 0.9 };
   const nextArea = {
-    sentence: 'Clients hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
+    sentence: 'Clients across Bend hear from you at tax time and then not again until the next one, and staying in front of them in between falls to whoever has a spare hour.',
     sure: 0.8,
   };
   const ask = stubReader([twoRanks, bothRecur, promisesHours, promisesAgain, nextArea]);
