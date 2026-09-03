@@ -1130,6 +1130,18 @@ test('a sentence that would not make the reader stop is sent back, and the work 
   assert.equal(res.areas[0].refused, null);
 });
 
+// AND THE PAIN HAS TO BE LIFTABLE (Russ, 2026-09-03: "is the pain still tied
+// to the automation and/or AI solution?"). The work is CHOSEN from the tool
+// library, so it always could be — but nothing checked the finished sentence,
+// which could drift onto real pain nothing can help with. True and useless.
+test('the cold reader also asks whether anything could take the work off them', () => {
+  const p = N.promptToJudge('You are the one deciding which carrier fits each package.', 'shipping');
+  assert.match(p, /could actually be taken off you/);
+  assert.match(p, /judgement, the/);
+  assert.match(p, /true and/);
+  assert.match(p, /it is useless/);
+});
+
 test('the judge is asked about every sentence that reaches the letter', async () => {
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, WRITE_GOOD, { passes: true }]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask });
