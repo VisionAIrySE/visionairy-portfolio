@@ -28,8 +28,15 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
-SITES=100
-for a in "$@"; do case $a in --sites=*) SITES="${a#*=}";; esac; done
+# TWENTY-FIVE AT A TIME, UP TO TWO HUNDRED (Russ, 2026-09-03).
+#
+# Not one run of two hundred. Small batches so a run that goes wrong loses
+# twenty-five sites' worth of work rather than the night's, and so the guard
+# gets a fresh look between each one. It stops early if a batch reads nothing,
+# which is what a broken night looks like from the outside.
+SITES=200
+BATCH=25
+for a in "$@"; do case $a in --sites=*) SITES="${a#*=}";; --batch=*) BATCH="${a#*=}";; esac; done
 
 # The mail key lives in the settings file, never in the repository.
 if [ -f .env ]; then
@@ -53,7 +60,7 @@ say () { echo "$1" | tee -a "$OUT"; }
 : > "$OUT"
 say "# The night of ${NIGHT}"
 say ""
-say "Started $(date '+%H:%M'). Reading ${SITES} websites, then writing to whoever they turn out to be."
+say "Started $(date '+%H:%M'). Up to ${SITES} websites, ${BATCH} at a time, then writing to whoever they turn out to be."
 say ""
 
 # ONE NIGHT AT A TIME. Two runs writing to the same records is the kind of
@@ -147,11 +154,29 @@ if [ -z "$stopped_because" ]; then
     || say "**Stopped: ${stopped_because}.**"
 fi
 
-if [ -z "$stopped_because" ]; then
-  run "Reading ${SITES} new websites" \
-    node scripts/hoursback/understand-businesses.js --untried --fresh=12 --limit="$SITES" --lanes=3 \
-    || say "**Stopped: ${stopped_because}.** Everything read up to that point is kept, and tomorrow writes to them first."
-fi
+read_so_far=0
+while [ -z "$stopped_because" ] && [ "$read_so_far" -lt "$SITES" ]; do
+  before=$(node -e '
+    const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
+    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses"}})); await db.$disconnect(); })();
+  ' 2>/dev/null | tail -1)
+  run "Reading ${BATCH} new websites (${read_so_far} of ${SITES} so far)" \
+    node scripts/hoursback/understand-businesses.js --untried --fresh=12 --limit="$BATCH" --lanes=3 \
+    || { say "**Stopped: ${stopped_because}.** Everything read up to that point is kept, and tomorrow writes to them first."; break; }
+  after=$(node -e '
+    const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
+    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses"}})); await db.$disconnect(); })();
+  ' 2>/dev/null | tail -1)
+  gained=$(( ${after:-0} - ${before:-0} ))
+  read_so_far=$(( read_so_far + gained ))
+  # A BATCH THAT READS NOTHING MEANS THERE IS NOTHING LEFT TO READ, or something
+  # is wrong. Either way, grinding through seven more batches proves nothing.
+  if [ "$gained" -le 0 ]; then
+    say "_That batch read nothing, so there is either nothing left untouched or something is wrong. Stopping here rather than repeating it._"
+    say ""
+    break
+  fi
+done
 
 # And what tonight read gets its sentence tonight, so only a hard stop leaves
 # anything owed.
