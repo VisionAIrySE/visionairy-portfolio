@@ -305,6 +305,12 @@ function writeLastRun({ script, why, done, remaining, needsPerson = null, at = L
 // failing — and the business counted as unreached and still eligible.
 const READER_OUT_MSG = 'THE READER IS OUT OF ALLOWANCE — the run stops here; this business was cut off, not read';
 const BROKEN_START_MSG = 'the run could not get a single answer from the reader in its first tries — stopped as broken, not as thousands of thin websites';
+const READER_SILENT_MSG = 'the reader answered none of the group reads';
+// The three ways OUR OWN TOOL gave nothing back. A reading closed with one of
+// these says nothing whatever about the business, so it must not retire them
+// from the untouched list — and it must not send them round again forever
+// either. See the note on neverOpened below.
+const READER_GAVE_NOTHING = [READER_OUT_MSG, BROKEN_START_MSG, READER_SILENT_MSG];
 
 // How many calls may fail, before ANY has succeeded, before the run is judged
 // broken. One answered call, ever, retires this check for the whole run.
@@ -922,8 +928,42 @@ async function understandPass(injected = {}) {
         : {}),
     };
   const untried = injected.untried ?? UNTRIED;
+  // NEVER ACTUALLY REACHED, not merely "has a record" (2026-09-04).
+  //
+  // On the night of the 3rd the reader could not be started at all, and 62
+  // businesses got a reading saying so. Every one of them was then treated as
+  // already tried and dropped out of this list for good — 62 sites nobody had
+  // ever opened, quietly retired by a fault in our own tooling.
+  //
+  // A reading is kept forever either way; that rule does not move. What
+  // changes is what counts as having tried: an answer about the business
+  // (read it, no site, site down) counts. Our own tool falling over does not.
+  // TRIED MEANS WE REACHED A CONCLUSION ABOUT THEM (2026-09-04, second pass).
+  //
+  // First this counted any record at all, so 62 businesses our own broken
+  // reader had never opened were retired for good. Then it counted only a
+  // clean read — and the opposite broke: every placeholder page, parked
+  // domain and site that turns out to belong to somebody else came back in
+  // the very next batch, and the next, forever. Six of eight visits in one
+  // batch were the same six sites again.
+  //
+  // Both are answers about the business and both are final: "this is not
+  // their site" is a conclusion, not a failure. The only thing that leaves a
+  // business genuinely untouched is our own reader giving nothing back at
+  // all, and those three messages are ours, fixed, and listed above.
   const neverOpened = untried
-    ? { readings: { none: { source: R.WEBSITE, reader: 'understand-businesses' } } }
+    ? {
+      readings: {
+        none: {
+          source: R.WEBSITE,
+          reader: 'understand-businesses',
+          OR: [
+            { outcome: { in: [R.READ, R.NO_WEBSITE, R.UNREACHABLE] } },
+            { AND: [{ finishedAt: { not: null } }, { NOT: { note: { in: READER_GAVE_NOTHING } } }] },
+          ],
+        },
+      },
+    }
     : {};
   const where = only ? baseWhere : { ...alreadyDone, ...baseWhere, ...neverOpened };
 

@@ -36,7 +36,7 @@ const FIRST_CONTACT = 'first_contact';
 // 691 businesses once, by which time the follow-ups have crowded out every new
 // message. Russ set week one at 30 (2026-08-26). All 691 first messages clear
 // in about ten days at this pace, and it is still a gentle warm-up.
-const EMAIL_RAMP = [30, 60, 120, 200];
+const EMAIL_RAMP = [50, 60, 120, 200];   // week one raised 30 → 50 (Russ, 2026-09-04)
 function dailyEmailCap(weeksSending = 0) {
   return EMAIL_RAMP[Math.min(Math.max(0, Math.floor(weeksSending)), EMAIL_RAMP.length - 1)];
 }

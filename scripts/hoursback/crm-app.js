@@ -976,12 +976,21 @@ async function emailScreen(params) {
        the screen is saved?"). The checkboxes sit inside each card but belong
        to this one form, which is what keeps the wording editor working. -->
   <form id="pickForm" method="POST" action="/email/queue"></form>
+  <!-- TICK THEM ALL (Russ, 2026-09-04: "is there a Select All button?"). Ticks
+       only the ones on this page, and only the ones that can still be ticked —
+       anything already marked ready is shown greyed and is left alone. It marks
+       nothing by itself: the button below is still the one that acts. -->
+  <p class="row" style="margin:6px 0 0">
+    <label style="display:inline;width:auto"><input type="checkbox" id="tickAll" style="width:auto;vertical-align:middle"
+      onclick="document.querySelectorAll('input[name=pick]:not([disabled])').forEach(function(b){b.checked=this.checked}.bind(this))">
+      tick all ${ready.length} on this page</label>
+  </p>
   <p class="muted">Three messages, four days then a week apart. Anybody who answers, bounces, or says never again drops out of the sequence on the spot.</p>
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
-    <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Line up the follow-ups that are due</button></form>
-    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send the queue — at most ${Math.min(left, 25)} right now</button></form>
-    <button form="pickForm" ${approved ? '' : 'disabled'}>Line up the ticked ones</button>
+    <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Mark due follow-ups as ready</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready — up to ${Math.min(left, 25)} now</button></form>
+    <button form="pickForm" ${approved ? '' : 'disabled'}>Mark ticked as ready</button>
     <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
   </p>
   <p class="mini">"Send one to me" posts a real message to russ@visionairy.biz and nowhere else. It proves the sending key on this site works before a single prospect hears from you.</p>
@@ -2100,7 +2109,7 @@ const server = http.createServer(async (req, res) => {
               data: { state: 'QUEUED', queuedAt: new Date() },
             });
           }
-          res.writeHead(303, { Location: `/email?sent=${picked.length}&why=${encodeURIComponent('lined up to send. Nothing has left yet.')}` });
+          res.writeHead(303, { Location: `/email?sent=${picked.length}&why=${encodeURIComponent('marked ready. Nothing has been sent.')}` });
           return res.end();
         }
         // Asked for, never automatic. This is the job that used to run itself
@@ -2282,7 +2291,7 @@ const server = http.createServer(async (req, res) => {
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
 
-          const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} lined up to send.`
+          const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.
           const fromBusiness = url.searchParams.get('back');

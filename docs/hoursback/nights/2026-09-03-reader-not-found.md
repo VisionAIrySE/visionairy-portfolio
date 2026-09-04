@@ -294,27 +294,3 @@ Nothing further was written. Rerun with --fresh=12 to resume from the database o
 ## Reading 25 new websites (53 of 200 so far)
 
 ```
-resume: 3 read in the last 12h — skipped as already done; 1398 remain eligible
-25 businesses with a website to read  (batch ceiling 50)
-reading, 3 site(s) at a time, groups in parallel within each
-
-```
-
-## Reading 25 new websites (56 of 200 so far)
-
-```
-resume: 3 read in the last 12h — skipped as already done; 1395 remain eligible
-25 businesses with a website to read  (batch ceiling 50)
-reading, 3 site(s) at a time, groups in parallel within each
-
-
-
-STOPPED — the run's first calls all failed (5 before a single answer) — the reader is broken, not the websites.
-0 of 25 in this batch were done and are recorded normally; 25 were not reached and stay eligible.
-cut off mid-visit, still eligible: Elevation Bend, Humane Society of Central Oregon, Veterinarian in La Pine, OR
-Nothing further was written. Rerun with --fresh=12 to resume from the database once the reader answers.
-```
-
-## Reading 25 new websites (59 of 200 so far)
-
-```

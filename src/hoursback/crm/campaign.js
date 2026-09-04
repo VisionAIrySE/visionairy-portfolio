@@ -47,10 +47,23 @@ const WHO_I_AM = [
 // wings" is a theatre metaphor that does not fit "burning time" either. Each
 // wording now says plainly what there are three or four more of: jobs, tasks,
 // work that repeats.
+// HIS OWN SENTENCE, AND IT STAYS (Russ, 2026-08-30, reaffirmed 2026-09-04).
+//
+//   "Some firms may have that task handled but many have three or four more
+//    like it burning time in the wings."
+//
+// On 2026-09-04 I cut this, calling the count invented. It is not mine to
+// call anything: it is Russ's line, from his own rewrite, in his voice
+// samples. He put it back within the minute. His words are not mine to edit
+// out because I have a theory about them.
+//
+// What it does, and why it earns its place: it hands them the exit BEFORE
+// they take it themselves, and then says the exit does not save them. That is
+// the move. Never cut it again.
 const ALREADY_HANDLED = [
   'Some {they} may have that task handled. Most have three or four more jobs of the same kind still eating the week.',
   'Some {they} will have that one solved already. Most have three or four other tasks that repeat exactly the same way.',
-  'Plenty of {they} have that one covered by now, and still have three or four repetitive jobs costing them the same hours.',
+  'Some {they} may have that one covered by now, but still have three or four other repetitive jobs costing them the same hours.',   // Russ, 2026-09-04
   'You may well have that one handled. Most {they} have three or four more tasks that quietly take the same time.',
 ];
 

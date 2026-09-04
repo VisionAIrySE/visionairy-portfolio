@@ -28,6 +28,16 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
+# WHERE THE READER LIVES (2026-09-03, found the hard way).
+#
+# The scheduler runs this with almost no environment: its PATH is /usr/bin:/bin
+# and nothing else. The reader is installed in ~/.local/bin, so under the
+# scheduler the command simply is not there — every question came back "the
+# reader could not be started" and the night read nothing, while by hand it
+# worked perfectly. Same script, different environment.
+PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export PATH
+
 # TWENTY-FIVE AT A TIME, UP TO TWO HUNDRED (Russ, 2026-09-03).
 #
 # Not one run of two hundred. Small batches so a run that goes wrong loses
@@ -49,6 +59,11 @@ fi
 NIGHT=$(date +%Y-%m-%d)
 OUT="docs/hoursback/nights/${NIGHT}.md"
 mkdir -p docs/hoursback/nights
+
+# THE LOCK COMES BEFORE THE PAPER (2026-09-04). Two runs started within seconds
+# of each other. The second wiped the night's report clean before discovering
+# the first was already going, so the running night lost the lines it had
+# already written. Nothing may touch the report until the lock is held.
 LOG=$(mktemp -d)/night.log
 
 MAX_HOURS=7           # done well before morning
@@ -56,12 +71,6 @@ MAX_QUESTIONS=4000    # a hundred sites cost roughly 1,200; this is the runaway 
 QUIET_MINUTES=30
 
 say () { echo "$1" | tee -a "$OUT"; }
-
-: > "$OUT"
-say "# The night of ${NIGHT}"
-say ""
-say "Started $(date '+%H:%M'). Up to ${SITES} websites, ${BATCH} at a time, then writing to whoever they turn out to be."
-say ""
 
 # ONE NIGHT AT A TIME. Two runs writing to the same records is the kind of
 # thing that is invisible until the numbers stop making sense.
@@ -71,13 +80,37 @@ if ! mkdir "$LOCK" 2>/dev/null; then
   exit 0
 fi
 date +%H:%M > "$LOCK/when"
+
+: > "$OUT"
+say "# The night of ${NIGHT}"
+say ""
+say "Started $(date '+%H:%M'). Up to ${SITES} websites, ${BATCH} at a time, then writing to whoever they turn out to be."
+say ""
+
+# AND SAY SO AT MINUTE ONE IF IT STILL IS NOT THERE. A night that cannot read
+# should stop while somebody can still do something about it, not grind through
+# eight batches of nothing and report an empty morning.
+if ! command -v claude >/dev/null 2>&1; then
+  say "**Stopped before starting: the reader is not installed where this run can find it.**"
+  say ""
+  say "Nothing was read and nothing was written. Every question would have failed the same way."
+  say "Looked on: \`$PATH\`"
+  exit 1
+fi
+
+
 # The browser is launched once and stays alive. A night that ends badly used to
 # leave it holding memory until somebody noticed.
 cleanup () {
   pkill -f "chromium.*--headless" 2>/dev/null
   rm -rf "$LOCK"
 }
-trap cleanup EXIT INT TERM
+# A STOP MUST ACTUALLY STOP (2026-09-04). Asked to stop, this used to tidy up
+# and then carry straight on — releasing the lock that keeps two nights apart
+# while still running. Killing it looked like it had worked and had not.
+stop_now () { cleanup; exit 143; }
+trap cleanup EXIT
+trap stop_now INT TERM
 
 started=$(date +%s)
 stopped_because=""
@@ -130,6 +163,22 @@ run () {   # $1 = what it is, rest = the command
   return 0
 }
 
+# ONE REAL QUESTION FIRST (2026-09-04). Proof the reader answers here, in this
+# environment, tonight — before a single business is touched. The night of the
+# 3rd found out it could not read only after 62 businesses had been marked as
+# tried and lost.
+say "## Can the reader answer at all"
+say ""
+say '```'
+if node scripts/hoursback/reader-check.js >> "$LOG" 2>&1; then
+  cat "$LOG" >> "$OUT"; say '```'; say ""
+  : > "$LOG"
+else
+  cat "$LOG" >> "$OUT"; say '```'; say ""
+  say "**Stopped before starting.** The reader cannot answer, so nothing was read and nothing was written."
+  exit 1
+fi
+
 # WRITING COMES FIRST (Russ, 2026-09-03: "we pick up the writing before the
 # next reading starts").
 #
@@ -158,19 +207,26 @@ read_so_far=0
 while [ -z "$stopped_because" ] && [ "$read_so_far" -lt "$SITES" ]; do
   before=$(node -e '
     const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
-    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses"}})); await db.$disconnect(); })();
+    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses",outcome:{in:["read","no_website","unreachable"]}}})); await db.$disconnect(); })();
   ' 2>/dev/null | tail -1)
   run "Reading ${BATCH} new websites (${read_so_far} of ${SITES} so far)" \
     node scripts/hoursback/understand-businesses.js --untried --fresh=12 --limit="$BATCH" --lanes=3 \
     || { say "**Stopped: ${stopped_because}.** Everything read up to that point is kept, and tomorrow writes to them first."; break; }
   after=$(node -e '
     const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
-    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses"}})); await db.$disconnect(); })();
+    (async()=>{ console.log(await db.reading.count({where:{source:"website",reader:"understand-businesses",outcome:{in:["read","no_website","unreachable"]}}})); await db.$disconnect(); })();
   ' 2>/dev/null | tail -1)
   gained=$(( ${after:-0} - ${before:-0} ))
   read_so_far=$(( read_so_far + gained ))
   # A BATCH THAT READS NOTHING MEANS THERE IS NOTHING LEFT TO READ, or something
   # is wrong. Either way, grinding through seven more batches proves nothing.
+  #
+  # WHAT COUNTS AS ONE READ (2026-09-04). This counted every record the run
+  # left behind, and a run whose reader is broken leaves one per business
+  # saying so. So a batch that read nothing at all reported three done, this
+  # test never fired, and the night ground on announcing "50 of 200" when the
+  # true figure was zero. Only an answer about the business counts now: read
+  # it, no site, site down. Our own tool falling over is not progress.
   if [ "$gained" -le 0 ]; then
     say "_That batch read nothing, so there is either nothing left untouched or something is wrong. Stopping here rather than repeating it._"
     say ""
