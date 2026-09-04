@@ -31,6 +31,14 @@ cd "$(dirname "$0")/../.."
 SITES=100
 for a in "$@"; do case $a in --sites=*) SITES="${a#*=}";; esac; done
 
+# The mail key lives in the settings file, never in the repository.
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env 2>/dev/null || true
+  set +a
+fi
+
 NIGHT=$(date +%Y-%m-%d)
 OUT="docs/hoursback/nights/${NIGHT}.md"
 mkdir -p docs/hoursback/nights
@@ -115,23 +123,46 @@ run () {   # $1 = what it is, rest = the command
   return 0
 }
 
-run "Reading ${SITES} websites" \
-  node scripts/hoursback/understand-businesses.js --untried --fresh=12 --limit="$SITES" --lanes=3 \
-  || say "**Stopped: ${stopped_because}.** Everything read up to that point is kept."
-
+# WRITING COMES FIRST (Russ, 2026-09-03: "we pick up the writing before the
+# next reading starts").
+#
+# Reading then writing means a night that stops early leaves businesses read
+# and silent — which looks like success until you look. Writing first clears
+# whatever last night read before anything new is taken on, so the worst case
+# is a night with no new reading rather than a night with new reading and no
+# letters.
 if [ -z "$stopped_because" ]; then
-  run "Finding what each of them actually does" \
+  run "Catching up on anything read but not yet written to" \
     node scripts/hoursback/write-noticings.js --fresh=12 --limit=50 \
     || say "**Stopped: ${stopped_because}.**"
 fi
 
 if [ -z "$stopped_because" ]; then
-  run "Writing their letters" node scripts/hoursback/rewrite-drafts.js \
+  run "Writing the letters owed from last night" node scripts/hoursback/rewrite-drafts.js \
     || say "**Stopped: ${stopped_because}.**"
 fi
 
 if [ -z "$stopped_because" ]; then
-  run "Writing their LinkedIn notes" node scripts/hoursback/write-linkedin.js \
+  run "Writing the LinkedIn notes owed from last night" node scripts/hoursback/write-linkedin.js \
+    || say "**Stopped: ${stopped_because}.**"
+fi
+
+if [ -z "$stopped_because" ]; then
+  run "Reading ${SITES} new websites" \
+    node scripts/hoursback/understand-businesses.js --untried --fresh=12 --limit="$SITES" --lanes=3 \
+    || say "**Stopped: ${stopped_because}.** Everything read up to that point is kept, and tomorrow writes to them first."
+fi
+
+# And what tonight read gets its sentence tonight, so only a hard stop leaves
+# anything owed.
+if [ -z "$stopped_because" ]; then
+  run "Finding what tonight's businesses actually do" \
+    node scripts/hoursback/write-noticings.js --fresh=12 --limit=50 \
+    || say "**Stopped: ${stopped_because}.**"
+fi
+
+if [ -z "$stopped_because" ]; then
+  run "Writing tonight's letters" node scripts/hoursback/rewrite-drafts.js \
     || say "**Stopped: ${stopped_because}.**"
 fi
 
