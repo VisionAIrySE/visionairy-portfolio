@@ -84,6 +84,41 @@ Answer with JSON and nothing else:
 "a_real_small_site" where this genuinely is their whole site and it is simply very small.
 "cannot_tell" where the words do not settle it. Say that rather than choosing the closest, and set quote to null.`;
 
+/// IS THIS EVEN THEIR WEBSITE? Asked at the front door, before anything is
+/// spent (Russ, 2026-09-03: "we have to do a quick initial pass when we first
+/// hit a page to validate we have the right site before we dump this much into
+/// the wrong websites").
+///
+/// Two of twelve sites read tonight belonged to strangers. One was a Turkish
+/// gambling site; the other was Dassault Systemes, a French software company,
+/// and it cost 226 pages and 49 questions before anything noticed. The check
+/// that catches a directory compares the business's name to the domain, which
+/// cannot catch a real company's real website that simply is not theirs.
+///
+/// So: one question, on the front page alone. A wrong answer here costs one
+/// question; being wrong the other way costs a whole night.
+const IS_THIS_THEIRS = (name, town, url, words) => `A business on file as "${name}"${town ? ` in ${town}` : ''} has this web address: ${url}
+
+These are the first words on that page:
+
+"""
+${words}
+"""
+
+Is this page the website of THAT business?
+
+Answer with JSON and nothing else:
+
+{
+  "verdict": one of "theirs", "somebody elses", "cannot tell",
+  "whose": if it is somebody else's, whose it appears to be, or null
+}
+
+Judge it on whether these words are THIS business talking about itself. A page selling software to manufacturers is not a Central Oregon plumber's website, however professional it looks. A page in another language, about another industry, or about a company with a different name, is somebody else's.
+
+Say "theirs" where the words are plainly this business: their name, their town, their trade, their services. A small or unfinished page is still theirs.
+Say "cannot tell" where the words do not settle it. Do not guess in either direction.`;
+
 const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
 const LOOK = process.argv.includes('--look');
 const LIMIT = Number(arg('limit', 0));
@@ -365,6 +400,79 @@ async function visitOneBusiness(db, r, deps = {}) {
   });
 
   try {
+    // THE FRONT DOOR, CHECKED BEFORE ANYTHING IS SPENT. One page, one question:
+    // is this actually their website? Two of twelve sites tonight were
+    // strangers' — a Turkish gambling site and a French software company, the
+    // second costing 226 pages and 49 questions before anything noticed.
+    if (!look && !deps.skipTheirsCheck) {
+      // A CHECK THAT SAVES TIME MUST NEVER COST TIME. The first version of
+      // this hung for ten minutes on the very site it exists to catch. One
+      // page, half a minute, and then it gives up and lets the ordinary read
+      // decide — being slow here would defeat the whole point.
+      // Ninety seconds. The wrong answer is the slow one — Dassault Systèmes'
+      // front page took the reader 24 seconds to judge, against 8 for a small
+      // plumber — so a tight limit would time out exactly on the sites this
+      // exists to catch.
+      const GIVE_UP_AFTER_MS = 90000;
+      const inTime = (work) => Promise.race([
+        work,
+        new Promise((resolve) => setTimeout(() => resolve(null), GIVE_UP_AFTER_MS)),
+      ]);
+      let front = null;
+      try {
+        const one = await inTime(ps.crawlWholeSite(url, {
+          fetch: deps.fetch, delayMs: 0, timeLimitMs: 20000, pageCeiling: 1,
+        }));
+        front = one && (one.pages || [])[0];
+      } catch { /* cannot open it: the ordinary path below records that */ }
+      const firstWords = String((front && front.text) || '').trim().slice(0, 1500);
+      if (firstWords.length > 120) {
+        try {
+          const said = await inTime(askReader(IS_THIS_THEIRS(name, r.address || '', url, firstWords)));
+          const verdict = said && said.answer && String(said.answer.verdict || '').toLowerCase().trim();
+          // UNSURE MEANS ASK RUSS, NOT GUESS (his instruction, 2026-09-03).
+          // Reading a stranger's whole site costs a night; asking him costs a
+          // line in the morning report. The visit stops and says so.
+          if (verdict === 'cannot tell') {
+            if (reading) {
+              await R.record(db, {
+                readingId: reading.id,
+                prospectId: r.id,
+                field: 'theirOwnSite',
+                value: null,
+                status: R.COULD_NOT_TELL,
+                url,
+                quote: 'the front page did not settle whether this site is theirs',
+              });
+              await R.finishReading(db, reading.id, R.FAILED,
+                'stopped at the front door: could not tell whether this site is theirs, and Russ decides');
+            }
+            visit.outcome = 'ask_russ_whose_site';
+            return visit;
+          }
+          if (verdict === 'somebody elses') {
+            const whose = said.answer.whose ? String(said.answer.whose).slice(0, 120) : 'somebody else';
+            if (reading) {
+              await R.record(db, {
+                readingId: reading.id,
+                prospectId: r.id,
+                field: 'theirOwnSite',
+                value: 'no',
+                status: R.INFERRED,
+                url,
+                quote: `the front page is ${whose}, not this business`,
+              });
+              await R.finishReading(db, reading.id, R.FAILED,
+                `not their site: the front page is ${whose}`);
+            }
+            visit.outcome = 'not_their_site';
+            visit.whoseSiteItIs = whose;
+            return visit;
+          }
+        } catch { /* one unanswered question never stops a visit */ }
+      }
+    }
+
     let crawl;
     try {
       crawl = await ps.crawlWholeSite(url, { fetch: deps.fetch, delayMs: deps.delayMs, timeLimitMs: deps.crawlTimeLimitMs });
@@ -770,10 +878,34 @@ async function understandPass(injected = {}) {
     }
     : {};
 
+  // A BUSINESS WITH NO WEB ADDRESS NEVER REACHES THE READER (Russ, 2026-09-03).
+  //
+  // "Grandpashabet Giris Adresi 2026" has no address on file, was read anyway,
+  // and came back with 7,445 words about a Turkish gambling site. The reader
+  // had gone and found somebody else's page. That cost real questions to learn
+  // nothing, and put a stranger's words on a Central Oregon business.
+  //
+  // A record with no address is a record with a hole in it, not a website to
+  // read. It is left alone until somebody fills the hole in.
+  //
+  // It goes in an AND, not an OR. `alreadyDone` above also uses OR, and two
+  // OR keys in one object means the second silently replaces the first — the
+  // exact mistake this file already warns about twice. Written as an OR here
+  // it wiped out the resume rule and the run re-read everything.
+  const HAS_AN_ADDRESS_TO_READ = {
+    AND: [{
+      OR: [
+        { website: { not: null } },
+        { websiteManualValue: { not: null } },
+      ],
+    }],
+  };
+
   const baseWhere = only
     ? { id: only }
     : {
       doNotContact: false,
+      ...HAS_AN_ADDRESS_TO_READ,
       // One NOT list, not two. Written as two separate NOT keys the second
       // silently replaces the first and the whole scoping disappears.
       NOT: [
@@ -1455,6 +1587,7 @@ module.exports = {
   writeItDown, hasContactForm, opportunityFromTheRead,
   // the whole-site visit, exported so it can be tested without a run
   visitOneBusiness, askTheReader, closeReaderPool, BATCH_OF_SITES, MODEL, READER_VERSION,
+  IS_THIS_THEIRS, WHY_NOTHING_HERE,
   // surviving the night: the run itself, the reader guard that stops it the
   // moment the reader is out, and the status board — all exported so the
   // stop behaviours can be proved by tests instead of by a ruined night

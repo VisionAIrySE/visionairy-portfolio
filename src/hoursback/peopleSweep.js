@@ -762,7 +762,12 @@ async function crawlWholeSite(website, options = {}) {
     } catch { /* the homepage alone is enough */ }
   }
 
-  while (queue.length && pages.length < WHOLE_SITE_PAGE_CEILING) {
+  // A caller may ask for FEWER pages than the ceiling — the front-door check
+  // wants exactly one, to decide whether this site is even theirs before
+  // anything more is spent on it. It can never ask for more.
+  const pageCeiling = Math.min(options.pageCeiling || WHOLE_SITE_PAGE_CEILING, WHOLE_SITE_PAGE_CEILING);
+
+  while (queue.length && pages.length < pageCeiling) {
     if (Date.now() - startedAt > timeLimit) { partial = true; break; }
     // A STALL IS NOT THE SAME AS A LONG SITE (Russ, 2026-09-03: "watch for
     // stalls"). With fifteen minutes to play with, a site that answers but

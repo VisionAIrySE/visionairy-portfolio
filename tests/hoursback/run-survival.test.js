@@ -573,3 +573,42 @@ test('the stop messages are fixed strings a lane can recognise', () => {
   assert.ok(EXIT_READER_EXHAUSTED !== 0 && EXIT_READER_EXHAUSTED !== 1);
   assert.ok(EXIT_BROKEN_START !== 0 && EXIT_BROKEN_START !== 1);
 });
+
+// --- a new rule must never quietly cancel an old one (2026-09-03) ------------
+//
+// "A business with no web address is never read" was added as an OR, and
+// `alreadyDone` above is also an OR. Two OR keys in one object means the second
+// replaces the first, so the resume rule vanished and the run re-read
+// everything it had just read. Nothing errored; the count was simply wrong.
+// This file already warns about that mistake twice, in comments, which is not
+// the same as a test.
+
+test('a business with no web address is never sent to the reader', async () => {
+  // "No web address" was added as an OR, and the resume rule above is also an
+  // OR. Two OR keys in one object means the second replaces the first, so the
+  // resume rule vanished and the run re-read everything. Nothing errored; the
+  // count was simply wrong. This file warns about that mistake twice in
+  // comments, which is not the same as a test.
+  const now = Date.now();
+  const rows = [
+    understandProspect('hasone', null),
+    understandProspect('alsohasone', new Date(now - 30 * 3600000)),
+  ];
+  const noAddress = understandProspect('noaddress', null);
+  noAddress.website = null;
+  noAddress.websiteManualValue = null;
+  rows.push(noAddress);
+
+  const db = fakeUnderstandDb(rows);
+  const ask = fakeReader(() => { throw new Error('no visit should reach the reader'); });
+  const out = await runUnderstand({
+    db, ask, fetch: makeFetch({}), lanes: 2, look: false, fresh: 6, limit: 50,
+    lastRunPath: aBoard('ub-no-address'),
+  });
+  const names = (out.visited || []).map((v) => v.name || v.id);
+  assert.ok(!JSON.stringify(names).includes('noaddress'),
+    `a record with no address is a hole in the record, not a website: visited ${JSON.stringify(names)}`);
+  // AND the resume rule still works alongside it.
+  assert.ok(!JSON.stringify(names).includes('fresh'),
+    'the has-an-address rule must not cancel the resume rule');
+});

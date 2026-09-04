@@ -48,6 +48,22 @@ say ""
 say "Started $(date '+%H:%M'). Reading ${SITES} websites, then writing to whoever they turn out to be."
 say ""
 
+# ONE NIGHT AT A TIME. Two runs writing to the same records is the kind of
+# thing that is invisible until the numbers stop making sense.
+LOCK=/tmp/hoursback-nightly.lock
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "another night is already running (started $(cat "$LOCK/when" 2>/dev/null || echo 'at some point')). Doing nothing."
+  exit 0
+fi
+date +%H:%M > "$LOCK/when"
+# The browser is launched once and stays alive. A night that ends badly used to
+# leave it holding memory until somebody noticed.
+cleanup () {
+  pkill -f "chromium.*--headless" 2>/dev/null
+  rm -rf "$LOCK"
+}
+trap cleanup EXIT INT TERM
+
 started=$(date +%s)
 stopped_because=""
 
@@ -87,7 +103,11 @@ run () {   # $1 = what it is, rest = the command
   local watchdog=$!
   wait "$pid" 2>/dev/null
   kill "$watchdog" 2>/dev/null
-  tail -30 "$LOG" | tee -a "$OUT"
+  # THE WHOLE THING, NOT THE LAST THIRTY LINES. This kept a tail, so a night of
+  # six sites reported one of them and a night of a hundred would report none:
+  # the closing tallies pushed every business off the top. The lines naming
+  # which businesses were read are the only part worth reading in the morning.
+  cat "$LOG" >> "$OUT"
   say '```'
   say ""
   : > "$LOG"
@@ -116,6 +136,35 @@ if [ -z "$stopped_because" ]; then
 fi
 
 # --- what the night actually produced, counted from the database ------------
+# WHAT WENT WRONG COMES FIRST (Russ, 2026-09-03: "what did you learn from
+# this?"). Every real finding this week came out of a failure — words being
+# erased, a page farm eating fifteen minutes, eleven blocked sites, a Turkish
+# gambling site sitting in the list. "Read 62 of 100" is the least useful
+# sentence in the report and it used to be the headline.
+say "## What did not read, and why"
+say ""
+say '```'
+node -e '
+const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
+(async()=>{
+ const since=new Date(Date.now()-9*3600*1000);
+ const rs=await db.reading.findMany({where:{source:"website",reader:"understand-businesses",
+   startedAt:{gte:since},NOT:{outcome:"read"}},
+   select:{outcome:true,note:true,prospect:{select:{name:true,website:true,websiteManualValue:true,phone:true}},
+     findings:{where:{field:"whyNothingOnTheirSite"},select:{value:true,quote:true}}}});
+ if(!rs.length){ console.log("nothing failed tonight."); }
+ for(const r of rs){
+   const p=r.prospect;
+   const why=r.findings.length?`${r.findings[0].value}: "${String(r.findings[0].quote||"").slice(0,60)}"`
+     :String(r.note||r.outcome).slice(0,80);
+   console.log(`${String(p.name).slice(0,34).padEnd(36)} ${why}`);
+   console.log(`${"".padEnd(36)} ${String(p.websiteManualValue||p.website||"NO WEB ADDRESS ON FILE").slice(0,52)}   phone ${p.phone||"none"}`);
+ }
+ await db.$disconnect();
+})();
+' 2>&1 | tee -a "$OUT"
+say '```'
+say ""
 say "## Where things stand"
 say ""
 say '```'
@@ -146,5 +195,61 @@ const {PrismaClient}=require("@prisma/client"); const db=new PrismaClient();
 say '```'
 say ""
 say "Finished $(date '+%H:%M')."
-[ -n "$stopped_because" ] && say "" && say "**The guard stopped it: ${stopped_because}.**"
+say ""
+
+if [ -n "$stopped_because" ]; then
+  say "## It stopped early"
+  say ""
+  say "**${stopped_because}.**"
+  say ""
+  say "Everything read up to that point is kept, and nothing is lost. Tomorrow"
+  say "night picks up from where this one stopped rather than starting over:"
+  say "the queue is worked out from what is actually on file, not from a list"
+  say "written in advance."
+  say ""
+  case "$stopped_because" in
+    *questions*)
+      say "That ceiling exists because one business once cost 226 pages and 49"
+      say "questions before anything noticed it was the wrong company's website."
+      say "If this keeps happening, the number to look at is questions per"
+      say "business, not the total.";;
+    *hours*)
+      say "Reading a hundred sites takes roughly two and a half hours. Seven"
+      say "means something took far longer than it should have — the sites read"
+      say "just before it stopped are where to look.";;
+    *nothing*)
+      say "Nothing was being written at all, which usually means the reader"
+      say "stopped answering. Nothing is lost; the same businesses come up"
+      say "again tomorrow.";;
+  esac
+  say ""
+fi
+
+# THE REPORT COMES TO RUSS, rather than waiting in a folder he has to remember
+# to open. It goes out only when a mail key is on this machine; without one the
+# report still exists and this says so plainly rather than failing silently.
+if [ -n "${RESEND_API_KEY:-}" ]; then
+  node -e '
+   const fs=require("fs");
+   const body=fs.readFileSync(process.argv[1],"utf8");
+   const night=process.argv[2];
+   (async()=>{
+     const res=await fetch("https://api.resend.com/emails",{
+       method:"POST",
+       headers:{authorization:`Bearer ${process.env.RESEND_API_KEY}`,"content-type":"application/json"},
+       body:JSON.stringify({
+         from:"Hours Back <russ@visionairy.biz>",
+         to:"russ@visionairy.biz",
+         subject:`The night of ${night}`,
+         text:body,
+       }),
+       signal:AbortSignal.timeout(20000),
+     });
+     console.log(res.ok?"report emailed to russ@visionairy.biz":`could not email the report: ${res.status}`);
+   })();
+  ' "$OUT" "$NIGHT" 2>&1 | tee -a "$OUT"
+else
+  say "_No mail key on this machine, so this was not emailed. The report is at ${OUT}._"
+fi
+
 echo "report: $OUT"
