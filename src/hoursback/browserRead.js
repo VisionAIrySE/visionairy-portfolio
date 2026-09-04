@@ -325,6 +325,64 @@ async function crawlWithBrowser(url, options = {}) {
       return { ok: true, status, text: async () => html };
     };
 
+    // ONE PAGE FIRST, AND STOP THERE IF THAT IS THE WHOLE ANSWER.
+    //
+    // Every page gets up to forty-five seconds for a robot-check to clear. On
+    // a site that will never clear, or one whose entire content is a sentence,
+    // that forty-five seconds is paid again on every page — minutes spent to
+    // learn nothing. Bisnett Insurance's whole website is "Bisnett Insurance
+    // is now a part of ... Risk Strategies", 131 characters, and reading it
+    // took over six minutes.
+    //
+    // So the front door is opened first. If it comes back with real words, the
+    // whole site is worth crawling and the crawl runs as before. If it comes
+    // back with almost nothing, that IS the answer: those few words are kept
+    // and nothing more is opened. What they MEAN is a question for a reader,
+    // not for another four minutes of waiting.
+    const ENOUGH_TO_BOTHER_CRAWLING = options.enoughToCrawl ?? 400;
+    let frontDoor = null;
+    try {
+      const got = await viaBrowser(url);
+      const html = await got.text();
+      frontDoor = {
+        url,
+        status: 'fetched',
+        html,
+        text: ps.readableText ? ps.readableText(html) : require('./understand.js').readableText(html),
+        title: null,
+        shape: '/',
+        skipFromReading: false,
+        skippedBy: null,
+      };
+    } catch (e) {
+      // The front door would not open at all. Nothing else will either.
+      return {
+        pages: [], failures: [{ url, status: `failed: ${String((e && e.message) || e).slice(0, 120)}` }],
+        partial: false, stoppedShapes: [], challengesNeverCleared: [],
+        ordinaryFetchReadsIt: false, error: 'no page could be opened',
+      };
+    }
+
+    const frontDoorWords = String((frontDoor && frontDoor.text) || '').trim();
+    if (frontDoorWords.length < ENOUGH_TO_BOTHER_CRAWLING) {
+      const wait = waits.get(url);
+      if (wait && !wait.cleared) {
+        frontDoor.challengeNeverCleared = true;
+        frontDoor.neverBecameAPage = !looksLikeARealPage(wait.text || '', SUBSTANTIAL_TEXT_CHARS);
+        frontDoor.challengeNote = `never became a full business page after ${Math.round(wait.waitedMs / 1000)}s`;
+      }
+      return {
+        pages: [frontDoor],
+        failures: [],
+        partial: false,
+        stoppedShapes: [],
+        challengesNeverCleared: wait && !wait.cleared ? [url] : [],
+        ordinaryFetchReadsIt: false,
+        stoppedAtTheFrontDoor: true,
+        error: null,
+      };
+    }
+
     // THE crawl — bounds, skip rules, path shapes, team-page exemption and all
     // — is peopleSweep's, not a copy of it.
     const crawl = await ps.crawlWholeSite(url, {

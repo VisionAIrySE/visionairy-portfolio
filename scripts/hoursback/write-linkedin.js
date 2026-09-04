@@ -1,57 +1,84 @@
 #!/usr/bin/env node
-// Write the LinkedIn note for every business where a person is actually known.
+// Write the LinkedIn note for every business that can take one.
 //
-// LinkedIn needs a name — you message a person, not an inbox — so this only
-// covers businesses where somebody's name is on the record. Nothing is ever
-// sent by the engine; each one waits in the hand-send queue for Russ to paste.
+//   node scripts/hoursback/write-linkedin.js --look
+//   node scripts/hoursback/write-linkedin.js
+//
+// The email rewriter next door does emails and only emails. On 2026-09-03 every
+// message was wiped and rewritten, and 1,059 LinkedIn notes were deleted and
+// never written back, because nothing wrote them. This is that missing half.
+//
+// Same rules as the email: a note Russ has edited by hand or already sent is
+// never touched, a business marked never-contact gets nothing, and the note is
+// built through the ONE existing path — lanes.draftFor — so there is no second
+// way of writing a message.
 
-const fs = require('fs');
 const path = require('path');
 process.chdir(path.resolve(__dirname, '../..'));
-try {
-  for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z_]+)="?([^"]*)"?$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
-  }
-} catch { /* no local settings file */ }
+const { PrismaClient } = require('@prisma/client');
+const L = require('../../src/hoursback/crm/lanes.js');
+const C = require('../../src/hoursback/crm/campaign.js');
 
-(async () => {
-  const { PrismaClient } = require('@prisma/client');
-  const L = require('../../src/hoursback/crm/lanes.js');
-  const { greetingFor } = require('../../src/hoursback/crm/firstContact.js');
+const LOOK = process.argv.includes('--look');
+const arg = (n, d) => {
+  const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`));
+  return h ? h.split('=')[1] : d;
+};
+const LIMIT = Number(arg('limit', 0)) || 0;
+
+async function main() {
   const db = new PrismaClient();
+  try {
+    await C.loadHisWordings(db);
+    // ONLY THE ONES A NOTE CAN ACTUALLY REACH. The first run walked all 32,739
+    // businesses off the state register, almost none of which have anybody
+    // named, and spent fourteen minutes to write 418. A LinkedIn note is
+    // addressed to a PERSON, so the list is businesses where somebody is
+    // named — by Russ, by their own site, or among the people we found.
+    const people = await db.prospect.findMany({
+      where: {
+        doNotContact: false,
+        repliedAt: null,
+        // THE WORKED LIST, not the state register. 31,318 of the 32,739
+        // records were screened out into NEEDS_REVIEW: no email, no phone,
+        // mostly no website, and Russ is not working them. Nearly all of them
+        // DO carry an owner's name off the register, which is why filtering on
+        // "somebody is named" changed nothing.
+        NOT: { stage: 'NEEDS_REVIEW' },
+        OR: [
+          { contactName: { not: null } },
+          { ownerName: { not: null } },
+          { contacts: { some: { setAsideAt: null, name: { not: null } } } },
+        ],
+      },
+      select: { id: true, name: true, nameManualValue: true },
+      ...(LIMIT ? { take: LIMIT } : {}),
+    });
+    console.log(`${people.length} businesses${LOOK ? ' — LOOKING ONLY, nothing will be written' : ''}`);
 
-  // Only businesses that have actually been looked at. The state register
-  // added 31,669 with an owner's name and nothing else — no website, no
-  // verification, nothing read. Left unguarded this wrote notes for 30,407
-  // businesses instead of 1,283, filling the hand-send queue with prospects
-  // nobody has confirmed exist as going concerns (2026-08-27).
-  const rows = await db.prospect.findMany({
-    where: {
-      doNotContact: false, repliedAt: null,
-      NOT: { fieldSource: 'oregon-business-register' },
-    },
-    select: { id: true, name: true, ownerName: true, contactName: true, email: true, emailManualValue: true },
-    orderBy: { automationScore: 'desc' },
-  });
-  const withPerson = rows.filter((p) => greetingFor(p));
-  console.log(`${rows.length} businesses, ${withPerson.length} where a person is actually known`);
-
-  let written = 0, rewritten = 0, kept = 0, nothing = 0;
-  for (const p of withPerson) {
-    const before = await db.outreachMessage.findFirst({ where: { prospectId: p.id, lane: 'LINKEDIN' } });
-    const after = await L.draftFor(db, p.id, 'LINKEDIN');
-    if (!after) { nothing += 1; continue; }
-    if (!before) written += 1;
-    else if (before.body !== after.body) rewritten += 1;
-    else kept += 1;
+    let written = 0; let already = 0; let needsAPerson = 0; let nothing = 0;
+    for (const p of people) {
+      try {
+        if (LOOK) { written += 1; continue; }
+        const made = await L.draftFor(db, p.id, 'LINKEDIN');
+        if (made) written += 1; else nothing += 1;
+      } catch (e) {
+        // A LinkedIn note is addressed to a PERSON. A business where nobody is
+        // named cannot have one, and that is an answer, not a failure.
+        if (e && e.code === 'LINKEDIN_NEEDS_A_PERSON') needsAPerson += 1;
+        else nothing += 1;
+      }
+      if ((written + nothing + needsAPerson) % 200 === 0) {
+        console.log(`  ${written} written so far`);
+      }
+    }
+    console.log(`\nwritten:                       ${written}`);
+    console.log(`nobody named to write to:      ${needsAPerson}`);
+    console.log(`nothing honest to open with:   ${nothing}`);
+    console.log(`already current, left alone:   ${already}`);
+  } finally {
+    await db.$disconnect();
   }
-  console.log(`written fresh: ${written}`);
-  console.log(`brought up to date: ${rewritten}`);
-  console.log(`already current: ${kept}`);
-  console.log(`nothing honest to say: ${nothing}`);
-  const total = await db.outreachMessage.count({ where: { lane: 'LINKEDIN' } });
-  const sent = await db.outreachMessage.count({ where: { lane: 'LINKEDIN', state: 'SENT' } });
-  console.log(`\nLinkedIn notes on file: ${total} (${sent} already sent by hand)`);
-  await db.$disconnect();
-})().catch((e) => { console.error(e); process.exit(1); });
+}
+
+if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });

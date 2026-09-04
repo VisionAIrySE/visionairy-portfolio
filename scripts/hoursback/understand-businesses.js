@@ -60,6 +60,30 @@ const { looksLikeARealPage } = require('../../src/hoursback/browserRead.js');
 const MODEL = 'haiku';
 const READER_VERSION = '2026-09-01-whole-site';
 
+/// What the few words on a near-empty site actually mean. One question, asked
+/// only where a site gave SOMETHING but not enough to read as a business.
+const WHY_NOTHING_HERE = (name, words) => `A business on file as "${name}" has a web address, and this is EVERYTHING on it:
+
+"""
+${words}
+"""
+
+That is not a working business website. Read what is actually there and say which of these it is.
+
+Answer with JSON and nothing else:
+
+{
+  "verdict": one of "acquired", "not_built_yet", "moved_elsewhere", "blocked_to_us", "a_real_small_site", "cannot_tell",
+  "quote": the sentence above that proves it, copied exactly, or null
+}
+
+"acquired" only where the words say this business is now part of, owned by, or trading as another company. Name that company in the quote.
+"not_built_yet" where this is a website builder's placeholder, a parked domain, or a page nobody has built yet.
+"moved_elsewhere" where the words point at a different website as the real one.
+"blocked_to_us" where this is a robot check, a security screen, or a "turn on JavaScript" notice: the site exists, we were not let in.
+"a_real_small_site" where this genuinely is their whole site and it is simply very small.
+"cannot_tell" where the words do not settle it. Say that rather than choosing the closest, and set quote to null.`;
+
 const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
 const LOOK = process.argv.includes('--look');
 const LIMIT = Number(arg('limit', 0));
@@ -69,6 +93,15 @@ const ONLY = arg('only', '');
 // actually works. Read these first so the CRM becomes usable after the first
 // fifty rather than after all 1,602 (2026-09-01).
 const EMAILABLE = process.argv.includes('--emailable');
+// --untried: ONLY businesses whose website has never been opened at all.
+//
+// A test run of three picked juniper-insurance.com, joelochner.com and
+// bisnett.com — the three we already know are a builder's placeholder, a
+// server that hangs up on us, and a business that was acquired. Left alone,
+// the nightly run would spend its first attempts on the same dead sites every
+// night. 1,458 have never been looked at and 31 have been tried and failed, so
+// the untouched ones come first and the retries wait their turn.
+const UNTRIED = process.argv.includes('--untried');
 
 // --- the ceilings, in code, before anything runs ----------------------------
 //
@@ -369,7 +402,23 @@ async function visitOneBusiness(db, r, deps = {}) {
       try {
         // probe:false — we have already proved a plain fetch cannot read it.
         const viaBrowser = await openBrowser(url, { probe: false, delayMs: deps.delayMs });
-        if (spokeToUs(viaBrowser.pages)) {
+        // KEEP WHAT THE BROWSER GOT, EVEN WHEN IT IS NOT A WHOLE PAGE.
+        //
+        // This used to take the browser's version only when a page looked like
+        // a FULL business page. Bisnett Insurance's entire website is
+        // "Bisnett Insurance is now a part of ... (800) 303-0419" — 91
+        // characters, which does not clear that bar, so the browser's words
+        // were discarded and the empty plain read was kept in their place. The
+        // business is on file as unreadable when in fact it told us plainly
+        // that it has been acquired.
+        //
+        // So the browser's version stands whenever it holds MORE than the
+        // plain read did. What those words MEAN is a separate question, asked
+        // below, and answered by a reader rather than by a length.
+        const charsIn = (pages) => (pages || [])
+          .reduce((n, pg) => n + String((pg && pg.text) || '').trim().length, 0);
+        const browserSawMore = charsIn(viaBrowser.pages) > charsIn(crawl.pages);
+        if (spokeToUs(viaBrowser.pages) || browserSawMore) {
           alsoStore = crawl.pages;                     // what the plain fetch saw, kept
           visit.wordsRecovered = viaBrowser.pages
             .reduce((n, pg) => n + String((pg && pg.text) || '').length, 0);
@@ -568,6 +617,46 @@ async function visitOneBusiness(db, r, deps = {}) {
     if (!look) {
       await writeItDown(db, r, understood, reach, ranked, found, opportunity, url, { wordsLanded });
     }
+    // WHY THERE IS NOTHING HERE, ASKED RATHER THAN ASSUMED (Russ, 2026-09-03).
+    //
+    // Three sites came back near-empty and all three were recorded as the same
+    // kind of nothing. They are not:
+    //
+    //   juniper-insurance.com  a website builder's placeholder. They are
+    //                          launching. Worth coming back to.
+    //   joelochner.com         moved to a State Farm page. The address we hold
+    //                          is stale; there IS a site, elsewhere.
+    //   bisnett.com            "Bisnett Insurance is now a part of Risk
+    //                          Strategies". The business is gone as a prospect.
+    //
+    // Each deserves a different answer and the site itself says which. So where
+    // a visit ends with words but not a readable site, the reader is asked what
+    // those words mean, once, and the answer is kept as its own finding. A site
+    // that gave literally nothing is not asked about: there is nothing to ask
+    // with, and a guess is worse than the silence.
+    if (!wordsLanded && anyWords && reading && !look) {
+      const held = (crawl.pages || [])
+        .map((pg) => String((pg && pg.text) || '')).join('\n').trim().slice(0, 2000);
+      try {
+        const reply = await askReader(WHY_NOTHING_HERE(name, held));
+        const said = reply && reply.answer;
+        const verdict = said && String(said.verdict || '').trim();
+        if (['acquired', 'not_built_yet', 'moved_elsewhere', 'blocked_to_us', 'a_real_small_site']
+          .includes(verdict)) {
+          await R.record(db, {
+            readingId: reading.id,
+            prospectId: r.id,
+            field: 'whyNothingOnTheirSite',
+            value: verdict,
+            status: said.quote ? R.OBSERVED : R.INFERRED,
+            url,
+            quote: said.quote ? String(said.quote).slice(0, 300) : null,
+          });
+          visit.whyNothing = verdict;
+        }
+      } catch { /* one unanswered question never sinks a visit */ }
+    }
+
     if (reading) {
       await R.finishReading(db, reading.id, wordsLanded ? R.READ : R.FAILED,
         wordsLanded ? (partialNote || null)
@@ -700,7 +789,11 @@ async function understandPass(injected = {}) {
         ? { messages: { some: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } } } }
         : {}),
     };
-  const where = only ? baseWhere : { ...alreadyDone, ...baseWhere };
+  const untried = injected.untried ?? UNTRIED;
+  const neverOpened = untried
+    ? { readings: { none: { source: R.WEBSITE, reader: 'understand-businesses' } } }
+    : {};
+  const where = only ? baseWhere : { ...alreadyDone, ...baseWhere, ...neverOpened };
 
   // A RESUMED RUN'S NUMBERS ARE LEGIBLE, and they come from the database.
   if (FRESH && !only) {

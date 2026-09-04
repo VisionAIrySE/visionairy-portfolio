@@ -283,3 +283,54 @@ test('a challenge page served to the ordinary fetch does NOT count as readable',
   const probe = await B.ordinaryFetchCanRead(`${HOST}/`, { fetch: probeFetch });
   assert.equal(probe.canRead, false, 'challenge boilerplate is not a readable site, however long it is');
 });
+
+// --- the front door is the whole answer, sometimes (Russ, 2026-09-03) --------
+//
+// Every page gets up to forty-five seconds for a robot-check to clear. On a
+// site that never clears, that is paid again on every page. Bisnett Insurance's
+// entire website is one sentence — "Bisnett Insurance is now a part of ... Risk
+// Strategies" — and reading it took over six minutes, then stored nothing.
+
+test('a site whose front page says almost nothing is not crawled further', async () => {
+  const thin = '<html><body><p>Bisnett Insurance is now a part of Risk Strategies. '
+    + '<a href="/about">About</a><a href="/contact">Contact</a></p></body></html>';
+  const site = { '/': { html: thin }, '/about': { html: longPage('about') }, '/contact': { html: longPage('contact') } };
+  const browser = stubBrowser(site);
+  const crawl = await B.crawlWithBrowser(`${HOST}/`, { ...FAST, browser });
+
+  assert.equal(crawl.stoppedAtTheFrontDoor, true, 'it must say that is why it stopped');
+  assert.equal(crawl.pages.length, 1, 'nothing beyond the front door is opened');
+  assert.match(crawl.pages[0].text, /now a part of/i,
+    'and the few words it DID say are kept — they are the answer');
+});
+
+test('a site with a real front page is still crawled whole', async () => {
+  const site = {
+    '/': { html: longPage('home', ['/about', '/contact']) },
+    '/about': { html: longPage('about us') },
+    '/contact': { html: longPage('contact us') },
+  };
+  const crawl = await B.crawlWithBrowser(`${HOST}/`, { ...FAST, browser: stubBrowser(site) });
+  assert.ok(!crawl.stoppedAtTheFrontDoor, 'a real site is not cut short');
+  assert.ok(crawl.pages.length > 1, `the whole site is read: got ${crawl.pages.length} pages`);
+});
+
+test('a front door the browser cannot open at all is one clear answer', async () => {
+  // Not a 404 — a page that returns nothing is "we opened it and it said
+  // nothing", which is a real answer and is kept. This is the case where the
+  // browser cannot reach the address at all.
+  const refuses = {
+    async newContext() {
+      return {
+        async newPage() {
+          return { async goto() { throw new Error('net::ERR_CONNECTION_REFUSED'); }, async close() {} };
+        },
+        async close() {},
+      };
+    },
+  };
+  const crawl = await B.crawlWithBrowser(`${HOST}/`, { ...FAST, browser: refuses });
+  assert.equal(crawl.pages.length, 0, 'nothing was read, so nothing is claimed');
+  assert.ok(crawl.error, 'and it says so rather than looking like an empty site');
+  assert.equal(crawl.failures.length, 1, 'with the refusal itself on record');
+});
