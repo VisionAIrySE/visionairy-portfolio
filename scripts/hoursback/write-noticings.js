@@ -137,7 +137,21 @@ async function noticingRun(injected = {}) {
     if (ids.length) {
       where.id = { in: ids };
     } else {
+      // THE STAMP IS NOT THE TEST, THE WORDS ARE (2026-09-03).
+      //
+      // A nightly run spent fifty reader questions asking what fifty
+      // businesses do, and every one came back "their site's words are not on
+      // file" — they carry a read stamp from a visit that stored nothing. The
+      // same lesson the reading side already learned: a business is read when
+      // we HOLD WORDS from their site, never when a stamp says so.
       where.siteStatus = 'READ';
+      where.readings = {
+        some: {
+          source: 'website',
+          outcome: 'read',
+          pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+        },
+      };
       where.repliedAt = null;
       where.emailBouncedAt = null;
       where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }];
