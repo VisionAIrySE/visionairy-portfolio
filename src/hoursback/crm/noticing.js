@@ -1599,9 +1599,21 @@ async function askForNoticing({
     // the next-ranked qualifying area gets its turn.
     const why = refusal
       || `no passage for it stood: ${rejected ? rejected.why : 'no answer stood'}`;
-    for (const c of mine) { c.chosen = false; c.refused = true; c.refusedWhy = why; }
+    // A REFUSAL LANDS ON THE LEADING JOB, NOT ON BOTH (2026-09-05).
+    //
+    // Since the letter names two, a refusal used to discard the pair — and the
+    // second job, which the refusal usually says nothing about, went with it.
+    // The reason almost always concerns the one the passage was built around:
+    // "chasing organizers is Dale Smith's own licensed casework". So the
+    // leading job is retired and the other goes back in the pool to be paired
+    // with the next-ranked instead.
+    const [leading, ...alsoTried] = mine;
+    leading.chosen = false;
+    leading.refused = true;
+    leading.refusedWhy = why;
+    for (const c of alsoTried) c.chosen = false;
     refusals.push(`"${mine.map((c) => c.job).join('" and "')}" did not stand (${why}).`);
-    pool = pool.filter((x) => !mine.includes(x));
+    pool = pool.filter((x) => x !== leading);
   }
   const left = pool.length;
   return {

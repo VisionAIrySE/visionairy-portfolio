@@ -453,7 +453,14 @@ test('the find prompt hands over the whole library menu and its rules', () => {
   for (const [key, t] of Object.entries(T.TYPES)) {
     assert.ok(prompt.includes(`- ${key} (${t.department}): ${t.label}`), `menu is missing ${key}`);
   }
-  assert.match(prompt, /maps to one of these type keys/);
+  // The menu is still the benchmark, but the wording moved when the trade took
+  // the lead over the page (2026-09-05): the four questions come first and the
+  // menu is where the answer is filed, not where the hunt starts.
+  assert.match(prompt, /must still map to one of these kinds of work/);
+  assert.match(prompt, /WHAT COMES IN, AND HOW/);
+  assert.match(prompt, /WHAT HAS TO HAPPEN BEFORE THEY GET PAID/);
+  assert.match(prompt, /WHAT DO THEY HAVE TO LOOK UP/);
+  assert.match(prompt, /EXPLAIN MORE THAN ONCE A DAY/);
   assert.match(prompt, /Repeated calls/);
   assert.match(prompt, /one-off interaction that does not repeat/);
   assert.match(prompt, /physically handling an object/);
@@ -630,26 +637,52 @@ test('the two in the email are never the same type', () => {
   assert.equal(chosen[1].type, 'scheduling');
 });
 
-test('a materially weaker second is dropped: the email names one, and says why', () => {
+// TWO, EVEN WHEN THE SECOND IS WEAKER (Russ, 2026-09-05, in capitals: "2
+// fucking reasons per company as originally fucking instructed").
+//
+// This test used to assert the opposite — that a weaker second was dropped and
+// the letter named one. That rule was throwing away the second job on most
+// businesses: a three-person garage got only phone bookings when its pages
+// plainly showed parts ordering too. A second job is nearly always weaker than
+// the first; that is normal, not a reason to bin it.
+test('a weaker second still stands: the email names two', () => {
   const areas = [
     { job: 'chasing organizers', type: 'document_collection', department: 'admin', label: 'x', quote: 'q', url: 'u', plainly: 0.9, recurs: 'yes' },
     { job: 'a newsletter nobody sends', type: 'email_and_newsletter', department: 'marketing', label: 'x', quote: 'q', url: 'u', plainly: 0.3, recurs: 'yes' },
   ];
-  const { chosen, why } = N.chooseForEmail(N.rankAreas(areas, { trade: 'accounting', angle: 'neutral' }));
-  assert.equal(chosen.length, 1);
+  const { chosen } = N.chooseForEmail(N.rankAreas(areas, { trade: 'accounting', angle: 'neutral' }));
+  assert.equal(chosen.length, 2);
   assert.equal(chosen[0].type, 'document_collection');
-  assert.match(why, /materially weaker/);
+  assert.equal(chosen[1].type, 'email_and_newsletter');
 });
 
-test('a tier-3 area is recorded but never paired into the email beside a stronger one', () => {
+// The one thing that still yields a single job: a second so thinly evidenced
+// that naming it would be a guess about them.
+test('a second nobody could evidence is dropped, and the letter says why', () => {
   const areas = [
     { job: 'chasing organizers', type: 'document_collection', department: 'admin', label: 'x', quote: 'q', url: 'u', plainly: 0.9, recurs: 'yes' },
-    { job: 'video for the website', type: 'video_content', department: 'marketing', label: 'x', quote: 'q', url: 'u', plainly: 0.9, recurs: 'yes' },
+    { job: 'a newsletter nobody sends', type: 'email_and_newsletter', department: 'marketing', label: 'x', quote: 'q', url: 'u', plainly: 0.1, recurs: 'yes' },
   ];
   const { chosen, why } = N.chooseForEmail(N.rankAreas(areas, { trade: 'accounting', angle: 'neutral' }));
   assert.equal(chosen.length, 1);
   assert.equal(chosen[0].type, 'document_collection');
-  assert.match(why, /nothing of a genuinely different\s+kind stood on its own/);
+  assert.match(why, /barely evidenced/);
+});
+
+// A WELL-EVIDENCED SECOND STANDS EVEN OUTSIDE THE TRADE'S OWN SHORTLIST
+// (2026-09-05). This used to drop it for being investigate-first in the
+// library. But the letter names no tool, so the rating decides only which pain
+// is worth raising — and a job the pages plainly show happening beats an empty
+// second slot. What the rating still does is order them: the shortlisted job
+// leads.
+test('a well-evidenced second stands even when the library rates it lower', () => {
+  const areas = [
+    { job: 'chasing organizers', type: 'document_collection', department: 'admin', label: 'x', quote: 'q', url: 'u', plainly: 0.9, recurs: 'yes' },
+    { job: 'video for the website', type: 'video_content', department: 'marketing', label: 'x', quote: 'q', url: 'u', plainly: 0.9, recurs: 'yes' },
+  ];
+  const { chosen } = N.chooseForEmail(N.rankAreas(areas, { trade: 'accounting', angle: 'neutral' }));
+  assert.equal(chosen.length, 2);
+  assert.equal(chosen[0].type, 'document_collection');
 });
 
 test("the library's hours figures order areas, and carry whether they are verified", () => {
