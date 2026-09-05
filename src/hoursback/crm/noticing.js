@@ -607,11 +607,47 @@ function promptToFind(evidence, rejected = null) {
   lines.push('');
   lines.push(...businessBlock(e));
   lines.push('');
-  lines.push('THE MENU. This library is the complete list of the kinds of work');
-  lines.push('software can take off a business. It is the benchmark: a job qualifies');
-  lines.push('ONLY if it maps to one of these type keys. A job that fits none of them');
-  lines.push('does not qualify, full stop — leave it out, however true it is of their');
-  lines.push('day.');
+  // START FROM THE TRADE, NOT FROM THE PAGE (Russ, 2026-09-05).
+  //
+  // This asked what the pages showed and checked it against the trade. A
+  // website is a shop window: it says how to pay, how to book, how to get in
+  // touch. So payments and booking is what kept coming back, and a business
+  // with a customer portal looked like it had nothing left to fix.
+  //
+  // Nobody publishes the phone ringing all afternoon with the same four
+  // questions, or the hour spent hunting an old file. That work has to be
+  // reasoned from what the business IS. The trade suggests it, the four
+  // questions below find it, and their pages rule things out and size what is
+  // left.
+  lines.push('WHERE THE WORK IS FOUND. Not by hunting their pages for complaints —');
+  lines.push('no business publishes its dull repetitive work. Reason it out from what');
+  lines.push('a business of THIS trade and THIS size actually does all week, and use');
+  lines.push('their pages to rule things out and to judge scale.');
+  lines.push('');
+  lines.push('Four questions get you there. Answer each for this business:');
+  lines.push('  1. WHAT COMES IN, AND HOW? Phone, form, email, walk-in, referral.');
+  lines.push('     Anything arriving by phone or email is handled by a person by');
+  lines.push('     definition — nothing catches it, nothing sorts it, nothing replies.');
+  lines.push('  2. WHAT HAS TO HAPPEN BEFORE THEY GET PAID? Every step between the');
+  lines.push('     work being finished and the money landing is repetitive, and it is');
+  lines.push('     the part nobody enjoys.');
+  lines.push('  3. WHAT DO THEY HAVE TO LOOK UP? Prices, policies, past jobs, who did');
+  lines.push('     what, what was agreed. Time spent finding something already written');
+  lines.push('     down is pure loss.');
+  lines.push('  4. WHAT DO THEY EXPLAIN MORE THAN ONCE A DAY? The same question, the');
+  lines.push('     same answer, a different person each time.');
+  lines.push('');
+  lines.push('WOULD THERE ACTUALLY BE AN ANSWER? Only name work that could genuinely');
+  lines.push('be taken off them today: catching and answering calls, reading what');
+  lines.push('arrives in documents, drafting the routine writing, searching their own');
+  lines.push('files, chasing what went quiet, moving what arrives into their systems.');
+  lines.push('Work that would need them to change how they operate is not a first');
+  lines.push('letter.');
+  lines.push('');
+  lines.push('THE MENU. Every job named must still map to one of these kinds of work,');
+  lines.push('which is how the answer stays connected to what can actually be');
+  lines.push('recommended. Reason first from the four questions, then find the key it');
+  lines.push('belongs under. A job that fits none of them does not qualify.');
   for (const [key, t] of Object.entries(T.TYPES)) {
     lines.push(`- ${key} (${t.department}): ${t.label}`);
   }
@@ -619,6 +655,31 @@ function promptToFind(evidence, rejected = null) {
   lines.push('Find EVERY type of work on that menu that a business like THIS one');
   lines.push('plainly does, judging from their own pages. One, two, three, four or');
   lines.push('more, if they honestly qualify — never one more for the sake of it.');
+  lines.push('');
+  // WHAT THEIR TOOLS ALREADY COVER, SAID HERE AND NOT ONLY AT THE END
+  // (Russ, 2026-09-04: "if they have a portal we don't find the two next best
+  // solutions?").
+  //
+  // Only the writing step used to know. So for a business with a customer
+  // portal the finder kept naming portal-shaped work — enquiries, messages,
+  // payments — every pairing was refused for offering what they already have,
+  // and four businesses ended up with the generic trade line. Their portal
+  // became a reason not to write to them.
+  //
+  // Named here, the same fact does the opposite: it points at the work the
+  // portal does not touch, which is the sharper letter.
+  const running = (e.theyRun || []).filter((x) => x && x.covers);
+  if (running.length) {
+    lines.push('WHAT THEY ALREADY RUN. Their pages show these systems in place:');
+    for (const sys of running) lines.push(`- ${sys.name}: ${sys.does}`);
+    lines.push('');
+    lines.push('Do NOT name work those systems plainly already handle. Look PAST them.');
+    lines.push('A portal takes routine requests and payments; it does not chase the');
+    lines.push('client who never logs in, it does not answer the phone, it does not');
+    lines.push('follow up a quote that went quiet, and it does not put anything into');
+    lines.push('their books. Find the work left OUTSIDE what they run — that is the');
+    lines.push('work worth naming, and there is nearly always some.');
+  }
   lines.push('');
   lines.push('READ FOR MEANING, NOT FOR WORDING. Their pages will not announce their');
   lines.push('office work. Nobody writes "we chase a lot of paperwork". You are');
@@ -659,8 +720,34 @@ function promptToFind(evidence, rejected = null) {
   lines.push('Their own pages:');
   lines.push(...pagesBlock(e));
   lines.push('');
+  // ANSWER THE FOUR FIRST, THEN NAME THE WORK (Russ, 2026-09-05: "answer first
+  // then find solutions, again, why would you do otherwise?").
+  //
+  // With the four questions as background reading it still named the obvious
+  // pair off the page and only reached further when refused. Making them a
+  // required part of the answer forces the reasoning to happen before anything
+  // is named, so what comes back is the unseen work rather than the shop
+  // window with a fallback.
+  //
+  // AND NO BUSINESS HAS NOTHING. A firm whose whole promise is that the owner
+  // answers every call personally is not a firm with nothing to take off it —
+  // that promise makes him the bottleneck for showings, follow-ups, chasing
+  // paperwork and writing up what was said. Refusing means the looking was too
+  // shallow, never that the work is absent.
+  lines.push('ANSWER THE FOUR QUESTIONS FIRST, IN WRITING, then name the work. The');
+  lines.push('answers are part of your reply. Naming jobs before answering them is');
+  lines.push('how the obvious page-visible pair gets picked every time.');
+  lines.push('');
+  lines.push('EVERY BUSINESS HAS SOMETHING. If the obvious jobs are covered by what');
+  lines.push('they run, that is not an answer — it means looking harder. A firm whose');
+  lines.push('selling point is that the owner personally handles everything has MORE');
+  lines.push('to take off it, not less: that promise makes one person the bottleneck');
+  lines.push('for every follow-up, every chase, every write-up. Say cannotTell only');
+  lines.push('when their pages leave you unable to tell what the business even does.');
+  lines.push('');
   lines.push('Answer with JSON only, one of:');
-  lines.push('{"areas":[{"job":"the work in a few plain words","type":"a type key from the menu, exactly as written","restsOn":"the url of the page this rests on","quote":"the words on that page that led you to it"}]}');
+  lines.push('{"whatComesIn":"how work reaches them, in one line","beforeTheyGetPaid":"what has to happen, in one line","whatTheyLookUp":"what gets hunted for, in one line","explainedDaily":"what gets said again and again, in one line",'
+    + '"areas":[{"job":"the work in a few plain words","type":"a type key from the menu, exactly as written","restsOn":"the url of the page this rests on","quote":"the words on that page that led you to it"}]}');
   lines.push('{"cannotTell":"why, in one short sentence"}');
   lines.push('EVERY AREA NAMES THE PAGE IT RESTS ON. The quote need NOT be word for');
   lines.push('word — their pages will not say "we answer the phone all day". Quote what');
@@ -825,6 +912,14 @@ function rankAreas(qualifying, { trade, angle = 'neutral' } = {}) {
 
 // A weak second drags the strong first down (Russ: never two for the sake of
 // two). The second stands only when it hits nearly as hard as the first.
+// A SECOND THAT WOULD BE A GUESS. Not "weaker than the first" — weaker is
+// fine and normal, a second job rarely hits as hard as the first. This is only
+// about whether their own pages show it happening at all.
+function barelyThere(second) {
+  const p = second.plainly === null || second.plainly === undefined ? 0.5 : Number(second.plainly);
+  return p < 0.2;
+}
+
 function materiallyWeaker(second, first) {
   const p = (a) => (a.plainly === null || a.plainly === undefined ? 0.5 : Number(a.plainly));
   if (second.tier - first.tier >= 2) return true;         // a no-brainer next to an investigate-first
@@ -848,20 +943,49 @@ function chooseForEmail(ranked) {
     const otherDept = rest.find((x) => x.tier === top.tier && x.department !== first.department);
     second = (top.department === first.department && otherDept) ? otherDept : top;
   }
-  if (second && materiallyWeaker(second, first)) {
-    const why = `"${first.job}" ranked first (${first.rankWhy}). The next area of a different kind, `
-      + `"${second.job}", was materially weaker (${second.rankWhy}), and a weak second drags a `
-      + 'strong first down, so the email names one.';
+
+  // TWO, AS INSTRUCTED (Russ, 2026-08-27, again 2026-09-04 in capitals).
+  //
+  // The letter names TWO pieces of repetitive work. That has been the
+  // instruction since the beginning and this function quietly dropped to one
+  // whenever the second looked weaker, or whenever nothing of a different KIND
+  // turned up in the top tiers. Checked on five businesses: three named one job
+  // — a three-person garage, a twelve-person law firm and an architect, all of
+  // which plainly have a second (parts ordering, calendar management, permit
+  // drawings). It was the rule below discarding them, not the sites lacking one.
+  //
+  // So a second of a different kind is taken wherever one exists, weaker or not.
+  // Only two things still yield one job: their pages genuinely show nothing
+  // else, or the second is so thinly evidenced that naming it would be a guess.
+  if (!second) {
+    const anyOther = ranked.filter((x) => x !== first && x.type !== first.type);
+    if (anyOther.length) [second] = anyOther;
+  }
+  if (second && barelyThere(second)) {
+    const why = `"${first.job}" ranked first (${first.rankWhy}). The only other kind of work on `
+      + `their pages, "${second.job}", is barely evidenced (${second.rankWhy}) and naming it `
+      + 'would be a guess, so the email names one.';
     return { chosen: [first], why };
   }
   if (!second) {
-    const why = `"${first.job}" ranked first (${first.rankWhy}); nothing of a genuinely different `
-      + 'kind stood on its own beside it, so the email names one.';
+    const why = `"${first.job}" ranked first (${first.rankWhy}); their pages show no second kind `
+      + 'of repetitive work at all, so the email names one.';
     return { chosen: [first], why };
   }
+  // WHICH FOOTING THE PAIR ENDED ON (Russ, 2026-09-04: lean on the rating, fall
+  // back to probably-helpful). The library rates each pairing of a trade and a
+  // kind of work: 1 is a no-brainer, 2 probably helpful, 3 investigate first.
+  // Both jobs on rating 1 means Russ picks up the phone already knowing what he
+  // would say. A 2 in the pair is worth naming and worth knowing about first.
+  const footing = Math.max(first.tier || 3, second.tier || 3);
   const why = `"${first.job}" ranked first (${first.rankWhy}). "${second.job}" is the strongest `
-    + `of a different kind of work (${second.rankWhy}).`;
-  return { chosen: [first, second], why };
+    + `of a different kind of work (${second.rankWhy}). `
+    + (footing === 1
+      ? 'Both are no-brainer pairings in the library, so there is a strong answer ready for either.'
+      : footing === 2
+        ? 'One of the two is only probably-helpful in the library, so the answer to that half needs a look before the call.'
+        : 'At least one of these is investigate-first in the library — worth raising, but there is no ready answer for it yet.');
+  return { chosen: [first, second], why, footing };
 }
 
 // ---------------------------------------------------------------------------
@@ -924,6 +1048,54 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('solved". If all you did was describe what they do, that line points at a');
   lines.push('problem nobody ever named, and the whole message falls apart. Describing');
   lines.push('their work back to them tells them nothing they do not know.');
+  lines.push('');
+  lines.push('NEVER NAME THEIR CRAFT (Russ, 2026-09-04, reading three drafts as the');
+  lines.push('person who would receive them).');
+  lines.push('');
+  lines.push('A draft told an attorney that answering his clients\' questions was costing');
+  lines.push('him drafting time. Another told a broker that surfacing off-market deals and');
+  lines.push('walking clients through closing was eating her week. Both are the work those');
+  lines.push('people are proud of and paid for. Telling a professional their expertise is');
+  lines.push('a cost loses them at the first line.');
+  lines.push('');
+  lines.push('So name the ADMIN AROUND the craft, never the craft. An attorney does not');
+  lines.push('want help counselling clients; he wants the intake questions written down,');
+  lines.push('the engagement letter out, the signature chased, the calendar handled. A');
+  lines.push('broker does not want help finding deals; she wants showings booked and');
+  lines.push('closing documents collected. Sell the hour back, never the judgement.');
+  lines.push('');
+  lines.push('GIVE THEM CREDIT FOR WHAT THEY HAVE ALREADY SOLVED. Where their pages show');
+  lines.push('a tool already doing one of these jobs — an online booking widget, a client');
+  lines.push('portal, online payments — say so plainly before naming what is left: "You');
+  lines.push('have got online booking sorted." It proves the letter was written after');
+  lines.push('looking, and it draws the connection to what still is not handled. Never');
+  lines.push('then name that solved job as a problem.');
+  lines.push('');
+  lines.push('TWO JOBS MEANS TWO DIFFERENT COSTS. Where two are named, each carries its');
+  lines.push('own consequence and they must not be the same one twice. An hour billed at');
+  lines.push('the wrong rate is not the same as cash sitting still; a customer who went');
+  lines.push('elsewhere is not the same as a bay not earning. Two endings that both say');
+  lines.push('"they go somewhere else" reads as one point padded out.');
+  lines.push('');
+  lines.push('AND IT MUST READ AS ONE THING A PERSON SAID. Not two findings stapled');
+  lines.push('together. One short paragraph, spoken aloud across a counter, where the');
+  lines.push('second job follows the first the way a person adds "and then there is...".');
+  lines.push('');
+  lines.push('NEVER OPEN BY LISTING WHAT THEY DO. "You are drafting business law, real');
+  lines.push('estate, and estate planning" tells an attorney nothing he does not know and');
+  lines.push('spends the only line that had his attention. Their services list is not a');
+  lines.push('finding. Open on the work that repeats.');
+  lines.push('');
+  lines.push('THE TWO ENDINGS MUST NOT BE THE SAME ENDING. If both halves finish on');
+  lines.push('somebody going elsewhere, that is one point said twice and the second half');
+  lines.push('is padding. Give the second a different consequence: time billed at the');
+  lines.push('wrong rate, money landing late, a bay not earning, a slot that stays empty.');
+  lines.push('');
+  lines.push('SOME, NEVER MOST (Russ, 2026-09-04). No claim about how many businesses do');
+  lines.push('anything. "Some" where a share is unavoidable, and nothing stronger. That');
+  lines.push('bans "most", and it equally bans "mostly" and "usually" doing the same job');
+  lines.push('in disguise: "the ones who cannot reach you mostly call someone else" is the');
+  lines.push('same invented share wearing a different word.');
   lines.push('');
   lines.push('THE COST IS MONEY, NOT BUSYNESS (Russ, 2026-09-04). An earlier version');
   lines.push('of this instruction said "never a number" and called the cost "it eats');
@@ -1118,7 +1290,10 @@ const MOST_ROUNDS_PER_BUSINESS = 16;
 // turn, but a business that found a dozen does not get a dozen goes — the
 // ranking put the hardest-hitting first, and by the fifth pairing the work
 // being offered is no longer the work worth opening on.
-const MOST_PAIRINGS_TRIED = 4;
+// How many pairs of jobs get tried before giving up. Raised from four on
+// 2026-09-04: a business whose portal covers its obvious work burned all four
+// on refusals and never reached the work the portal does not touch.
+const MOST_PAIRINGS_TRIED = 6;
 
 // AND HOW MANY TIMES THE READER MAY STUMBLE at one stage before we stop
 // asking. A stumble is a reply that could not be read at all — prose where
@@ -1128,9 +1303,28 @@ const MOST_PAIRINGS_TRIED = 4;
 // still holds, so a reader stumbling forever cannot run away with the night.
 const MOST_STUMBLES = 2;
 
-async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: rawAsk, attempts = 2 }) {
+// TWO MODELS, ONE JOB EACH (Russ, 2026-09-04).
+//
+// Finding the work on a page and judging whether it recurs is fact work, and
+// the cheap fast model does it well. Writing the sentence a stranger reads is
+// not fact work, and under fifteen accumulated rules that model started
+// dropping words: "Then payment for no-shows, and the hours get lost" went out
+// as a finished sentence.
+//
+// So the writing step gets the better model where one is handed in. Both run
+// through the Claude already logged in on this machine, so neither is a paid
+// call.
+async function askForNoticing({
+  evidence, roleTitle = null, avoid = [], ask: rawAsk, askToWrite = null, attempts = 2,
+}) {
   let rounds = 0;
   let ranOut = false;
+  const writeWith = askToWrite || rawAsk;
+  const askWriter = async (prompt) => {
+    if (rounds >= MOST_ROUNDS_PER_BUSINESS) { ranOut = true; return null; }
+    rounds += 1;
+    return writeWith(prompt);
+  };
   const ask = async (prompt) => {
     if (rounds >= MOST_ROUNDS_PER_BUSINESS) { ranOut = true; return null; }
     rounds += 1;
@@ -1318,7 +1512,7 @@ async function askForNoticing({ evidence, roleTitle = null, avoid = [], ask: raw
     let wrote = null;
     let stumbled = 0;
     for (let go = 0; go < attempts; go++) {
-      const res = await ask(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
+      const res = await askWriter(promptToWrite(evidence, mine, roleTitle, avoid, rejected));
       // The same rule as at the finding step: a reply that could not be read
       // is the reader stumbling, and it gets asked again.
       if (!res || !res.answer) {
@@ -1451,9 +1645,11 @@ async function gatherEvidence(db, prospectId, prospect = null) {
   };
 }
 
-async function noticeOneBusiness(db, prospectId, { ask, avoid = [], roleTitle = null, prospect = null } = {}) {
+async function noticeOneBusiness(db, prospectId, {
+  ask, askToWrite = null, avoid = [], roleTitle = null, prospect = null,
+} = {}) {
   const evidence = await gatherEvidence(db, prospectId, prospect);
-  const result = await askForNoticing({ evidence, roleTitle, avoid, ask });
+  const result = await askForNoticing({ evidence, roleTitle, avoid, ask, askToWrite });
   result.trade = evidence.trade;
   result.theyRun = evidence.theyRun || [];
   return result;

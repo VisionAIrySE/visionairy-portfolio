@@ -20,8 +20,14 @@
 const { spawn } = require('child_process');
 const { readAnswer } = require('./readAnswer.js');
 
-const READER_ARGS = [
-  '--model', 'haiku',
+// The model is chosen by the caller now (2026-09-04). Finding facts on a page
+// is work the cheap fast model does well. Writing the sentence a stranger will
+// read is not: with fifteen rules to satisfy it starts dropping words, and
+// "Then payment for no-shows, and the hours get lost" reached the letters.
+// Both run through the Claude already logged in on this machine, so neither is
+// a paid call and the standing order of 2026-08-29 holds.
+const argsFor = (model = 'haiku') => [
+  '--model', model,
   '--input-format', 'stream-json',
   '--output-format', 'stream-json',
   '--verbose',
@@ -33,6 +39,7 @@ const READER_ARGS = [
   '--disallowed-tools', 'Bash,Read,Write,Edit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite',
   '-p',
 ];
+const READER_ARGS = argsFor('haiku');
 
 /// A reader is out of allowance when it answers in prose about that rather
 /// than in JSON. This is the one failure that must stop a whole run, and it
@@ -45,8 +52,9 @@ function makeReaderPool({
   cwd = process.cwd(),
   spawnReader = null,
   onCall = null,
+  model = 'haiku',
 } = {}) {
-  const launch = spawnReader || (() => spawn('claude', READER_ARGS, { cwd, stdio: ['pipe', 'pipe', 'pipe'] }));
+  const launch = spawnReader || (() => spawn('claude', argsFor(model), { cwd, stdio: ['pipe', 'pipe', 'pipe'] }));
   let warm = [];
   let closed = false;
 
@@ -132,4 +140,4 @@ function makeReaderPool({
   return { ask, close, get waiting() { return warm.length; } };
 }
 
-module.exports = { makeReaderPool, READER_ARGS, OUT_OF_ALLOWANCE };
+module.exports = { makeReaderPool, READER_ARGS, argsFor, OUT_OF_ALLOWANCE };

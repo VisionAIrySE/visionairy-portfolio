@@ -199,6 +199,45 @@ async function finishReading(db, readingId, outcome, note = null) {
   });
 }
 
+/// CLOSE WHAT A DEAD RUN LEFT OPEN, at the start of every run (Russ,
+/// 2026-09-05: "this should happen automatically").
+///
+/// A reading opens when a business is picked up and closes when it is done. A
+/// run that is killed — and several were, tonight — leaves its readings open
+/// forever. Eight were sitting open, one from twenty-three hours earlier, and
+/// they quietly wrong every count taken afterwards.
+///
+/// NOTHING IS DELETED and no answer is changed. A reading that never finished
+/// already carries the outcome it was born with, which is failure; this only
+/// stamps the time and says in the note why it stopped. That is recording what
+/// happened, which the evidence rule asks for.
+///
+/// An hour is the cut. The longest honest single business takes minutes.
+async function closeWhatDiedEarlier(db, { olderThanMinutes = 60 } = {}) {
+  // TIDYING NEVER STOPS A RUN. This is housekeeping before the real work, so a
+  // store that cannot answer — a stand-in in a test, an older copy without the
+  // table — must return nothing rather than throw. It broke nine runs' tests
+  // the moment it went in (2026-09-05).
+  try {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+    const orphans = await db.reading.findMany({
+      where: { finishedAt: null, startedAt: { lt: cutoff } },
+      select: { id: true },
+    });
+    if (!orphans.length) return 0;
+    await db.reading.updateMany({
+      where: { id: { in: orphans.map((r) => r.id) } },
+      data: {
+        finishedAt: new Date(),
+        note: 'the run that opened this was stopped before it finished — closed by the next run, nothing was read',
+      },
+    });
+    return orphans.length;
+  } catch {
+    return 0;
+  }
+}
+
 /// The current best answer for one field on one business. Something a person
 /// typed always wins over anything machine-read, however recent. Otherwise the
 /// newest un-retired finding wins. Nothing is overwritten to make this true —
@@ -282,6 +321,7 @@ async function retireReading(db, readingId, { reason, by }) {
 }
 
 module.exports = {
+  closeWhatDiedEarlier,
   OBSERVED, INFERRED, CONFIRMED, COULD_NOT_TELL, EVERY_STATUS,
   WEBSITE, HAND, CALL, IMPORT,
   READ, NO_WEBSITE, UNREACHABLE, FAILED,

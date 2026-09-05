@@ -49,6 +49,21 @@ const fs = require('fs');
 // most this many businesses.
 const CEILING = 50;
 
+// The writer, kept awake like the finder but on the better model. One at a
+// time: each business writes once, and a waiting model holds real memory.
+let theWriter = null;
+function makeWriter() {
+  return (prompt) => {
+    if (theWriter === null) {
+      try {
+        const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
+        theWriter = makeReaderPool({ size: 1, model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
+      } catch { theWriter = false; }
+    }
+    return theWriter ? theWriter.ask(prompt) : askTheReader(prompt);
+  };
+}
+
 const {
   askTheReader, makeReaderGuard, writeLastRun, LAST_RUN,
   FIRST_CALLS_MUST_ANSWER, EXIT_READER_EXHAUSTED, EXIT_BROKEN_START,
@@ -63,7 +78,17 @@ const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith
 
 // How many TRADES are walked side by side. Six matches what the website read
 // settled on for this machine; --at-once= raises or lowers it for a bigger one.
-const AT_ONCE = Math.max(1, Number(arg('at-once', 6)));
+// Four businesses at a time, not six: with a writer alive per business too,
+// six filled a 9 GB machine (2026-09-05).
+const AT_ONCE = Math.max(1, Number(arg('at-once', 4)));
+// How many readers wait ready. Deliberately fewer than the businesses running,
+// because each one holds about 280 MB and they are what fills the machine
+// (measured 2026-09-04: eight ready became nineteen alive, 5.3 GB).
+// ONE WAITING, NOT FOUR (2026-09-05, measured twice). Each one holds about
+// 270 MB, and a replacement starts the moment one is taken, so four waiting
+// became twenty-nine alive holding 6.5 GB and the machine ran out of memory.
+// Waiting readers are not the bottleneck; memory is.
+if (!process.env.HOURSBACK_WARM_READERS) process.env.HOURSBACK_WARM_READERS = '1';
 const LOOK = process.argv.includes('--look');
 const SINCE = arg('since', null);
 const IDS = String(arg('ids', '')).split(',').map((s) => s.trim()).filter(Boolean);
@@ -122,7 +147,20 @@ async function noticingRun(injected = {}) {
   const limit = Math.min(Number(injected.limit ?? LIMIT) || CEILING, CEILING);
   const fresh = injected.fresh ?? FRESH;
   const atOnce = injected.atOnce ?? AT_ONCE;
+
+  // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
+  // (Russ, 2026-09-05: "this should happen automatically"). Nothing is deleted;
+  // a reading that never finished gets its end time and a note saying why.
+  {
+    const R2 = require('../../src/hoursback/readings.js');
+    const closed = await R2.closeWhatDiedEarlier(db);
+    if (closed) console.log(`closed ${closed} reading(s) a stopped run had left open`);
+  }
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
+  // THE SENTENCE IS WRITTEN BY THE BETTER MODEL (Russ, 2026-09-04). Finding
+  // facts stays on the cheap fast one; the words a stranger reads do not.
+  // Still the Claude logged in on this machine, so still not a paid call.
+  const askToWrite = injected.askToWrite || makeWriter();
   const reviewPage = injected.reviewPage || REVIEW_PAGE;
   const lastRunAt = injected.lastRunPath || LAST_RUN;
   progress.done = 0; progress.total = 0;
@@ -267,7 +305,7 @@ async function noticingRun(injected = {}) {
         .map((x) => x.sentence);
 
       const res = await N.noticeOneBusiness(db, p.id, {
-        ask: guard.ask, avoid, roleTitle, prospect: p,
+        ask: guard.ask, askToWrite, avoid, roleTitle, prospect: p,
       });
 
       if (!res.sentence) {

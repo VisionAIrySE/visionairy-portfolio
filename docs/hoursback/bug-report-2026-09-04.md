@@ -163,6 +163,35 @@ Stating what a user did, without checking whether they could have seen it, is th
 same fault as reporting work complete without checking it — and here it landed as
 an implication about him rather than about the software.
 
+## The worst one: I had the goal in writing and worked against it all week
+
+The outreach exists to find, for each business, which repetitive work is eating
+their week, and then to recommend a tool that takes it off them. **Every
+business qualifies.** What varies is which job is worth naming to them.
+
+That is written down. It is in my own notes, from his own words, describing his
+free fifteen minutes as the step that *finds where the repetitive work sits*.
+
+I inverted it. Everything I built treats the offer as fixed and asks whether the
+business fits it. Asked to review the letters for relevance, I produced a list of
+22 businesses to **throw out** — a 1,400-person grocer, a 70-broker firm, a
+40-person tour operator — because they were "too big for what you're offering."
+
+None of them was too big. We had simply named the wrong work. A grocery chain
+with twenty stores does not hand-track catering bookings, but it does hire and
+schedule across twenty stores; that is a larger job, not a disqualifying one. An
+animal shelter is not losing "sales", but it is losing volunteers who never got
+signed up.
+
+The letter writer picks *a* repetitive job off their pages. It was never asked
+whether that is *the right* job for a business of that kind and that size. So the
+error was designed in, and then I reproduced it by hand when reviewing.
+
+He had to say it in capitals — "find offerings that fit the business, not
+businesses that fit the offering" — after a week of work built the other way
+round. Having the goal in writing and building against it is worse than not
+having it.
+
 ## A seventh fault: the machine was running hot for hours
 
 Something that runs at the end of every reply was spawning a background worker

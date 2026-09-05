@@ -195,7 +195,20 @@ function readerPool() {
   if (thePool === null) {
     try {
       thePool = makeReaderPool({
-        size: Number(process.env.HOURSBACK_WARM_READERS || 2),
+        // READY READERS COST MEMORY, SO THERE ARE FEW (2026-09-04, measured).
+        //
+        // Two ready readers against six businesses meant four were always
+        // queueing, and an empty pool starts one from cold — about eight
+        // seconds before the question is even asked.
+        //
+        // Raising it to eight made that worse, not better: each waiting reader
+        // holds about 280 MB, a replacement is started the moment one is taken,
+        // and a three-business test had nineteen of them alive holding 5.3 GB
+        // on a 9 GB machine. Memory pressure is what makes the fans run.
+        //
+        // Four is the compromise: enough that a business rarely waits, few
+        // enough that they fit. Raise it only with a memory check beside it.
+        size: Number(process.env.HOURSBACK_WARM_READERS || 4),
         hardKillMs: HARD_KILL_MS,
         cwd: ROOM,
         onCall: ({ ms, answered }) => callLog.push({ via: 'local claude', model: 'haiku', ms, answered, warm: true }),
@@ -927,6 +940,14 @@ async function understandPass(injected = {}) {
         ? { messages: { some: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } } } }
         : {}),
     };
+  // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
+  // (Russ, 2026-09-05: "this should happen automatically"). Nothing is deleted;
+  // a reading that never finished gets its end time and a note saying why.
+  {
+    const closed = await R.closeWhatDiedEarlier(db);
+    if (closed) console.log(`closed ${closed} reading(s) a stopped run had left open`);
+  }
+
   const untried = injected.untried ?? UNTRIED;
   // NEVER ACTUALLY REACHED, not merely "has a record" (2026-09-04).
   //
