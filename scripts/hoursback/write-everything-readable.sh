@@ -22,6 +22,28 @@ say() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
 stop_now() { say "asked to stop — leaving the current block to finish its business and exiting"; exit 143; }
 trap stop_now INT TERM
 
+# WHO IS RUNNING, BY NUMBER. Searching for this script's own name matched any
+# passing shell command that merely mentioned it, so a watchdog reading that
+# would call a dead job alive — worse than no watchdog at all. Found by killing
+# the runner on purpose and watching the check lie about it (2026-09-05).
+#
+# The marker is emptied on the way out, never removed, so this script deletes
+# nothing on disk and an empty marker plainly means nobody is running.
+PIDFILE=/tmp/hoursback-write-everything.pid
+RUNNING_PID="$(cat "$PIDFILE" 2>/dev/null || true)"
+if [ -n "$RUNNING_PID" ] && kill -0 "$RUNNING_PID" 2>/dev/null; then
+  say "already running as $RUNNING_PID — leaving it alone"
+  exit 0
+fi
+echo $$ > "$PIDFILE"
+# Only ever clears a marker holding OUR OWN number. One left by another run is
+# left alone: the marker is how two of them keep out of each other's way.
+clear_my_marker() {
+  [ "$(cat "$PIDFILE" 2>/dev/null || true)" = "$$" ] && : > "$PIDFILE"
+  return 0
+}
+trap clear_my_marker EXIT
+
 say "=== writing every letter that can be written from a site already on file ==="
 
 # Wait for any model job already going. One at a time, always.
