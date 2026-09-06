@@ -64,6 +64,20 @@ function makeWriter() {
   };
 }
 
+// THE WRITER MUST BE SHUT DOWN WITH THE RUN.
+//
+// It never was. The finders were closed and the writer was left waiting, so
+// every finished run sat there held open by one Sonnet process that had
+// nothing left to do. On the night of 5–6 September that cost ten and a half
+// hours: the letters were all written by midnight, the summary was printed,
+// and the job then hung until morning. Everything watching said "fine",
+// because the job was alive.
+function closeTheWriter() {
+  if (!theWriter) { theWriter = null; return; }
+  try { theWriter.close(); } catch { /* already gone */ }
+  theWriter = null;
+}
+
 const {
   askTheReader, makeReaderGuard, writeLastRun, LAST_RUN,
   FIRST_CALLS_MUST_ANSWER, EXIT_READER_EXHAUSTED, EXIT_BROKEN_START,
@@ -517,8 +531,11 @@ async function noticingRun(injected = {}) {
     };
   } finally {
     // The readers kept waiting for the next question are closed with the
-    // run — a warm reader is a real process and must not outlive it.
+    // run — a warm reader is a real process and must not outlive it. The
+    // WRITER is one of those too, and closing only the finders is what left
+    // every finished run hanging (see closeTheWriter above).
     try { require('./understand-businesses.js').closeReaderPool(); } catch { /* nothing to close */ }
+    closeTheWriter();
     await db.$disconnect();
   }
   // The status board — always the LAST thing written, whatever the ending.
