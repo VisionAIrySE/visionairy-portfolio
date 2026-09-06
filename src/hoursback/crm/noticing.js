@@ -519,6 +519,24 @@ function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
 // tiebreaker. Capped, because the reader gets a handful of calls per
 // business, not a crawl.
 
+// HOW MUCH OF THEIR SITE GOES INTO THE QUESTION.
+//
+// SENDING LESS DOES NOT MAKE IT FASTER. Tried and measured on 2026-09-06,
+// because one letter takes about four minutes and a bigger question plainly
+// took longer than a small one — a 20,797-character question answered in 132
+// seconds where a 2,710-character one answered in 12.
+//
+// So the same business was asked twice. Cutting their pages from six to four
+// and from 12,000 characters to 4,000 made the question 40% smaller and the
+// answer took LONGER: 178 seconds became 281. The sentence also got vaguer,
+// naming "a detail that slips" where the full read had named walking a new
+// advertiser through what it costs and chasing the invoice after.
+//
+// The reason is that a thinner read gives the finder less to stand a job on,
+// so more of its suggestions are rejected and it goes round again. The cost is
+// the NUMBER of questions, not the size of them.
+//
+// Do not trim this to go faster. It was tried.
 const PER_PAGE = 3000;
 const TOTAL = 12000;
 const AT_MOST = 6;

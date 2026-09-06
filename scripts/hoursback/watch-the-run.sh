@@ -64,6 +64,35 @@ while :; do
     fi
   fi
 
+  # IS IT ACTUALLY DOING ANYTHING? Being alive is not the same as working.
+  #
+  # On the night of 5–6 September the job finished writing at midnight, printed
+  # its summary, and then sat for TEN AND A HALF HOURS waiting on one model
+  # process that never shut down. This watcher said "fine" every half hour the
+  # whole time, because the job was alive. Russ woke up to nothing.
+  #
+  # So: if the log has not grown in forty minutes, the job is stuck. The cause
+  # both times was a model process hanging, and killing it releases the job —
+  # so kill those first and give it five minutes. If the log still has not
+  # moved, restart the job outright.
+  if [ "$alive" -eq 1 ] && [ -f "$RUN_LOG" ]; then
+    quiet_for=$(( ( $(date +%s) - $(stat -c %Y "$RUN_LOG") ) / 60 ))
+    if [ "$quiet_for" -ge 40 ]; then
+      say "STUCK — alive but nothing written for ${quiet_for} minutes; freeing it"
+      for m in $(pgrep -f 'claude --model'); do kill -KILL "$m" 2>/dev/null; done
+      sleep 300
+      still=$(( ( $(date +%s) - $(stat -c %Y "$RUN_LOG") ) / 60 ))
+      if [ "$still" -ge 40 ]; then
+        say "still stuck after freeing it — restarting the job"
+        kill -KILL "$runner" $(pgrep -P "$runner") 2>/dev/null
+        sleep 5
+        : > "$PIDFILE"
+      else
+        say "freed — it is moving again"
+      fi
+    fi
+  fi
+
   # A quiet note every half hour, and a loud one whenever the machine is hot.
   hot=$(awk -v l="$load" 'BEGIN{print (l > 8) ? 1 : 0}')
   QUIET=$((QUIET + 1))

@@ -60,11 +60,21 @@ write_what_is_ready() {
   while :; do
     node scripts/hoursback/who-can-be-written.cjs > /tmp/hb-to-write.txt 2>>"$LOG"
     local left
-    left=$(tr ',' '\n' < /tmp/hb-to-write.txt | grep -c . || echo 0)
-    if [ "$left" -eq 0 ]; then say "no letters waiting to be written"; return 0; fi
+    # `grep -c` PRINTS 0 AND EXITS 1 WHEN IT FINDS NOTHING. Written as
+    # `grep -c . || echo 0` that produced the two-line value "0\n0", the
+    # is-it-zero test errored instead of matching, and the loop carried on and
+    # ran the writer with an EMPTY list — which the writer reads as "choose
+    # fifty businesses yourself", including ones with no address. Exactly the
+    # fault this whole cycle exists to prevent (2026-09-06, caught in 41s).
+    left=$(tr ',' '\n' < /tmp/hb-to-write.txt | grep -c . || true)
+    left=${left:-0}
+    if [ "$left" -le 0 ]; then say "no letters waiting to be written"; return 0; fi
     say "writing letters — $left waiting, taking up to 50"
     local batch
     batch=$(tr ',' '\n' < /tmp/hb-to-write.txt | head -50 | paste -sd,)
+    # BELT AND BRACES. An empty list must never reach the writer, whatever the
+    # count above said, because an empty list means "pick your own".
+    if [ -z "$batch" ]; then say "the list came back empty — not writing"; return 0; fi
     node scripts/hoursback/write-noticings.js --ids="$batch" --fresh=0 >>"$LOG" 2>&1
     local code=$?
     case $code in
