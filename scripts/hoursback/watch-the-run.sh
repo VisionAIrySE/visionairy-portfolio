@@ -15,7 +15,7 @@ export PATH="$HOME/.local/bin:$PATH"
 cd "$(dirname "$0")/../.." || exit 1
 
 LOG=/tmp/hoursback-watchdog.log
-RUN_LOG=/tmp/hoursback-write-everything.log
+RUN_LOG=/tmp/hoursback-cycle.log
 say() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
 trap 'say "watchdog told to stop"; exit 143' INT TERM
@@ -43,19 +43,19 @@ while :; do
   # IS IT ALIVE? Asked of the runner's own recorded number, not of anything
   # whose command line merely says its name — that check called a dead job
   # alive when it was tested (2026-09-05).
-  PIDFILE=/tmp/hoursback-write-everything.pid
+  PIDFILE=/tmp/hoursback-cycle.pid
   runner="$(cat "$PIDFILE" 2>/dev/null || true)"
   alive=0
   if [ -n "$runner" ] && kill -0 "$runner" 2>/dev/null; then alive=1; fi
 
   if [ "$alive" -eq 0 ]; then
-    if grep -q "=== all done ===" "$RUN_LOG" 2>/dev/null; then
+    if grep -q "has been read, and every letter written" "$RUN_LOG" 2>/dev/null; then
       say "the run finished on its own — nothing left to watch"; exit 0
     fi
-    say "the runner has gone and the work is not finished — starting it again"
+    say "the cycle has gone and the work is not finished — starting it again"
     : > "$PIDFILE"
-    setsid nohup bash scripts/hoursback/write-everything-readable.sh "$RUN_LOG" > /dev/null 2>&1 < /dev/null &
-    sleep 15
+    setsid nohup bash scripts/hoursback/read-and-write-cycle.sh "$RUN_LOG" > /dev/null 2>&1 < /dev/null &
+    sleep 20
     back="$(cat "$PIDFILE" 2>/dev/null || true)"
     if [ -n "$back" ] && kill -0 "$back" 2>/dev/null; then
       say "back up as $back"

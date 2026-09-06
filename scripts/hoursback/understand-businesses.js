@@ -137,6 +137,18 @@ const EMAILABLE = process.argv.includes('--emailable');
 // night. 1,458 have never been looked at and 31 have been tried and failed, so
 // the untouched ones come first and the retries wait their turn.
 const UNTRIED = process.argv.includes('--untried');
+// --has-email: ONLY businesses we can actually send a letter to.
+//
+// READING A SITE WE CANNOT WRITE TO IS WASTED WORK. On 2026-09-05 a run was
+// pointed at "everyone whose site is read and whose letter is out of date"
+// without ever asking whether there was an address to send to. Of 213 picked,
+// 113 had none. An hour of work produced five sendable letters, and the rest
+// became sentences with nowhere to go — there is no code that turns them into
+// letters later, so they are not banked, they are lost.
+//
+// The letter writer has always refused to write without an address. This makes
+// the reader ask the same question BEFORE spending the time, not after.
+const HAS_EMAIL = process.argv.includes('--has-email');
 
 // --- the ceilings, in code, before anything runs ----------------------------
 //
@@ -822,6 +834,7 @@ async function understandPass(injected = {}) {
   const lanesWanted = injected.lanes ?? LANES;
   const only = injected.only ?? ONLY;
   const emailable = injected.emailable ?? EMAILABLE;
+  const hasEmail = injected.hasEmail ?? HAS_EMAIL;
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
   const lastRunAt = injected.lastRunPath || LAST_RUN;
   progress.done = 0; progress.total = 0;
@@ -938,6 +951,13 @@ async function understandPass(injected = {}) {
       // to them, so the list Russ actually works is corrected first.
       ...(emailable
         ? { messages: { some: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } } } }
+        : {}),
+      // --has-email: ONLY businesses there is somewhere to send a letter TO.
+      // Reading a site we cannot write to is an hour spent on nothing; see the
+      // note at the flag. The manual column counts — a hand-typed address is
+      // an address (2026-09-05).
+      ...(hasEmail
+        ? { OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] }
         : {}),
     };
   // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
