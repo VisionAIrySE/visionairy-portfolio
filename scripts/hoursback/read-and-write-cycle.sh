@@ -86,6 +86,18 @@ write_what_is_ready() {
   done
 }
 
+# HOW HOT THIS MACHINE IS ALLOWED TO GET.
+#
+# Reading kept four spare models waiting on top of three running, which put
+# thirteen alive on a four-core laptop and held the load at 7.8 — the point
+# where Russ feels it in the keyboard, and he has been the alarm three times.
+# Writing had already been settled at one spare for the same reason.
+#
+# One spare and two at a time: about half the processes. It reads more slowly,
+# and that is the trade being made on purpose.
+export HOURSBACK_WARM_READERS=1
+READ_LANES=2
+
 say "=== read fifty, write fifty, repeat — businesses with an email address only ==="
 
 # STEP ONE, before any reading: the letters already possible from sites on file.
@@ -96,7 +108,7 @@ ROUND=0
 while :; do
   ROUND=$((ROUND + 1))
   say "--- round $ROUND: reading the next 50 websites ---"
-  node scripts/hoursback/understand-businesses.js --untried --has-email --limit=50 >>"$LOG" 2>&1
+  node scripts/hoursback/understand-businesses.js --untried --has-email --limit=50 --lanes="$READ_LANES" >>"$LOG" 2>&1
   code=$?
   case $code in
     0) : ;;
