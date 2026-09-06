@@ -1003,7 +1003,9 @@ async function linkedInScreen() {
   const queue = await L.linkedInQueue(db, 25);
   return page(`<h1>LinkedIn — by hand only</h1>
   <p class="muted">The engine never sends these. Copy one, send it yourself, then mark it. Your name goes on it.</p>
-  <p><form method="POST" action="/linkedin/write"><button class="primary">Write the next 25</button></form></p>
+  <p class="muted">Notes are written one at a time now, from the person's own row on their
+    business page — the button beside them. Writing 1,960 in advance meant every one went stale
+    before it was ever read (2026-09-05).</p>
   ${queue.map((m) => {
     const name = resolveField(m.prospect, 'name');
     const who = m.prospect.contactName || m.prospect.ownerName || '';
@@ -1398,7 +1400,10 @@ async function businessCard(id, saved) {
       <td><input name="p.${c.id}.linkedIn" value="${esc(c.linkedIn || '')}" placeholder="their profile" style="padding:5px 7px;font-size:14px">
         ${c.name && !c.linkedIn ? `<a class="mini" target="_blank" rel="noopener"
           href="https://www.google.com/search?q=${encodeURIComponent(`site:linkedin.com/in "${c.name}" "${resolveField(p, 'name')}"`)}"
-          >find them &rarr;</a>` : ''}</td>
+          >find them &rarr;</a>` : ''}
+        ${c.name ? `<div><button type="submit" name="writeNoteFor" value="${c.id}" class="mini"
+          style="width:auto;padding:3px 8px;font-size:12px;margin-top:3px"
+          >Write ${esc(c.name.split(' ')[0])}'s note</button></div>` : ''}</td>
     </tr>`).join('')}
   </table></div>` : '<p class="muted">Nobody found on their site yet.</p>'}
 
@@ -2291,7 +2296,21 @@ const server = http.createServer(async (req, res) => {
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
 
+          // THE NOTE BUTTON BESIDE A PERSON. It submits this same form, so his
+          // edits are saved FIRST and the note is written from the corrected
+          // record — typing someone's real name and then asking for their note
+          // must not write to the name he just replaced (2026-09-05).
+          let noteSaid = '';
+          const writeNoteFor = String(form.writeNoteFor || '').trim();
+          if (writeNoteFor) {
+            try {
+              const written = await L.noteForOnePerson(db, writeNoteFor);
+              noteSaid = written ? ' LinkedIn note written below.' : ' No LinkedIn note could be written for them.';
+            } catch { noteSaid = ' The LinkedIn note could not be written.'; }
+          }
+
           const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
+            + noteSaid
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.
           const fromBusiness = url.searchParams.get('back');
@@ -2317,6 +2336,15 @@ const server = http.createServer(async (req, res) => {
             const m = await L.draftFor(db, t.id, 'LINKEDIN');
             if (m && m.state === 'DRAFT') written += 1;
           }
+        }
+        // WRITE THE NOTE FOR ONE PERSON, NOW. The button sits beside them on
+        // the business card. Nothing is written in advance any more — Russ
+        // asked for it at the moment he is about to paste it (2026-09-05).
+        if (what === 'one' && arg) {
+          const back = url.searchParams.get('back');
+          try { await L.noteForOnePerson(db, arg); } catch { /* shown as "not written" on the card */ }
+          res.writeHead(303, { Location: back ? `/business/${back}?note=${arg}` : '/linkedin' });
+          return res.end();
         }
         // Editing a note from a business card. The email side had this and the
         // note side did not, so a rewritten note was silently dropped.

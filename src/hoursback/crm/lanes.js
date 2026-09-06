@@ -606,6 +606,48 @@ function defaultSender(key) {
   };
 }
 
+
+// THE NOTE IS WRITTEN WHEN RUSS ASKS FOR IT, FOR THE PERSON HE PICKED.
+//
+// Before this, every note for every person was written up front in batches of
+// twenty-five — 1,960 of them sitting unread, none ever sent, and each one
+// going stale the moment the wording moved on. Russ asked for a button beside
+// the person instead: write it now, for them, when I am actually about to
+// paste it (2026-09-05).
+//
+// It is addressed to THAT contact, not to whoever the record happens to call
+// primary, because the whole point of the button is that he chose them.
+async function noteForOnePerson(db, contactId) {
+  const c = await db.contact.findUniqueOrThrow({ where: { id: contactId } });
+  const p = await db.prospect.findUniqueOrThrow({ where: { id: c.prospectId } });
+  if (p.doNotContact) return null;
+
+  // Their name wins over anything on the business record — he clicked them.
+  const { firstNameOf } = require('./names.js');
+  const usable = c.name && firstNameOf(c.name) ? c.name : null;
+  const { writeTo: fallback } = await whoTheLetterGoesTo(db, c.prospectId, p);
+  const writeTo = usable ? { ...p, contactName: usable, ownerName: null } : fallback;
+
+  const built = draftLinkedIn(writeTo, signalsOf(p));
+  if (!built) return null;
+
+  // One note per business, as before — he writes it for the person he is
+  // about to message, and rewriting it for somebody else is the point.
+  // A note already SENT is never touched; that is the record of what went out.
+  const existing = await db.outreachMessage.findFirst({ where: { prospectId: c.prospectId, lane: 'LINKEDIN' } });
+  if (existing && existing.sentAt) return existing;
+  const data = {
+    body: built.body,
+    inviteBody: built.inviteBody || null,
+    openedWith: built.openedWith || null,
+    state: 'DRAFT',
+    sentTo: c.name || null,
+    editedAt: null,
+  };
+  if (existing) return db.outreachMessage.update({ where: { id: existing.id }, data });
+  return db.outreachMessage.create({ data: { ...data, prospectId: c.prospectId, lane: 'LINKEDIN' } });
+}
+
 module.exports = {
   LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP, MAX_PER_RUN,
   FOLLOW_UP_DAYS, touchDue, queueNextTouch, queueDueTouches,
@@ -613,5 +655,5 @@ module.exports = {
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
   signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,
-  markLinkedInSent, linkedInQueue, markReplied, markBounced, reachableOn,
+  markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

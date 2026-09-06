@@ -1296,6 +1296,21 @@ async function runUnderstand(injected = {}) {
 // borrows the saving step from here, and without this guard merely importing
 // it would start a second full pass of its own (2026-08-29).
 if (require.main === module) {
+  // ONE MODEL JOB AT A TIME. Reading websites and writing letters both run
+  // models; two of them together cook this laptop (see onlyOneCopy.js).
+  const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
+  let giveTheMachineBack;
+  try {
+    giveTheMachineBack = claimTheMachine('models', { label: 'reading websites' });
+  } catch (e) {
+    console.error(`\n${e.message}\n`);
+    process.exit(e.code === 'ALREADY_RUNNING' ? 73 : 1);
+  }
+  const letGo = () => { try { giveTheMachineBack(); } catch { /* already given back */ } };
+  process.on('exit', letGo);
+  process.on('SIGINT', () => { letGo(); process.exit(130); });
+  process.on('SIGTERM', () => { letGo(); process.exit(143); });
+
   runUnderstand().then((out) => {
     // The distinct codes let a wrapper tell "out of allowance, rerun later"
     // (75) and "broken from the first call" (74) apart from a crash (1).

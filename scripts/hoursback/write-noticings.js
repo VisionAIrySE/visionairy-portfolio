@@ -80,7 +80,10 @@ const arg = (n, d) => { const h = process.argv.slice(2).find((a) => a.startsWith
 // settled on for this machine; --at-once= raises or lowers it for a bigger one.
 // Four businesses at a time, not six: with a writer alive per business too,
 // six filled a 9 GB machine (2026-09-05).
-const AT_ONCE = Math.max(1, Number(arg('at-once', 4)));
+const { claimTheMachine, howManyAtOnce } = require('../../src/hoursback/onlyOneCopy.js');
+// Whatever is asked for, held under what this machine can carry. Two model
+// processes run per business, so half the cores is the honest ceiling.
+const AT_ONCE = howManyAtOnce(arg('at-once', 4));
 // How many readers wait ready. Deliberately fewer than the businesses running,
 // because each one holds about 280 MB and they are what fills the machine
 // (measured 2026-09-04: eight ready became nineteen alive, 5.3 GB).
@@ -547,6 +550,20 @@ async function main(injected = {}) {
 }
 
 if (require.main === module) {
+  // ONE COPY. Three times the machine has been cooked by the same job running
+  // more than once; this stops rather than warns (see onlyOneCopy.js).
+  let giveTheMachineBack;
+  try {
+    giveTheMachineBack = claimTheMachine('models', { label: 'writing letters' });
+  } catch (e) {
+    console.error(`\n${e.message}\n`);
+    process.exit(e.code === 'ALREADY_RUNNING' ? 73 : 1);
+  }
+  const letGo = () => { try { giveTheMachineBack(); } catch { /* nothing left to give back */ } };
+  process.on('exit', letGo);
+  process.on('SIGINT', () => { letGo(); process.exit(130); });
+  process.on('SIGTERM', () => { letGo(); process.exit(143); });
+
   main().then((out) => {
     // Distinct codes: 75 means "out of allowance, rerun later", 74 means
     // "broken from the first call" — a wrapper can tell both from a crash (1).
