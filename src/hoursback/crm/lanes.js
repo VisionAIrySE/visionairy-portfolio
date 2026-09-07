@@ -29,16 +29,24 @@ const LANES = ['PHONE', 'EMAIL', 'LINKEDIN'];
 const MESSAGE_STATES = ['DRAFT', 'QUEUED', 'SENT', 'REPLIED', 'SUPPRESSED'];
 const FIRST_CONTACT = 'first_contact';
 
-// A brand new sending address that suddenly sends hundreds of messages gets
-// treated as a spammer. This rises week by week from the first send.
-// A new sending address that blasts gets marked as spam, so it warms up. The
-// first version crawled — 10 a day over seven weeks, which is 69 days to reach
-// 691 businesses once, by which time the follow-ups have crowded out every new
-// message. Russ set week one at 30 (2026-08-26). All 691 first messages clear
-// in about ten days at this pace, and it is still a gentle warm-up.
-const EMAIL_RAMP = [50, 60, 120, 200];   // week one raised 30 → 50 (Russ, 2026-09-04)
-function dailyEmailCap(weeksSending = 0) {
-  return EMAIL_RAMP[Math.min(Math.max(0, Math.floor(weeksSending)), EMAIL_RAMP.length - 1)];
+// THE DAILY CAP IS OFF (Russ, 2026-09-06).
+//
+// It existed because a brand new sending address that suddenly sends hundreds
+// of messages gets treated as a spammer, so it climbed week by week: 50, 60,
+// 120, 200. The first version crawled at 10 a day, which was 69 days to reach
+// 691 businesses once — by which time the follow-ups had crowded out every new
+// message. Russ raised week one to 30 on 2026-08-26 and to 50 on 2026-09-04.
+//
+// He has now said to remove it: this is not a new mailbox. It is his own work
+// address sending through Resend, which already has a sending history and its
+// own reputation, so the warm-up the ramp was protecting does not apply.
+//
+// The ramp is kept in the code, unused, because it is the thing to put back if
+// a domain ever does get filtered. Nothing else in the letters changed.
+const EMAIL_RAMP = [50, 60, 120, 200];   // kept for reference; no longer applied
+const NO_DAILY_CAP = Number.MAX_SAFE_INTEGER;
+function dailyEmailCap() {
+  return NO_DAILY_CAP;
 }
 
 function startOfDay(d = new Date()) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -546,7 +554,15 @@ async function queueDueTouches(db, options = {}) {
 // The one that matters: a run counts what it has already sent and stops. It
 // never trusts a loop to end on its own.
 
-const MAX_PER_RUN = 25;          // one click sends at most this many, ever
+// ONE CLICK NEVER EMPTIES THE QUEUE. This is not the reputation ramp — that
+// was removed on 2026-09-06 because Russ sends from his own work address, which
+// already has a history. This is the runaway guard, and it stays.
+//
+// Raised 25 → 200 the same day. He reviews fifty at a time and ticks them all,
+// so a ceiling of 25 meant half of what he approved silently did not go. Two
+// hundred covers everything he has today and everything tonight's run adds,
+// while still stopping one accidental click from emptying a queue of thousands.
+const MAX_PER_RUN = 200;
 
 async function sendQueuedEmails(db, options = {}) {
   const weeks = Number(options.weeksSending || 0);
