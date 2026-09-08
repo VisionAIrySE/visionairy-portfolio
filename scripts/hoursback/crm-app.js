@@ -97,6 +97,14 @@ function page(body) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Hours Back</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
+/* THE COLLAPSED EMAIL LIST. A closed row is one line; open shows the letter.
+   The browser's default triangle is hidden and replaced with one that turns,
+   so it is obvious a row opens without adding a marker to every other list. */
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: '\\25B8'; color: #9a9384; transition: transform .12s; display: inline-block; }
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card > summary:hover { background: #faf8f2; }
+
 :root{--leaf:#c3e86b;--moss:#5a8f0f;--ink:#14150f;--paper:#faf9f4;--line:#e2e0d6;--muted:#6b6b60;--slate:#9a9a90}
 body{font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;max-width:960px;margin:0 auto;padding:0 16px 48px;background:var(--paper);color:var(--ink)}
 h1{font-size:24px;letter-spacing:-.015em;margin:18px 0 4px}
@@ -1043,9 +1051,29 @@ async function emailScreen(params) {
   // sending or to open the account and archive the whole business (Russ,
   // 2026-08-31). Skipping pulls this one message out of the queue, leaves the
   // business alone, and can be undone from the account page.
-  const one = (m) => `<div class="card"><div class="row">
-      <div><label style="display:inline;width:auto;margin-right:8px"><input type="checkbox" name="pick" value="${m.id}" form="pickForm"
-        style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : ''}></label><a href="/business/${m.prospectId}"><b>${esc(resolveField(m.prospect, 'name'))}</b></a> ${scoreBadge(m.prospect.automationScore, m.prospectId)}
+  // ONE LINE EACH UNTIL YOU OPEN IT (Russ, 2026-09-08: "collapse the list so
+  // only the company names show... This looks too busy").
+  //
+  // Twenty-five letters, each with its full text in a box, made the screen a
+  // wall. Closed, a row is the tick, the name, the score and where it stands.
+  // Open, everything that was there before is there still — who it is going
+  // to, the address, the letter itself, and the buttons.
+  //
+  // The tick has to be usable WITHOUT opening the row, so its click is stopped
+  // from reaching the row underneath. Otherwise ticking twenty of them would
+  // open twenty letters.
+  const one = (m) => `<details class="card" style="padding:0">
+    <summary style="cursor:pointer;padding:10px 12px;list-style:none;display:flex;align-items:center;gap:10px">
+      <label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
+        <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
+          style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : ''}></label>
+      <b style="flex:1">${esc(resolveField(m.prospect, 'name'))}</b>
+      ${scoreBadge(m.prospect.automationScore, m.prospectId)}
+      <span class="muted" style="font-size:12px">${esc(m.state)}</span>
+    </summary>
+
+    <div style="padding:0 12px 12px">
+      <div class="row">
         <div class="muted">${(() => {
           // Who it is actually addressed to. The LinkedIn screen has always
           // named the person and this one only showed an address, so an owner
@@ -1056,11 +1084,12 @@ async function emailScreen(params) {
           const opener = (m.body || '').match(/^Hi ([^,]+),/);
           const greeted = opener ? opener[1] : null;
           return `${who ? `<b>To ${esc(who)}</b> · ` : greeted ? `<b>Greets ${esc(greeted)}</b> · ` : '<b>No name — opens "Hello,"</b> · '}`;
-        })()}${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}</div></div>
-      <form method="POST" action="/email/skip/${m.id}" style="margin-left:auto"
-        onsubmit="return confirm('Skip this one? It comes off the list and nothing goes to them. The business stays.')">
-        <button title="take this off the list without archiving the business">Skip</button></form>
-      <div class="muted">${esc(m.state)}</div></div>
+        })()}${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}
+          · <a href="/business/${m.prospectId}">open the business</a></div>
+        <form method="POST" action="/email/skip/${m.id}" style="margin-left:auto"
+          onsubmit="return confirm('Skip this one? It comes off the list and nothing goes to them. The business stays.')">
+          <button title="take this off the list without archiving the business">Skip</button></form>
+      </div>
       <form method="POST" action="/email/edit/${m.id}">
         <input name="subject" value="${esc(m.subject || '')}" style="font-weight:600">
         <textarea name="body" rows="12" style="margin-top:6px">${esc(m.body)}</textarea>
@@ -1076,7 +1105,8 @@ async function emailScreen(params) {
            automatic path is untested, not because it is missing. -->
       <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">They replied</button></form>
       <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">It bounced</button></form>
-    </div>`;
+    </div>
+  </details>`;
 
   const justSent = params.get('sent');
   return page(`<h1>Email</h1>
