@@ -45,7 +45,14 @@ function theSentenceOnly(paragraph) {
 
 (async () => {
   const letters = await db.outreachMessage.findMany({
-    where: { lane: 'EMAIL', sentAt: null, prospect: { doNotContact: false } },
+    // THE FIRST MESSAGE ONLY. Follow-ups are judged by their own rules when
+    // they are written — a day-eight message asks a question and a day-fourteen
+    // sign-off names no cost, and both would fail the first message's rules.
+    where: {
+      lane: 'EMAIL', sentAt: null,
+      NOT: { openedWith: { startsWith: 'touch_' } },
+      prospect: { doNotContact: false },
+    },
     include: { prospect: { select: { name: true, email: true, emailManualValue: true } } },
   });
 

@@ -324,11 +324,20 @@ function sequenceTabs(prospect, storedFirst) {
       if (first) written.push({ day: days[0], subject: first.subject, body: first.body, real: false });
     } catch { /* a business with nothing to open on has no sequence */ }
   }
+  // THE FOLLOW-UPS ARE READ, NOT INVENTED (Russ, 2026-09-08).
+  //
+  // These used to be built from the TRADE every time the page opened and
+  // thrown away, so they were generic by construction and nothing checked
+  // them. They are written from the business's own recorded work now and
+  // stored, so this reads them. Where one has not been written yet, it says so
+  // rather than showing a made-up one as if it were real.
+  const stored = new Map((prospect.messages || [])
+    .filter((m) => m.lane === 'EMAIL' && /^touch_[234]$/.test(m.openedWith || ''))
+    .map((m) => [Number(String(m.openedWith).split('_')[1]), m]));
   for (const touch of [2, 3, 4]) {
-    try {
-      const b = FC.draftFollowUpTouch(prospect, 'trade_week', touch);
-      if (b) written.push({ day: days[touch - 1], subject: b.subject, body: b.body });
-    } catch { /* one that will not build is left out rather than breaking the page */ }
+    const have = stored.get(touch);
+    if (have) written.push({ day: days[touch - 1], subject: have.subject, body: have.body, real: true });
+    else written.push({ day: days[touch - 1], subject: '(not written yet)', body: '', missing: true });
   }
   if (!written.length) return '<p class="muted">Nothing to write to them yet.</p>';
   // JUDGE WHAT IS ON THE SCREEN, NOT WHAT IS IN THE DATABASE.
@@ -355,6 +364,12 @@ function sequenceTabs(prospect, storedFirst) {
   };
 
   return written.map((m, i) => {
+    if (m.missing) {
+      return `<details class="card"><summary><b>Day ${m.day}</b> &nbsp;
+        <span class="muted">not written yet</span></summary>
+        <p class="muted" style="margin:10px 0 0">This one has not been written for this business yet. It is written
+        from their own work, like the first, not made up from their trade.</p></details>`;
+    }
     const wrong = judge(m.body);
     return `<details class="card"${i === 0 ? ' open' : ''}>
     <summary><b>Day ${m.day}</b> &nbsp; ${esc(m.subject)}${m.real === false
@@ -998,7 +1013,16 @@ async function emailScreen(params) {
   const [left, ready, sent, batch, waitingAllTold, queuedAllTold] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
-      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: prospectWhere },
+      // THE FIRST MESSAGE ONLY. The follow-ups are written and stored now
+      // rather than invented when a page opens, so without this the list would
+      // hold four rows per business and he would be ticking day-eight messages
+      // to send today (2026-09-08).
+      where: {
+        lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] },
+        openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } },
+        prospect: prospectWhere,
+      },
       include: { prospect: true },
       // BEST FIRST, AND A BUSINESS WITH NO SCORE IS NOT BEST.
       //
@@ -1027,10 +1051,16 @@ async function emailScreen(params) {
     // the rows on this page — so it read 25 whether he had 25 letters or 336.
     // Russ asked why it said 25 when the queue held 336. It was never a total.
     db.outreachMessage.count({
-      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false } },
+      where: {
+        lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
+      },
     }),
     db.outreachMessage.count({
-      where: { lane: 'EMAIL', state: 'QUEUED', openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false } },
+      where: {
+        lane: 'EMAIL', state: 'QUEUED', openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
+      },
     }),
   ]);
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order

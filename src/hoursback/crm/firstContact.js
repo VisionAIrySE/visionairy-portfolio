@@ -848,7 +848,7 @@ module.exports = {
   FOLLOW_UP_DAYS, SECOND_TOUCH, THIRD_TOUCH, SHORT_TELLS, THIRD_ASK, THIRD_WHY,
   draftFollowUpTouch,
   OPENERS, FOLLOW_ONS, TRADE_WORK, TRADE_FOLLOW_ONS, OPENER_ORDER, SUBJECTS, BODY, followOnFor,
-  chooseOpener, greetingFor, draftFirstContact, draftLinkedIn,
+  chooseOpener, greetingFor, draftFirstContact, draftLinkedIn, SIGN_OFF,
   TRADE_WEEK, BANNED_OPENERS, NEVER_LEADS, OPENER_ORDER, LINKEDIN_CLOSES,
   INVITE_MAX, INVITE_OPENINGS, INVITE_WHAT_I_DO, INVITE_CLOSES, INVITE_TRADE_DETAIL, draftLinkedInInvite,
 };
