@@ -300,14 +300,30 @@ async function home() {
 // before them is sent, so until now there was no way to read them. This shows
 // what each WILL say for this business, from the same code that will write it.
 // Nothing here is stored: it is generated for the page and thrown away.
-function sequenceTabs(prospect) {
+function sequenceTabs(prospect, storedFirst) {
   const FC = require('../../src/hoursback/crm/firstContact.js');
   const days = FC.FOLLOW_UP_DAYS;
   const written = [];
-  try {
-    const first = FC.draftFirstContact(prospect, JSON.parse(prospect.scoreEvidence || '[]'));
-    if (first) written.push({ day: days[0], subject: first.subject, body: first.body });
-  } catch { /* a business with nothing to open on has no sequence */ }
+  // DAY 0 IS THE REAL LETTER WHEN ONE EXISTS (Russ, 2026-09-08).
+  //
+  // This built its own Day 0 from the trade alone, every time the page was
+  // opened — so a law firm with a letter written off its own website was shown
+  // "At most law firms the same client details get typed three times", a
+  // sentence about law firms in general, presuming with "most", naming one job
+  // and no cost. Every rule he set, broken, on the screen he reads.
+  //
+  // Nothing checked it because nothing saved it: it was generated for the page
+  // and thrown away, and every check reads the stored letters. Showing the
+  // stored one removes the whole problem — what he reads is what would be
+  // sent.
+  if (storedFirst) {
+    written.push({ day: days[0], subject: storedFirst.subject, body: storedFirst.body, real: true });
+  } else {
+    try {
+      const first = FC.draftFirstContact(prospect, JSON.parse(prospect.scoreEvidence || '[]'));
+      if (first) written.push({ day: days[0], subject: first.subject, body: first.body, real: false });
+    } catch { /* a business with nothing to open on has no sequence */ }
+  }
   for (const touch of [2, 3, 4]) {
     try {
       const b = FC.draftFollowUpTouch(prospect, 'trade_week', touch);
@@ -315,10 +331,38 @@ function sequenceTabs(prospect) {
     } catch { /* one that will not build is left out rather than breaking the page */ }
   }
   if (!written.length) return '<p class="muted">Nothing to write to them yet.</p>';
-  return written.map((m, i) => `<details class="card"${i === 0 ? ' open' : ''}>
-    <summary><b>Day ${m.day}</b> &nbsp; ${esc(m.subject)}</summary>
+  // JUDGE WHAT IS ON THE SCREEN, NOT WHAT IS IN THE DATABASE.
+  //
+  // Every check written so far reads stored letters. This preview is built for
+  // the page and thrown away, so none of them ever saw it — and Russ was shown
+  // a letter breaking four of his rules with nothing flagging it. Anything
+  // displayed as a letter is now held to the same rules as one that is sent.
+  const judge = (body) => {
+    try {
+      const N = require('../../src/hoursback/crm/noticing.js');
+      const blocks = String(body || '').split('\n\n');
+      const para = blocks.find((t) => t.length > 120
+        && !/^Hi |sat in the offices|local to Central Oregon|Fifteen minutes|no charge for the review|Best regards/i.test(t.trim())) || '';
+      if (!para) return null;
+      const standing = /\b(?:Some\s+\S+[\s\S]{0,40}?|You may well )(?:may have|will have|have|do have|had)\b[\s\S]*$|\b(?:Some|Most|Plenty)[\s\S]{0,60}?three or four[\s\S]*$/i;
+      const written2 = para.replace(standing, '').trim();
+      if (!written2) return 'no passage naming their work';
+      const v = N.passable(written2, { jobs: ['a', 'b'] });
+      if (!v.ok) return v.why;
+      if (/\b(most|mostly|usually|typically)\b/i.test(para)) return 'presumes with "most" in the standing line';
+      return null;
+    } catch { return null; }
+  };
+
+  return written.map((m, i) => {
+    const wrong = judge(m.body);
+    return `<details class="card"${i === 0 ? ' open' : ''}>
+    <summary><b>Day ${m.day}</b> &nbsp; ${esc(m.subject)}${m.real === false
+      ? ' <span class="muted" style="font-size:12px">— not written from their site yet, this is the trade version</span>' : ''}</summary>
+    ${wrong ? `<div class="card warn" style="margin:8px 0"><b>Would not pass:</b> ${esc(wrong)}</div>` : ''}
     <pre style="white-space:pre-wrap;font:inherit;margin:10px 0 0">${esc(m.body)}</pre>
-  </details>`).join('');
+  </details>`;
+  }).join('');
 }
 
 // Each reason a business needs a look, in the words Russ would use.
@@ -1663,7 +1707,7 @@ async function businessCard(id, saved) {
 
   <h2>The whole sequence</h2>
   <p class="mini">Four messages over two weeks. Only the first exists yet — the rest are written when the one before it is sent, so these are what they WILL say. Nothing here can be edited; edit the first one below and the rest follow it.</p>
-  ${sequenceTabs(p)}
+  ${sequenceTabs(p, (p.messages || []).find((m) => m.lane === 'EMAIL'))}
 
   <h2>Their messages (${p.messages.length})</h2>
   ${p.messages.length ? p.messages.map((m) => `<div class="card">
