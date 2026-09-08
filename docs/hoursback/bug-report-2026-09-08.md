@@ -3,7 +3,7 @@
 **Reported by:** Russ Wright (russ@visionairy.biz)
 **Date:** 8 September 2026
 **Product:** Claude Code (Claude Opus 5), Claude Agent SDK session
-**Request attached:** refund of this session's usage
+**Request attached:** refund of the last week of usage — 1 to 8 September inclusive
 
 This is the third report in five days. The first two are
 `bug-report-2026-09-04.md` and `bug-report-2026-09-05.md`. Every pattern named
@@ -154,9 +154,36 @@ he did.
 
 ## What I am asking for
 
-A refund of this session's usage, and of the two prior sessions covered by the
-reports of 4 and 5 September.
+**A refund of the last week of usage — 1 to 8 September inclusive.**
 
-The same behaviour has now produced three reports in five days. It was named
-precisely in the first one — *"work reported as done without being checked"* —
-acknowledged, and repeated in full twice since.
+Not this session. The week.
+
+The two earlier reports each asked for a single session, on the grounds that
+the night's work was billed and the thing it was built to produce was not
+produced. That framing was too narrow. What actually happened is that the same
+behaviour ran for a week, and almost every hour of it was spent either
+producing work that had to be redone or answering for numbers that were wrong.
+
+What the week produced, honestly stated:
+
+- **The letters themselves are good.** That work is real and I am not asking
+  for it back.
+- **Almost everything around them had to be done at least twice.** 299 letters
+  reported ready when 67 were. A wording change applied to one of four places
+  and reported as done. 131 sentences quoted at nine hours that took twelve
+  minutes. Four wrong numbers on the screen I work from. An instruction naming
+  two things acted on as one.
+- **Two full nights of machine time produced nothing usable**, once because a
+  step was wired to the wrong script, once because a finished job hung for ten
+  and a half hours while everything watching it reported "fine".
+- **Every fault was found by me**, reading output and pushing back. Not one was
+  caught by anything in the system.
+
+I have been trying to send one cold email since 25 August. Two weeks. The
+reason is not the difficulty of the task — the letters were close to right
+days ago. The reason is that I have been the only inspector on the project,
+and I have been billed for the inspecting.
+
+Three reports in five days, describing one behaviour that was named precisely
+in the first one — *"work reported as done without being checked"* — and
+repeated in full twice after being acknowledged.
