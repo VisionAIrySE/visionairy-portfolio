@@ -1062,7 +1062,7 @@ async function emailScreen(params) {
   // The tick has to be usable WITHOUT opening the row, so its click is stopped
   // from reaching the row underneath. Otherwise ticking twenty of them would
   // open twenty letters.
-  const one = (m) => `<details class="card" style="padding:0">
+  const one = (m) => `<details class="card" style="padding:0" data-business="${m.prospectId}">
     <summary style="cursor:pointer;padding:10px 12px;list-style:none;display:flex;align-items:center;gap:10px">
       <label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
         <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
@@ -1105,6 +1105,15 @@ async function emailScreen(params) {
            automatic path is untested, not because it is missing. -->
       <form method="POST" action="/email/replied/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">They replied</button></form>
       <form method="POST" action="/email/bounced/${m.prospectId}" style="display:inline"><button title="the mail service normally does this on its own — this is the hand version">It bounced</button></form>
+
+      <!-- THE WHOLE BUSINESS RECORD, HERE (Russ, 2026-09-08: "I told you when
+           I click on the company name, I want everything on that company
+           record to show up"). The first version of this collapse showed only
+           what had already been in the email row — no contacts, none of the
+           editable fields. This brings the business's own page in, and it is
+           loaded only when the row is opened, so twenty-five of them do not
+           all load at once. -->
+      <div class="thewholerecord" style="margin-top:14px;border-top:1px solid #e8e4d8;padding-top:10px"></div>
     </div>
   </details>`;
 
@@ -1169,6 +1178,30 @@ async function emailScreen(params) {
        the screen is saved?"). The checkboxes sit inside each card but belong
        to this one form, which is what keeps the wording editor working. -->
   <form id="pickForm" method="POST" action="/email/queue"></form>
+  <script>
+    // OPEN A ROW, GET THE WHOLE BUSINESS RECORD. Loaded on the first open and
+    // not before, so twenty-five businesses are not fetched to look at one.
+    document.addEventListener('toggle', function (e) {
+      var row = e.target;
+      if (!row || row.tagName !== 'DETAILS' || !row.open || row.dataset.loaded) return;
+      row.dataset.loaded = '1';
+      var pane = row.querySelector('.thewholerecord');
+      if (!pane) return;
+      pane.innerHTML = '<p class="muted">Loading the rest of the record...</p>';
+      var frame = document.createElement('iframe');
+      frame.src = '/business/' + row.dataset.business;
+      frame.style.cssText = 'width:100%;border:0;height:900px;background:#fff';
+      frame.addEventListener('load', function () {
+        // Grow to fit rather than scroll inside a box.
+        try {
+          var d = frame.contentDocument;
+          if (d && d.body) frame.style.height = (d.body.scrollHeight + 40) + 'px';
+        } catch (err) { /* leave the default height */ }
+      });
+      pane.innerHTML = '';
+      pane.appendChild(frame);
+    }, true);
+  </script>
   <!-- TICK THEM ALL (Russ, 2026-09-04: "is there a Select All button?"). Ticks
        only the ones on this page, and only the ones that can still be ticked —
        anything already marked ready is shown greyed and is left alone. It marks
