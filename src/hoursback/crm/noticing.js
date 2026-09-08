@@ -440,6 +440,47 @@ const MARKETING = /\b(leverage|leveraging|streamlines?d?|streamlining|solutions?
 // is, which the sentence must never carry whatever the angle did to it.
 const ABOUT_THE_READER = /\bas (the|an?|your) [a-z][a-z ]{0,24}\b(owner|founder|principal|president|manager|administrator|coordinator|receptionist|attorney|agent|broker|officer|accountant|dentist|doctor)\b/i;
 
+// WHAT A COST LOOKS LIKE IN THE TEXT ITSELF.
+//
+// Three shapes count, and nothing else does:
+//   money      — a figure, a fee, a rate, a year's worth
+//   hours      — time named as time, which is billable work not done
+//   a loss     — the caller who rang somebody else, the slot that stayed
+//                empty, the invoice that sat, the quote that lost
+//
+// "It is the same handful of questions every time" is none of the three. It is
+// busyness, and busyness is what a good business feels like — an owner reading
+// it nods and does nothing. Russ said this in capitals on 2026-09-03 and again
+// on 2026-09-07: THAT STILL DOESN'T TELL THEM WHAT THE PAIN COSTS THEM.
+const NAMES_A_COST = new RegExp([
+  // money
+  '\\$[\\d,]+', '\\bdollars?\\b', 'five.figure', '\\ba (?:year|month|week)\\b',
+  '\\bper (?:job|call|week|month|year|visit|patient|unit)\\b', '\\bfee\\b', '\\brate\\b',
+  '\\bbilled?\\b', '\\bbilling\\b', '\\binvoice', '\\bpaid\\b', '\\bpaying\\b', '\\bmoney\\b', '\\brevenue\\b',
+  // hours
+  '\\bhours?\\b', '\\bminutes?\\b', '\\ball day\\b', '\\bthe week\\b', '\\bevenings?\\b',
+  '\\ba full day\\b', '\\bhalf a day\\b',
+  // SOMEBODY OR SOMETHING LOST. Kept deliberately wide, because a narrow
+  // version rejected "the ones nobody gets back to have already rented
+  // somewhere else" — plainly a customer lost, and a test caught it before it
+  // could throw away good sentences in production (2026-09-07).
+  '\\bsomewhere else\\b', '\\bsomebody else\\b', '\\bsomeone else\\b', '\\belsewhere\\b',
+  '\\bthe next (?:firm|shop|one|practice|agency|caller|guy|place)\\b', '\\bdown the road\\b',
+  '\\balready (?:booked|reserved|called|found|rented|hired|signed|gone|bought)\\b',
+  'never (?:comes? back|hears? back|gets? read|starts?|answers?|made it|turned into|calls? back)',
+  'sits? (?:empty|unpaid|open|idle|there|unrenewed|unsold)',
+  '\\blose\\b', '\\blost\\b', '\\blosing\\b', '\\bgone for good\\b',
+  '\\bvoicemail\\b', '\\bnot (?:earning|billable|moving|booked|filled)\\b',
+  '(?:does not|doesn\'t|do not|don\'t) (?:call back|come back|book|answer|hear)',
+  '\\bwent (?:to|with|somewhere|elsewhere)\\b',
+  '\\b(?:books?|booked|rents?|rented|orders?|ordered|hires?|hired|goes|go|went) (?:with|to|somewhere)\\b',
+].join('|'), 'i');
+
+// Software a business runs, quoted back at a stranger in a first email. It
+// reads as surveillance and it is already a standing rule for cold messages.
+// Nine letters in the ready pile named one (2026-09-07).
+const NAMES_THEIR_SOFTWARE = /\b(QuickBooks|Xero|Sage|FreshBooks|Salesforce|HubSpot|ServiceTitan|Jobber|Housecall|Mindbody|Shopify|Toast|Dentrix|Eaglesoft|Open ?Dental|Clio|MyCase|Yardi|AppFolio|Buildium|Procore|Mailchimp|Calendly|Acuity|Square)\b/i;
+
 // A promise of time back does not belong in this sentence. The library's
 // hours figures order the areas internally, and the one thing the library
 // says about them out loud is that an unverified figure (source: null) may
@@ -501,6 +542,42 @@ function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
     }
   }
   if (ABOUT_THE_READER.test(s)) return { ok: false, why: 'a clause about who the reader is' };
+
+  // THE THREE RULES THAT ACTUALLY DECIDE WHETHER HE WOULD SEND IT.
+  //
+  // Everything above this line is taste — length, dashes, stiffness. None of
+  // it caught what Russ found by reading one letter on 2026-09-07: no cost
+  // named, wording he had replaced three days earlier, and a client's own
+  // software quoted back at them in a cold email. 297 of 381 letters in the
+  // ready pile were wrong and every count said they were fine, because the
+  // counts read the records and never opened the letter.
+  //
+  // A judge that does not test the thing that matters is not a judge. These
+  // three send the sentence back to be written again.
+
+  // 1. IT HAS TO SAY WHAT THE WORK COSTS. Money, hours, or a named thing lost:
+  // the caller who rang somebody else, the slot that stayed empty, the invoice
+  // that sat. "It is the same questions every time" is only busyness, and
+  // busyness is what a good business feels like — it does not sell.
+  if (!NAMES_A_COST.test(s)) {
+    return { ok: false, why: 'never says what the work COSTS them — name the money, the hours, or who went elsewhere, not the busyness' };
+  }
+
+  // 2. IT NEVER PRESUMES (Russ, 2026-09-05: "Stop making presumptions like
+  // 'most'. try 'some'."). He is writing to one business, not a survey.
+  const presumes = s.match(/\b(most|mostly|usually|typically|generally|always|every business|everyone)\b/i);
+  if (presumes) {
+    return { ok: false, why: `presumes with "${presumes[0]}" — say "some", or say nothing about what others do` };
+  }
+
+  // 3. IT NEVER NAMES THEIR OWN SOFTWARE BACK AT THEM. Reading a stranger's
+  // tools off their site and quoting them in a first email reads as surveillance,
+  // and it is already a standing rule for cold messages. Nine letters did it.
+  const theirs = s.match(NAMES_THEIR_SOFTWARE);
+  if (theirs) {
+    return { ok: false, why: `names their own software ("${theirs[0]}") in a cold message — nod to what they run without naming it` };
+  }
+
   // Two businesses in one trade never get the same sentence.
   const mine = normalise(s);
   if (avoid.some((a) => normalise(a) === mine)) {

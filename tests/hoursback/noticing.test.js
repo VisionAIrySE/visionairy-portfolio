@@ -74,7 +74,14 @@ const EVIDENCE = {
   pages: PAGES,
 };
 
-const GOOD_SENTENCE = 'Every client organizer still arrives on paper, and somebody in your office types it in before the return can start.';
+// THE EXAMPLE HAS TO PASS THE RULES IT IS TESTING AGAINST.
+//
+// This used to end at "before the return can start" — true, grounded, and
+// naming no cost at all. That is the busyness Russ rejected in capitals twice,
+// and the judge now refuses it, so every test leaning on this example was
+// asserting that a sentence he would never send is acceptable. It now ends on
+// what the work costs, which is what the letter is for (2026-09-07).
+const GOOD_SENTENCE = 'Every client organizer still arrives on paper, and somebody types it in before the return can start, so that is an hour spent typing instead of on a return you would bill.';
 const GOOD_QUOTE = 'download our client organizer, print it, and mail or fax it to our office';
 
 // The three-call script: FIND the areas, check RECURRENCE, WRITE the passage.
@@ -220,15 +227,15 @@ test('the role changes the write prompt', () => {
 });
 
 test("a sentence naming the reader's job title is rejected", () => {
-  const bad = 'Your office manager retypes every client organizer that arrives by fax.';
+  const bad = 'Your office manager retypes every client organizer that arrives by fax, an hour a day off the billable work.';
   assert.equal(N.passable(bad, { roleTitle: 'Office Manager' }).ok, false);
-  const alsoBad = 'As the owner you spend evenings retyping client organizers into the file.';
+  const alsoBad = 'As the owner you spend evenings retyping client organizers into the file, hours that never reach a return.';
   assert.equal(N.passable(alsoBad, { roleTitle: 'Owner' }).ok, false);
   assert.equal(N.passable(GOOD_SENTENCE, { roleTitle: 'Office Manager' }).ok, true);
 });
 
 test('a reader that keeps naming the role ends in could_not_tell, never a sent clause', async () => {
-  const naming = { sentence: 'Your office manager retypes every organizer that arrives by fax or mail.', sure: 0.9 };
+  const naming = { sentence: 'Your office manager retypes every organizer that arrives by fax, an hour a day that never reaches a return.', sure: 0.9 };
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, naming, naming]);
   const res = await N.askForNoticing({ evidence: EVIDENCE, roleTitle: 'Office Manager', ask });
   assert.ok(res.couldNotTell);
@@ -265,7 +272,7 @@ test('a sentence already written to another firm in the trade is refused', async
 
 test('a rewrite that says something different is accepted', async () => {
   const different = {
-    sentence: 'Getting started with you still means printing the organizer and faxing it back, so tax season opens with paper.',
+    sentence: 'Getting started with you still means printing the organizer and faxing it back, and the ones who never post it back are returns that never start.',
     sure: 0.85,
   };
   const ask = stubReader([FIND_CHASE, RECUR_ONE_YES, WRITE_GOOD, different]);
@@ -274,7 +281,7 @@ test('a rewrite that says something different is accepted', async () => {
 });
 
 test('punctuation and case differences are still the same sentence', () => {
-  const dressedUp = 'Every client organizer STILL arrives on paper — and somebody in your office types it in before the return can start.';
+  const dressedUp = 'Every client organizer STILL arrives on paper — and somebody types it in before the return can start, so that is an hour spent typing instead of on a return you would bill.';
   assert.equal(N.normalise(dressedUp.replace('—', '')), N.normalise(GOOD_SENTENCE.replace(',', '')));
   assert.equal(N.passable(GOOD_SENTENCE, { avoid: [GOOD_SENTENCE.toUpperCase()] }).ok, false);
 });
@@ -420,7 +427,7 @@ test('an off-menu answer mapped properly on the second try goes on', async () =>
   };
   const recur = { verdicts: [{ recurs: 'yes', why: 'a claim for every damaged shipment, the same chase each time', plainly: 0.8 }] };
   const write = {
-    sentence: 'When a shipment gets damaged, you are the one filing the carrier claim and keeping the customer posted until it settles.',
+    sentence: 'When a shipment gets damaged, you are the one filing the carrier claim and keeping the customer posted until it settles, and until it does the money sits with the carrier.',
     sure: 0.85,
   };
   const res = await N.askForNoticing({ evidence: SHIPPING_EVIDENCE, ask: stubReader([offMenu, claims, recur, write]) });
@@ -440,7 +447,7 @@ test('a repeated phone job PASSES: being on the phone with customers is not disq
   };
   const recur = { verdicts: [{ recurs: 'yes', why: 'all day long, the same tracking question', plainly: 0.9 }] };
   const write = {
-    sentence: 'The tracking questions come in all day, and somebody at your counter answers every one of them.',
+    sentence: 'The tracking questions come in all day, and somebody at your counter answers every one while the customer at the desk waits.',
     sure: 0.85,
   };
   const res = await N.askForNoticing({ evidence: SHIPPING_EVIDENCE, ask: stubReader([phones, recur, write]) });
@@ -601,7 +608,7 @@ test('four areas qualify: all are recorded and ranked, and the two highest-ranke
     ],
   };
   const write = {
-    sentence: 'Half of tax season opens with chasing the organizers clients swear they already sent. When the paper finally lands, somebody in your office still types it all in before the return can start.',
+    sentence: 'Tax season opens with chasing the organizers clients swear they already sent, and the ones who never send them are returns that never start. When the paper finally lands, somebody still types it all in, an hour a day off the billable work.',
     sure: 0.85,
   };
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask: stubReader([four, verdicts, write]) });
@@ -755,7 +762,7 @@ const RECUR_PM = { verdicts: [{ recurs: 'yes', why: 'two hundred rentals means t
 
 test('a business with a portal is never pitched portal work: the covered passage is refused', async () => {
   const pitching = {
-    sentence: 'Tenant questions about rent and repairs still land on you every single day.',
+    sentence: 'Tenant questions about rent and repairs still land on you every single day, and each hour on them is an hour not spent filling the empty unit.',
     sure: 0.9,
   };
   const covered = {
@@ -799,7 +806,7 @@ test('a job that is call-fielding AND something else is still call-fielding: the
 
 test('the sentence that nods to the portal and steps past it stands', async () => {
   const stepsPast = {
-    sentence: 'When a tenant needs something routine, the portal takes it. It is the renters calling to ask what you have open that still land on you.',
+    sentence: 'When a tenant needs something routine, the portal takes it. It is the renters calling to ask what you have open that still land on you, and the one who cannot get through has already rented elsewhere.',
     sure: 0.85,
   };
   const res = await N.askForNoticing({ evidence: PM_EVIDENCE, ask: stubReader([FIND_PM, RECUR_PM, stepsPast]) });
@@ -852,7 +859,7 @@ test('two genuinely different jobs stand together, each on its own words', async
     ],
   };
   const write = {
-    sentence: 'Half of tax season opens with chasing the organizers clients swear they already sent. When the paper finally lands, somebody in your office still types it all in before the return can start.',
+    sentence: 'Tax season opens with chasing the organizers clients swear they already sent, and the ones who never send them are returns that never start. When the paper finally lands, somebody still types it all in, an hour a day off the billable work.',
     sure: 0.85,
   };
   const res = await N.askForNoticing({ evidence: EVIDENCE, ask: stubReader([both, verdicts, write]) });
@@ -1026,8 +1033,8 @@ const FIND_LEADS = {
 const RECUR_LEADS = { verdicts: [{ recurs: 'yes', why: 'enquiries come through the office line every day', plainly: 0.85 }] };
 
 test('work belonging to the business stands beside a named person, and the passage never names them', async () => {
-  const namesCole = { sentence: 'Cole Conroy chases every rental enquiry that comes through your office line.', sure: 0.9 };
-  const aboutTheBusiness = { sentence: 'Every rental enquiry comes through the office line, and somebody there has to get back to each one the same day.', sure: 0.85 };
+  const namesCole = { sentence: 'Cole Conroy chases every rental enquiry through your office line, and the ones he misses rent elsewhere.', sure: 0.9 };
+  const aboutTheBusiness = { sentence: 'Every rental enquiry comes through the office line, and the ones nobody gets back to the same day have already rented somewhere else.', sure: 0.85 };
   const ask = stubReader([FIND_LEADS, RECUR_LEADS, namesCole, aboutTheBusiness]);
   const res = await N.askForNoticing({ evidence: OBSIDIAN_EVIDENCE, roleTitle: 'Principal Broker', ask });
   assert.equal(res.sentence, aboutTheBusiness.sentence);

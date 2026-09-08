@@ -60,11 +60,26 @@ const WHO_I_AM = [
 // What it does, and why it earns its place: it hands them the exit BEFORE
 // they take it themselves, and then says the exit does not save them. That is
 // the move. Never cut it again.
+// ONE REWRITE HAS TO REACH ALL FOUR (2026-09-07).
+//
+// Russ rewrote this line on 4 September to stop it presuming — "stop making
+// presumptions like 'most', try 'some'". His wording went into ONE of the four
+// versions below and the other three kept saying "Most". A version is picked
+// per business, so three businesses in four still got the wording he had
+// replaced: 297 of the 381 letters ready to send.
+//
+// He found it by reading a letter. Nothing in the code noticed, because every
+// check asked the records whether a letter had been regenerated and none of
+// them opened the letter and read it. scripts/hoursback/check-the-letters.cjs
+// exists now and does exactly that.
+//
+// So: all four say "some". None of them presumes. Changing one of these again
+// means changing all four, or the same fault comes back.
 const ALREADY_HANDLED = [
-  'Some {they} may have that task handled. Most have three or four more jobs of the same kind still eating the week.',
-  'Some {they} will have that one solved already. Most have three or four other tasks that repeat exactly the same way.',
   'Some {they} may have that one covered by now, but still have three or four other repetitive jobs costing them the same hours.',   // Russ, 2026-09-04
-  'You may well have that one handled. Most {they} have three or four more tasks that quietly take the same time.',
+  'Some {they} will have that one solved already, and are still losing the same hours to three or four jobs that repeat exactly the same way.',
+  'You may well have that one handled. Some who do still have three or four more like it quietly taking the same hours every week.',
+  'Some {they} have that one sorted by now. The three or four jobs sitting behind it cost them the same hours all the same.',
 ];
 
 // WHAT IS ACTUALLY TRUE (Russ, 2026-09-03).
