@@ -19,8 +19,16 @@ const DO_IT = process.argv.includes('--do-it');
 
 // The paragraph naming their work: not the greeting, the who-I-am lines, the
 // offer, or the sign-off.
+// A LETTER RUSS TYPED HIMSELF MAY NOT HAVE BLANK LINES BETWEEN PARAGRAPHS.
+// Splitting only on blank lines returned his whole Bryant, Lovlien letter as
+// one block, so nothing could be judged and a perfectly good letter was
+// reported as having no paragraph at all (2026-09-08). Fall back to single
+// line breaks when that happens.
 function theirParagraph(body) {
-  return String(body || '').split('\n\n').find((t) => t.length > 120
+  const text = String(body || '');
+  let blocks = text.split('\n\n');
+  if (blocks.length <= 1) blocks = text.split('\n');
+  return blocks.find((t) => t.length > 120
     && !/^Hi |sat in the offices|local to Central Oregon|Fifteen minutes|no charge for the review|Best regards/i.test(t.trim())) || '';
 }
 
