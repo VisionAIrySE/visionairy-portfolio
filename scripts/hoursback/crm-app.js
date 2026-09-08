@@ -943,7 +943,7 @@ async function emailScreen(params) {
   if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
   if (review === 'readthrough') Object.assign(prospectWhere, WAS_READ_RIGHT_THROUGH);
 
-  const [left, ready, sent, batch] = await Promise.all([
+  const [left, ready, sent, batch, waitingAllTold, queuedAllTold] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
       where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: prospectWhere },
@@ -962,6 +962,17 @@ async function emailScreen(params) {
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
+    // THE COUNT ON SCREEN SHOWED THE PAGE SIZE, NOT THE PILE (2026-09-08).
+    //
+    // The list is shown 25 at a time, and "written and waiting" was counting
+    // the rows on this page — so it read 25 whether he had 25 letters or 336.
+    // Russ asked why it said 25 when the queue held 336. It was never a total.
+    db.outreachMessage.count({
+      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false } },
+    }),
+    db.outreachMessage.count({
+      where: { lane: 'EMAIL', state: 'QUEUED', openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false } },
+    }),
   ]);
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
   // steady until a refresh, otherwise I never get through them").
@@ -1000,17 +1011,26 @@ async function emailScreen(params) {
   });
 
   const sample = ready[0] || await db.outreachMessage.findFirst({ where: { lane: 'EMAIL' }, orderBy: { createdAt: 'desc' } });
-  const wording = `<h2>The message</h2>
-  <p class="muted">This is a real one, exactly as it will land. Every business gets this wording with only their own name and what was found on their site changed.</p>
-  ${approved
-    ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">Approved ${new Date(template.approvedAt).toLocaleDateString()} by ${esc(template.approvedBy)} — version ${template.version}. Change a word and it needs approving again.</div>`
-    : drifted
-      ? '<div class="card warn"><b>The message has changed since you approved it.</b> What you approved is no longer what would go out. Read the wording below and approve it again — nothing sends until you do.</div>'
-      : '<div class="card warn"><b>Not approved yet.</b> Nothing can be sent until you read this and approve it.</div>'}
-  <pre class="msg">${esc(sample ? sample.body : TEMPLATE_BODY)}</pre>
-  <form method="POST" action="/email/approve"><button class="${approved ? '' : 'primary'}">${approved
-    ? 'Approve it again' : drifted ? "I've read the new wording — approve it" : "I've read it — approve it"}</button></form>
-  <p class="mini">The button never goes away. Approve again any time you want the record to say you have read what is going out now.</p>`;
+  // THE SAMPLE LETTER IS GONE (Russ, 2026-09-08: "If I am not using these
+  // sections, remove them").
+  //
+  // It showed one letter and said "this is a real one, exactly as it will
+  // land. Every business gets this wording" — true when every letter was the
+  // same template. Each letter now names that business's own two jobs and what
+  // each costs them, so a single sample is not what lands anywhere, and
+  // showing it as if it were is a lie on the screen he works from.
+  //
+  // What is kept is the gate underneath it: nothing sends until the wording
+  // has been approved once. It only appears when approval is MISSING, so on a
+  // normal day he never sees it — and on the day the wording drifts far enough
+  // to lose approval, sending would silently stop, and this is what tells him
+  // why.
+  const wording = approved ? '' : `<div class="card warn">
+    <b>${drifted ? 'The wording has changed since you approved it.' : 'Not approved yet.'}</b>
+    Nothing can be sent until you approve it. The letters themselves are the ones you tick below.
+    <form method="POST" action="/email/approve" style="margin-top:8px">
+      <button class="primary">${drifted ? "I've read the new wording — approve it" : "I've read it — approve it"}</button>
+    </form></div>`;
 
   // NOT THIS ONE. Until now the only ways off this screen were to tick it for
   // sending or to open the account and archive the whole business (Russ,
@@ -1056,9 +1076,10 @@ async function emailScreen(params) {
   ${justSent !== null ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(justSent)} sent.</b> ${esc(params.get('why') || '')}</div>` : ''}
   <div class="score">
     <div><b>${reachable}</b>reachable by email</div>
-    <div><b>${ready.length}</b>written and waiting</div>
+    <div><b>${queuedAllTold}</b>ready to send<br><span class="muted">ticked and waiting on you</span></div>
+    <div><b>${waitingAllTold}</b>written all told<br><span class="muted">showing ${ready.length} on this page</span></div>
     <div><b>${sent}</b>sent so far</div>
-    <div><b>${left}</b>allowed today<br><span class="muted">week ${weeks} of the ramp</span></div>
+    <div><b>${left >= Number.MAX_SAFE_INTEGER ? 'no limit' : left}</b>allowed today<br><span class="muted">${left >= Number.MAX_SAFE_INTEGER ? 'the daily cap is off' : `week ${weeks} of the ramp`}</span></div>
   </div>
   ${wording}
   ${batch.length ? `<h2>After-call follow-ups waiting (${batch.length})</h2>
@@ -1129,7 +1150,7 @@ async function emailScreen(params) {
     <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
   </p>
   <p class="mini">"Send one to me" posts a real message to russ@visionairy.biz and nowhere else. It proves the sending key on this site works before a single prospect hears from you.</p>
-  <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go, never passes today's ${L.dailyEmailCap(weeks)}, and refuses entirely without an approved message.</p>
+  <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go${L.dailyEmailCap(weeks) >= Number.MAX_SAFE_INTEGER ? '' : `, never passes today's ${L.dailyEmailCap(weeks)}`}, and refuses entirely without an approved message.</p>
   ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
 
@@ -1469,10 +1490,16 @@ async function businessCard(id, saved) {
         ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
       <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
       <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
-      <div style="grid-column:1/-1"><label>What they do, in the email</label>
+      <!-- THE LABEL WAS A LIE (Russ, 2026-09-08). It said "in the email", and
+           this text stopped going into the email when every letter started
+           naming that business's own two jobs. It is NOT dead, though: it is
+           handed to the reader that works out which repetitive jobs to name,
+           so a wrong description here still produces a wrong letter. Renamed
+           to what it actually does rather than deleted. -->
+      <div style="grid-column:1/-1"><label>What they do (shapes which work gets named)</label>
         <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
         ${workProblem ? `<div class="was" style="color:#b91c1c"><b>Not being used:</b> ${esc(workProblem)}</div>` : ''}
-        <div class="was">Goes into the message as &ldquo;You ${esc(p.theirWork) || '&hellip;'}, so I'd guess&hellip;&rdquo;. Read off their own site. Leave it empty and the message falls back to their industry, which is always safe.</div></div>
+        <div class="was">Not printed in the letter. It is what the reader is told this business does, so it decides which repetitive jobs get named. Wrong here means a wrong letter.</div></div>
       <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
       <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
         <option value="">unknown</option>
