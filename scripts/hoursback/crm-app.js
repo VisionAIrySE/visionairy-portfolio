@@ -955,9 +955,16 @@ async function emailScreen(params) {
       // Russ, 2026-08-31: "It seems random and no score is shown." The score
       // was shown; the top four had a dash where the number goes.
       //
-      // Not yet lined up comes before already lined up, because the ones
-      // waiting on him are the ones he came here to deal with.
-      orderBy: [{ state: 'asc' }, { prospect: { automationScore: { sort: 'desc', nulls: 'last' } } }],
+      // HIGHEST SCORE FIRST, WHATEVER ITS STATE (Russ, 2026-09-08).
+      //
+      // This used to put not-yet-ticked letters above ticked ones, from when
+      // most were waiting on him to work through. Now 336 of 337 are ticked
+      // and ready, so that only pushed the single leftover draft to the top of
+      // the pile and buried the best business on the list.
+      //
+      // A business with no score still sorts last: four unscored ones once sat
+      // above every 100 and the whole screen read as random.
+      orderBy: [{ prospect: { automationScore: { sort: 'desc', nulls: 'last' } } }],
       take: 25,
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
