@@ -676,8 +676,30 @@ async function sendQueuedEmails(db, options = {}) {
 }
 
 // The only place that talks to the outside world.
+function senderAddressIsValid(from) {
+  const value = String(from || '').trim();
+  if (!value || /:\/\//.test(value)) return false;
+  const address = (value.match(/<([^<>]+)>\s*$/) || [null, value])[1];
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address);
+}
+
+function safeProviderReason(body) {
+  return String(body || '')
+    .replace(/(?:postgres(?:ql)?|https?):\/\/[^\s"']+/gi, '[redacted URL]')
+    .replace(/Bearer\s+[^\s"']+/gi, 'Bearer [redacted]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
+}
+
 function defaultSender(key) {
   return async ({ from, to, subject, html, text, idempotencyKey }) => {
+    if (!senderAddressIsValid(from)) {
+      const error = new Error('invalid email sender configuration — nothing was sent');
+      error.code = 'INVALID_EMAIL_SENDER';
+      error.definitelyNotSent = true;
+      throw error;
+    }
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json',
@@ -686,7 +708,9 @@ function defaultSender(key) {
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {
-      const error = new Error(`send refused: ${res.status}`);
+      let detail = '';
+      try { detail = safeProviderReason(await res.text()); } catch (_) { /* status is still useful */ }
+      const error = new Error(`send refused: ${res.status}${detail ? ` — ${detail}` : ''}`);
       error.definitelyNotSent = true;
       throw error;
     }
@@ -739,7 +763,7 @@ async function noteForOnePerson(db, contactId) {
 module.exports = {
   LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP, MAX_PER_RUN,
   FOLLOW_UP_DAYS, touchDue, queueNextTouch, queueDueTouches,
-  sendQueuedEmails, defaultSender,
+  sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
   signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, nextUnwrittenPerson,

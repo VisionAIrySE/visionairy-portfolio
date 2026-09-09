@@ -3655,6 +3655,47 @@ def('email_sends_without_a_click', async () => {
     : JSON.stringify({ scheduled, stayedOff, defaultOff, firstRunIsFive, boundedInOrder, exits, calls }) };
 }, 'linkedin');
 
+def('a_database_address_can_never_be_used_as_the_email_sender', async () => {
+  const { defaultSender, senderAddressIsValid } = require(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+  let providerCalls = 0;
+  const originalFetch = global.fetch;
+  global.fetch = async () => { providerCalls += 1; return { ok: true, json: async () => ({ id: 'should-not-send' }) }; };
+  let refused = null;
+  try {
+    await defaultSender('test-key')({
+      from: 'postgresql://user:password@example.test/database', to: 'reader@example.test',
+      subject: 'Test', html: '<p>Test</p>', text: 'Test', idempotencyKey: 'bad-from-test',
+    });
+  } catch (error) { refused = error; }
+  finally { global.fetch = originalFetch; }
+  const validDisplayName = senderAddressIsValid('Russ Wright <russ@visionairy.biz>');
+  const ok = providerCalls === 0 && validDisplayName && refused
+    && refused.code === 'INVALID_EMAIL_SENDER' && refused.definitelyNotSent === true;
+  return { ok, detail: ok
+    ? 'a database address is refused before any request reaches the email provider'
+    : JSON.stringify({ providerCalls, validDisplayName, code: refused && refused.code }) };
+}, 'linkedin');
+
+def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () => {
+  const { dailySendRun } = require(path.join(ROOT, 'src/hoursback/crm/scheduler.js'));
+  const fakeLanes = {
+    MAX_PER_RUN: 5,
+    queueDueTouches: async () => ({ first: 5, second: 0, third: 0 }),
+    sendQueuedEmails: async () => ({ attempted: 5, sent: 5, failed: 0, blocked: 0, unconfirmed: 0,
+      recovered: 0, stoppedBecause: 'the queue ran out' }),
+  };
+  const result = await dailySendRun({}, {
+    lanes: fakeLanes, customerEmailEnabled: true, limit: 5, apiKey: 'test-key',
+    from: 'Russ Wright <russ@visionairy.biz>', reportTo: 'russ@example.test',
+    reportSend: async () => { throw new Error('summary refused'); },
+  });
+  const ok = result.delivery.sent === 5 && result.report.sent === false
+    && result.report.reason === 'summary refused';
+  return { ok, detail: ok
+    ? 'the customer result is returned even when the separate summary email fails'
+    : JSON.stringify(result) };
+}, 'linkedin');
+
 // Sentences that are individually true and collectively wrong.
 //
 // Every item in "the report names the tools, how to put them in, and at least

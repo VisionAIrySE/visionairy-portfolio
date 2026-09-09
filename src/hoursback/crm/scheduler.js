@@ -51,15 +51,19 @@ async function dailySendRun(db, options = {}) {
       `Needs checking: ${delivery.unconfirmed || 0}`,
       `Run ended because: ${delivery.stoppedBecause || 'complete'}`,
     ];
-    await sendReport({
-      from,
-      to: reportTo,
-      subject: `Hours Back email run: ${delivery.sent || 0} sent`,
-      html: lines.map((line) => `<p>${line}</p>`).join(''),
-      text: lines.join('\n'),
-      idempotencyKey: `hoursback-run-${now.toISOString().slice(0, 10)}`,
-    });
-    report.sent = true;
+    try {
+      await sendReport({
+        from,
+        to: reportTo,
+        subject: `Hours Back email run: ${delivery.sent || 0} sent`,
+        html: lines.map((line) => `<p>${line}</p>`).join(''),
+        text: lines.join('\n'),
+        idempotencyKey: `hoursback-run-${now.toISOString().slice(0, 10)}`,
+      });
+      report.sent = true;
+    } catch (error) {
+      report.reason = String(error && error.message || error).slice(0, 500);
+    }
   }
   return { queued, delivery, report };
 }
