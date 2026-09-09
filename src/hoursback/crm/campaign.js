@@ -300,6 +300,11 @@ const TRADES = {
     they: 'places', task: 'the copying', hook: 'bookings copied into one calendar by hand',
     firstLook: 'the calendar. There are tools now that land every booking in one place on their own, whichever channel it came from',
   },
+  'funeral & memorial': {
+    week: 'At most funeral homes the same family details get written out by hand on a dozen different forms.',
+    they: 'funeral homes', task: 'the paperwork', hook: 'the same family details written on a dozen forms',
+    firstLook: "the arrangements paperwork. There are tools now that enter the family's details once and fill every form after that",
+  },
   other: {
     week: 'At most small offices the same information gets typed into two or three places by somebody whose actual job is something else.',
     they: 'offices', task: 'the typing', hook: 'the same details typed in two or three places',
@@ -481,6 +486,7 @@ const TRADE_WORD = {
   'personal care': 'a salon or studio', 'fitness & recreation': 'a gym or studio',
   'professional services': 'a firm like yours', 'nonprofit & community': 'a nonprofit',
   'education & childcare': 'a preschool or daycare', 'lodging & hospitality': 'a place like yours',
+  'funeral & memorial': 'a funeral home',
   other: 'a small office',
 };
 function tradeWordFor(trade) { return TRADE_WORD[String(trade || '').toLowerCase()] || TRADE_WORD.other; }

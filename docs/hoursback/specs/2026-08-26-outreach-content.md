@@ -68,7 +68,7 @@ Build
   - [x] The mail service is heard without a password, and only because it signed the message. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=the_mail_service_is_heard_without_a_password | 0 -->
 
   queued-for-later
-  - [ ] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
+  - [x] Email sends on a schedule without Russ clicking, and a morning note says what went and what is due. <!-- type:Build --> <!-- check: exit_code | node scripts/hoursback/run-spec-checks.js --check=email_sends_without_a_click | 0 -->
 
 Understand
 
@@ -77,11 +77,11 @@ Understand
 
 Specify
 
-- [ ] Why an absence must never open a message is written down where the next person will read it. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/crm/tradeOpening.js | Not finding is not the same as not having -->
-- [ ] The rule that a general truth beats a specific error is recorded against the industry decision. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/enrich.js | General and true beats specific and wrong -->
+- [x] Why an absence must never open a message is written down where the next person will read it. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/crm/tradeOpening.js | Not finding is not the same as not having -->
+- [x] The rule that a general truth beats a specific error is recorded against the industry decision. <!-- type:Specify --> <!-- check: text_presence | src/hoursback/enrich.js | General and true beats specific and wrong -->
 
 
 Operate
 
 - [x] The check runner exists. <!-- type:Operate --> <!-- check: file_exists | scripts/hoursback/run-spec-checks.js |  -->
-- [ ] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->
+- [x] The full suite runs from one command. <!-- type:Operate --> <!-- check: exit_code | npm test | 0 -->

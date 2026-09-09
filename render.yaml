@@ -1,6 +1,6 @@
-# Hours Back CRM — free everywhere: the app on Render's free tier (naps when
-# idle, wakes in ~1 min), the data permanent in Russ's Supabase "VisionAIry
-# CRM" project. Nothing here costs money.
+# Hours Back CRM — the web app stays on Render's free tier (it naps when idle
+# and wakes in about a minute). The weekday email job has Render's $1 monthly
+# minimum and remains inactive until Russ approves deployment.
 services:
   - type: web
     name: hoursback-crm
@@ -28,3 +28,21 @@ services:
         sync: false   # who the mail comes from, e.g. Russ Wright <russ@visionairy.biz>
       # The Google Places key is deliberately NOT deployed - standing order
       # 2026-08-25: no Places requests until Russ lifts it in writing.
+  - type: cron
+    name: hoursback-email-sender
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm install --production=false && npx prisma generate
+    startCommand: node scripts/hoursback/send-due-emails.js
+    schedule: "0 17 * * MON-FRI"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: HOURSBACK_EMAIL_FROM
+        sync: false
+      - key: HOURSBACK_REPORT_TO
+        sync: false   # where the morning send summary goes

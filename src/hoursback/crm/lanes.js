@@ -17,10 +17,12 @@ const crypto = require('crypto');
 // what Russ expected all along.
 function wordingFingerprint() {
   const V = require('./variants.js');
+  const C = require('./campaign.js');
   const { CREDIBILITY, SUBJECTS, OPENERS, TRADE_FOLLOW_ONS } = require('./firstContact.js');
   const everything = JSON.stringify([
     BODY, V.OPENINGS, V.WHAT_I_DO, V.GUARANTEE, V.YEAR_FRAMING, V.CLOSES,
     V.TELL_WORDINGS, V.PRICE_FRAMING, CREDIBILITY, SUBJECTS, OPENERS, TRADE_FOLLOW_ONS,
+    C.WHO_I_AM, C.WHY_ME, C.THE_OFFER, C.ALREADY_HANDLED, C.TRADES,
   ]);
   return crypto.createHash('sha256').update(everything).digest('hex').slice(0, 16);
 }
