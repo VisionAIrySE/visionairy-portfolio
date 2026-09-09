@@ -496,7 +496,24 @@ function normalise(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
+// WHICH RULES BELONG TO WHICH MESSAGE (2026-09-08).
+//
+// Two of the rules below are the FIRST message's, not every message's:
+//
+//   a question — banned because a question to a stranger who has never heard
+//     of you reads as a trick. The day-eight message exists to ask one plain
+//     question, and judging it by the first message's rule flagged the only
+//     message doing exactly what it was told.
+//   a cost     — required because a message that only says they are busy does
+//     not sell. The day-fourteen sign-off has nothing left to sell, so it
+//     carries no cost on purpose.
+//
+// They are options here rather than a second copy of the rules somewhere else.
+// Five separate judges is what let a letter break four rules on the screen for
+// days; there is one now, and it is told which message it is reading.
+function passable(sentence, {
+  roleTitle = null, avoid = [], jobs = [], allowQuestion = false, needsCost = true,
+} = {}) {
   const s = String(sentence || '').trim();
   // Two jobs earn a little more room — two or three short sentences, never a
   // paragraph (Russ, 2026-09-02: "I don't see a reason to not say two
@@ -513,10 +530,16 @@ function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
         : 'longer than the slot it fills — this is one sentence, not a paragraph',
     };
   }
-  if (/[!?]/.test(s)) return { ok: false, why: 'an exclamation or a question — the voice allows neither' };
+  if (/!/.test(s)) return { ok: false, why: 'an exclamation mark — the voice does not allow one' };
+  if (!allowQuestion && /\?/.test(s)) return { ok: false, why: 'a question — the first message does not ask one' };
   if (/[—–]/.test(s)) return { ok: false, why: 'a dash — the voice rules say no dashes' };
   if (/[{}<>]/.test(s)) return { ok: false, why: 'placeholder braces' };
-  if (!/\.$/.test(s)) return { ok: false, why: 'does not end with a period' };
+  // A message allowed to ask a question is allowed to end on one. Without
+  // this, every day-eight message failed for ending the way it was told to
+  // (2026-09-08): 59 of 60 of them, all correct.
+  if (!(allowQuestion ? /[.?]$/ : /\.$/).test(s)) {
+    return { ok: false, why: allowQuestion ? 'does not end with a period or a question mark' : 'does not end with a period' };
+  }
   const m = s.match(MARKETING);
   if (m) return { ok: false, why: `marketing language ("${m[0]}")` };
   // STIFF IS A FAILURE, NOT A STYLE (Russ, 2026-09-01).
@@ -559,7 +582,7 @@ function passable(sentence, { roleTitle = null, avoid = [], jobs = [] } = {}) {
   // the caller who rang somebody else, the slot that stayed empty, the invoice
   // that sat. "It is the same questions every time" is only busyness, and
   // busyness is what a good business feels like — it does not sell.
-  if (!NAMES_A_COST.test(s)) {
+  if (needsCost && !NAMES_A_COST.test(s)) {
     return { ok: false, why: 'never says what the work COSTS them — name the money, the hours, or who went elsewhere, not the busyness' };
   }
 

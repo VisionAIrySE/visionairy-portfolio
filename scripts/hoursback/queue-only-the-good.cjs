@@ -13,37 +13,21 @@
 //   node scripts/hoursback/queue-only-the-good.cjs           — what would change
 //   node scripts/hoursback/queue-only-the-good.cjs --do-it   — make it so
 const { PrismaClient } = require('@prisma/client');
-const N = require('../../src/hoursback/crm/noticing.js');
 const db = new PrismaClient();
 const DO_IT = process.argv.includes('--do-it');
 
-// The paragraph naming their work: not the greeting, the who-I-am lines, the
-// offer, or the sign-off.
-// A LETTER RUSS TYPED HIMSELF MAY NOT HAVE BLANK LINES BETWEEN PARAGRAPHS.
-// Splitting only on blank lines returned his whole Bryant, Lovlien letter as
-// one block, so nothing could be judged and a perfectly good letter was
-// reported as having no paragraph at all (2026-09-08). Fall back to single
-// line breaks when that happens.
-function theirParagraph(body) {
-  const text = String(body || '');
-  let blocks = text.split('\n\n');
-  if (blocks.length <= 1) blocks = text.split('\n');
-  return blocks.find((t) => t.length > 120
-    && !/^Hi |sat in the offices|local to Central Oregon|Fifteen minutes|no charge for the review|Best regards/i.test(t.trim())) || '';
-}
-
-// JUDGE THE SENTENCE, NOT THE FIXED LINE STUCK ON AFTER IT.
+// ONE JUDGE, NOT A SECOND COPY OF THE RULES (2026-09-08).
 //
-// The letter's paragraph is the written sentence PLUS the standing line about
-// three or four more jobs. The judge measures the written sentence — its
-// length, its sentence count — so handing it both made 139 perfectly good
-// letters fail on length alone. Cut the standing line off first.
-const THE_STANDING_LINE = /\b(?:Some\s+\S+[\s\S]{0,40}?|You may well )(?:may have|will have|have|do have|had)\b[\s\S]*$|\b(?:Some|Most|Plenty)[\s\S]{0,60}?three or four[\s\S]*$/i;
-function theSentenceOnly(paragraph) {
-  return String(paragraph || '').replace(THE_STANDING_LINE, '').trim();
-}
+// This kept its own idea of where a letter's written passage starts and ends,
+// its own way of cutting off Russ's standing line, and its own patch for the
+// invisible characters a browser puts in a letter he types himself. Three
+// other places kept their own versions of all three, and none of the four
+// agreed. judgeTheLetter is the only one now.
+const J = require('../../src/hoursback/crm/judgeTheLetter.js');
+const C = require('../../src/hoursback/crm/campaign.js');
 
 (async () => {
+  await C.loadHisWordings(db);
   const letters = await db.outreachMessage.findMany({
     // THE FIRST MESSAGE ONLY. Follow-ups are judged by their own rules when
     // they are written — a day-eight message asks a question and a day-fourteen
@@ -53,33 +37,48 @@ function theSentenceOnly(paragraph) {
       NOT: { openedWith: { startsWith: 'touch_' } },
       prospect: { doNotContact: false },
     },
-    include: { prospect: { select: { name: true, email: true, emailManualValue: true } } },
+    include: { prospect: { select: { name: true, email: true, emailManualValue: true, automationScore: true } } },
   });
 
   const good = []; const bad = [];
+  // NOBODY GETS THE SAME LETTER TWICE (Russ, 2026-09-08: "what about the lists
+  // of companies and the duplicates?").
+  //
+  // Six addresses on the reachable list belong to two business records each —
+  // BARTLETT EXCAVATION AND PAVING and Bartlett Excavation and Paving, 541
+  // PROPERTIES LLC and 541 PROPERTIES SALES & MANAGEMENT — the same firm
+  // entered twice, or two records that share a front desk. None of them are in
+  // the queue today. They would be the moment the pile grew, and the reader
+  // would get two cold letters from the same stranger in one morning.
+  //
+  // The better-scoring record keeps its place; the other goes back to being a
+  // draft with the reason on it. Nothing is deleted and no record is merged —
+  // deciding two businesses are one is Russ's call, not this script's.
+  const claimed = new Map();
+  const addressOf = (m) => String(m.prospect.email || m.prospect.emailManualValue || '').toLowerCase().trim();
   for (const m of letters) {
     const canSendTo = Boolean(m.prospect.email || m.prospect.emailManualValue);
-    const p = theirParagraph(m.body);
-    // The letter is judged by the SAME rules the writer applies. One place,
-    // one answer — that is the whole point.
-    // TWO JUDGEMENTS, BECAUSE THE PARAGRAPH IS TWO THINGS.
-    //
-    // The written sentence is judged by the full rules — length, cost, no
-    // presuming, no naming their software. The standing line after it is
-    // judged separately, against the wording Russ actually approved. Stripping
-    // the standing line before judging hid the biggest fault of all: 297
-    // letters still carry "Most have three or four", which he replaced on
-    // 4 September and which the customer reads whatever the writer intended.
-    const written = theSentenceOnly(p);
-    let verdict = written ? N.passable(written, { jobs: ['a', 'b'] }) : { ok: false, why: 'no paragraph naming their work' };
-    if (verdict.ok && /\b(most|mostly|usually|typically)\b/i.test(p)) {
-      verdict = { ok: false, why: 'carries the standing line Russ replaced on 4 September ("Most have three or four...")' };
+    // Judged by the rules that belong to this message, which for everything in
+    // this pile is the first message's — the queue holds day 0 only.
+    const verdict = J.judgeStored(m, { jobs: ['a', 'b'] });
+    if (!canSendTo || !verdict.ok) {
+      bad.push({ m, why: canSendTo ? verdict.why : 'no email address to send to' });
+      continue;
     }
-    if (verdict.ok && /\bPlenty of\b/i.test(p)) {
-      verdict = { ok: false, why: 'carries the "Plenty of" wording Russ rejected' };
+    const where = addressOf(m);
+    const held = claimed.get(where);
+    if (!held) { claimed.set(where, m); good.push(m); continue; }
+    // Two good letters, one address. Keep the higher score.
+    const mine = m.prospect.automationScore || 0;
+    const theirs = held.prospect.automationScore || 0;
+    const loser = mine > theirs ? held : m;
+    const winner = mine > theirs ? m : held;
+    if (loser === held) {
+      good.splice(good.indexOf(held), 1);
+      claimed.set(where, m);
+      good.push(m);
     }
-    if (canSendTo && verdict.ok) good.push(m);
-    else bad.push({ m, why: canSendTo ? verdict.why : 'no email address to send to' });
+    bad.push({ m: loser, why: `${where} is already being written to as ${winner.prospect.name} — the same address twice in one morning` });
   }
 
   const alreadyQueued = letters.filter((m) => m.state === 'QUEUED');

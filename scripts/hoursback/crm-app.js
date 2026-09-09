@@ -346,21 +346,27 @@ function sequenceTabs(prospect, storedFirst) {
   // the page and thrown away, so none of them ever saw it — and Russ was shown
   // a letter breaking four of his rules with nothing flagging it. Anything
   // displayed as a letter is now held to the same rules as one that is sent.
-  const judge = (body) => {
+  // ONE JUDGE, AND IT IS TOLD WHICH MESSAGE IT IS READING (2026-09-08).
+  //
+  // This had its own copy of the rules, and it judged all four messages by the
+  // FIRST message's. So it told Russ his day-eight message "would not pass: an
+  // exclamation or a question" — when asking one plain question is the only
+  // reason that message exists. It also could not see a letter he had typed
+  // himself, because the browser saves invisible characters where the
+  // paragraph breaks are, and this split on the visible ones.
+  //
+  // Both are gone with the copy. judgeTheLetter is the only thing that judges
+  // a letter now, here and everywhere else.
+  //
+  // A FAULT IT CANNOT EXPLAIN IS STILL SHOWN. This used to swallow its own
+  // errors and return "nothing wrong", which is how a letter breaking four
+  // rules sat on the screen clean for days.
+  const J = require('../../src/hoursback/crm/judgeTheLetter.js');
+  const judge = (body, day) => {
     try {
-      const N = require('../../src/hoursback/crm/noticing.js');
-      const blocks = String(body || '').split('\n\n');
-      const para = blocks.find((t) => t.length > 120
-        && !/^Hi |sat in the offices|local to Central Oregon|Fifteen minutes|no charge for the review|Best regards/i.test(t.trim())) || '';
-      if (!para) return null;
-      const standing = /\b(?:Some\s+\S+[\s\S]{0,40}?|You may well )(?:may have|will have|have|do have|had)\b[\s\S]*$|\b(?:Some|Most|Plenty)[\s\S]{0,60}?three or four[\s\S]*$/i;
-      const written2 = para.replace(standing, '').trim();
-      if (!written2) return 'no passage naming their work';
-      const v = N.passable(written2, { jobs: ['a', 'b'] });
-      if (!v.ok) return v.why;
-      if (/\b(most|mostly|usually|typically)\b/i.test(para)) return 'presumes with "most" in the standing line';
-      return null;
-    } catch { return null; }
+      const v = J.judgeLetter(body, { day, jobs: ['a', 'b'] });
+      return v.ok ? null : v.why;
+    } catch (e) { return `could not be judged: ${e.message}`; }
   };
 
   return written.map((m, i) => {
@@ -370,7 +376,7 @@ function sequenceTabs(prospect, storedFirst) {
         <p class="muted" style="margin:10px 0 0">This one has not been written for this business yet. It is written
         from their own work, like the first, not made up from their trade.</p></details>`;
     }
-    const wrong = judge(m.body);
+    const wrong = judge(m.body, m.day);
     return `<details class="card"${i === 0 ? ' open' : ''}>
     <summary><b>Day ${m.day}</b> &nbsp; ${esc(m.subject)}${m.real === false
       ? ' <span class="muted" style="font-size:12px">— not written from their site yet, this is the trade version</span>' : ''}</summary>
@@ -1285,7 +1291,7 @@ async function emailScreen(params) {
       onclick="document.querySelectorAll('input[name=pick]:not([disabled])').forEach(function(b){b.checked=this.checked}.bind(this))">
       tick all ${ready.length} on this page</label>
   </p>
-  <p class="muted">Three messages, four days then a week apart. Anybody who answers, bounces, or says never again drops out of the sequence on the spot.</p>
+  <p class="muted">Four messages, on day 0, day 4, day 8 and day 14. Only the first is listed here. Anybody who answers, bounces, or says never again drops out of the sequence on the spot.</p>
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
     <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Mark due follow-ups as ready</button></form>
@@ -1415,8 +1421,15 @@ async function peopleScreen(params, saved) {
 
   return page(`<h1>People</h1>
   ${saved ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">${esc(saved)}</div>` : ''}
+  <!-- THE COLUMN SAID "SEND" AND IS NOT A SEND (Russ, 2026-09-08: "why are
+       almost all of the people ticked for Send when there is nothing written").
+       2,583 people are ticked because they are the main contact at their
+       business, and 2,169 of those businesses have no letter written at all.
+       The tick was never an instruction to send; the heading said it was. -->
   <p class="muted">A row is a person. Change anything on it and press save once at the bottom.
-     The tick is who the message goes to at that business — it lines it up, it does not send.</p>
+     <b>The tick marks who a letter to that business would be addressed to.</b> It is not a send and it
+     is not a queue: it is ticked for the main contact whether or not anything has been written yet.
+     What is actually written shows in the last column.</p>
   <div class="score">
     <div><b>${total}</b>people</div>
     <div><b>${withEmail}</b>with an address</div>
@@ -1431,7 +1444,7 @@ async function peopleScreen(params, saved) {
   </form>
   <form method="POST" action="/people/save?page=${page_}${only ? `&business=${only}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}">
   <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
-    <tr style="text-align:left"><th>Send</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
+    <tr style="text-align:left"><th>Writes to</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
     ${people.map(row).join('') || '<tr><td colspan="9" class="muted">Nobody here.</td></tr>'}
   </table></div>
   <p style="margin-top:14px"><button class="primary">Save everything on this page</button>
@@ -1737,7 +1750,13 @@ async function businessCard(id, saved) {
 
   <h2>The whole sequence</h2>
   <p class="mini">Four messages over two weeks. Only the first exists yet — the rest are written when the one before it is sent, so these are what they WILL say. Nothing here can be edited; edit the first one below and the rest follow it.</p>
-  ${sequenceTabs(p, (p.messages || []).find((m) => m.lane === 'EMAIL'))}
+  <!-- THE FIRST MESSAGE IS THE ONE THAT IS NOT A FOLLOW-UP (Russ, 2026-09-08:
+       "Day 0 is not the first message?"). This took whichever email came back
+       first, and once the follow-ups existed that was often the day-eight
+       message — so his Day 0 tab was headed "One question" and was then marked
+       as failing for asking one. It was the right message under the wrong
+       label, judged as the wrong day. -->
+  ${sequenceTabs(p, (p.messages || []).find((m) => m.lane === 'EMAIL' && !String(m.openedWith || '').startsWith('touch_')))}
 
   <h2>Their messages (${p.messages.length})</h2>
   ${p.messages.length ? p.messages.map((m) => `<div class="card">

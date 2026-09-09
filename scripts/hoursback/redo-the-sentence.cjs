@@ -19,8 +19,11 @@
 //   ... add --do-it to save; without it, nothing is written
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
-const N = require('../../src/hoursback/crm/noticing.js');
 const C = require('../../src/hoursback/crm/campaign.js');
+// ONE JUDGE, AND ONE PLACE THAT KNOWS WHERE A LETTER'S WRITTEN PASSAGE IS.
+// This kept its own copies of both, and they had drifted from everybody
+// else's — it could not see a letter Russ typed by hand at all (2026-09-08).
+const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
 const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
 
@@ -30,11 +33,6 @@ const DO_IT = process.argv.includes('--do-it');
 const LIMIT = Number(arg('limit', 0)) || 0;
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
 
-const STANDING = /\b(?:Some\s+\S+[\s\S]{0,40}?|You may well )(?:may have|will have|have|do have|had)\b[\s\S]*$|\b(?:Some|Most|Plenty)[\s\S]{0,60}?three or four[\s\S]*$/i;
-function theirParagraph(body) {
-  return String(body || '').split('\n\n').find((t) => t.length > 120
-    && !/^Hi |sat in the offices|local to Central Oregon|Fifteen minutes|no charge for the review|Best regards/i.test(t.trim())) || '';
-}
 
 function askFor({ name, trade, jobs, was, why }) {
   return [
@@ -98,7 +96,14 @@ function askFor({ name, trade, jobs, was, why }) {
 
   async function one(id) {
     const p = await db.prospect.findUnique({ where: { id }, select: { name: true, trade: true } });
-    const m = await db.outreachMessage.findFirst({ where: { prospectId: id, lane: 'EMAIL', sentAt: null, editedAt: null } });
+    // THE FIRST MESSAGE, NOT WHICHEVER ONE COMES BACK FIRST. Without this it
+    // could pick up a day-eight follow-up and rewrite it as an opening letter.
+    const m = await db.outreachMessage.findFirst({
+      where: {
+        prospectId: id, lane: 'EMAIL', sentAt: null, editedAt: null,
+        NOT: { openedWith: { startsWith: 'touch_' } },
+      },
+    });
     if (!p || !m) { skipped += 1; return; }
 
     const reading = await db.reading.findFirst({
@@ -108,10 +113,15 @@ function askFor({ name, trade, jobs, was, why }) {
     const jobs = reading ? reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean) : [];
     if (!jobs.length) { console.log(`  · ${p.name}: no jobs on file — needs the full read, skipped`); skipped += 1; return; }
 
-    const para = theirParagraph(m.body);
-    const was = para.replace(STANDING, '').trim();
-    const standing = para.slice(was.length).trim();
-    const verdict = N.passable(was, { jobs });
+    // The judge finds the passage, strips the invisible characters a browser
+    // leaves behind, and says what is wrong with it — the same judge the page,
+    // the send queue and the nightly check use.
+    const body = J.tidy(m.body);
+    const verdict = J.judgeLetter(body, { day: 0, jobs });
+    if (verdict.ok) { console.log(`  · ${p.name}: already passes — left alone`); skipped += 1; return; }
+    const para = verdict.passage;
+    if (!para) { console.log(`  · ${p.name}: no passage about them to rewrite — needs the full read`); skipped += 1; return; }
+    const { written: was, standing } = J.splitOffStandingLine(para);
 
     // Two goes. A judge's refusal is handed back so the second try knows why.
     let sentence = null; let lastWhy = verdict.why;
@@ -119,13 +129,18 @@ function askFor({ name, trade, jobs, was, why }) {
       const answer = await writer.ask(askFor({ name: p.name, trade: p.trade, jobs, was, why: lastWhy }));
       const got = answer && answer.answer ? (answer.answer.sentence || '') : '';
       if (!got) { lastWhy = 'the answer could not be read'; continue; }
-      const v = N.passable(String(got).trim(), { jobs });
-      if (v.ok) sentence = String(got).trim();
+      // Judged inside the whole letter, exactly as it will be read — not as a
+      // loose sentence. A passage that passes on its own and fails in place is
+      // how a bad letter got saved looking clean.
+      const candidate = String(got).trim();
+      const rebuiltTry = body.replace(para, `${candidate}${standing ? ` ${standing}` : ''}`);
+      const v = J.judgeLetter(rebuiltTry, { day: 0, jobs });
+      if (v.ok) sentence = candidate;
       else lastWhy = v.why;
     }
     if (!sentence) { console.log(`  ✗ ${p.name}: still not right after two goes — ${String(lastWhy).slice(0, 80)}`); refused += 1; return; }
 
-    const rebuilt = m.body.replace(para, `${sentence}${standing ? ` ${standing}` : ''}`);
+    const rebuilt = body.replace(para, `${sentence}${standing ? ` ${standing}` : ''}`);
     console.log(`  ✓ ${p.name}: ${sentence.slice(0, 190)}`);
     if (DO_IT) await db.outreachMessage.update({ where: { id: m.id }, data: { body: rebuilt } });
     done += 1;
