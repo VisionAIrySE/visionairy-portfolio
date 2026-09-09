@@ -14,7 +14,17 @@ function blockedReason(message) {
   if (!message || !message.prospect) return 'the business could not be loaded';
   if (message.prospect.doNotContact) return 'the business is marked do not contact';
   if (message.prospect.repliedAt) return 'the business has replied';
-  if (message.prospect.emailBouncedAt) return 'the business email has bounced';
+  const target = String(message.deliveryTo || message.sentTo || '').toLowerCase();
+  const contacts = message.prospect.contacts || [];
+  const contact = target && contacts.find((c) => String(c.email || '').toLowerCase() === target);
+  if (contact && contact.bouncedAt) return 'that contact address has bounced';
+  if (contact && contact.setAsideAt) return 'that contact has been set aside';
+  const businessAddress = String(message.prospect.email || '').toLowerCase();
+  const anotherContactWorks = contacts.some((c) => c.email && !c.bouncedAt && !c.setAsideAt);
+  if (message.prospect.emailBouncedAt
+      && ((!target && !anotherContactWorks) || (target && target === businessAddress))) {
+    return 'the business email has bounced';
+  }
   return null;
 }
 
@@ -34,7 +44,7 @@ function savedPayload(message) {
 async function claim(db, messageId, makePayload, now = new Date()) {
   return db.$transaction(async (tx) => {
     const message = await tx.outreachMessage.findUnique({
-      where: { id: messageId }, include: { prospect: true },
+      where: { id: messageId }, include: { prospect: { include: { contacts: true } } },
     });
     if (!message) return null;
 
@@ -104,7 +114,7 @@ async function claim(db, messageId, makePayload, now = new Date()) {
     const updated = await tx.outreachMessage.updateMany({
       where: { id: message.id, state: 'QUEUED',
         OR: [{ deliveryState: null }, { deliveryState: 'FAILED' }],
-        prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+        prospect: { doNotContact: false, repliedAt: null } },
       data: {
         state: 'SENDING', deliveryState: 'CLAIMED', deliveryKey: key,
         deliveryClaimedAt: now,
@@ -123,7 +133,7 @@ async function claim(db, messageId, makePayload, now = new Date()) {
 async function beginAttempt(db, messageId, now = new Date()) {
   return db.$transaction(async (tx) => {
     const message = await tx.outreachMessage.findUnique({
-      where: { id: messageId }, include: { prospect: true },
+      where: { id: messageId }, include: { prospect: { include: { contacts: true } } },
     });
     if (!message) return null;
     const reason = blockedReason(message);
@@ -138,7 +148,7 @@ async function beginAttempt(db, messageId, now = new Date()) {
     const updated = await tx.outreachMessage.updateMany({
       where: { id: messageId, state: 'SENDING', deliveryState: 'CLAIMED',
         deliveryLeaseExpiresAt: { gt: now },
-        prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+        prospect: { doNotContact: false, repliedAt: null } },
       data: { deliveryState: 'ATTEMPTING', deliveryLastAttemptAt: now,
         deliveryLeaseExpiresAt: new Date(now.getTime() + CLAIM_LEASE_MS) },
     });

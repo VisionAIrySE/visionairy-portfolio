@@ -1119,7 +1119,7 @@ async function emailScreen(params) {
     })
     : waitingTotal;
   const reachable = await db.prospect.count({
-    where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, ...L.emailReachableWhere() },
+    where: { doNotContact: false, repliedAt: null, ...L.emailReachableWhere() },
   });
 
   const sample = ready[0] || await db.outreachMessage.findFirst({ where: { lane: 'EMAIL' }, orderBy: { createdAt: 'desc' } });
@@ -2342,8 +2342,7 @@ const server = http.createServer(async (req, res) => {
 
       if (act === 'replied') await L.markReplied(db, prospectId, 'EMAIL');
       if (act === 'bounced') {
-        await L.markBounced(db, prospectId);
-        await I.markContactBounced(db, prospectId, address);
+        await L.markBounced(db, prospectId, address);
       }
       if (act === 'complained') {
         // Being marked as spam is worse than a bounce. They do not want to

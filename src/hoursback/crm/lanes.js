@@ -112,7 +112,7 @@ async function addressFor(db, prospectId, prospect, exclude = []) {
   if (named) return named.email;
   if (exclude.length) return null;   // everyone marked has already had one
   const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
-  return p ? p.email : null;
+  return p && !p.emailBouncedAt ? p.email : null;
 }
 
 // A business can be reached through its shared inbox or through a person at
@@ -120,7 +120,7 @@ async function addressFor(db, prospectId, prospect, exclude = []) {
 function emailReachableWhere() {
   return {
     OR: [
-      { email: { not: null } },
+      { email: { not: null }, emailBouncedAt: null },
       { contacts: { some: { email: { not: null }, bouncedAt: null, setAsideAt: null } } },
     ],
   };
@@ -312,7 +312,7 @@ async function queueEmail(db, prospectId) {
     throw e;
   }
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
+  if (p.doNotContact || p.repliedAt) return null;
   const msg = await draftFor(db, prospectId, 'EMAIL');
   if (!msg || msg.state !== 'DRAFT') return msg;
   return db.outreachMessage.update({ where: { id: msg.id }, data: { state: 'QUEUED', queuedAt: new Date() } });
@@ -334,7 +334,7 @@ async function emailsLeftToday(db, weeksSending = 0, now = new Date()) {
 // writing to the same address twice.
 async function nextUnwrittenPerson(db, prospectId) {
   const marked = await everyoneMarked(db, prospectId);
-  if (marked.length < 2) return null;
+  if (!marked.length) return null;
   const already = await db.outreachMessage.findMany({
     where: { prospectId, lane: 'EMAIL', sentTo: { not: null } },
     select: { sentTo: true },
@@ -391,12 +391,32 @@ async function markReplied(db, prospectId, lane = 'EMAIL', now = new Date()) {
   return db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
 }
 
-// A bounced address closes the email lane for that business and touches
-// nothing else. They stay on the call list.
-async function markBounced(db, prospectId, now = new Date()) {
-  await db.prospect.update({ where: { id: prospectId }, data: { emailBouncedAt: now } });
+// A bounce closes only the address that failed. A person and a business inbox
+// are separate recipients; one bad address must not silence the other.
+async function markBounced(db, prospectId, address = null, now = new Date()) {
+  // Keep the old markBounced(db, id, date) call form for local/manual actions
+  // that mean the whole business address failed.
+  if (address instanceof Date) { now = address; address = null; }
+  const prospect = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  const failed = address ? String(address).toLowerCase() : null;
+  const businessFailed = !failed || (prospect.email && prospect.email.toLowerCase() === failed);
+  if (businessFailed) {
+    await db.prospect.update({ where: { id: prospectId }, data: { emailBouncedAt: now } });
+  }
+  if (failed) {
+    await db.contact.updateMany({
+      where: { prospectId, email: { equals: failed, mode: 'insensitive' }, bouncedAt: null },
+      data: { bouncedAt: now },
+    });
+  }
+  const recipient = failed
+    ? { OR: [
+      { sentTo: { equals: failed, mode: 'insensitive' } },
+      ...(businessFailed ? [{ sentTo: null }] : []),
+    ] }
+    : {};
   await db.outreachMessage.updateMany({
-    where: { prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] } },
+    where: { prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, ...recipient },
     data: { state: 'SUPPRESSED', suppressedReason: 'the address bounced' },
   });
   return db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
@@ -406,7 +426,7 @@ async function markBounced(db, prospectId, now = new Date()) {
 // here, in the query, so no caller can forget it.
 async function reachableOn(db, lane, limit = 100) {
   const where = { doNotContact: false, repliedAt: null };
-  if (lane === 'EMAIL') { where.emailBouncedAt = null; Object.assign(where, emailReachableWhere()); }
+  if (lane === 'EMAIL') Object.assign(where, emailReachableWhere());
   if (lane === 'PHONE') where.NOT = { phone: null };
   return db.prospect.findMany({ where, orderBy: { automationScore: 'desc' }, take: limit });
 }
@@ -443,7 +463,7 @@ russ@visionairy.biz`;
 // batch is cleared.
 async function queueFollowUp(db, prospectId, call) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
+  if (p.doNotContact || p.repliedAt) return null;
   const recipient = await addressFor(db, prospectId, p);
   if (!recipient) return null;
   const built = draftFollowUp(p, call);
@@ -501,7 +521,7 @@ function touchDue(sentTouches, firstSentAt, now = new Date()) {
 async function queueNextTouch(db, prospectId, now = new Date()) {
   if (!await templateIsApproved(db)) return null;
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
-  if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
+  if (p.doNotContact || p.repliedAt) return null;
   const recipient = await addressFor(db, prospectId, p);
   if (!recipient) return null;
 
@@ -601,7 +621,7 @@ async function sendQueuedEmails(db, options = {}) {
 
   const queued = await db.outreachMessage.findMany({
     where: { lane: 'EMAIL', OR: [
-      { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+      { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null } },
       { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
         deliveryLeaseExpiresAt: { lte: now } },
     ] },

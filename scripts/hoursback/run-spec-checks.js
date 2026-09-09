@@ -2510,6 +2510,61 @@ def('bounce_suppresses_email_only', () => withDb(async (db) => {
   return { ok, detail: ok ? 'the address bounced, email stopped, and they are still on the call list' : `phone=${onPhone} email=${onEmail}` };
 }), 'lanes');
 
+def('one_bounced_contact_does_not_silence_the_others', () => withDb(async (db) => {
+  await cleanLane(db, 'one-contact-bounce');
+  const p = await seedLane(db, 'one-contact-bounce', { email: 'info@contact-bounce.example' });
+  const sara = await db.contact.create({
+    data: { prospectId: p.id, name: 'Sara Lin', email: 'sara@contact-bounce.example',
+      source: 'WEBSITE', isPrimary: true },
+  });
+  const sam = await db.contact.create({
+    data: { prospectId: p.id, name: 'Sam Reed', email: 'sam@contact-bounce.example',
+      source: 'WEBSITE', isPrimary: true },
+  });
+  await approvedTemplate(db);
+  const first = await lanes().queueEmail(db, p.id);
+  await db.outreachMessage.update({
+    where: { id: first.id }, data: { state: 'SENT', sentAt: new Date(), sentTo: sara.email },
+  });
+  await lanes().markBounced(db, p.id, sara.email);
+  const next = await lanes().queueNextTouch(db, p.id);
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const contacts = await db.contact.findMany({ where: { prospectId: p.id } });
+  const reachable = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const ok = after.emailBouncedAt === null && reachable && next && next.sentTo === sam.email
+    && next.body.startsWith('Hi Sam,')
+    && contacts.find((c) => c.id === sara.id).bouncedAt !== null
+    && contacts.find((c) => c.id === sam.id).bouncedAt === null;
+  await cleanLane(db, 'one-contact-bounce');
+  return { ok, detail: ok
+    ? 'Sara\'s bounce stopped Sara only; Sam and the business stayed reachable'
+    : JSON.stringify({ businessBounced: after.emailBouncedAt, reachable, nextTo: next && next.sentTo }) };
+}), 'lanes');
+
+def('a_good_contact_survives_a_shared_inbox_bounce', () => withDb(async (db) => {
+  await cleanLane(db, 'shared-bounce');
+  const p = await seedLane(db, 'shared-bounce', { email: 'info@shared-bounce.example' });
+  await db.contact.create({
+    data: { prospectId: p.id, name: 'Sara Lin', email: 'sara@shared-bounce.example',
+      source: 'WEBSITE', isPrimary: true },
+  });
+  await approvedTemplate(db);
+  await lanes().markBounced(db, p.id, p.email);
+  const queued = await lanes().queueEmail(db, p.id);
+  const reached = [];
+  const sent = await lanes().sendQueuedEmails(db, {
+    apiKey: 'test-only', limit: 1,
+    send: async (payload) => { reached.push(payload.to); return { id: 'provider-shared-bounce-test' }; },
+  });
+  const reachable = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const ok = reachable && queued && queued.sentTo === 'sara@shared-bounce.example'
+    && sent.sent === 1 && reached[0] === 'sara@shared-bounce.example';
+  await cleanLane(db, 'shared-bounce');
+  return { ok, detail: ok
+    ? 'the shared inbox stopped, while Sara\'s working address still delivered safely'
+    : JSON.stringify({ reachable, queuedTo: queued && queued.sentTo, sent, reached }) };
+}), 'lanes');
+
 def('no_email_still_callable', () => withDb(async (db) => {
   await cleanLane(db, 'noemail');
   const p = await seedLane(db, 'noemail', { email: null });
