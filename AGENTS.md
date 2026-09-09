@@ -30,27 +30,29 @@ Do every step Codex can safely perform within its available access. Ask Russ to 
 
 Translate errors and technical findings into their practical meaning for the CRM. Lead with what happened, whether anything was changed, and what Russ needs to do next.
 
-## Current Phase: Read-Only Forensic Audit
+## Current Phase: Authorized Implementation and Testing
 
-Until explicitly authorized otherwise, treat this repository as READ-ONLY except for this AGENTS.md control file.
+Russ authorized Codex on 2026-09-09 to proceed autonomously with repository implementation and testing. This standing authorization includes:
 
-Do not:
+- modifying application source code, tests, repository configuration, and the Prisma schema
+- creating migrations without applying them to production
+- installing required software packages
+- creating, resetting, seeding, migrating, and otherwise freely using a disposable test database identified by `TEST_DATABASE_URL`
+- inspecting the production database through `DATABASE_URL` only when the connection is read-only
+- inspecting Render settings, deployment status, and logs
+- fixing failures and continuing through the approved correction plan without waiting for repeated "go" messages
 
-- modify application source code
-- modify configuration
-- modify Prisma schema
-- create or run migrations
-- modify database data
-- run destructive scripts
-- refactor code
-- rename or move files
-- split or reorganize repositories
-- delete obsolete or apparently dead code
-- auto-fix defects
-- normalize contradictory behavior
-- implement recommendations
+Codex must ask Russ immediately before:
 
-The current objective is to determine what the system ACTUALLY DOES.
+- changing production data
+- applying a migration to the production database
+- deploying the application
+- pushing commits or branches to GitHub
+- sending real emails
+
+These five boundaries require explicit approval for the specific action. They do not prevent Codex from preparing, testing, and reviewing the complete change beforehand.
+
+The current objective is to implement and validate the reviewed forensic corrections while preserving production data.
 
 ## Evidence Standard
 
@@ -182,20 +184,20 @@ Do not alter tests merely to make current behavior pass.
 
 Report missing tests for important state transitions and invariants.
 
-## Future Implementation Workflow
+## Implementation Workflow
 
-After the forensic audit, work will proceed as:
+Work proceeds as:
 
 1. investigate
 2. report evidence
 3. external architecture/domain decision
-4. receive narrowly scoped implementation authorization
+4. confirm the work is within the standing authorization above
 5. implement
 6. test
 7. report exact changes and remaining risks
 8. external review
 
-Do not skip from investigation directly to implementation.
+Do not implement behavior when the required architecture or domain decision remains unresolved. Once it is resolved and the work is within the standing authorization, continue without asking Russ to repeat permission.
 
 ## Historical Instructions
 
