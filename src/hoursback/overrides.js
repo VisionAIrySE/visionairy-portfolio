@@ -1,8 +1,8 @@
 // Hours Back — hand corrections.
 //
-// One value per field. Editing replaces what is on the record, and a later
-// reading of their website can replace it again. Every change is kept in the
-// change history, so nothing is lost even though nothing is frozen.
+// One value per field. Editing replaces what is on the record. A later
+// automated reading that disagrees waits for Russ instead of replacing his
+// value. Every change and disagreement is kept in the change history.
 //
 // It used to work the other way: a second column per field held "what Russ
 // typed" and outranked everything forever. It did not survive contact with the
@@ -88,10 +88,20 @@ const WAITING_FOR_HIM = 'their website — waiting for you';
 // Did Russ set this field himself, and is it still his value?
 async function heSetThis(db, prospectId, field, currentValue) {
   const last = await db.prospectFieldEdit.findFirst({
-    where: { prospectId, fieldName: field },
+    // A pending website disagreement is evidence waiting for a decision, not
+    // a change to the record. Ignore those rows when deciding who set the
+    // current value, or a second reading can overwrite Russ before he answers.
+    where: { prospectId, fieldName: field, correctedBy: { not: WAITING_FOR_HIM } },
     orderBy: { correctedAt: 'desc' },
   });
-  if (!last || last.correctedBy !== 'russ') return false;
+  if (!last) {
+    // Hand-added records created before edit history was written identify
+    // their source on the record. Preserve those existing values too.
+    const record = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+    return record.fieldSource === 'russ'
+      && currentValue !== null && currentValue !== undefined && currentValue !== '';
+  }
+  if (last.correctedBy !== 'russ') return false;
   return String(last.valueAfter ?? '') === String(currentValue ?? '');
 }
 

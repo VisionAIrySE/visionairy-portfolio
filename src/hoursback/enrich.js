@@ -668,9 +668,9 @@ function needsSiteRead(prospect, options = {}) {
 // ---------------------------------------------------------------------------
 // writing a reading onto the record
 //
-// Only ever writes the fetched columns. A value typed by hand lives in its
-// paired ManualValue column and is never touched here; the band is recomputed
-// from the RESOLVED count, so a hand correction still wins.
+// A value typed by hand remains in the visible field. If a later reading
+// disagrees, applyOrHold records the new value for review and leaves Russ's value
+// in place; the band is recomputed from that current value.
 
 async function applySiteRead(db, prospectId, finding, options = {}) {
   const { resolveField } = require('./overrides.js');

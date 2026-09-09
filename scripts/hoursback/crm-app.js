@@ -853,9 +853,9 @@ async function needEmailScreen(params) {
 
 // ---------------------------------------------------------------------------
 // Adding a business by hand. The sweep found 2,043; the ones Russ meets at a
-// chamber breakfast are not among them. Everything typed here is his, so it
-// goes straight into the hand-entered columns where no later sweep can touch
-// it, and the record is marked as his rather than the machine's.
+// chamber breakfast are not among them. Everything typed here is his, so its
+// source is recorded in edit history and a later automated disagreement waits
+// for his decision instead of replacing it.
 function addForm(message) {
   return page(`<h1>Add a business</h1>
   ${message ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">${esc(message)}</div>` : ''}
@@ -898,38 +898,50 @@ async function addBusiness(form) {
 
   const note = String(form.note || '').trim();
   const count = form.employeeCount ? Number(form.employeeCount) : null;
-  const created = await db.prospect.create({
-    data: {
-      // A hand-added business has no Google id; its own row id stands in.
-      placeId: `hand-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-      name,
-      // Everything typed goes in the hand-entered column too, so it outranks
-      // anything a later sweep finds for the same business.
-      nameManualValue: name,
-      phone, phoneManualValue: phone,
-      email: String(form.email || '').trim() || null,
-      emailManualValue: String(form.email || '').trim() || null,
-      website, websiteManualValue: website,
-      address: String(form.address || '').trim() || null,
-      addressManualValue: String(form.address || '').trim() || null,
-      normalizedPhone: normPhone, normalizedDomain: normDomain,
-      ownerName: String(form.ownerName || '').trim() || null,
-      contactName: String(form.contactName || '').trim() || null,
-      employeeCount: count, employeeCountManualValue: count,
-      fieldSource: 'russ',
-      stage: 'NO_CONTACT',
-      emailStatus: form.email ? 'GIVEN_BY_RUSS' : null,
-      siteStatus: website ? null : 'NO_WEBSITE',
-      scoreEvidence: note ? JSON.stringify([{ signal: 'told_to_russ', label: 'What Russ knows', weight: 0, url: null, quote: note }]) : null,
-      automationScore: note ? 0 : null,
-    },
+  const email = String(form.email || '').trim() || null;
+  const address = String(form.address || '').trim() || null;
+  const created = await db.$transaction(async (tx) => {
+    const prospect = await tx.prospect.create({
+      data: {
+        // A hand-added business has no Google id; its own row id stands in.
+        placeId: `hand-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+        name,
+        // The legacy paired columns remain populated for compatibility. Edit
+        // history below is what now proves these values came from Russ.
+        nameManualValue: name,
+        phone, phoneManualValue: phone,
+        email, emailManualValue: email,
+        website, websiteManualValue: website,
+        address, addressManualValue: address,
+        normalizedPhone: normPhone, normalizedDomain: normDomain,
+        ownerName: String(form.ownerName || '').trim() || null,
+        contactName: String(form.contactName || '').trim() || null,
+        employeeCount: count, employeeCountManualValue: count,
+        fieldSource: 'russ',
+        stage: 'NO_CONTACT',
+        emailStatus: form.email ? 'GIVEN_BY_RUSS' : null,
+        siteStatus: website ? null : 'NO_WEBSITE',
+        scoreEvidence: note ? JSON.stringify([{ signal: 'told_to_russ', label: 'What Russ knows', weight: 0, url: null, quote: note }]) : null,
+        automationScore: note ? 0 : null,
+      },
+    });
+    const typed = { name, phone, email, website, address, employeeCount: count };
+    await tx.prospectFieldEdit.createMany({
+      data: Object.entries(typed)
+        .filter(([, value]) => value !== null && value !== undefined && value !== '')
+        .map(([fieldName, value]) => ({
+          prospectId: prospect.id, fieldName, valueBefore: '',
+          valueAfter: String(value), correctedBy: 'russ',
+        })),
+    });
+    // A team size typed in prices the record immediately.
+    if (count) {
+      const { bandForEmployeeCount } = require('../../src/hoursback/rules.js');
+      const b = bandForEmployeeCount(count);
+      await tx.prospect.update({ where: { id: prospect.id }, data: { segment: b.band, auditFee: b.auditFee, guaranteedHours: b.guaranteedHours } });
+    }
+    return prospect;
   });
-  // A team size typed in prices the record immediately.
-  if (count) {
-    const { bandForEmployeeCount } = require('../../src/hoursback/rules.js');
-    const b = bandForEmployeeCount(count);
-    await db.prospect.update({ where: { id: created.id }, data: { segment: b.band, auditFee: b.auditFee, guaranteedHours: b.guaranteedHours } });
-  }
   // A business typed in by hand gets the same chain as one corrected by hand.
   refreshInBackground(created.id);
   return { id: created.id, name };

@@ -24,15 +24,14 @@ datasource db {
 /// placeId is unique but MAY change if Google re-lists the business, and the
 /// record must survive that (round-trip check: id unchanged on placeId edit).
 ///
-/// Every machine-written (fetched) field has a paired hand-entered column
-/// beside it (...ManualValue): the fetched value and the typed value occupy
-/// separate columns, a correction never overwritten by a later sweep. The
-/// resolved value is ManualValue when present, fetched otherwise.
+/// The ...ManualValue fields are retained for compatibility with historical
+/// records. Current corrections use the visible field plus ProspectFieldEdit:
+/// automated disagreements wait for Russ instead of replacing his value.
 model Prospect {
   id      String @id @default(cuid())
   placeId String @unique
 
-  // --- capture fields (machine-written) + their hand-entered pairs --------
+  // --- capture fields + legacy paired columns -----------------------------
   name               String
   nameManualValue    String?
   phone              String?
@@ -44,7 +43,7 @@ model Prospect {
   normalizedPhone    String?
   normalizedDomain   String?
 
-  // --- enrichment fields (machine-written) + their hand-entered pairs -----
+  // --- enrichment fields + legacy paired columns --------------------------
   employeeCount            Int?
   employeeCountManualValue Int?
   headcountSourceUrl       String?

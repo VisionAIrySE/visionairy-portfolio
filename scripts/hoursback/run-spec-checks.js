@@ -704,21 +704,21 @@ def('prospect_roundtrip_id_stable_on_placeid_change', () => withDb(async (db) =>
 }));
 
 def('prospect_roundtrip_override_survives_capture', () => withDb(async (db) => {
-  const { resolveField } = require(path.join(ROOT, 'src/hoursback/overrides.js'));
+  const O = require(path.join(ROOT, 'src/hoursback/overrides.js'));
   const created = await db.prospect.create({ data: fullProspectFixture(`survive-${Date.now()}`) });
-  // a second CaptureRun rewrites machine fields — the typed columns stay put
-  const run2 = await db.captureRun.create({ data: { mode: 'monthly_top_up' } });
-  const after = await db.prospect.update({
-    where: { id: created.id },
-    data: { employeeCount: 30, phone: '541-555-0777', captureRunId: run2.id },
-  });
-  const ok = after.employeeCountManualValue === 14 && after.phoneManualValue === '541-555-0199'
-    && resolveField(after, 'employeeCount') === 14 && resolveField(after, 'phone') === '541-555-0199';
+  await O.setOverride(db, created.id, 'employeeCount', 14, 'russ');
+  await O.setOverride(db, created.id, 'phone', '541-555-0199', 'russ');
+  await O.applyOrHold(db, created.id, 'employeeCount', 30, 'monthly top-up');
+  await O.applyOrHold(db, created.id, 'phone', '541-555-0777', 'monthly top-up');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: created.id } });
+  const waiting = await O.waitingFor(db, created.id);
+  const ok = O.resolveField(after, 'employeeCount') === 14
+    && O.resolveField(after, 'phone') === '541-555-0199' && waiting.length === 2;
+  await db.prospectFieldEdit.deleteMany({ where: { prospectId: created.id } });
   await db.prospect.delete({ where: { id: created.id } });
-  await db.captureRun.delete({ where: { id: run2.id } });
   return { ok, detail: ok
-    ? 'machine rewrite landed in the fetched columns; hand-entered values untouched and still resolved'
-    : `manual pair lost: ${JSON.stringify({ ec: after.employeeCountManualValue, ph: after.phoneManualValue })}` };
+    ? 'a later capture waited for approval and left both values Russ entered in place'
+    : JSON.stringify({ employeeCount: after.employeeCount, phone: after.phone, waiting: waiting.length }) };
 }));
 
 def('prospect_roundtrip_edit_history', () => withDb(async (db) => {
@@ -728,12 +728,12 @@ def('prospect_roundtrip_edit_history', () => withDb(async (db) => {
   const edits = await db.prospectFieldEdit.findMany({ where: { prospectId: created.id } });
   const e = edits[0] || {};
   const ok = edits.length === 1 && e.fieldName === 'employeeCount'
-    && e.valueBefore === '14' && e.valueAfter === '22' && e.correctedBy === 'russ'
+    && e.valueBefore === '12' && e.valueAfter === '22' && e.correctedBy === 'russ'
     && after.auditFee === 999 && after.guaranteedHours === 5;
   await db.prospectFieldEdit.deleteMany({ where: { prospectId: created.id } });
   await db.prospect.delete({ where: { id: created.id } });
   return { ok, detail: ok
-    ? 'correction wrote one history row (field, before, after, who) and repriced 22 heads to the 21-25 band'
+    ? 'correction recorded the visible value before and after, who changed it, and the one offer'
     : `history/repricing wrong: ${JSON.stringify({ edits, fee: after.auditFee })}` };
 }));
 
@@ -1421,13 +1421,17 @@ def('enrichment_respects_hand_corrections', () => withDb(async (db) => {
   await cleanSite(db, 'handcorr');
   const p = await seedSite(db, 'handcorr', { website: 'https://highdesertplumbing.com/', employeeCount: 5 });
   await overrides().setOverride(db, p.id, 'employeeCount', 40, 'russ');
+  await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'));
   const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
   const { bandForEmployeeCount } = rules();
   const want = bandForEmployeeCount(40);
-  const ok = after.employeeCountManualValue === 40 && after.employeeCount === 12
+  const waiting = (await overrides().waitingFor(db, p.id)).filter((row) => row.fieldName === 'employeeCount');
+  const ok = after.employeeCount === 40 && waiting.length === 1 && waiting[0].valueAfter === '12'
     && after.auditFee === want.auditFee && after.guaranteedHours === want.guaranteedHours;
   await cleanSite(db, 'handcorr');
-  return { ok, detail: ok ? 'the site said 12, Russ said 40 — the price still follows Russ' : JSON.stringify({ manual: after.employeeCountManualValue, fetched: after.employeeCount, fee: after.auditFee }) };
+  return { ok, detail: ok
+    ? 'the site said 12 twice; Russ\'s 40 stayed visible, the disagreement appeared once, and the offer followed 40'
+    : JSON.stringify({ employeeCount: after.employeeCount, waiting: waiting.length, fee: after.auditFee }) };
 }));
 
 def('no_api_key_in_repo', () => {
@@ -1460,9 +1464,11 @@ def('every_fetched_field_has_override_pair', () => {
 
 def('override_wins_over_fetched', () => {
   const { resolveField } = overrides();
-  const rec = { email: 'machine@x.com', emailManualValue: 'typed@x.com', phone: '541-555-0100', phoneManualValue: null };
+  const rec = { email: 'typed@x.com', emailManualValue: 'retired-copy@x.com', phone: '541-555-0100', phoneManualValue: null };
   const ok = resolveField(rec, 'email') === 'typed@x.com' && resolveField(rec, 'phone') === '541-555-0100';
-  return { ok, detail: ok ? 'the typed value is used where it exists, the fetched one where it does not' : 'resolution order wrong' };
+  return { ok, detail: ok
+    ? 'the visible record value wins; the retired hidden copy cannot replace it'
+    : 'resolution order wrong' };
 });
 
 def('override_records_who_and_when', () => withDb(async (db) => {
@@ -1479,21 +1485,31 @@ def('override_survives_reenrichment', () => withDb(async (db) => {
   await cleanSite(db, 'survive');
   const p = await seedSite(db, 'survive', { website: 'https://highdesertplumbing.com/', email: 'old@x.com' });
   await overrides().setOverride(db, p.id, 'email', 'typed@x.com', 'russ');
+  await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'));
   const after = (await enrich().applySiteRead(db, p.id, readFixture('manualPlumber'))).prospect;
-  const ok = after.emailManualValue === 'typed@x.com' && after.email === 'dale@highdesertplumbing.com';
+  const waiting = await overrides().waitingFor(db, p.id);
+  const emailWaiting = waiting.filter((row) => row.fieldName === 'email');
+  const ok = after.email === 'typed@x.com' && emailWaiting.length === 1
+    && emailWaiting[0].valueAfter === 'dale@highdesertplumbing.com';
   await cleanSite(db, 'survive');
-  return { ok, detail: ok ? 'a later read replaced the fetched address and left the typed one alone' : JSON.stringify({ manual: after.emailManualValue, fetched: after.email }) };
+  return { ok, detail: ok
+    ? 'repeated site reads left Russ\'s address in place and offered the site address once'
+    : JSON.stringify({ email: after.email, waiting: emailWaiting.length }) };
 }));
 
 def('override_survives_monthly_topup', () => withDb(async (db) => {
   await cleanSite(db, 'topup');
   const p = await seedSite(db, 'topup', { phone: '541-555-0100', website: 'https://a.example' });
   await overrides().setOverride(db, p.id, 'phone', '541-555-9999', 'russ');
-  // what a monthly sweep does when it re-finds the business
-  const after = await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-0101', website: 'https://b.example', fetchedAt: new Date() } });
-  const ok = after.phoneManualValue === '541-555-9999' && after.phone === '541-555-0101';
+  await overrides().applyOrHold(db, p.id, 'phone', '541-555-0101', 'monthly top-up');
+  await overrides().applyOrHold(db, p.id, 'phone', '541-555-0101', 'monthly top-up');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const waiting = (await overrides().waitingFor(db, p.id)).filter((row) => row.fieldName === 'phone');
+  const ok = after.phone === '541-555-9999' && waiting.length === 1;
   await cleanSite(db, 'topup');
-  return { ok, detail: ok ? 'the monthly sweep refreshed what it fetched and never touched what Russ typed' : JSON.stringify({ manual: after.phoneManualValue, fetched: after.phone }) };
+  return { ok, detail: ok
+    ? 'repeated monthly findings waited once and never replaced the number Russ typed'
+    : JSON.stringify({ phone: after.phone, waiting: waiting.length }) };
 }));
 
 def('headcount_override_recomputes_band', () => withDb(async (db) => {
@@ -1523,9 +1539,14 @@ def('clearing_override_restores_fetched', () => withDb(async (db) => {
   const p = await seedSite(db, 'clearing', { email: 'machine@x.com' });
   await overrides().setOverride(db, p.id, 'email', 'typed@x.com', 'russ');
   const after = await overrides().setOverride(db, p.id, 'email', null, 'russ');
-  const ok = overrides().resolveField(after, 'email') === 'machine@x.com';
+  const edits = await db.prospectFieldEdit.findMany({ where: { prospectId: p.id }, orderBy: { correctedAt: 'asc' } });
+  const last = edits[edits.length - 1];
+  const ok = overrides().resolveField(after, 'email') === null
+    && last.valueBefore === 'typed@x.com' && last.valueAfter === '';
   await cleanSite(db, 'clearing');
-  return { ok, detail: ok ? 'clearing a correction fell back to the fetched value, not to blank' : JSON.stringify(after) };
+  return { ok, detail: ok
+    ? 'clearing the visible value left it blank and recorded what was cleared'
+    : JSON.stringify({ email: after.email, last }) };
 }));
 
 def('job_posting_is_top_signal', () => {
@@ -1811,6 +1832,7 @@ def('handadd_business_typed_by_russ_outranks_any_sweep', () => withDb(async (db)
   // types must survive every later sweep, so it lands in the hand-entered
   // columns as well as the fetched ones.
   const tag = 'handadd-outrank';
+  await db.prospectFieldEdit.deleteMany({ where: { prospect: { placeId: { startsWith: tag } } } });
   await db.prospect.deleteMany({ where: { placeId: { startsWith: tag } } });
   const p = await db.prospect.create({
     data: {
@@ -1820,13 +1842,20 @@ def('handadd_business_typed_by_russ_outranks_any_sweep', () => withDb(async (db)
       fieldSource: 'russ', stage: 'NO_CONTACT',
     },
   });
-  // what a later sweep would do
-  const after = await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-9999', email: 'info@chamber.example' } });
+  // What a later automated read would offer. Older hand-added records identify
+  // their source on the row even if they predate correction-history entries.
+  await overrides().applyOrHold(db, p.id, 'phone', '541-555-9999', 'monthly top-up');
+  await overrides().applyOrHold(db, p.id, 'email', 'info@chamber.example', 'monthly top-up');
+  const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
+  const waiting = await overrides().waitingFor(db, p.id);
   const { resolveField } = overrides();
   const ok = resolveField(after, 'phone') === '541-555-0700' && resolveField(after, 'email') === 'pat@chamber.example'
-    && after.fieldSource === 'russ';
+    && after.fieldSource === 'russ' && waiting.length === 2;
+  await db.prospectFieldEdit.deleteMany({ where: { prospectId: p.id } });
   await db.prospect.deleteMany({ where: { placeId: { startsWith: tag } } });
-  return { ok, detail: ok ? 'a sweep overwrote what it fetched and what Russ typed still stands' : JSON.stringify({ phone: resolveField(after, 'phone'), email: resolveField(after, 'email') }) };
+  return { ok, detail: ok
+    ? 'an older hand-added record kept both values and held both automated disagreements for review'
+    : JSON.stringify({ phone: resolveField(after, 'phone'), email: resolveField(after, 'email'), waiting: waiting.length }) };
 }), 'handadd');
 
 def('handadd_name_recovered_only_when_it_is_really_a_name', () => {
