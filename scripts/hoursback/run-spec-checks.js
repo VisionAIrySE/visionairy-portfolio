@@ -2021,20 +2021,21 @@ def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (d
 
 def('a_contact_address_is_enough_for_the_email_lane', () => withDb(async (db) => {
   await cleanLane(db, 'contact-only');
-  const p = await seedLane(db, 'contact-only', { email: null, emailManualValue: null });
+  const p = await seedLane(db, 'contact-only', { email: null, emailManualValue: null, siteStatus: 'READ' });
   await db.contact.create({
     data: { prospectId: p.id, name: 'Sara Lin', role: 'Office Manager',
       email: 'sara@contact-only.example', source: 'WEBSITE', isPrimary: true },
   });
   await approvedTemplate(db);
   const reachable = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const written = await require(path.join(ROOT, 'src/hoursback/refresh.js')).writeMessages(db, p);
   const queued = await lanes().queueEmail(db, p.id);
-  const ok = reachable && queued && queued.state === 'QUEUED'
+  const ok = reachable && written.written.includes('EMAIL') && queued && queued.state === 'QUEUED'
     && queued.sentTo === 'sara@contact-only.example' && queued.body.startsWith('Hi Sara,');
   await cleanLane(db, 'contact-only');
   return { ok, detail: ok
     ? 'a person\'s own address reaches the email lane without being copied onto the business'
-    : JSON.stringify({ reachable, state: queued && queued.state, sentTo: queued && queued.sentTo }) };
+    : JSON.stringify({ reachable, written, state: queued && queued.state, sentTo: queued && queued.sentTo }) };
 }), 'lanes');
 
 def('message_claims_no_experience_russ_does_not_have', () => {
@@ -4019,7 +4020,7 @@ def('the_review_flag_clears_itself', () => withLiveDb(async (db) => {
   const tag = `reviewflag-${Date.now()}`;
   const p = await db.prospect.create({ data: { placeId: tag, name: 'Flag Test Co', stage: 'NEEDS_REVIEW' } });
   const stuck = await R.clearReviewFlag(db, p);
-  await db.prospect.update({ where: { id: p.id }, data: { phoneManualValue: '541-555-0111' } });
+  await db.prospect.update({ where: { id: p.id }, data: { phone: '541-555-0111' } });
   const withPhone = await db.prospect.findUnique({ where: { id: p.id } });
   const cleared = await R.clearReviewFlag(db, withPhone);
   const after = await db.prospect.findUnique({ where: { id: p.id } });

@@ -244,19 +244,19 @@ async function clearReviewFlag(db, prospect) {
 // edited by hand — is already refused inside the writer itself; these are the
 // reasons not to write one at all.
 
-function cannotBeWrittenTo(p) {
+function cannotBeWrittenTo(p, deliverableEmail = Boolean(resolveField(p, 'email')) && !p.emailBouncedAt) {
   if (p.doNotContact) return 'marked leave-alone';
   if (p.repliedAt) return 'they already replied';
-  if (p.emailBouncedAt) return 'the address bounced';
   if (!p.siteStatus) return 'nobody has read their site yet';
-  if (!resolveField(p, 'email')) return 'no email address';
+  if (!deliverableEmail) return p.emailBouncedAt ? 'the address bounced' : 'no email address';
   return null;
 }
 
 async function writeMessages(db, prospect) {
-  const stop = cannotBeWrittenTo(prospect);
-  if (stop) return { written: [], stop };
   const L = require('./crm/lanes.js');
+  const recipient = await L.addressFor(db, prospect.id, prospect);
+  const stop = cannotBeWrittenTo(prospect, Boolean(recipient));
+  if (stop) return { written: [], stop };
   const written = [];
   for (const lane of ['EMAIL', 'LINKEDIN']) {
     try {
