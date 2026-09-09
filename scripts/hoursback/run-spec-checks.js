@@ -3647,10 +3647,12 @@ def('email_sends_without_a_click', async () => {
   const exits = /dailySendRun[\s\S]*\.finally\(\(\) => db\.\$disconnect\(\)\)/.test(runner);
   const defaultOff = /HOURSBACK_CUSTOMER_EMAIL_ENABLED/.test(scheduler)
     && /HOURSBACK_CUSTOMER_EMAIL_ENABLED=true/.test(blueprint);
-  const ok = scheduled && stayedOff && defaultOff && boundedInOrder && exits;
+  const firstRunIsFive = /HOURSBACK_SEND_LIMIT\s*\|\|\s*5/.test(runner)
+    && /key:\s*HOURSBACK_SEND_LIMIT[\s\S]*?value:\s*["']5["']/.test(blueprint);
+  const ok = scheduled && stayedOff && defaultOff && firstRunIsFive && boundedInOrder && exits;
   return { ok, detail: ok
     ? 'the weekday Render job defaults to inert; once separately enabled it queues a bounded run, sends through the protected path, reports the result, and exits'
-    : JSON.stringify({ scheduled, stayedOff, defaultOff, boundedInOrder, exits, calls }) };
+    : JSON.stringify({ scheduled, stayedOff, defaultOff, firstRunIsFive, boundedInOrder, exits, calls }) };
 }, 'linkedin');
 
 // Sentences that are individually true and collectively wrong.

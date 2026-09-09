@@ -19,6 +19,9 @@ const db = new PrismaClient();
 dailySendRun(db, {
   from: process.env.HOURSBACK_EMAIL_FROM,
   reportTo: process.env.HOURSBACK_REPORT_TO,
+  // Begin with the small batch Russ approved. Raising this is a deliberate
+  // Render setting change; the scheduler still enforces its hard ceiling.
+  limit: Number(process.env.HOURSBACK_SEND_LIMIT || 5),
 })
   .then((result) => console.log(JSON.stringify(result)))
   .catch((error) => {

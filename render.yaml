@@ -46,5 +46,7 @@ services:
         sync: false
       - key: HOURSBACK_REPORT_TO
         sync: false   # where the morning send summary goes
+      - key: HOURSBACK_SEND_LIMIT
+        value: "5"    # first live batch approved by Russ on 2026-09-09
       # Customer outreach remains off after deployment. Only after Russ gives
       # separate approval, add HOURSBACK_CUSTOMER_EMAIL_ENABLED=true in Render.
