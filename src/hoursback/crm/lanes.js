@@ -26,7 +26,7 @@ function wordingFingerprint() {
 }
 
 const LANES = ['PHONE', 'EMAIL', 'LINKEDIN'];
-const MESSAGE_STATES = ['DRAFT', 'QUEUED', 'SENT', 'REPLIED', 'SUPPRESSED'];
+const MESSAGE_STATES = ['DRAFT', 'QUEUED', 'SENDING', 'SENT', 'REPLIED', 'SUPPRESSED'];
 const FIRST_CONTACT = 'first_contact';
 
 // THE DAILY CAP IS OFF (Russ, 2026-09-06).
@@ -261,7 +261,7 @@ async function draftFor(db, prospectId, lane) {
     //
     // Sent is untouchable. Hand-written is untouchable. Everything else tracks
     // the current wording.
-    const rewritable = !existing.sentAt && !existing.editedAt
+    const rewritable = !existing.sentAt && !existing.editedAt && !existing.deliveryState
       && (existing.body !== built.body
         || (built.inviteBody && existing.inviteBody !== built.inviteBody));
     if (!rewritable) return existing;
@@ -328,8 +328,8 @@ async function nextUnwrittenPerson(db, prospectId) {
 }
 
 async function markEmailSent(db, messageId, now = new Date(), sentTo = null) {
-  return db.outreachMessage.update({
-    where: { id: messageId },
+  return db.outreachMessage.updateMany({
+    where: { id: messageId, state: { in: ['DRAFT', 'QUEUED'] }, deliveryState: null },
     data: { state: 'SENT', sentAt: now, sentBy: 'engine', ...(sentTo ? { sentTo } : {}) },
   });
 }
@@ -565,20 +565,27 @@ async function queueDueTouches(db, options = {}) {
 const MAX_PER_RUN = 200;
 
 async function sendQueuedEmails(db, options = {}) {
+  const D = require('./delivery.js');
   const weeks = Number(options.weeksSending || 0);
   const key = options.apiKey || process.env.RESEND_API_KEY;
   const from = options.from || 'Russ Wright <russ@visionairy.biz>';
-  const result = { attempted: 0, sent: 0, failed: 0, stoppedBecause: null };
+  const now = options.now || new Date();
+  const result = { attempted: 0, sent: 0, failed: 0, blocked: 0,
+    unconfirmed: 0, recovered: 0, stoppedBecause: null };
 
   if (!await templateIsApproved(db)) { result.stoppedBecause = 'the message has not been approved'; return result; }
   if (!key) { result.stoppedBecause = 'no sending key is set — nothing was sent'; return result; }
 
-  const allowedToday = await emailsLeftToday(db, weeks, options.now);
+  const allowedToday = await emailsLeftToday(db, weeks, now);
   const ceiling = Math.min(allowedToday, Number(options.limit || MAX_PER_RUN), MAX_PER_RUN);
   if (ceiling <= 0) { result.stoppedBecause = "today's ceiling is already spent"; return result; }
 
   const queued = await db.outreachMessage.findMany({
-    where: { lane: 'EMAIL', state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+    where: { lane: 'EMAIL', OR: [
+      { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null, emailBouncedAt: null } },
+      { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
+        deliveryLeaseExpiresAt: { lte: now } },
+    ] },
     include: { prospect: true },
     orderBy: { prospect: { automationScore: 'desc' } },
     take: ceiling,
@@ -589,19 +596,38 @@ async function sendQueuedEmails(db, options = {}) {
 
   for (const m of queued) {
     if (result.sent >= ceiling) { result.stoppedBecause = `stopped at the ceiling of ${ceiling}`; break; }
-    const to = m.sentTo || await addressFor(db, m.prospectId, m.prospect);
-    if (!to) continue;
+    const claimed = await D.claim(db, m.id, async (tx, current) => {
+      const to = current.sentTo || await addressFor(tx, current.prospectId, current.prospect);
+      if (!to) return null;
+      return {
+        from, to, subject: current.subject,
+        html: toHtmlEmail(current.body),
+        text: `${current.body.split(/\n\nRuss Wright\n/)[0]}\n\n${signatureText()}`,
+      };
+    }, now);
+    if (!claimed) continue;
+    if (claimed.blocked) { result.blocked += 1; continue; }
+    if (claimed.unconfirmed) { result.unconfirmed += 1; continue; }
+    if (claimed.recovered) result.recovered += 1;
+
+    const begun = await D.beginAttempt(db, m.id, now);
+    if (!begun) continue;
+    if (begun.blocked) { result.blocked += 1; continue; }
     result.attempted += 1;
     try {
-      await send({
-        from, to, subject: m.subject,
-        html: toHtmlEmail(m.body),
-        text: `${m.body.split(/\n\nRuss Wright\n/)[0]}\n\n${signatureText()}`,
-      });
-      await markEmailSent(db, m.id, options.now, to);
+      const response = await send(begun.payload);
+      const providerMessageId = response && (response.providerMessageId || response.id);
+      const marked = await D.markDelivered(db, m.id, providerMessageId, now);
+      if (!marked || marked.count !== 1) throw new Error('provider accepted the email but its sent state was not recorded');
       result.sent += 1;
     } catch (e) {
-      result.failed += 1;   // one refusal never stops the rest
+      if (e && e.definitelyNotSent) {
+        await D.markKnownFailure(db, m.id, e);
+        result.failed += 1;
+      } else {
+        try { await D.markUnconfirmed(db, m.id, e); } catch (_) { /* the next run will recover the lease safely */ }
+        result.unconfirmed += 1;
+      }
     }
   }
   if (!result.stoppedBecause) result.stoppedBecause = 'the queue ran out';
@@ -610,14 +636,19 @@ async function sendQueuedEmails(db, options = {}) {
 
 // The only place that talks to the outside world.
 function defaultSender(key) {
-  return async ({ from, to, subject, html, text }) => {
+  return async ({ from, to, subject, html, text, idempotencyKey }) => {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ from, to, subject, html, text }),
       signal: AbortSignal.timeout(20000),
     });
-    if (!res.ok) throw new Error(`send refused: ${res.status}`);
+    if (!res.ok) {
+      const error = new Error(`send refused: ${res.status}`);
+      error.definitelyNotSent = true;
+      throw error;
+    }
     return res.json();
   };
 }
@@ -667,7 +698,7 @@ async function noteForOnePerson(db, contactId) {
 module.exports = {
   LANES, MESSAGE_STATES, EMAIL_RAMP, FIRST_CONTACT, FOLLOW_UP, MAX_PER_RUN,
   FOLLOW_UP_DAYS, touchDue, queueNextTouch, queueDueTouches,
-  sendQueuedEmails,
+  sendQueuedEmails, defaultSender,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
   signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,

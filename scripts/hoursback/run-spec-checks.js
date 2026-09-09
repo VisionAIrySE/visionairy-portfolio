@@ -630,7 +630,7 @@ def('checks_run_offline', () => {
 let _db = null;
 function sharedDb() {
   if (!_db) {
-    const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
+    const { PrismaClient } = require('@prisma/client');
     // Checks run against TEST_DATABASE_URL when set — a local throwaway
     // database. Two reasons, both learned the hard way 2026-08-25: fixture
     // rows must never be written into Russ's live store, and every round trip to
@@ -652,7 +652,7 @@ async function withDb(fn) { return fn(sharedDb()); }
 let _live;
 function liveDb() {
   if (!_live) {
-    const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
+    const { PrismaClient } = require('@prisma/client');
     _live = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
   }
   return _live;
@@ -1727,13 +1727,48 @@ def('send_never_exceeds_its_ceiling', () => withDb(async (db) => {
   return { ok, detail: ok ? `asked for 3 and sent 3; asked for 9999 and never passed the built-in ceiling of ${L.MAX_PER_RUN}` : JSON.stringify({ run, overAsk, calls }) };
 }), 'lanes');
 
+def('two_senders_cannot_send_the_same_email', () => withDb(async (db) => {
+  await cleanLane(db, 'twosenders');
+  const L = lanes();
+  await approvedTemplate(db);
+  const p = await seedLane(db, 'twosenders');
+  await L.queueEmail(db, p.id);
+  let calls = 0;
+  const slowSend = async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    return { id: 'provider-one' };
+  };
+  const runs = await Promise.all([
+    L.sendQueuedEmails(db, { apiKey: 'test-key', send: slowSend, limit: 1 }),
+    L.sendQueuedEmails(db, { apiKey: 'test-key', send: slowSend, limit: 1 }),
+  ]);
+  const saved = await db.outreachMessage.findFirstOrThrow({
+    where: { prospectId: p.id, lane: 'EMAIL' },
+  });
+  const ok = calls === 1 && runs.reduce((total, run) => total + run.sent, 0) === 1
+    && saved.state === 'SENT' && saved.deliveryState === 'DELIVERED'
+    && saved.providerMessageId === 'provider-one';
+  await cleanLane(db, 'twosenders');
+  return { ok, detail: ok
+    ? 'two senders raced; the provider was called once and one delivery was recorded'
+    : JSON.stringify({ calls, runs, state: saved.state, deliveryState: saved.deliveryState }) };
+}), 'lanes');
+
 def('send_one_refusal_never_stops_the_rest', () => withDb(async (db) => {
   await cleanLane(db, 'onefail');
   const L = lanes();
   await approvedTemplate(db);
   for (const i of [1, 2, 3]) { const p = await seedLane(db, `onefail${i}`); await L.queueEmail(db, p.id); }
   let n = 0;
-  const flaky = async () => { n += 1; if (n === 2) throw new Error('refused'); };
+  const flaky = async () => {
+    n += 1;
+    if (n === 2) {
+      const error = new Error('refused');
+      error.definitelyNotSent = true;
+      throw error;
+    }
+  };
   const run = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: flaky });
   await cleanLane(db, 'onefail');
   const ok = run.sent === 2 && run.failed === 1 && run.attempted === 3;
@@ -2384,32 +2419,29 @@ def('linkedin_hand_send_queue', () => withDb(async (db) => {
 
 def('email_ramp_caps_daily_volume', () => {
   const { dailyEmailCap, EMAIL_RAMP } = lanes();
-  // Week one is 30 (Russ, 2026-08-26). The old ceiling of 20 came from a ramp
-  // that crawled for seven weeks and would have taken 69 days to reach 691
-  // businesses once.
+  // The historical ramp stays visible as reference, but Russ removed the
+  // daily cap on 2026-09-06. The per-run ceiling remains the runaway guard.
   const caps = EMAIL_RAMP.map((_, i) => dailyEmailCap(i));
-  const rising = caps.every((c, i) => i === 0 || c > caps[i - 1]);
-  const flatAfter = dailyEmailCap(99) === EMAIL_RAMP[EMAIL_RAMP.length - 1];
-  const ok = rising && flatAfter && caps[0] <= 30;
-  return { ok, detail: ok ? `starts at ${caps[0]} a day and climbs to ${caps[caps.length - 1]}, then holds` : caps.join(',') };
+  const uncapped = caps.every((c) => c === Number.MAX_SAFE_INTEGER)
+    && dailyEmailCap(99) === Number.MAX_SAFE_INTEGER;
+  return { ok: uncapped, detail: uncapped
+    ? 'the retired ramp is not applied; the per-run ceiling remains in force'
+    : caps.join(',') };
 }, 'lanes');
 
 def('email_ramp_stops_at_cap', () => withDb(async (db) => {
   await cleanLane(db, 'cap');
-  await approvedTemplate(db);
   const L = lanes();
   const cap = L.dailyEmailCap(0);
-  for (let i = 0; i < cap; i++) {
-    const p = await seedLane(db, `cap${i}`);
-    const m = await L.queueEmail(db, p.id);
-    await L.markEmailSent(db, m.id);
-  }
   const leftToday = await L.emailsLeftToday(db, 0);
-  const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
   const leftTomorrow = await L.emailsLeftToday(db, 0, new Date(Date.now() + 24 * 3600 * 1000));
-  const ok = leftToday === 0 && leftTomorrow === cap;
+  const ok = cap === Number.MAX_SAFE_INTEGER
+    && leftToday === Number.MAX_SAFE_INTEGER
+    && leftTomorrow === Number.MAX_SAFE_INTEGER;
   await cleanLane(db, 'cap');
-  return { ok, detail: ok ? `hit today's ceiling of ${cap} and stopped; tomorrow opens at ${cap} again` : `today=${leftToday} tomorrow=${leftTomorrow}` };
+  return { ok, detail: ok
+    ? 'there is no daily ceiling; a single run is still limited separately'
+    : `cap=${cap} today=${leftToday} tomorrow=${leftTomorrow}` };
 }), 'lanes');
 
 def('bounce_suppresses_email_only', () => withDb(async (db) => {

@@ -1016,7 +1016,7 @@ async function emailScreen(params) {
   if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
   if (review === 'readthrough') Object.assign(prospectWhere, WAS_READ_RIGHT_THROUGH);
 
-  const [left, ready, sent, batch, waitingAllTold, queuedAllTold] = await Promise.all([
+  const [left, ready, sent, batch, waitingAllTold, queuedAllTold, unconfirmed, unconfirmedTotal] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
       // THE FIRST MESSAGE ONLY. The follow-ups are written and stored now
@@ -1068,6 +1068,11 @@ async function emailScreen(params) {
         NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
       },
     }),
+    db.outreachMessage.findMany({
+      where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' }, include: { prospect: true },
+      orderBy: { deliveryLastAttemptAt: 'desc' }, take: 10,
+    }),
+    db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
   ]);
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
   // steady until a refresh, otherwise I never get through them").
@@ -1164,7 +1169,7 @@ async function emailScreen(params) {
           const opener = (m.body || '').match(/^Hi ([^,]+),/);
           const greeted = opener ? opener[1] : null;
           return `${who ? `<b>To ${esc(who)}</b> · ` : greeted ? `<b>Greets ${esc(greeted)}</b> · ` : '<b>No name — opens "Hello,"</b> · '}`;
-        })()}${esc(resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}
+        })()}${esc(m.deliveryTo || m.sentTo || resolveField(m.prospect, 'email') || 'no address')} · opens on: ${esc(m.openedWith || '')}
           · <a href="/business/${m.prospectId}">open the business</a></div>
         <form method="POST" action="/email/skip/${m.id}" style="margin-left:auto"
           onsubmit="return confirm('Skip this one? It comes off the list and nothing goes to them. The business stays.')">
@@ -1198,8 +1203,16 @@ async function emailScreen(params) {
   </details>`;
 
   const justSent = params.get('sent');
+  const sendFailed = Number(params.get('failed') || 0);
+  const sendBlocked = Number(params.get('blocked') || 0);
+  const sendUnconfirmed = Number(params.get('unconfirmed') || 0);
+  const sendRecovered = Number(params.get('recovered') || 0);
   return page(`<h1>Email</h1>
-  ${justSent !== null ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(justSent)} sent.</b> ${esc(params.get('why') || '')}</div>` : ''}
+  ${justSent !== null ? `<div class="card" style="background:${sendUnconfirmed ? '#fef3c7;border-color:#d97706' : '#dcfce7;border-color:#16a34a'}"><b>${esc(justSent)} sent.</b>
+    ${sendFailed ? `${sendFailed} refused and left queued. ` : ''}${sendBlocked ? `${sendBlocked} blocked before delivery. ` : ''}${sendRecovered ? `${sendRecovered} safely recovered. ` : ''}
+    ${sendUnconfirmed ? `<b>${sendUnconfirmed} outcome${sendUnconfirmed === 1 ? ' is' : 's are'} unconfirmed; check the provider before taking action.</b> ` : ''}${esc(params.get('why') || '')}</div>` : ''}
+  ${unconfirmed.length ? `<div class="card warn"><b>${unconfirmedTotal} email outcome${unconfirmedTotal === 1 ? ' needs' : 's need'} review.</b> The CRM will not retry ${unconfirmedTotal === 1 ? 'it' : 'them'} automatically because the provider may already have accepted ${unconfirmedTotal === 1 ? 'it' : 'them'}.
+    <ul>${unconfirmed.map((m) => `<li><a href="/business/${m.prospectId}">${esc(resolveField(m.prospect, 'name'))}</a> — ${esc(m.deliveryTo || m.sentTo || 'recipient unknown')}${m.deliveryError ? ` — ${esc(m.deliveryError)}` : ''}</li>`).join('')}</ul></div>` : ''}
   <div class="score">
     <div><b>${reachable}</b>reachable by email</div>
     <div><b>${queuedAllTold}</b>ready to send<br><span class="muted">ticked and waiting on you</span></div>
@@ -1295,7 +1308,7 @@ async function emailScreen(params) {
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
     <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Mark due follow-ups as ready</button></form>
-    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready — up to ${Math.min(left, 25)} now</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready — up to ${Math.min(left, L.MAX_PER_RUN)} now</button></form>
     <button form="pickForm" ${approved ? '' : 'disabled'}>Mark ticked as ready</button>
     <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
   </p>
@@ -2374,13 +2387,13 @@ const server = http.createServer(async (req, res) => {
         if (what === 'send') {
           const weeks = Number(url.searchParams.get('weeks') || form.weeks || 0);
           const run = await L.sendQueuedEmails(db, { weeksSending: weeks });
-          res.writeHead(303, { Location: `/email?sent=${run.sent}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
+          res.writeHead(303, { Location: `/email?sent=${run.sent}&failed=${run.failed}&blocked=${run.blocked}&unconfirmed=${run.unconfirmed}&recovered=${run.recovered}&why=${encodeURIComponent(run.stoppedBecause || '')}` });
           return res.end();
         }
         // Not this one — off the list, business untouched, undoable.
         if (what === 'skip' && arg) {
-          await db.outreachMessage.update({
-            where: { id: arg },
+          await db.outreachMessage.updateMany({
+            where: { id: arg, state: { in: ['DRAFT', 'QUEUED'] }, deliveryState: null },
             data: { state: 'SUPPRESSED', suppressedReason: 'skipped on the email screen' },
           });
           res.writeHead(303, { Location: '/email?skipped=1' });
@@ -2416,6 +2429,10 @@ const server = http.createServer(async (req, res) => {
         // Saving a rewrite keeps it as proof of how Russ actually writes.
         if (what === 'edit' && arg) {
           const m = await db.outreachMessage.findUniqueOrThrow({ where: { id: arg }, include: { prospect: true } });
+          if (m.deliveryState) {
+            res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent('That message could not be edited because delivery has started.')}` });
+            return res.end();
+          }
           const body = String(form.body || '').trim();
           const subject = String(form.subject || '').trim() || null;
           if (body && body !== m.body) {
@@ -2513,7 +2530,9 @@ const server = http.createServer(async (req, res) => {
         await db.prospect.update({ where: { id }, data: { doNotContact: putting, stage: putting ? 'NEEDS_REVIEW' : 'NO_CONTACT' } });
         let removed = 0;
         if (putting) {
-          const r = await db.outreachMessage.deleteMany({ where: { prospectId: id, sentAt: null } });
+          const r = await db.outreachMessage.deleteMany({
+            where: { prospectId: id, sentAt: null, deliveryState: null },
+          });
           removed = r.count;
         }
         const said = putting
@@ -2586,6 +2605,10 @@ const server = http.createServer(async (req, res) => {
           for (const [id, fields] of changedMessage) {
             try {
             const before = await db.outreachMessage.findUnique({ where: { id }, include: { prospect: true } });
+            if (before && before.deliveryState) {
+              clashes.push(`${before.prospect.name || 'one message'} could not be edited because delivery has started`);
+              continue;
+            }
             if (!before || !fields.body || fields.body === before.body) {
               if (before && fields.subject && fields.subject !== before.subject) {
                 await db.outreachMessage.update({ where: { id }, data: { subject: fields.subject, editedAt: new Date() } });

@@ -271,7 +271,7 @@ model MessageTemplate {
 
 /// One message, on one lane, to one business. Written, never overwritten.
 /// lane:  PHONE | EMAIL | LINKEDIN
-/// state: DRAFT | QUEUED | SENT | REPLIED | SUPPRESSED
+/// state: DRAFT | QUEUED | SENDING | SENT | REPLIED | SUPPRESSED
 /// A LinkedIn message can only reach SENT through a person's hand, recorded in
 /// sentBy — the engine may never write it.
 model OutreachMessage {
@@ -301,10 +301,26 @@ model OutreachMessage {
   /// Set the moment Russ rewrites a draft by hand. A message he has touched is
   /// never regenerated underneath him, however far the wording moves on.
   editedAt         DateTime?
+  /// Durable delivery state. The payload below is frozen before the first
+  /// provider call so a retry uses the same recipient and words.
+  /// deliveryState: CLAIMED | ATTEMPTING | DELIVERED | FAILED | UNCONFIRMED | BLOCKED
+  deliveryState         String?
+  deliveryKey           String?   @unique
+  deliveryClaimedAt     DateTime?
+  deliveryLeaseExpiresAt DateTime?
+  deliveryLastAttemptAt DateTime?
+  deliveryTo            String?
+  deliveryFrom          String?
+  deliverySubject       String?
+  deliveryHtml          String?
+  deliveryText          String?
+  providerMessageId     String?
+  deliveryError         String?
   createdAt        DateTime         @default(now())
 
   @@index([prospectId, lane])
   @@index([state])
+  @@index([deliveryState, deliveryLeaseExpiresAt])
 }
 
 /// A person at a business. The website reader finds them; Russ corrects them.
