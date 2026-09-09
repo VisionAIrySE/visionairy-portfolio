@@ -1591,17 +1591,19 @@ def('rare_signals_outweigh_the_near_universal_ones', () => {
   // on roughly three in four businesses, so at their old weights 799 tied on
   // the same number. A tell that nearly everyone shows cannot outrank one
   // that only a few do, or the middle of the list will not sort.
-  const universal = [SIGNAL_WEIGHTS.no_online_booking, SIGNAL_WEIGHTS.no_customer_portal];
+  // no_customer_portal was retired after a real-data check found it wrong more
+  // than a quarter of the time. Booking remains the near-universal comparison.
+  const universal = [SIGNAL_WEIGHTS.no_online_booking];
   const rare = [SIGNAL_WEIGHTS.hiring_admin_role, SIGNAL_WEIGHTS.no_website, SIGNAL_WEIGHTS.downloadable_forms];
   const ok = rare.every((r) => r > Math.max(...universal));
-  return { ok, detail: ok ? 'every rare tell outweighs both of the near-universal ones' : JSON.stringify(SIGNAL_WEIGHTS) };
+  return { ok, detail: ok ? 'every rare tell outweighs the remaining near-universal signal' : JSON.stringify(SIGNAL_WEIGHTS) };
 });
 
 def('manual_work_signals_declared', () => {
   const { SIGNAL_WEIGHTS } = scoring();
-  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_customer_portal', 'no_website', 'no_email_published'];
+  const want = ['hiring_admin_role', 'no_online_booking', 'downloadable_forms', 'fax_listed', 'no_website', 'no_email_published'];
   const missing = want.filter((w) => !(w in SIGNAL_WEIGHTS));
-  return { ok: !missing.length, detail: missing.length ? `not scored: ${missing.join(', ')}` : 'all six tells are declared in one table' };
+  return { ok: !missing.length, detail: missing.length ? `not scored: ${missing.join(', ')}` : 'all six reliable tells are declared in one table; the disproven portal signal stays retired' };
 });
 
 def('headcount_does_not_affect_score', () => {
