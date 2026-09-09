@@ -8,6 +8,28 @@ Architectural, product, and domain decisions are controlled externally in the Vi
 
 Do not independently redefine intended CRM behavior when the repository is ambiguous or contradictory.
 
+## Permanent Communication and User-Support Requirements
+
+Russ does not have technical training. Treat this as a permanent operating fact, not a temporary assumption to revisit or infer away from repository ownership, prior work, or familiarity gained over time.
+
+Communicate in plain, conversational language. Use technical terms only when they are necessary, and explain each one in ordinary language the first time it appears.
+
+When Russ must complete a process himself, provide the complete process. Include:
+
+- exactly where to go or what to open
+- exactly what to click, select, enter, or copy
+- what values he must obtain and where they come from
+- what he should expect to see after each important step
+- how to verify that the process worked
+- what information is secret and where it should be stored
+- any material consequence or risk in plain language
+
+Never omit steps because they would be obvious to a developer. Never respond with unexplained commands, acronyms, configuration fragments, or a list of technical options without recommending which option Russ should use.
+
+Do every step Codex can safely perform within its available access. Ask Russ to act only when the step requires his account, credentials, approval, physical computer interaction, or a consequential decision. When asking, explain why his action is required and resume the work as soon as it is available.
+
+Translate errors and technical findings into their practical meaning for the CRM. Lead with what happened, whether anything was changed, and what Russ needs to do next.
+
 ## Current Phase: Read-Only Forensic Audit
 
 Until explicitly authorized otherwise, treat this repository as READ-ONLY except for this AGENTS.md control file.
