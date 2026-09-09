@@ -37,7 +37,7 @@ const C = require('../../src/hoursback/crm/campaign.js');
       NOT: { openedWith: { startsWith: 'touch_' } },
       prospect: { doNotContact: false },
     },
-    include: { prospect: { select: { name: true, email: true, emailManualValue: true, automationScore: true } } },
+    include: { prospect: { select: { name: true, email: true, emailManualValue: true, automationScore: true, website: true } } },
   });
 
   const good = []; const bad = [];
@@ -54,8 +54,26 @@ const C = require('../../src/hoursback/crm/campaign.js');
   // The better-scoring record keeps its place; the other goes back to being a
   // draft with the reason on it. Nothing is deleted and no record is merged —
   // deciding two businesses are one is Russ's call, not this script's.
+  // THE SAME FIRM UNDER TWO NAMES IS STILL THE SAME FIRM.
+  //
+  // Guarding on the address alone was not enough. 267 records share a website
+  // with another record, and 11 of them are in the ready pile: Deschutes Family
+  // Care and DESCHUTES FAMILY CARE, LLC. Ponderosa Forge and PONDEROSA FORGE &
+  // IRONWORKS, INC. Bartlett Excavation and Paving, twice, plus BARTLETT
+  // EXCAVATION AND CONSTRUCTION. One business, entered twice, often with two
+  // different addresses at the same front desk — so the address check waves
+  // them straight through and the firm gets two cold letters from one stranger.
+  //
+  // A shared website is the strongest sign of one business twice, so it counts
+  // as the same claim. Where two records genuinely share a site and are NOT the
+  // same firm, the second is held back rather than sent, and the reason says so
+  // — that is the safer way round, and it puts the pair in front of Russ.
   const claimed = new Map();
+  const siteOf = (m) => {
+    try { return new URL(String(m.prospect.website)).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
+  };
   const addressOf = (m) => String(m.prospect.email || m.prospect.emailManualValue || '').toLowerCase().trim();
+  const claimsOf = (m) => [addressOf(m), siteOf(m)].filter(Boolean);
   for (const m of letters) {
     const canSendTo = Boolean(m.prospect.email || m.prospect.emailManualValue);
     // Judged by the rules that belong to this message, which for everything in
@@ -65,20 +83,24 @@ const C = require('../../src/hoursback/crm/campaign.js');
       bad.push({ m, why: canSendTo ? verdict.why : 'no email address to send to' });
       continue;
     }
-    const where = addressOf(m);
-    const held = claimed.get(where);
-    if (!held) { claimed.set(where, m); good.push(m); continue; }
-    // Two good letters, one address. Keep the higher score.
-    const mine = m.prospect.automationScore || 0;
-    const theirs = held.prospect.automationScore || 0;
-    const loser = mine > theirs ? held : m;
-    const winner = mine > theirs ? m : held;
-    if (loser === held) {
-      good.splice(good.indexOf(held), 1);
-      claimed.set(where, m);
+    const mine = claimsOf(m);
+    const clash = mine.map((k) => claimed.get(k)).find(Boolean);
+    if (!clash) { mine.forEach((k) => claimed.set(k, m)); good.push(m); continue; }
+    // Two good letters, one firm. Keep the higher score; the other goes back to
+    // drafts with the reason on it, so the pair is visible rather than silently
+    // halved.
+    const ours = m.prospect.automationScore || 0;
+    const theirs = clash.prospect.automationScore || 0;
+    const winner = ours > theirs ? m : clash;
+    const loser = ours > theirs ? clash : m;
+    if (winner === m) {
+      const at = good.indexOf(clash);
+      if (at >= 0) good.splice(at, 1);
+      mine.forEach((k) => claimed.set(k, m));
       good.push(m);
     }
-    bad.push({ m: loser, why: `${where} is already being written to as ${winner.prospect.name} — the same address twice in one morning` });
+    const how = addressOf(m) && addressOf(m) === addressOf(clash) ? 'the same email address' : 'the same website';
+    bad.push({ m: loser, why: `already being written to as "${winner.prospect.name}" — ${how}, so this is very likely the same business twice` });
   }
 
   const alreadyQueued = letters.filter((m) => m.state === 'QUEUED');
