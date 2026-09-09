@@ -85,7 +85,11 @@ function askFor({ name, trade, jobs, was, why }) {
 
   let ids = String(arg('ids', '')).split(',').map((s) => s.trim()).filter(Boolean);
   const from = arg('from', null);
-  if (!ids.length && from) ids = String(fs.readFileSync(from, 'utf8')).split(',').map((s) => s.trim()).filter(Boolean);
+  // A LIST IS A LIST, HOWEVER IT IS SEPARATED. This split on commas only, so a
+  // file with one business per line — which is what every other script writes —
+  // came back as a single unusable id and the whole run did nothing but say it
+  // had skipped one (2026-09-08). Commas, line breaks or spaces, all fine now.
+  if (!ids.length && from) ids = String(fs.readFileSync(from, 'utf8')).split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
   if (LIMIT) ids = ids.slice(0, LIMIT);
   if (!ids.length) { console.error('no businesses given'); process.exit(1); }
 
