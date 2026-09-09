@@ -4003,14 +4003,18 @@ def('a_pasted_paragraph_never_reaches_a_message', () => {
 });
 
 def('their_own_marketing_is_refused_on_both_channels', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/hoursback/crm/firstContact.js'), 'utf8');
-  const toSrc = fs.readFileSync(path.join(ROOT, 'src/hoursback/crm/tradeOpening.js'), 'utf8');
-  const linkedIn = /usableWorkClause\(prospect\.theirWork\)/.test(src);
-  const email = /usableWorkClause\(theirWork\)/.test(toSrc);
-  const ok = linkedIn && email;
+  const prospect = {
+    name: 'Alpha Plumbing', trade: 'trades', ownerName: 'Sara Lin',
+    theirWork: 'premier craftsmanship and unparalleled service',
+  };
+  const signal = [{ signal: 'fax_listed' }];
+  const email = firstContact().draftFirstContact(prospect, signal);
+  const linkedIn = firstContact().draftLinkedIn(prospect, signal);
+  const repeated = /premier|craftsmanship|unparalleled/i;
+  const ok = email && linkedIn && !repeated.test(email.body) && !repeated.test(linkedIn.body);
   return { ok, detail: ok
-    ? 'the email and the LinkedIn note both refuse a paragraph pasted into their own words'
-    : `unguarded: ${[!email && 'the email', !linkedIn && 'the LinkedIn note'].filter(Boolean).join(', ')}` };
+    ? 'neither channel repeats a pasted marketing phrase as a personal observation'
+    : 'the business marketing phrase appeared in generated outreach' };
 });
 
 def('the_review_flag_clears_itself', () => withLiveDb(async (db) => {
