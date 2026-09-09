@@ -46,3 +46,5 @@ services:
         sync: false
       - key: HOURSBACK_REPORT_TO
         sync: false   # where the morning send summary goes
+      # Customer outreach remains off after deployment. Only after Russ gives
+      # separate approval, add HOURSBACK_CUSTOMER_EMAIL_ENABLED=true in Render.

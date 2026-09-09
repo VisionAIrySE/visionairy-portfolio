@@ -8,6 +8,23 @@ const L = require('./lanes.js');
 async function dailySendRun(db, options = {}) {
   const lanes = options.lanes || L;
   const now = options.now || new Date();
+  // Deployment and wording approval are deliberately separate from permission
+  // to start customer outreach. Until Russ explicitly enables this switch in
+  // Render, the scheduled job does not even queue a production record.
+  const customerEmailEnabled = options.customerEmailEnabled === undefined
+    ? process.env.HOURSBACK_CUSTOMER_EMAIL_ENABLED === 'true'
+    : options.customerEmailEnabled === true;
+  if (!customerEmailEnabled) {
+    const reason = 'customer email automation is disabled';
+    return {
+      queued: { first: 0, second: 0, third: 0 },
+      delivery: {
+        attempted: 0, sent: 0, failed: 0, blocked: 0,
+        unconfirmed: 0, recovered: 0, stoppedBecause: reason,
+      },
+      report: { sent: false, reason },
+    };
+  }
   const limit = Math.min(Number(options.limit || lanes.MAX_PER_RUN || 200), lanes.MAX_PER_RUN || 200);
   const queued = await lanes.queueDueTouches(db, { now, limit });
   const apiKey = options.apiKey || process.env.RESEND_API_KEY;
