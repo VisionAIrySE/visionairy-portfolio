@@ -611,6 +611,9 @@ async function sendQueuedEmails(db, options = {}) {
   const key = options.apiKey || process.env.RESEND_API_KEY;
   const from = options.from || 'Russ Wright <russ@visionairy.biz>';
   const now = options.now || new Date();
+  const messageIds = Array.isArray(options.messageIds)
+    ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
+    : null;
   const result = { attempted: 0, sent: 0, failed: 0, blocked: 0,
     unconfirmed: 0, recovered: 0, stoppedBecause: null };
 
@@ -622,7 +625,7 @@ async function sendQueuedEmails(db, options = {}) {
   if (ceiling <= 0) { result.stoppedBecause = "today's ceiling is already spent"; return result; }
 
   const queued = await db.outreachMessage.findMany({
-    where: { lane: 'EMAIL', OR: [
+    where: { lane: 'EMAIL', ...(messageIds ? { id: { in: messageIds } } : {}), OR: [
       { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null } },
       { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
         deliveryLeaseExpiresAt: { lte: now } },

@@ -26,7 +26,14 @@ async function dailySendRun(db, options = {}) {
     };
   }
   const limit = Math.min(Number(options.limit || lanes.MAX_PER_RUN || 200), lanes.MAX_PER_RUN || 200);
-  const queued = await lanes.queueDueTouches(db, { now, limit });
+  const messageIds = Array.isArray(options.messageIds)
+    ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
+    : null;
+  // A named recovery run must touch only the messages it was given. It does
+  // not add newly due customer messages to the queue while recovering them.
+  const queued = messageIds
+    ? { first: 0, second: 0, third: 0 }
+    : await lanes.queueDueTouches(db, { now, limit });
   const apiKey = options.apiKey || process.env.RESEND_API_KEY;
   const from = options.from || process.env.HOURSBACK_EMAIL_FROM || 'Russ Wright <russ@visionairy.biz>';
   const delivery = await lanes.sendQueuedEmails(db, {
@@ -35,6 +42,7 @@ async function dailySendRun(db, options = {}) {
     apiKey,
     from,
     send: options.send,
+    messageIds,
   });
   const reportTo = options.reportTo || process.env.HOURSBACK_REPORT_TO;
   const report = { sent: false, reason: null };

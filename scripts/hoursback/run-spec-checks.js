@@ -1756,6 +1756,30 @@ def('send_never_exceeds_its_ceiling', () => withDb(async (db) => {
   return { ok, detail: ok ? `asked for 3 and sent 3; asked for 9999 and never passed the built-in ceiling of ${L.MAX_PER_RUN}` : JSON.stringify({ run, overAsk, calls }) };
 }), 'lanes');
 
+def('a_recovery_run_sends_only_the_named_messages', () => withDb(async (db) => {
+  await cleanLane(db, 'namedrecovery');
+  const L = lanes();
+  await approvedTemplate(db);
+  const messages = [];
+  for (const i of [1, 2, 3]) {
+    const p = await seedLane(db, `namedrecovery${i}`, { automationScore: 20 + i });
+    messages.push(await L.queueEmail(db, p.id));
+  }
+  const delivered = [];
+  const run = await L.sendQueuedEmails(db, {
+    apiKey: 'test-key', limit: 5,
+    messageIds: [messages[0].id, messages[2].id],
+    send: async (payload) => { delivered.push(payload.to); return { id: `provider-${delivered.length}` }; },
+  });
+  const untouched = await db.outreachMessage.findUnique({ where: { id: messages[1].id } });
+  const ok = run.sent === 2 && delivered.length === 2
+    && untouched.state === 'QUEUED' && untouched.deliveryState === null;
+  await cleanLane(db, 'namedrecovery');
+  return { ok, detail: ok
+    ? 'a recovery run delivered its two named messages and left the other queued message untouched'
+    : JSON.stringify({ run, delivered, untouched: untouched && { state: untouched.state, deliveryState: untouched.deliveryState } }) };
+}), 'lanes');
+
 def('two_senders_cannot_send_the_same_email', () => withDb(async (db) => {
   await cleanLane(db, 'twosenders');
   const L = lanes();
@@ -3694,6 +3718,29 @@ def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () =
   return { ok, detail: ok
     ? 'the customer result is returned even when the separate summary email fails'
     : JSON.stringify(result) };
+}, 'linkedin');
+
+def('a_named_recovery_run_does_not_queue_other_customers', async () => {
+  const { dailySendRun } = require(path.join(ROOT, 'src/hoursback/crm/scheduler.js'));
+  const calls = [];
+  const ids = ['message-a', 'message-b'];
+  const fakeLanes = {
+    MAX_PER_RUN: 5,
+    queueDueTouches: async () => { calls.push('queue'); return { first: 5, second: 0, third: 0 }; },
+    sendQueuedEmails: async (_db, options) => {
+      calls.push(['send', options.messageIds]);
+      return { attempted: 2, sent: 2, failed: 0, blocked: 0, unconfirmed: 0, recovered: 0 };
+    },
+  };
+  const result = await dailySendRun({}, {
+    lanes: fakeLanes, customerEmailEnabled: true, limit: 5, messageIds: ids,
+    apiKey: 'test-key', reportTo: null,
+  });
+  const ok = JSON.stringify(calls) === JSON.stringify([['send', ids]])
+    && result.queued.first === 0 && result.delivery.sent === 2;
+  return { ok, detail: ok
+    ? 'the scheduler skipped ordinary queueing and passed only the named recovery messages to delivery'
+    : JSON.stringify({ calls, result }) };
 }, 'linkedin');
 
 // Sentences that are individually true and collectively wrong.
