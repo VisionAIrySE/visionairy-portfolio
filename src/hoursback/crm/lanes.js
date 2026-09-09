@@ -101,18 +101,29 @@ async function templateIsApproved(db, name = FIRST_CONTACT) {
 // address, then the general inbox last.
 async function addressFor(db, prospectId, prospect, exclude = []) {
   const chosen = await db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null, notIn: exclude }, bouncedAt: null },
+    where: { prospectId, isPrimary: true, email: { not: null, notIn: exclude }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (chosen) return chosen.email;
   const named = await db.contact.findFirst({
-    where: { prospectId, name: { not: null }, email: { not: null, notIn: exclude }, bouncedAt: null },
+    where: { prospectId, name: { not: null }, email: { not: null, notIn: exclude }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (named) return named.email;
   if (exclude.length) return null;   // everyone marked has already had one
   const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
-  return p ? (p.emailManualValue || p.email) : null;
+  return p ? p.email : null;
+}
+
+// A business can be reached through its shared inbox or through a person at
+// that business. These are separate facts and stay in their separate tables.
+function emailReachableWhere() {
+  return {
+    OR: [
+      { email: { not: null } },
+      { contacts: { some: { email: { not: null }, bouncedAt: null, setAsideAt: null } } },
+    ],
+  };
 }
 
 // Everyone Russ marked at one business. He can mark the owner and the office
@@ -120,7 +131,7 @@ async function addressFor(db, prospectId, prospect, exclude = []) {
 // each gets their own message rather than sharing one (2026-08-26).
 async function everyoneMarked(db, prospectId) {
   return db.contact.findMany({
-    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -135,11 +146,11 @@ async function everyoneMarked(db, prospectId) {
 // marked primary at all, fell straight through to nobody.
 async function personFor(db, prospectId) {
   const marked = await db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null },
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
   });
   if (marked) return marked;
   return db.contact.findFirst({
-    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null },
+    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -222,6 +233,10 @@ async function whoTheLetterGoesTo(db, prospectId, p) {
 async function draftFor(db, prospectId, lane) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
+  const recipient = lane === 'EMAIL' ? await addressFor(db, prospectId, p) : null;
+  if (lane === 'EMAIL' && !recipient) {
+    return standDownStaleDrafts(db, prospectId, lane, 'no deliverable address is available');
+  }
   let { writeTo } = await whoTheLetterGoesTo(db, prospectId, p);
   // THE NOTICING — one sentence read off THIS business's own site, recorded
   // through the append-only reading store. Where one stands, it takes the
@@ -243,8 +258,6 @@ async function draftFor(db, prospectId, lane) {
   // enough on its own — this line still passed the wrong object (2026-08-31).
   const built = lane === 'EMAIL' ? draftFirstContact(writeTo, signalsOf(p)) : draftLinkedIn(writeTo, signalsOf(p));
   if (!built) return standDownStaleDrafts(db, prospectId, lane, 'nothing honest left to open with');
-  if (lane === 'EMAIL' && !p.email && !p.emailManualValue) return standDownStaleDrafts(db, prospectId, lane, 'no address on the record any more');
-
   // A draft already written is kept. The one exception: it is still sitting
   // unsent, Russ has never touched it, and the wording has moved on
   // underneath it — then it is rewritten rather than left stale. Twenty-five
@@ -263,12 +276,14 @@ async function draftFor(db, prospectId, lane) {
     // the current wording.
     const rewritable = !existing.sentAt && !existing.editedAt && !existing.deliveryState
       && (existing.body !== built.body
-        || (built.inviteBody && existing.inviteBody !== built.inviteBody));
+        || (built.inviteBody && existing.inviteBody !== built.inviteBody)
+        || (lane === 'EMAIL' && existing.sentTo !== recipient));
     if (!rewritable) return existing;
     return db.outreachMessage.update({
       where: { id: existing.id },
       data: {
         subject: built.subject, body: built.body, openedWith: built.openedWith,
+        ...(lane === 'EMAIL' ? { sentTo: recipient } : {}),
         ...(built.inviteBody ? { inviteBody: built.inviteBody } : {}),
       },
     });
@@ -281,6 +296,7 @@ async function draftFor(db, prospectId, lane) {
       subject: built.subject, body: built.body, openedWith: built.openedWith,
       inviteBody: built.inviteBody || null,
       templateId: template ? template.id : null,
+      ...(lane === 'EMAIL' ? { sentTo: recipient } : {}),
     },
   });
 }
@@ -390,7 +406,7 @@ async function markBounced(db, prospectId, now = new Date()) {
 // here, in the query, so no caller can forget it.
 async function reachableOn(db, lane, limit = 100) {
   const where = { doNotContact: false, repliedAt: null };
-  if (lane === 'EMAIL') { where.emailBouncedAt = null; where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }]; }
+  if (lane === 'EMAIL') { where.emailBouncedAt = null; Object.assign(where, emailReachableWhere()); }
   if (lane === 'PHONE') where.NOT = { phone: null };
   return db.prospect.findMany({ where, orderBy: { automationScore: 'desc' }, take: limit });
 }
@@ -428,13 +444,14 @@ russ@visionairy.biz`;
 async function queueFollowUp(db, prospectId, call) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
-  if (!p.email && !p.emailManualValue) return null;
+  const recipient = await addressFor(db, prospectId, p);
+  if (!recipient) return null;
   const built = draftFollowUp(p, call);
   if (!built) return null;
   return db.outreachMessage.create({
     data: {
       prospectId, lane: 'EMAIL', state: 'DRAFT',
-      subject: built.subject, body: built.body, openedWith: built.openedWith,
+      subject: built.subject, body: built.body, openedWith: built.openedWith, sentTo: recipient,
     },
   });
 }
@@ -485,7 +502,8 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
   if (!await templateIsApproved(db)) return null;
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact || p.repliedAt || p.emailBouncedAt) return null;
-  if (!p.email && !p.emailManualValue) return null;
+  const recipient = await addressFor(db, prospectId, p);
+  if (!recipient) return null;
 
   const sent = await db.outreachMessage.findMany({
     where: { prospectId, lane: 'EMAIL', state: { in: ['SENT', 'REPLIED'] }, openedWith: { not: 'after_the_call' } },
@@ -522,6 +540,7 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
     data: {
       prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now,
       subject: built.subject, body: built.body, openedWith: built.openedWith,
+      sentTo: sent[0] && sent[0].sentTo ? sent[0].sentTo : recipient,
     },
   });
 }
@@ -701,6 +720,6 @@ module.exports = {
   sendQueuedEmails, defaultSender,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, personFor, everyoneMarked, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

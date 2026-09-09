@@ -1119,7 +1119,7 @@ async function emailScreen(params) {
     })
     : waitingTotal;
   const reachable = await db.prospect.count({
-    where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
+    where: { doNotContact: false, repliedAt: null, emailBouncedAt: null, ...L.emailReachableWhere() },
   });
 
   const sample = ready[0] || await db.outreachMessage.findFirst({ where: { lane: 'EMAIL' }, orderBy: { createdAt: 'desc' } });
@@ -2729,20 +2729,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (route === 'contact') {
         const [, , what, arg] = url.pathname.split('/');
-        // Choosing who to write to sets the business's address to theirs, so
-        // the message goes to a person rather than a shared inbox.
+        // Choosing who to write to marks the person. Their address stays on
+        // their contact row; the business's shared inbox is a separate fact.
         // Marking somebody no longer un-marks everyone else. Russ can write to
         // the owner AND the office manager; each gets their own message, and
         // never two to one business on the same day (2026-08-26).
         if (what === 'primary' && arg) {
           const c = await db.contact.findUniqueOrThrow({ where: { id: arg } });
           await db.contact.update({ where: { id: arg }, data: { isPrimary: !c.isPrimary } });
-          const first = await db.contact.findFirst({
-            where: { prospectId: c.prospectId, isPrimary: true, email: { not: null } },
-            orderBy: { createdAt: 'asc' },
-          });
-          if (first && first.email) await setOverride(db, c.prospectId, 'email', first.email, 'russ');
-          if (first && first.name) await db.prospect.update({ where: { id: c.prospectId }, data: { contactName: first.name, contactRole: first.role } });
           // Choosing who to write to changes who the message greets, so the
           // draft is rebuilt. Nothing Russ has already edited is touched.
           refreshInBackground(c.prospectId);

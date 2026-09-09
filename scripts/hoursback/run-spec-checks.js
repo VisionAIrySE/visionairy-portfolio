@@ -2002,16 +2002,39 @@ def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (d
   await cleanLane(db, 'primary');
   const p = await seedLane(db, 'primary', { email: 'info@p.example' });
   const person = await db.contact.create({ data: { prospectId: p.id, name: 'Sara Lin', role: 'Office Manager', email: 'sara@p.example', source: 'WEBSITE' } });
-  // what the "write to them" button does
+  // What the "write to them" button does: it marks the person, without copying
+  // their address or identity into the business record.
   await db.contact.updateMany({ where: { prospectId: p.id }, data: { isPrimary: false } });
   await db.contact.update({ where: { id: person.id }, data: { isPrimary: true } });
-  await overrides().setOverride(db, p.id, 'email', person.email, 'russ');
-  await db.prospect.update({ where: { id: p.id }, data: { contactName: person.name, contactRole: person.role } });
   const after = await db.prospect.findUniqueOrThrow({ where: { id: p.id } });
-  const greeting = firstContact().draftFirstContact(after, [{ signal: 'fax_listed' }]).body.split('\n')[0];
-  const ok = overrides().resolveField(after, 'email') === 'sara@p.example' && after.email === 'info@p.example' && greeting === 'Hi Sara,';
+  const recipient = await lanes().addressFor(db, p.id, after);
+  const { writeTo } = await lanes().whoTheLetterGoesTo(db, p.id, after);
+  const greeting = firstContact().draftFirstContact(writeTo, [{ signal: 'fax_listed' }]).body.split('\n')[0];
+  const draft = await lanes().draftFor(db, p.id, 'EMAIL');
+  const ok = after.email === 'info@p.example' && recipient === 'sara@p.example'
+    && draft.sentTo === 'sara@p.example' && greeting === 'Hi Sara,';
   await cleanLane(db, 'primary');
-  return { ok, detail: ok ? 'picking Sara sent the message to her by name instead of the shared inbox, and left the fetched address on record' : `${overrides().resolveField(after, 'email')} / ${greeting}` };
+  return { ok, detail: ok
+    ? 'picking Sara addressed the message to her and kept the shared inbox as a separate business fact'
+    : JSON.stringify({ businessEmail: after.email, recipient, draftTo: draft && draft.sentTo, greeting }) };
+}), 'lanes');
+
+def('a_contact_address_is_enough_for_the_email_lane', () => withDb(async (db) => {
+  await cleanLane(db, 'contact-only');
+  const p = await seedLane(db, 'contact-only', { email: null, emailManualValue: null });
+  await db.contact.create({
+    data: { prospectId: p.id, name: 'Sara Lin', role: 'Office Manager',
+      email: 'sara@contact-only.example', source: 'WEBSITE', isPrimary: true },
+  });
+  await approvedTemplate(db);
+  const reachable = (await lanes().reachableOn(db, 'EMAIL', 5000)).some((x) => x.id === p.id);
+  const queued = await lanes().queueEmail(db, p.id);
+  const ok = reachable && queued && queued.state === 'QUEUED'
+    && queued.sentTo === 'sara@contact-only.example' && queued.body.startsWith('Hi Sara,');
+  await cleanLane(db, 'contact-only');
+  return { ok, detail: ok
+    ? 'a person\'s own address reaches the email lane without being copied onto the business'
+    : JSON.stringify({ reachable, state: queued && queued.state, sentTo: queued && queued.sentTo }) };
 }), 'lanes');
 
 def('message_claims_no_experience_russ_does_not_have', () => {
