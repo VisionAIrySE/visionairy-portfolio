@@ -3659,7 +3659,7 @@ def('email_sends_without_a_click', async () => {
   const result = await dailySendRun({}, {
     lanes: fakeLanes, limit: 999, now: new Date('2026-09-09T17:00:00Z'),
     customerEmailEnabled: true,
-    replyMonitor: { syncReplies: async () => { calls.push(['replies']); return { read: 0, replies: 0 }; } },
+    replyMonitor: { assertOutboundProtected: () => { calls.push(['reply-protection']); return { configured: true, replyTo: 'russ@reply.visionairy.biz' }; } },
     apiKey: 'test-key', reportTo: 'russ@example.test',
     reportSend: async (payload) => { calls.push(['report', payload.to]); return { id: 'report-1' }; },
   });
@@ -3668,7 +3668,7 @@ def('email_sends_without_a_click', async () => {
   const blueprint = read(path.join(ROOT, 'render.yaml'));
   const scheduled = /type:\s*cron[\s\S]*hoursback-email-sender[\s\S]*send-due-emails\.js/.test(blueprint)
     && /schedule:\s*["']0 17 \* \* MON-FRI["']/.test(blueprint);
-  const boundedInOrder = JSON.stringify(calls) === JSON.stringify([['replies'], ['queue', 200], ['send', 200], ['report', 'russ@example.test']])
+  const boundedInOrder = JSON.stringify(calls) === JSON.stringify([['reply-protection'], ['queue', 200], ['send', 200], ['report', 'russ@example.test']])
     && result.delivery.sent === 2 && result.report.sent;
   const exits = /dailySendRun[\s\S]*\.finally\(\(\) => db\.\$disconnect\(\)\)/.test(runner);
   const defaultOff = /HOURSBACK_CUSTOMER_EMAIL_ENABLED/.test(scheduler)
@@ -3711,15 +3711,15 @@ def('customer_email_uses_the_private_copy_reply_address', async () => {
     return { ok: true, json: async () => ({ id: 'reply-address-test' }) };
   };
   try {
-    await defaultSender('test-key', { replyTo: 'replies@visionairy.biz' })({
+    await defaultSender('test-key', { replyTo: 'russ@reply.visionairy.biz' })({
       from: 'Russ Wright <russ@visionairy.biz>', to: 'reader@example.test',
       subject: 'Test', html: '<p>Test</p>', text: 'Test', idempotencyKey: 'reply-address-test',
     });
   } finally { global.fetch = originalFetch; }
-  const ok = sent && sent.reply_to === 'replies@visionairy.biz'
+  const ok = sent && sent.reply_to === 'russ@reply.visionairy.biz'
     && sent.from === 'Russ Wright <russ@visionairy.biz>';
   return { ok, detail: ok
-    ? 'customer mail still comes from Russ and replies go to the private copy address'
+    ? 'customer mail still comes from Russ and replies go to the private Resend address'
     : JSON.stringify(sent) };
 }, 'mail');
 def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () => {
@@ -3732,7 +3732,7 @@ def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () =
   };
   const result = await dailySendRun({}, {
     lanes: fakeLanes, customerEmailEnabled: true, limit: 5, apiKey: 'test-key',
-    replyMonitor: { syncReplies: async () => ({ read: 0, replies: 0 }) },
+    replyMonitor: { assertOutboundProtected: () => ({ configured: true, replyTo: 'russ@reply.visionairy.biz' }) },
     from: 'Russ Wright <russ@visionairy.biz>', reportTo: 'russ@example.test',
     reportSend: async () => { throw new Error('summary refused'); },
   });
@@ -3757,7 +3757,7 @@ def('a_named_recovery_run_does_not_queue_other_customers', async () => {
   };
   const result = await dailySendRun({}, {
     lanes: fakeLanes, customerEmailEnabled: true, limit: 5, messageIds: ids,
-    replyMonitor: { syncReplies: async () => ({ read: 0, replies: 0 }) },
+    replyMonitor: { assertOutboundProtected: () => ({ configured: true, replyTo: 'russ@reply.visionairy.biz' }) },
     apiKey: 'test-key', reportTo: null,
   });
   const ok = JSON.stringify(calls) === JSON.stringify([['send', ids]])
@@ -3767,11 +3767,11 @@ def('a_named_recovery_run_does_not_queue_other_customers', async () => {
     : JSON.stringify({ calls, result }) };
 }, 'linkedin');
 
-def('the_inbox_is_checked_before_any_customer_email', async () => {
+def('automatic_email_is_blocked_without_a_tested_reply_route', async () => {
   const { dailySendRun } = require(path.join(ROOT, 'src/hoursback/crm/scheduler.js'));
   const calls = [];
   const monitor = {
-    syncReplies: async () => { calls.push('inbox'); throw new Error('copy inbox unavailable'); },
+    assertOutboundProtected: () => { calls.push('reply-protection'); throw new Error('reply route is not tested'); },
   };
   const lanes = {
     MAX_PER_RUN: 5,
@@ -3782,78 +3782,71 @@ def('the_inbox_is_checked_before_any_customer_email', async () => {
   try {
     await dailySendRun({}, { lanes, replyMonitor: monitor, customerEmailEnabled: true });
   } catch (error) { failed = error; }
-  const ok = failed && failed.message === 'copy inbox unavailable'
-    && JSON.stringify(calls) === JSON.stringify(['inbox']);
+  const ok = failed && failed.message === 'reply route is not tested'
+    && JSON.stringify(calls) === JSON.stringify(['reply-protection']);
   return { ok, detail: ok
-    ? 'an unavailable reply check stops the run before anything is queued or sent'
+    ? 'an untested reply route stops the run before anything is queued or sent'
     : JSON.stringify({ calls, failed: failed && failed.message }) };
 }, 'mail');
 
-def('gmail_is_read_only_and_human_replies_stop_followups', async () => {
-  const G = require(path.join(ROOT, 'src/hoursback/crm/gmailInbox.js'));
-  const calls = [];
-  const mailbox = {
-    connect: async () => calls.push('connect'),
-    getMailboxLock: async () => ({ release: () => calls.push('release') }),
-    fetch: async function* (query, fields) {
-      calls.push(['fetch', query, fields]);
-      yield { source: Buffer.from('reply') };
-      yield { source: Buffer.from('away') };
-    },
-    logout: async () => calls.push('logout'),
+def('resend_received_reply_is_forwarded_to_russ', async () => {
+  const R = require(path.join(ROOT, 'src/hoursback/crm/resendReplies.js'));
+  const requests = [];
+  let forwarded = null;
+  const fakeFetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.endsWith('/emails/receiving/inbound-1')) {
+      return { ok: true, json: async () => ({
+        from: 'Owner <owner@customer.example>', subject: 'Re: your note',
+        text: 'Please call me Thursday.', html: '<p>Please call me Thursday.</p>',
+        attachments: [{ id: 'attachment-1', filename: 'details.txt' }],
+      }) };
+    }
+    if (url.endsWith('/attachments/attachment-1')) {
+      return { ok: true, json: async () => ({ download_url: 'https://download.example/attachment-1' }) };
+    }
+    if (url === 'https://download.example/attachment-1') {
+      return { ok: true, arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer };
+    }
+    if (url === 'https://api.resend.com/emails' && options.method === 'POST') {
+      forwarded = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ id: 'forward-1' }) };
+    }
+    throw new Error(`unexpected request: ${url}`);
   };
-  const parsed = {
-    reply: {
-      from: { text: 'Owner <owner@customer.example>' },
-      subject: 'Re: your note', text: 'Please call me Thursday.',
-      date: new Date('2026-09-09T16:00:00Z'),
+  const result = await R.forwardReceived({
+    type: 'email.received', data: { email_id: 'inbound-1', from: 'owner@customer.example' },
+  }, {
+    config: {
+      apiKey: 'inbound-key', forwardTo: 'russ@visionairy.biz',
+      forwardFrom: 'VisionAIry Replies <replies@visionairy.biz>',
     },
-    away: {
-      from: { text: 'Office <office@another.example>' },
-      subject: 'Automatic reply: Out of Office', text: 'I am away.',
-      date: new Date('2026-09-09T15:00:00Z'),
-    },
-  };
-  const db = {
-    outreachMessage: { findFirst: async ({ where }) => (
-      where.sentTo && where.sentTo.equals === 'owner@customer.example'
-        ? { prospectId: 'prospect-1' } : null
-    ) },
-    prospect: { findUnique: async () => ({ repliedAt: null }) },
-  };
-  const marked = [];
-  const result = await G.syncReplies(db, {
-    env: {
-      INBOX_USER: 'crm-replies@gmail.com', INBOX_APP_PASSWORD: 'test app password',
-      HOURSBACK_EMAIL_REPLY_TO: 'replies@visionairy.biz',
-    },
-    now: new Date('2026-09-09T17:00:00Z'),
-    makeClient: () => mailbox,
-    parse: async (source) => parsed[String(source)],
-    lanes: { markReplied: async (...args) => marked.push(args) },
+    fetch: fakeFetch,
   });
-  const fetchCall = calls.find((call) => Array.isArray(call) && call[0] === 'fetch');
-  const readOnly = fetchCall && fetchCall[2].source === true
-    && !calls.some((call) => Array.isArray(call) && /move|delete|flag|store/i.test(String(call[0])));
-  const ok = result.read === 2 && result.replies === 1 && result.automatic === 1
-    && marked.length === 1 && marked[0][1] === 'prospect-1'
-    && readOnly && calls.includes('release') && calls.includes('logout');
+  const post = requests.find((request) => request.options.method === 'POST');
+  const ok = result.id === 'forward-1' && forwarded
+    && forwarded.to[0] === 'russ@visionairy.biz'
+    && forwarded.reply_to === 'Owner <owner@customer.example>'
+    && forwarded.attachments[0].filename === 'details.txt'
+    && forwarded.attachments[0].content === 'AQID'
+    && post.options.headers['Idempotency-Key'] === 'reply-forward-inbound-1';
   return { ok, detail: ok
-    ? 'the CRM only reads the copy inbox, ignores an out-of-office message, and stops follow-ups for a human reply'
-    : JSON.stringify({ result, marked: marked.length, readOnly, calls }) };
+    ? 'Resend retrieves the original reply and attachments, then forwards them to Russ exactly once'
+    : JSON.stringify({ forwarded, requests: requests.length, result }) };
 }, 'mail');
 
-def('a_copied_reply_must_match_a_recent_message_we_sent', async () => {
-  const G = require(path.join(ROOT, 'src/hoursback/crm/gmailInbox.js'));
+def('a_reply_must_match_a_recent_message_we_sent', async () => {
+  const I = require(path.join(ROOT, 'src/hoursback/crm/inbox.js'));
   const seen = [];
   const db = { outreachMessage: { findFirst: async (query) => { seen.push(query); return null; } } };
-  const unknown = await G.recentProspectFor(db, 'known-contact@example.test', new Date('2026-09-09T17:00:00Z'));
-  const publicMailbox = await G.recentProspectFor(db, 'other@gmail.com', new Date('2026-09-09T17:00:00Z'));
-  const publicDomainWasNotGuessed = seen.length === 3;
-  const ok = unknown === null && publicMailbox === null && publicDomainWasNotGuessed;
+  const publicMailbox = await I.businessFor(db, 'other@gmail.com', new Date('2026-09-09T17:00:00Z'));
+  const companyMailbox = await I.businessFor(db, 'owner@customer.example', new Date('2026-09-09T17:00:00Z'));
+  const exactPublicOnly = seen.length === 3 && seen[0].where.sentTo.equals === 'other@gmail.com';
+  const recentSentOnly = seen.every((query) => query.where.state.in.includes('SENT') && query.where.sentAt.gte instanceof Date);
+  const ok = publicMailbox === null && companyMailbox === null && exactPublicOnly && recentSentOnly;
   return { ok, detail: ok
-    ? 'a stored address alone is not called a reply, and unrelated Gmail users are never matched by domain'
-    : JSON.stringify({ unknown, publicMailbox, lookups: seen.length }) };
+    ? 'unrelated public inboxes are never guessed, and every match requires a recent CRM message'
+    : JSON.stringify({ publicMailbox, companyMailbox, lookups: seen.length, exactPublicOnly, recentSentOnly }) };
 }, 'mail');
 // Sentences that are individually true and collectively wrong.
 //

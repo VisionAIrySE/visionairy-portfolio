@@ -1,9 +1,9 @@
 // What the sending service tells us, and what to do about it.
 //
-// This replaces reading Russ's own inbox. His mail is a Microsoft business
-// account through GoDaddy, where the simple password route is often switched
-// off by whoever administers it — and none of that matters now, because the
-// service that sends the mail also hears the answers.
+// This replaces reading Russ's own inbox. Replies are addressed to a private
+// receiving subdomain in Resend. Resend reports them here, and the CRM forwards
+// the original message to Russ's normal business inbox after matching it to a
+// recent email the CRM actually sent.
 //
 // It reports four things worth acting on:
 //

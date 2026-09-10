@@ -25,13 +25,10 @@ async function dailySendRun(db, options = {}) {
       report: { sent: false, reason },
     };
   }
-  // Check the private copy inbox before creating or sending anything. If the
-  // read-only connection is missing or unavailable, fail closed: a follow-up
-  // must not leave while the CRM may have missed the customer's reply.
-  const replyMonitor = options.replyMonitor || require('./gmailInbox.js');
-  const replies = await replyMonitor.syncReplies(db, {
-    now, env: options.env,
-  });
+  // Automatic customer mail stays off unless the inbound reply route is fully
+  // configured. This prevents follow-ups from leaving without reply protection.
+  const replyMonitor = options.replyMonitor || require('./resendReplies.js');
+  const replies = replyMonitor.assertOutboundProtected(options.env || process.env);
   const limit = Math.min(Number(options.limit || lanes.MAX_PER_RUN || 200), lanes.MAX_PER_RUN || 200);
   const messageIds = Array.isArray(options.messageIds)
     ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]

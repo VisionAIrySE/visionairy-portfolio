@@ -1248,7 +1248,7 @@ async function emailScreen(params) {
     ${process.env.RESEND_WEBHOOK_SECRET
       ? 'The sending service tells this site when an address fails or somebody marks it as spam.'
       : 'Nothing tells this site when an address fails or somebody marks it as spam. Add RESEND_WEBHOOK_SECRET in the site settings and point the sending service at /mail-events.'}
-    <br><br><b>Replies:</b> Before any scheduled customer email leaves, the CRM checks its private copy inbox. If that read-only check cannot run, nothing is sent. The &ldquo;They replied&rdquo; button remains as a backup.
+    <br><br><b>Replies:</b> Resend receives replies on a private VisionAIry subdomain, tells the CRM to stop follow-ups, and forwards the original message to russ@visionairy.biz. Automatic sending remains blocked until that route passes an end-to-end test. The &ldquo;They replied&rdquo; button remains as a backup.
   </div>
 
   <h2>Written and waiting (${onlyTrade || floor || review
@@ -2334,14 +2334,22 @@ const server = http.createServer(async (req, res) => {
       try { event = JSON.parse(raw); } catch { res.writeHead(400); return res.end('not readable'); }
 
       const { act } = ME.meaning(event);
+      const receivedReply = event.type === 'email.received';
       const address = ME.addressFrom(event);
-      if (act === 'ignore' || !address) { res.writeHead(200); return res.end('noted'); }
+      if ((!receivedReply && act === 'ignore') || !address) { res.writeHead(200); return res.end('noted'); }
 
       const I = require('../../src/hoursback/crm/inbox.js');
       const prospectId = await I.businessFor(db, address);
       if (!prospectId) { res.writeHead(200); return res.end('not one of ours'); }
 
       if (act === 'replied') await L.markReplied(db, prospectId, 'EMAIL');
+      if (receivedReply) {
+        // Human and automatic replies both belong in Russ's ordinary inbox.
+        // Only a human reply stops the sequence; an out-of-office message is
+        // forwarded for visibility but leaves the follow-up schedule alone.
+        const RR = require('../../src/hoursback/crm/resendReplies.js');
+        await RR.forwardReceived(event);
+      }
       if (act === 'bounced') {
         await L.markBounced(db, prospectId, address);
       }

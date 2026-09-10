@@ -79,35 +79,35 @@ function classify({ from, subject, body }) {
   return { kind: 'reply', address: m[1].toLowerCase() };
 }
 
-// Which business an address belongs to. A person's own address wins; the
-// business inbox is the fallback. Anything sent more than REPLY_WINDOW_DAYS
-// ago is too old to be what this is answering.
+// Which business an address belongs to. A reply must match an email the CRM
+// actually sent recently. Merely storing an address on a business is not proof
+// that an unrelated inbox message answered our outreach.
+const PUBLIC_MAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+  'live.com', 'msn.com', 'aol.com', 'icloud.com', 'me.com', 'protonmail.com',
+  'comcast.net', 'att.net', 'verizon.net', 'sbcglobal.net', 'q.com', 'cox.net',
+]);
+
 async function businessFor(db, address, now = new Date()) {
   if (!address) return null;
   const addr = address.toLowerCase();
-  const contact = await db.contact.findFirst({
-    where: { email: { equals: addr, mode: 'insensitive' } },
-    select: { prospectId: true },
-  });
-  if (contact) return contact.prospectId;
-  const p = await db.prospect.findFirst({
-    where: {
-      OR: [
-        { email: { equals: addr, mode: 'insensitive' } },
-        { emailManualValue: { equals: addr, mode: 'insensitive' } },
-      ],
-    },
-    select: { id: true },
-  });
-  if (p) return p.id;
-  // Nobody at that exact address — try the domain, which catches a reply from
-  // a colleague at the same firm.
-  const domain = addr.split('@')[1];
-  if (!domain) return null;
   const cutoff = new Date(now.getTime() - REPLY_WINDOW_DAYS * 86400000);
+  const exact = await db.outreachMessage.findFirst({
+    where: {
+      state: { in: ['SENT', 'REPLIED'] }, sentAt: { gte: cutoff },
+      sentTo: { equals: addr, mode: 'insensitive' },
+    },
+    orderBy: { sentAt: 'desc' }, select: { prospectId: true },
+  });
+  if (exact) return exact.prospectId;
+  // Nobody at that exact address — try the domain, which catches a reply from
+  // a colleague at the same firm. Never do that for public mail providers,
+  // where unrelated businesses share Gmail, Outlook or Yahoo domains.
+  const domain = addr.split('@')[1];
+  if (!domain || PUBLIC_MAIL_DOMAINS.has(domain)) return null;
   const byDomain = await db.outreachMessage.findFirst({
     where: {
-      state: 'SENT', sentAt: { gte: cutoff },
+      state: { in: ['SENT', 'REPLIED'] }, sentAt: { gte: cutoff },
       sentTo: { endsWith: `@${domain}`, mode: 'insensitive' },
     },
     orderBy: { sentAt: 'desc' },
@@ -128,7 +128,7 @@ async function markContactBounced(db, prospectId, address, now = new Date()) {
 }
 
 module.exports = {
-  REPLY_WINDOW_DAYS, AUTOMATIC, BOUNCE_FROM, BOUNCE_SUBJECT,
+  REPLY_WINDOW_DAYS, PUBLIC_MAIL_DOMAINS, AUTOMATIC, BOUNCE_FROM, BOUNCE_SUBJECT,
   looksAutomatic, looksLikeABounce, addressThatFailed, classify,
   businessFor, markContactBounced,
 };
