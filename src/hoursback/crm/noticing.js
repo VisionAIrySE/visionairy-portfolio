@@ -1162,7 +1162,8 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
     : 'The letter is addressed to nobody in particular.');
   lines.push(ANGLES[angleFor(roleTitle)]);
   lines.push('');
-  lines.push('WHO IS WRITING. Russ ran offices like theirs before he did this. He is');
+  lines.push('WHO IS WRITING. Russ has run businesses and worked for years in finance');
+  lines.push('and construction. Do not claim that he ran an office in this industry. He is');
   lines.push('offering fifteen minutes and a piece of research, free, with nothing to sign.');
   lines.push('So the sentence sounds like one working person recognising another working');
   lines.push('person\'s week. Warm, easy, sure of itself. Not a consultant\'s observation and');
@@ -1228,6 +1229,11 @@ function promptToWrite(evidence, chosen, roleTitle = null, avoid = [], rejected 
   lines.push('AND IT MUST READ AS ONE THING A PERSON SAID. Not two findings stapled');
   lines.push('together. One short paragraph, spoken aloud across a counter, where the');
   lines.push('second job follows the first the way a person adds "and then there is...".');
+  lines.push('The opening must earn attention quickly. Start with the operational gap,');
+  lines.push('not a list of services and not an introduction. Make the cost concrete,');
+  lines.push('keep the whole passage short enough to skim, and leave the reader curious');
+  lines.push('about which of the two areas is costing more. Do not mention AI here; the');
+  lines.push('fixed introduction below the passage explains how Russ helps.');
   lines.push('');
   lines.push('NEVER OPEN BY LISTING WHAT THEY DO. "You are drafting business law, real');
   lines.push('estate, and estate planning" tells an attorney nothing he does not know and');

@@ -2425,7 +2425,7 @@ def('message_price_only_in_the_second_and_it_carries_no_value_on_an_hour', () =>
       if (/\$[\d,]+|\b999\b|refund|nothing to pay/i.test(m.body)) bad.push(`${count}: a price or paid promise appears in the sequence`);
       if (!/fifteen[- ]minutes?|quarter of an hour/i.test(m.body)) bad.push(`${count}: a touch lost the fifteen-minute offer`);
       if (!/no obligation|nothing to sign|nothing to buy/i.test(m.body)) bad.push(`${count}: a touch lost the no-obligation language`);
-      if (!/\btwo practical tool concepts\b/i.test(m.body)) bad.push(`${count}: a touch lost the two tool concepts`);
+      if (!/\bone (?:specific|practical|concrete) tool recommendation\b/i.test(m.body)) bad.push(`${count}: a touch lost the one tool recommendation`);
       if (/\b\d{1,3}x\b|per guaranteed hour/i.test(m.body)) bad.push(`${count}: a value was put on an hour`);
     }
   }
@@ -2706,8 +2706,8 @@ def('approval_stops_counting_once_the_message_moves_on', () => withDb(async (db)
 
 def('every_first_message_states_the_guarantee', () => {
   // Legacy check name. On 2026-08-30 Russ replaced the paid guarantee in cold
-  // outreach with one consistent offer: fifteen minutes, free research, two
-  // practical tool concepts and their likely cost. The audit guarantee still
+  // outreach with one consistent offer: fifteen minutes, free research, one
+  // specific tool recommendation and its likely cost. The audit guarantee still
   // exists, but it belongs after the call.
   const fc = firstContact();
   const people = [
@@ -2723,15 +2723,15 @@ def('every_first_message_states_the_guarantee', () => {
       if (!m) continue;
       const freeLook = /fifteen[- ]minutes?|quarter of an hour/i.test(m.body)
         && /no cost|no charge|free/i.test(m.body);
-      const deliverable = /\btwo practical tool concepts\b/i.test(m.body)
-        && /likely cost|what they are likely to cost/i.test(m.body);
+      const deliverable = /\bone (?:specific|practical|concrete) tool recommendation\b/i.test(m.body)
+        && /likely implementation cost|what it should cost|what it would cost|likely cost/i.test(m.body);
       const noPaidPitch = !/\$\s*999|refund|nothing to pay/i.test(m.body);
       if (!freeLook || !deliverable || !noPaidPitch) missing.push(`${p.name}/${signal} free=${freeLook} tool=${deliverable} paid=${!noPaidPitch}`);
     }
   }
   const ok = missing.length === 0;
   return { ok, detail: ok
-    ? 'every first message offers the free fifteen-minute review and two costed tool concepts, without pitching the paid audit'
+    ? 'every first message offers the free fifteen-minute review and one costed tool recommendation, without pitching the paid audit'
     : missing.join('; ') };
 }, 'message');
 
@@ -5136,7 +5136,7 @@ def('no_message_ever_prints_the_word_null', () => {
 
 // What everything here counts as the same sentence said different ways.
 const FIFTEEN = /fifteen[- ]minutes?|quarter of an hour/i;
-const WHAT_IT_COSTS = /likely cost|what they are likely to cost|what it costs|its cost|the cost\b|its price|the price\b|what it runs to/i;
+const WHAT_IT_COSTS = /likely cost|likely implementation cost|what they are likely to cost|what it costs|what it should cost|its cost|the cost\b|its price|the price\b|what it runs to/i;
 const THE_BUILD = /\bbuilt?\b|building|to build|to make|has to be made|worth making|having it made|worth having made/i;
 // The paragraph body, without Russ's own sign-off. His signature carries a
 // calendly.com link, which is a named product and would fail the software test
@@ -5157,13 +5157,13 @@ def('every_message_offers_the_fifteen_minutes_and_a_priced_tool', () => {
   });
   const drafts = campaigns.flat();
   const noCall = drafts.filter((d) => !FIFTEEN.test(justTheLetter(d.body)));
-  const noTool = drafts.filter((d) => !/\btwo practical tool concepts\b/i.test(justTheLetter(d.body)) || !WHAT_IT_COSTS.test(justTheLetter(d.body)));
+  const noTool = drafts.filter((d) => !/\bone (?:specific|practical|concrete) tool recommendation\b/i.test(justTheLetter(d.body)) || !WHAT_IT_COSTS.test(justTheLetter(d.body)));
   const noObligation = drafts.filter((d) => !/no obligation|nothing to sign|nothing to buy/i.test(justTheLetter(d.body)));
   const noBuild = campaigns.filter(([d]) => !THE_BUILD.test(justTheLetter(d.body)));
   if (noCall.length || noTool.length || noObligation.length || noBuild.length) {
     return { ok: false, detail: `${noCall.length} without the free fifteen minutes, ${noTool.length} without a tool and what it costs, ${noObligation.length} without no-obligation language, ${noBuild.length} openings without building on the table` };
   }
-  return { ok: true, detail: `${drafts.length} generated messages each offer the free review, two costed tool concepts and no obligation; every opening also keeps the build option` };
+  return { ok: true, detail: `${drafts.length} generated messages each offer the free review, one costed tool recommendation and no obligation; every opening also keeps the build option` };
 }, 'messages');
 
 def('no_first_message_carries_a_price', () => withLiveDb(async (db) => {

@@ -694,6 +694,18 @@ function sentenceCase(t) {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
+function researchedSubjectFor(prospect, trade, who) {
+  const role = String(prospect.contactRole || '').toLowerCase();
+  const prefix = who ? who + ' — ' : '';
+  if (/sales|broker|business development|revenue|leasing/.test(role)) return prefix + 'which opportunities are hardest to keep visible?';
+  if (/finance|account|controller|bookkeep|billing|chief financial|cfo/.test(role)) return prefix + 'the work sitting between done and paid';
+  if (/operations|project|production|dispatch|service manager/.test(role)) return prefix + 'which handoff is hardest to keep visible?';
+  if (/marketing|growth|communications/.test(role)) return prefix + 'which inquiries never become conversations?';
+  if (trade === 'dental') return prefix + 'the work hiding behind an open chair';
+  if (trade === 'accounting') return prefix + 'the documents clients said they sent';
+  return prefix + 'which repeated job is costing more?';
+}
+
 function draftFirstContact(prospect, signals = []) {
   const key = chooseOpener(signals);
   if (!key) return null;
@@ -714,19 +726,15 @@ function draftFirstContact(prospect, signals = []) {
   // and the trade line both belong to the verified openings and would repeat
   // it word for word here.
   const leadsWithTrade = key === TRADE_WEEK;
-  const subject = leadsWithTrade
-    ? TO.subjectFor(trade, business)
-    // A third of the list carries a web page heading instead of a name, so a
-    // subject built from it was unreadable: "The paperwork coming into Hanson
-    // & Co PC | CPA Bend Oregon | Accountant Bend Oregon" (2026-08-26).
-    // A signal subject only wins when it names something actually seen on
-    // their page. Otherwise the trade's own week is the better line.
-    : (SUBJECTS[key] || TO.subjectFor(trade, business));
-  // Two dentists both still listing a fax number were getting near-identical
-  // letters, and in a town this size they might know each other. Each fixed
-  // line has four wordings, chosen by the business's own name so it is the
-  // same for them every time and different across the list.
   const who = greetingFor(prospect);
+  // When the opening came from this company's own researched work, the
+  // subject points at that operational question too. A generic signal subject
+  // beside a company-specific email made the research look pasted in.
+  const subject = prospect.noticing
+    ? researchedSubjectFor(prospect, trade, who)
+    : leadsWithTrade
+      ? TO.subjectFor(trade, business)
+      : (SUBJECTS[key] || TO.subjectFor(trade, business));
 
   // THE MESSAGE, 2026-08-30.
   //

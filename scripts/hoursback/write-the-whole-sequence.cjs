@@ -34,7 +34,7 @@
 //   business, and four repeats of it reads as a template.
 //
 // The current sequence puts the same clear action in every email: a free
-// fifteen-minute review, two practical tool concepts, and no obligation.
+// fifteen-minute review, one specific tool recommendation, and no obligation.
 //
 // They are stored as DRAFTS. Nothing sends until it is due.
 //
@@ -88,11 +88,9 @@ const THE_ANGLES = {
     brief: [
       'This is the THIRD message, eight days after the first. Still no reply.',
       '',
-      'Raise a DIFFERENT job from the list below — not one of the two already',
-      'named. One he might not have thought of as costing him anything. Say what',
-      'it costs.',
-      '',
-      'Then ask one plain question the recipient could answer in a single line.',
+      'Develop the SECOND of the two jobs already named. Do not introduce a',
+      'third problem. Show the hidden cost of this second job, then ask one',
+      'plain diagnostic question the recipient could answer in a single line.',
       'The review offer and calendar line are added after this passage.',
       '',
       'Two or three sentences and the question.',
@@ -104,8 +102,8 @@ const THE_ANGLES = {
     brief: [
       'This is the LAST message, two weeks after the first. No reply to any.',
       '',
-      'Name in one or two sentences what you would have looked at for him, from',
-      'the work below — specific, the way you would say it out loud.',
+      'Briefly bring the TWO original areas back together and name what you would',
+      'have examined. Keep it specific and say it the way you would aloud.',
       '',
       'Do NOT say you are stopping, do not say goodbye, do not pitch and do not',
       'ask for anything. A line saying this is the last note goes ABOVE what you',
@@ -162,6 +160,11 @@ function askFor({
     '',
     'Plain and spoken, one working person to another. No dashes, no exclamation',
     'marks. No marketing words.',
+    '',
+    'Write as an expert direct-response sales writer. Earn attention with a',
+    'specific operational insight, make the economic consequence easy to see,',
+    'and make replying feel simple. Never manufacture urgency or claim a fact',
+    'that is not supported above.',
   ].join('\n');
 }
 
@@ -195,10 +198,10 @@ function buildLetter(touch, { greeting, passage, seed }) {
   const parts = [greeting];
   if (touch === 2) {
     // Day 4: their job, deeper. Then the offer and the ask, unchanged.
-    parts.push(passage, say('offer'), say('ask4'));
+    parts.push(passage, say('ask4'));
   } else if (touch === 3) {
     // Day 8 keeps its one easy question, followed by the same clear call to
-    // action as every other email: free review, two tool concepts, and
+    // action as every other email: free review, one tool recommendation, and
     // no obligation.
     parts.push(passage, say('ask8'));
   } else {

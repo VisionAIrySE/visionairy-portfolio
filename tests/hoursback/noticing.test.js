@@ -201,7 +201,7 @@ test('with no noticing the letter opens on the trade week, straight after the gr
   assert.match(parts[0], /^(Hi .+,|Hello,)$/, 'the greeting is still first');
   assert.ok(parts[1].startsWith(C.TRADES.accounting.week), `opened with: ${parts[1].slice(0, 60)}`);
   // and who Russ is comes next, not before them
-  assert.match(parts[2], /Central Oregon/);
+  assert.match(parts[2], /Russ Wright, founder of VisionAIry/);
 });
 
 test('a latest finding of could_not_tell means no noticing reaches the letter', async () => {
@@ -962,7 +962,8 @@ test('only the trade-week sentence moves; every other byte of the letter stands'
   const before = draftFirstContact(p, []);
   const after = draftFirstContact({ ...p, noticing: GOOD_SENTENCE }, []);
 
-  assert.equal(before.subject, after.subject);
+  assert.notEqual(before.subject, after.subject, 'researched work gets a research-led subject');
+  assert.match(after.subject, /documents clients said they sent/i);
 
   const a = before.body.split('\n\n');
   const b = after.body.split('\n\n');
@@ -973,8 +974,7 @@ test('only the trade-week sentence moves; every other byte of the letter stands'
   // Russ's line, seeded by the business name — stands.
   const week = C.TRADES.accounting.week;
   assert.ok(a[1].startsWith(week));
-  const concession = a[1].slice(week.length);
-  assert.equal(b[1], `${GOOD_SENTENCE}${concession}`);
+  assert.equal(b[1], GOOD_SENTENCE);
 
   // Every other part: greeting, who Russ is and why him, THE_OFFER, ASK_DAY0
   // and the sign-off, byte for byte.
@@ -1393,7 +1393,7 @@ test('one paragraph rewritten is still offered as a wording', () => {
   const t = { week: 'Their week.', they: 'firms', hook: 'x', task: 'y', firstLook: 'z' };
   const asBuilt = CP.dayZero('Kristin', t, 'seed');
   const paras = asBuilt.split('\n\n');
-  const whyme = paras.findIndex((p) => /offices I'm offering to fix|businesses of my own|done the work/i.test(p));
+  const whyme = paras.findIndex((p) => /start with the work and the economics|run businesses myself|background is in running businesses|worked inside operating businesses/i.test(p));
   assert.ok(whyme > 0, 'the letter must contain the why-me paragraph');
   paras[whyme] = 'I have run these offices myself and I am not guessing.';
   const found = SP.whatHeChanged(asBuilt, paras.join('\r\n\r\n'));

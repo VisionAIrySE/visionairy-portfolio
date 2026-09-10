@@ -1,4 +1,4 @@
-// THE CAMPAIGN — three emails, one offer, said three times.
+// THE CAMPAIGN — four emails, one offer, said four ways.
 //
 // Written 2026-08-30 to Russ's own rewrite, saved at
 // ~/.claude/voice/samples/2026-08-30-hoursback-email-russ-rewrite.md
@@ -31,10 +31,10 @@
 const { pick } = require('./variants.js');
 
 const WHO_I_AM = [
-  "I'm local to Central Oregon and I take repetitive office work off small businesses and hand it off to software automations and AI supported solutions to help save my customers time and money to focus on things that build their business.",
-  "I'm local to Central Oregon. What I do is take the repetitive office work off small businesses and hand it to software automations and AI supported solutions, so my customers get their time and money back for the work that actually builds the business.",
-  "I'm based here in Central Oregon and I take the repetitive office work off small businesses, handing it to software automations and AI supported solutions so the time and the money go back into building the business instead.",
-  "I'm local to Central Oregon and my work is taking repetitive office tasks off small businesses and giving them to software automations and AI supported solutions, so my customers keep the time and money for what actually grows the place.",
+  "I'm Russ Wright, founder of VisionAIry. I build practical AI and automation tools around costly gaps like these.",
+  "I'm Russ Wright, founder of VisionAIry. I build focused AI and automation tools that remove repetitive work and keep the important decisions with your team.",
+  "I'm Russ Wright, founder of VisionAIry. I help small and midsize businesses turn repetitive work into practical tools that save time and protect opportunities.",
+  "I'm Russ Wright, founder of VisionAIry. I build small, practical automation tools for work that keeps repeating and should not need somebody's constant attention.",
 ];
 
 // The concession. It is the line that keeps the email alive when the reader has
@@ -91,42 +91,43 @@ const ALREADY_HANDLED = [
 // wording below claims only that. No em-dashes anywhere: his instruction, same
 // day.
 const WHY_ME = [
-  "I've sat in the offices I'm offering to fix: finance, construction, businesses of my own. This isn't just a software person guessing at how your week runs.",
-  "I've run businesses of my own and spent years working with companies like yours, in finance and in construction. This isn't a software person guessing at how your week runs.",
-  "Finance, construction, businesses of my own. I've sat in the offices I'm offering to fix, so I'm not guessing at how the week actually goes.",
-  "I've done the work I'm offering to take off you, in my own businesses and alongside plenty of others. Not a software person guessing at your week.",
+  "I've run businesses of my own and worked for years in finance and construction, so I start with the work and the economics, not the technology.",
+  "I've run businesses myself and spent years in finance and construction. I look first at the time being spent, the work being delayed, and whether fixing it would pay for itself.",
+  "My background is in running businesses and working in finance and construction. The first question for me is whether solving the problem makes economic sense.",
+  "I've worked inside operating businesses, including finance and construction. I begin with the cost of the work and only recommend technology when the return supports it.",
 ];
 
-// The offer, whole. Every version says the same three things plainly: the
-// review takes fifteen minutes and is free, Russ returns two practical tool
-// concepts with their likely cost and fit, and there is no obligation. It makes
-// no customer or case-study claim.
+// The offer, whole. Every version says the same things plainly: the review
+// takes fifteen minutes and is free, Russ returns ONE specific tool
+// recommendation with its likely cost and fit, and there is no obligation.
+// The two problems in the opening are diagnostic choices, not two promised
+// deliverables.
 const THE_OFFER = [
-  "Give me fifteen minutes on the phone and I'll review where repetitive work is costing you time. At no cost, I'll come back with two practical tool concepts, what they are likely to cost and why each fits, plus what would need to be built if nothing off the shelf covers the rest.",
-  "Give me fifteen minutes and I'll review the repetitive work in your week. The review is free, and I come back with two practical tool concepts, their likely cost and why they fit, plus what building the parts no ready-made tool covers would take.",
-  "Fifteen minutes on the phone is all I need to review where the manual work sits. At no cost, you get two practical tool concepts, what they are likely to cost and why those two fit, along with what would have to be built for anything a ready-made tool cannot handle.",
-  "In a free fifteen-minute review, we'll identify the repetitive work worth solving first. I then come back with two practical tool concepts, their likely cost and why they make sense, and what building any uncovered parts would involve.",
+  "Give me fifteen minutes to understand how you handle these areas. I'll then do the research at no cost and send you one specific tool recommendation showing what it would handle, whether it should be bought or built, what it should cost to implement, and whether the likely return justifies doing it.",
+  "Give me fifteen minutes to walk through these areas. I'll do the follow-up research for free and send you one specific tool recommendation with what it would handle, whether it should be bought or built, its likely implementation cost, and a plain answer about whether it is worth pursuing.",
+  "Fifteen minutes is enough for me to understand how this work moves. At no cost, I'll then send you one practical tool recommendation, whether it should be bought or built, what it should cost to implement, and why I think it does or does not make economic sense.",
+  "In a free fifteen-minute review, we'll identify which part is worth solving first. I'll then send you one specific tool recommendation with its expected benefit, whether it should be bought or built, its likely implementation cost, and whether the return supports doing it.",
 ];
 
 const ASK_DAY0 = [
-  'There is no obligation and nothing to sign. Worth fifteen minutes? Reply here, or take a time from my calendar below.',
-  'No obligation and nothing to buy. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
-  "There is no obligation after the review and nothing to sign. Worth fifteen minutes? Reply, or take a time from my calendar below.",
-  'No obligation and no sales commitment. Worth a quarter of an hour? Reply here, or grab a time from my calendar below.',
+  "What would you fix first? Reply with the part that is costing you more and I'll send two possible times. There is no obligation.",
+  "Which part deserves attention first? Reply with that one and I'll send two possible times for the free review. There is no obligation.",
+  "Which side of that is more frustrating today? Reply with the one you would rather solve and I'll send two possible times. Nothing to sign and no obligation.",
+  "If one part stands out, reply with which one. I'll send two possible times for the free review, with no obligation afterward.",
 ];
 
 const ASK_DAY4 = [
-  'The fifteen-minute review is free. I come back with two practical tool concepts, their likely cost and why they fit, with no obligation. Reply here, or take a time from my calendar below.',
-  'Give me fifteen minutes and I will return with two practical tool concepts, their likely cost and why they suit you. The review is free and there is no obligation. Reply here, or take a time from my calendar below.',
-  "A free fifteen-minute review gets you two practical tool concepts, what they are likely to cost and why they fit. There is no obligation and nothing to sign. Reply, or take a time from my calendar below.",
-  'Fifteen minutes, free, then two practical tool concepts with their likely cost and the reason for each. No obligation. Reply here, or grab a time from my calendar below.',
+  "Give me fifteen minutes and I'll return with one specific tool recommendation, what it should cost to implement, and whether the return supports it. The review is free and there is no obligation. Reply here, or take a time from my calendar below.",
+  "A free fifteen-minute review is enough for me to map that process and send you one practical tool recommendation with its likely implementation cost. There is no obligation. Reply here, or take a time from my calendar below.",
+  "I'll examine that with you for fifteen minutes and send you one specific tool recommendation, its expected benefit, and what it should cost. The review is free, with nothing to sign or buy.",
+  "Fifteen minutes, free, then one concrete tool recommendation with its likely cost and the reason it does or does not make sense. No obligation. Reply here, or use my calendar below.",
 ];
 
 const ASK_DAY8 = [
-  'If a free fifteen-minute review would help, I will come back with two practical tool concepts, their likely cost and why they fit. There is no obligation. Reply here, or take a time from my calendar below.',
-  'Give me fifteen minutes and I will return with two practical tool concepts, their likely cost and why they suit you. The review is free and there is no obligation. Reply here, or take a time from my calendar below.',
-  'The review takes fifteen minutes and costs nothing. I come back with two practical tool concepts, what they are likely to cost and why they fit, with no obligation. Reply here, or use my calendar below.',
-  'A free fifteen-minute review gets you two practical tool concepts, their likely cost and the reason for each. No obligation and nothing to sign. Reply here, or grab a time from my calendar below.',
+  "If that answer takes more than one place to find, give me fifteen minutes. I'll send you one specific tool recommendation with its likely cost. The review is free and there is no obligation.",
+  "Give me fifteen minutes to look at that process and I'll send you one practical tool recommendation, its expected benefit, and what it should cost to implement. The review is free and there is no obligation.",
+  "The review takes fifteen minutes and costs nothing. I'll come back with one specific tool recommendation, what it should cost, and whether it is worth pursuing. There is no obligation.",
+  "A free fifteen-minute review gets you one concrete tool recommendation with its likely implementation cost and the reason it does or does not fit. Nothing to sign and no obligation.",
 ];
 
 // WE DO NOT KNOW WHO THEY HIRED (Russ, 2026-09-03).
@@ -163,10 +164,10 @@ const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final
 // what comes back and never said it costs nothing — the one fact most likely
 // to make somebody reply to a fourth email.
 const DAY8_THATS_WHAT_ITS_FOR = [
-  "Give me fifteen minutes and I come back with two practical tool concepts, their likely cost and why they fit you. The review is free and there is no obligation.",
-  "A free fifteen-minute review gets you two practical tool concepts, their likely cost and why they suit you. There is no obligation and nothing to sign.",
-  "That's the job of the free fifteen-minute review. I come back with two practical tool concepts, what they are likely to cost and why they fit, with no obligation.",
-  "The fifteen minutes is free. I come back with two practical tool concepts, their likely cost and why they make sense for you, and there is no obligation.",
+  "Give me fifteen minutes and I'll send you one specific tool recommendation, its likely implementation cost, and why it does or does not fit. The review is free and there is no obligation.",
+  "A free fifteen-minute review gets you one practical tool recommendation, its likely cost, and a plain answer about whether it makes sense. There is no obligation and nothing to sign.",
+  "That's the purpose of the free fifteen-minute review. I come back with one specific tool recommendation, what it should cost, and whether it is worth pursuing, with no obligation.",
+  "The fifteen minutes is free. I come back with one concrete tool recommendation, its expected benefit and likely implementation cost, and there is no obligation.",
 ];
 
 const DAY8_CLOSE = [
@@ -177,10 +178,10 @@ const DAY8_CLOSE = [
 ];
 
 const NOTE_CLOSE = [
-  'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?',
-  'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour?',
-  "There's no charge and nothing to sign, just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour?",
-  'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour?',
+  'No charge for the fifteen-minute review, nothing to sign, and you get one specific tool recommendation with its likely implementation cost. Worth a quarter of an hour?',
+  'The fifteen-minute review is free and there is no obligation. You come away with one practical tool recommendation and what it should cost to implement. Worth a look?',
+  "There's no charge and nothing to sign. After fifteen minutes, I do the research and send you one concrete tool recommendation with its likely cost. Worth a conversation?",
+  'No charge, no obligation, and you get one specific tool recommendation with its expected benefit and implementation cost after a fifteen-minute review. Worth a look?',
 ];
 
 // PER TRADE — four short pieces each.
@@ -430,7 +431,7 @@ function slotsOfTheMessage() {
 // written from memory.
 function dayZero(name, t, seed = '') {
   const paragraph = {
-    handled: () => `${t.week} ${pick(waysToSay(ALREADY_HANDLED, 'handled'), seed, 'handled').replace('{they}', t.they)}`,
+    handled: () => t.week,
     who: () => pick(waysToSay(WHO_I_AM, 'who'), seed, 'who'),
     whyme: () => pick(waysToSay(WHY_ME, 'whyme'), seed, 'whyme'),
     offer: () => pick(waysToSay(THE_OFFER, 'offer'), seed, 'offer'),

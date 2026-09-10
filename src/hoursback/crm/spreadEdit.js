@@ -54,7 +54,20 @@ function slotOf(paragraph) {
 /// unrecognised paragraph (the greeting, the sign-off, a line he wrote from
 /// scratch) is not part of the order and is left out.
 function orderOf(body) {
-  return paragraphsOf(body).map(slotOf).filter(Boolean);
+  let foundOpening = false;
+  return paragraphsOf(body).map((paragraph) => {
+    const known = slotOf(paragraph);
+    if (known) return known;
+    // The researched opening is intentionally unique to one business, so it
+    // cannot live in the shared wording list. It is still the "handled" slot
+    // when Russ moves paragraphs around, and recognising it here preserves the
+    // visual editor's ability to learn his preferred order.
+    if (!foundOpening && !GREETING.test(paragraph) && !SIGN_OFF_LINE.test(paragraph)) {
+      foundOpening = true;
+      return 'handled';
+    }
+    return null;
+  }).filter(Boolean);
 }
 
 // WHAT HE CHANGED, AND SAYING SO WHEN IT CANNOT BE TOLD.
