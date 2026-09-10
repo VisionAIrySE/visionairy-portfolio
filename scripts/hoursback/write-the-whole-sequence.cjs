@@ -55,6 +55,8 @@ const DO_IT = process.argv.includes('--do-it');
 const LIMIT = Number(arg('limit', 0)) || 0;
 const ONLY = arg('only', '');
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
+const TOUCH = Number(arg('touch', 0));
+const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
 
 // EACH MESSAGE TAKES A DIFFERENT ANGLE ON THE SAME BUSINESS.
 //
@@ -113,6 +115,70 @@ const THE_ANGLES = {
     ],
   },
 };
+
+function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
+  return [
+    'Write the company-specific opening and subject for the FIRST cold email.',
+    'Answer with JSON only: {"subject":"...","body":"...","question":"..."}.',
+    '',
+    `The business: ${name}${trade ? ` (${trade})` : ''}`,
+    `The recipient's role: ${roleTitle || 'not recorded'}`,
+    '',
+    'Two recurring areas verified from this company\'s own website:',
+    ...jobs.slice(0, 2).map((j, i) => `  ${i + 1}. ${j}`),
+    ...(otherJobs.length ? ['', 'Other verified work for context only:', ...otherJobs.map((j) => `  · ${j}`)] : []),
+    '',
+    'Write one compact paragraph of exactly three short sentences, no more than',
+    '350 characters total. Russ\'s introduction will appear immediately before',
+    'this paragraph, so continue naturally from it. Sentence 1 says he was',
+    'looking at the relevant work the company publicly describes. Sentence 2',
+    'uses "That made me wonder whether" to name BOTH areas where AI or',
+    'automation might help, in concrete language relevant to this recipient\'s',
+    'role. Do not say Russ will examine, review, assess, or fix anything before',
+    'the recipient accepts the offer. Sentence 3 explains the',
+    'possible business cost conditionally: lost revenue, delayed payment, a',
+    'cooled opportunity, an avoidable error, or higher-value work displaced.',
+    'Sentence 3 must use at least one of these plain economic terms: revenue,',
+    'money, invoice, paid hours, sits idle, lost customer, or went elsewhere.',
+    'Name the consequence directly; "busy," "slower," and "takes attention"',
+    'do not count as a cost.',
+    '',
+    'Never claim or imply how this company currently tracks, assigns, routes,',
+    'or manages the work. In particular, do not mention memory, spreadsheets,',
+    'email, inboxes, paper, manual work, missed steps, delays, or dropped work',
+    'as current facts unless those exact facts appear in the verified areas.',
+    'Use "if" or "when" for a possible failure or cost. Do not invent figures.',
+    'Do not write "someone free to catch it," "someone available to notice it,"',
+    'or similar staffing language. Say plainly that a next step may wait to be',
+    'noticed, without guessing who works there or whether they are available.',
+    '',
+    'Safe pattern: "I was looking at how Compass describes X and Y. That made',
+    'me wonder whether automation could help with A and B. If either handoff',
+    'relies on a person catching the next step, the cost can show up as C."',
+    'Do not copy these placeholder words.',
+    '',
+    'The question is one short either-or question naming the same two areas.',
+    'It must be answerable in a few words and end with a question mark. Example',
+    'shape: "Which is harder to keep visible today: phase handoffs or crew',
+    'routing?" Use the actual areas and do not copy the example.',
+    '',
+    'The subject should sound like a quiet note from one person, use a concrete',
+    'noun from one of the two areas, and stay under 48 characters so the',
+    'recipient\'s name can be added in front. Prefer a consequence or a plain',
+    'operational question. Do not use the company name, an exclamation mark,',
+    'title case, a promotional phrase, or words such as juggling, streamline,',
+    'optimize, efficiency, solution, AI, automation, opportunity, or free.',
+    '',
+    'Do not introduce Russ, make the offer, ask for a meeting, add a greeting,',
+    'or add a sign-off. Those parts are added after your opening.',
+    '',
+    'Plain and spoken. No dashes, hype, jargon, flattery, or unsupported claims.',
+    'Write as an expert direct-response sales writer. The reader should quickly',
+    'recognize the work, see why it may matter economically, and want to answer',
+    'the simple either-or question that follows later in the email.',
+    ...(why ? ['', `Your previous answer was rejected: ${why}`] : []),
+  ].join('\n');
+}
 
 function askFor({
   name, trade, roleTitle, jobs, otherJobs, dayZero, touch, why,
@@ -213,6 +279,42 @@ function buildLetter(touch, { greeting, passage, seed }) {
   return `${parts.filter(Boolean).join('\n\n')}\n\n${FC.SIGN_OFF}`;
 }
 
+function buildFirstLetter({ greeting, passage, question, seed }) {
+  const S = C.slotsOfTheMessage();
+  const say = (slot) => pick(S[slot], seed, slot);
+  return `${[greeting, say('who'), passage, say('whyme'), say('offer'), question, say('afterDiagnostic')]
+    .filter(Boolean).join('\n\n')}\n\n${FC.SIGN_OFF}`;
+}
+
+function acceptableSubject(subject) {
+  const s = String(subject || '').trim();
+  return s.length >= 8 && s.length <= 48 && !/[!\r\n]/.test(s)
+    && !/\b(free|offer|opportunit\w*|quick question|ai|automation|solution|juggling|streamlin\w*|optimi[sz]\w*|efficien\w*)\b/i.test(s);
+}
+
+function addressedSubject(subject, greeting) {
+  const person = String(greeting || '').replace(/^(hi|hello|dear)\s+/i, '').replace(/,$/, '').trim();
+  if (!person || /^hello$/i.test(person)) return subject;
+  const room = Math.max(8, 65 - person.length - 3);
+  const raw = String(subject).trim();
+  const shortened = raw.length <= room
+    ? raw
+    : raw.slice(0, room).replace(/\s+\S*$/, '').trim() || raw.slice(0, room);
+  return `${person} — ${shortened}`;
+}
+
+function acceptableQuestion(question) {
+  const q = String(question || '').trim();
+  return q.length >= 20 && q.length <= 120 && /\?$/.test(q)
+    && !/[!—–\r\n]/.test(q) && /\b(or|which)\b/i.test(q);
+}
+
+function acceptableOpening(passage) {
+  const p = String(passage || '');
+  return /\b(wonder|curious|could|might)\b/i.test(p)
+    && !/\b(?:I(?:'d| would)|we(?:'d| would))\s+(?:examine|review|assess|fix)\b/i.test(p);
+}
+
 (async () => {
   let giveBack;
   try { giveBack = claimTheMachine('models', { label: 'writing the sequence' }); } catch (e) { console.error(`\n${e.message}\n`); process.exit(73); }
@@ -224,7 +326,13 @@ function buildLetter(touch, { greeting, passage, seed }) {
   await C.loadHisWordings(db);
 
   // Only businesses whose own site is read and who can be written to.
-  const readable = (await db.reading.groupBy({ by: ['prospectId'], where: { pages: { some: {} } } })).map((r) => r.prospectId);
+  const readable = (await db.reading.groupBy({
+    by: ['prospectId'],
+    where: {
+      source: 'website', outcome: 'read',
+      pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+    },
+  })).map((r) => r.prospectId);
   let targets = [];
   for (let i = 0; i < readable.length; i += 200) {
     const part = await db.prospect.findMany({
@@ -232,6 +340,16 @@ function buildLetter(touch, { greeting, passage, seed }) {
         id: { in: readable.slice(i, i + 200) },
         doNotContact: false,
         ...(ONLY ? { name: { contains: ONLY, mode: 'insensitive' } } : {}),
+        ...(TOUCH === 1 ? {
+          messages: {
+            some: {
+              lane: 'EMAIL', sentAt: null, deliveryState: null,
+              ...(OVERWRITE_EDITS ? {} : { editedAt: null }),
+              openedWith: { not: 'after_the_call' },
+              NOT: { openedWith: { startsWith: 'touch_' } },
+            },
+          },
+        } : {}),
         OR: [{ email: { not: null } }, { emailManualValue: { not: null } }],
       },
       select: {
@@ -249,10 +367,16 @@ function buildLetter(touch, { greeting, passage, seed }) {
   // them slower, not faster.
   const writer = makeReaderPool({ size: Math.min(AT_ONCE, 3), model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
   let wrote = 0; let already = 0; let refused = 0; let skipped = 0;
+  let stopReason = null;
 
   async function one(p) {
     const dayZeroRow = await db.outreachMessage.findFirst({
-      where: { prospectId: p.id, lane: 'EMAIL', NOT: { openedWith: { startsWith: 'touch_' } } },
+      where: {
+        prospectId: p.id, lane: 'EMAIL',
+        openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } },
+      },
+      orderBy: { createdAt: 'asc' },
     });
     if (!dayZeroRow) { skipped += 1; return; }
 
@@ -266,27 +390,85 @@ function buildLetter(touch, { greeting, passage, seed }) {
     });
     const jobs = reading ? reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean) : [];
     if (!jobs.length) { console.log(`  · ${p.name}: no work recorded — skipped`); skipped += 1; return; }
+    if (jobs.length < 2) { console.log(`  · ${p.name}: only one verified area — skipped`); skipped += 1; return; }
 
     const others = reading.findings.filter((f) => f.field === 'noticingArea')
       .map((f) => { try { return JSON.parse(f.value).job; } catch { return null; } })
       .filter((j) => j && !jobs.includes(j));
 
-    // What the first letter actually said to them, so the follow-ups do not
-    // repeat it and do not contradict it.
-    const zero = J.judgeLetter(dayZeroRow.body, { day: 0, jobs });
-    const dayZero = (zero.passage || '').replace(/\s+/g, ' ').trim();
     const greeting = greetingFrom(dayZeroRow.body, p);
 
-    for (const touch of [2, 3, 4]) {
+    // The first email and all three follow-ups are one campaign. Earlier this
+    // script regenerated only touches 2-4, leaving an older opening in touch 1.
+    // Rebuild touch 1 from the same two verified jobs before giving it to the
+    // follow-up prompts. Sent messages always remain untouchable. Hand-edited
+    // drafts are replaced only for a run that explicitly carries the one-time
+    // --overwrite-edits instruction Russ approved for this inaugural rewrite.
+    if ((!TOUCH || TOUCH === 1) && !dayZeroRow.sentAt
+      && (!dayZeroRow.editedAt || OVERWRITE_EDITS) && !dayZeroRow.deliveryState) {
+      let first = null; let firstSubject = null; let whyFirst = null;
+      for (let go = 0; go < 3 && !first; go += 1) {
+        const answer = await writer.ask(askForFirst({
+          name: p.name, trade: p.trade, roleTitle, jobs, otherJobs: others, why: whyFirst,
+        }));
+        if (answer && answer.readerExhausted) {
+          stopReason = answer.why;
+          return;
+        }
+        const passage = answer && answer.answer ? String(answer.answer.body || '').trim().replace(/\s+/g, ' ') : '';
+        const subject = answer && answer.answer ? String(answer.answer.subject || '').trim() : '';
+        const question = answer && answer.answer ? String(answer.answer.question || '').trim() : '';
+        if (!passage || !acceptableOpening(passage) || !acceptableSubject(subject) || !acceptableQuestion(question)) {
+          whyFirst = !passage ? 'the opening could not be read'
+            : !acceptableOpening(passage) ? 'the opening did not explain the reason for raising the two areas'
+              : !acceptableSubject(subject) ? 'the subject was generic, promotional, or the wrong length'
+                : 'the reply question was not a short either-or question';
+          continue;
+        }
+        const candidate = buildFirstLetter({ greeting, passage, question, seed: p.name });
+        const v = J.judgeLetter(candidate, { day: 0, jobs, roleTitle });
+        if (v.ok) { first = candidate; firstSubject = addressedSubject(subject, greeting); } else whyFirst = v.why;
+      }
+      if (!first) {
+        console.log(`  ✗ ${p.name} day 0: ${String(whyFirst).slice(0, 80)}`);
+        refused += 1;
+        return;
+      }
+      console.log(`  ✓ ${p.name} day 0`);
+      if (!DO_IT) console.log(`      Subject: ${firstSubject}\n\n${first.split('\n').map((l) => `      ${l}`).join('\n')}\n`);
+      else {
+        await db.outreachMessage.update({
+          where: { id: dayZeroRow.id },
+          data: { subject: firstSubject, body: first, openedWith: 'tailored_first', editedAt: null },
+        });
+        dayZeroRow.subject = firstSubject;
+        dayZeroRow.body = first;
+        dayZeroRow.openedWith = 'tailored_first';
+        wrote += 1;
+      }
+    } else if (!TOUCH || TOUCH === 1) {
+      already += 1;
+    }
+
+    // Give every follow-up the first email that will actually precede it.
+    const zero = J.judgeLetter(dayZeroRow.body, { day: 0, jobs, roleTitle });
+    const dayZero = (zero.passage || '').replace(/\s+/g, ' ').trim();
+
+    for (const touch of [2, 3, 4].filter((n) => !TOUCH || TOUCH === n)) {
       const have = await db.outreachMessage.findFirst({ where: { prospectId: p.id, lane: 'EMAIL', openedWith: `touch_${touch}` } });
-      // NEVER OVERWRITE ANYTHING RUSS EDITED BY HAND. Standing order.
-      if (have && have.editedAt) { already += 1; continue; }
+      if (have && have.sentAt) { already += 1; continue; }
+      if (have && have.deliveryState) { already += 1; continue; }
+      if (have && have.editedAt && !OVERWRITE_EDITS) { already += 1; continue; }
 
       let full = null; let why = null;
       for (let go = 0; go < 3 && !full; go += 1) {
         const answer = await writer.ask(askFor({
           name: p.name, trade: p.trade, roleTitle, jobs, otherJobs: others, dayZero, touch, why,
         }));
+        if (answer && answer.readerExhausted) {
+          stopReason = answer.why;
+          return;
+        }
         const got = answer && answer.answer ? String(answer.answer.body || '').trim().replace(/\n+/g, ' ') : '';
         if (!got) { why = 'the answer could not be read'; continue; }
         const candidate = buildLetter(touch, { greeting, passage: got, seed: p.name });
@@ -301,7 +483,7 @@ function buildLetter(touch, { greeting, passage, seed }) {
       console.log(`  ✓ ${p.name} day ${THE_ANGLES[touch].day}`);
       if (!DO_IT) { console.log(`${full.split('\n').map((l) => `      ${l}`).join('\n')}\n`); continue; }
       if (have) {
-        await db.outreachMessage.update({ where: { id: have.id }, data: { subject: THE_ANGLES[touch].subject, body: full } });
+        await db.outreachMessage.update({ where: { id: have.id }, data: { subject: THE_ANGLES[touch].subject, body: full, editedAt: null } });
       } else {
         await db.outreachMessage.create({
           data: {
@@ -320,13 +502,14 @@ function buildLetter(touch, { greeting, passage, seed }) {
 
   const queue = [...targets];
   await Promise.all(Array.from({ length: Math.min(AT_ONCE, queue.length) }, async () => {
-    while (queue.length) {
+    while (queue.length && !stopReason) {
       const p = queue.shift();
       try { await one(p); } catch (e) { console.log(`  ✗ ${p.name}: ${e.message}`); refused += 1; }
     }
   }));
 
-  console.log(`\nwritten: ${wrote}   left alone (his own edit): ${already}   refused: ${refused}   skipped: ${skipped}`);
+  console.log(`\nwritten: ${wrote}   protected: ${already}   refused: ${refused}   skipped: ${skipped}`);
+  if (stopReason) console.log(`Stopped early: ${stopReason}`);
   if (!DO_IT) console.log('Nothing was saved. Add --do-it.');
   try { writer.close(); } catch { /* gone */ }
   await db.$disconnect();

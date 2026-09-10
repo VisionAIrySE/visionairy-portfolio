@@ -18,7 +18,27 @@
 // destroy that. This only moves the waking-up earlier.
 
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const { readAnswer } = require('./readAnswer.js');
+
+const LOCAL_CLAUDE_JS = path.resolve(process.cwd(), 'node_modules/@anthropic-ai/claude-code/cli.js');
+const LOCAL_CLAUDE_EXE = path.resolve(process.cwd(), 'node_modules/@anthropic-ai/claude-code/bin/claude.exe');
+const LOCAL_CLAUDE_NATIVE = path.resolve(
+  process.cwd(),
+  `node_modules/@anthropic-ai/claude-code-${process.platform}-${process.arch}/claude${process.platform === 'win32' ? '.exe' : ''}`,
+);
+
+function launchClaude(model, cwd) {
+  const args = argsFor(model);
+  // Use the installed native package first. The wrapper package's small
+  // Windows placeholder is not an executable binary, and falling through to
+  // npx used to fetch a temporary copy on every campaign run.
+  if (fs.existsSync(LOCAL_CLAUDE_NATIVE)) return spawn(LOCAL_CLAUDE_NATIVE, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+  if (fs.existsSync(LOCAL_CLAUDE_JS)) return spawn(process.execPath, [LOCAL_CLAUDE_JS, ...args], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+  if (fs.existsSync(LOCAL_CLAUDE_EXE)) return spawn(LOCAL_CLAUDE_EXE, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+  return spawn('claude', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+}
 
 // The model is chosen by the caller now (2026-09-04). Finding facts on a page
 // is work the cheap fast model does well. Writing the sentence a stranger will
@@ -54,7 +74,7 @@ function makeReaderPool({
   onCall = null,
   model = 'haiku',
 } = {}) {
-  const launch = spawnReader || (() => spawn('claude', argsFor(model), { cwd, stdio: ['pipe', 'pipe', 'pipe'] }));
+  const launch = spawnReader || (() => launchClaude(model, cwd));
   let warm = [];
   let closed = false;
 

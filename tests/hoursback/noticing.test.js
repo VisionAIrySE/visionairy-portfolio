@@ -250,6 +250,18 @@ test('marketing language and exclamation are rejected whatever the role', () => 
   assert.equal(N.passable('Have you ever added up the hours your intake really takes every week?').ok, false);
 });
 
+test('a plausible guess about their private tracking system is rejected', () => {
+  const guessed = 'Tracking build phases and routing contractors both run on someone\'s memory or a spreadsheet, so a missed handoff can delay a closing.';
+  const conditional = 'Compass handles build phases and contractor routing. If either handoff relies on a person catching the next step, revenue can sit uncollected while a closing waits.';
+  assert.match(N.passable(guessed).why, /internal system/);
+  assert.equal(N.passable(conditional).ok, true);
+});
+
+test('the writer cannot hide an awkward staffing guess inside a condition', () => {
+  const awkward = 'If either relies on someone free to catch it, paid hours sit idle or an invoice goes out late.';
+  assert.match(N.passable(awkward, { allowQuestion: true }).why, /awkward staffing/);
+});
+
 // ---------------------------------------------------------------------------
 // 3. Two businesses in one trade cannot receive identical sentences.
 
@@ -351,6 +363,36 @@ test('an unsent, untouched draft IS rewritten, and carries the noticing', async 
   assert.equal(db.writes.updated, 1);
   assert.ok(db.writes.lastUpdate.data.body.includes(GOOD_SENTENCE));
   assert.ok(!db.writes.lastUpdate.data.body.includes(C.TRADES.accounting.week));
+});
+
+test('a fully tailored first email survives an ordinary page refresh', async () => {
+  const db = fakeDb({
+    prospect: PROSPECT, contact: DALE, findings: NOTICING_FINDINGS,
+    existingMessage: {
+      id: 'm1', state: 'DRAFT', subject: 'the organizer that never came back',
+      body: 'A COMPLETE TAILORED LETTER', openedWith: 'tailored_first',
+      sentTo: DALE.email, sentAt: null, editedAt: null, deliveryState: null, inviteBody: null,
+    },
+  });
+  const out = await L.draftFor(db, 'p1', 'EMAIL');
+  assert.equal(out.body, 'A COMPLETE TAILORED LETTER');
+  assert.equal(db.writes.updated, 0);
+});
+
+test('a tailored first email is invalidated when its recipient changes', async () => {
+  const db = fakeDb({
+    prospect: PROSPECT, contact: DALE, findings: NOTICING_FINDINGS,
+    existingMessage: {
+      id: 'm1', state: 'DRAFT', subject: 'the organizer that never came back',
+      body: 'WRITTEN FOR SOMEBODY ELSE', openedWith: 'tailored_first',
+      sentTo: 'somebody-else@smithcpa.example', sentAt: null, editedAt: null,
+      deliveryState: null, inviteBody: null,
+    },
+  });
+  await L.draftFor(db, 'p1', 'EMAIL');
+  assert.equal(db.writes.updated, 1);
+  assert.equal(db.writes.lastUpdate.data.sentTo, DALE.email);
+  assert.notEqual(db.writes.lastUpdate.data.body, 'WRITTEN FOR SOMEBODY ELSE');
 });
 
 test('with no noticing on file the same rewrite keeps the trade sentence', async () => {

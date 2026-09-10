@@ -280,6 +280,14 @@ async function draftFor(db, prospectId, lane) {
     //
     // Sent is untouchable. Hand-written is untouchable. Everything else tracks
     // the current wording.
+    // A complete sequence rewrite can store a first email whose subject and
+    // opening were composed together from the two verified website jobs. Page
+    // refreshes still call draftFor; preserve that tailored copy when it is
+    // addressed to the same inbox instead of replacing it with the generic
+    // deterministic fallback. A changed recipient deliberately invalidates it.
+    if (lane === 'EMAIL' && existing.openedWith === 'tailored_first'
+        && !existing.sentAt && !existing.editedAt && !existing.deliveryState
+        && existing.sentTo === recipient) return existing;
     const rewritable = !existing.sentAt && !existing.editedAt && !existing.deliveryState
       && (existing.body !== built.body
         || (built.inviteBody && existing.inviteBody !== built.inviteBody)

@@ -31,10 +31,10 @@
 const { pick } = require('./variants.js');
 
 const WHO_I_AM = [
-  "I'm Russ Wright, founder of VisionAIry. I build practical AI and automation tools around costly gaps like these.",
-  "I'm Russ Wright, founder of VisionAIry. I build focused AI and automation tools that remove repetitive work and keep the important decisions with your team.",
-  "I'm Russ Wright, founder of VisionAIry. I help small and midsize businesses turn repetitive work into practical tools that save time and protect opportunities.",
-  "I'm Russ Wright, founder of VisionAIry. I build small, practical automation tools for work that keeps repeating and should not need somebody's constant attention.",
+  "I'm Russ Wright, founder of VisionAIry. We build practical AI and automation tools around costly gaps like these.",
+  "I'm Russ Wright, founder of VisionAIry. We build focused AI and automation tools that remove repetitive work and keep the important decisions with your team.",
+  "I'm Russ Wright, founder of VisionAIry. We help small and midsize businesses turn repetitive work into practical tools that save time and protect opportunities.",
+  "I'm Russ Wright, founder of VisionAIry. We build small, practical automation tools for work that keeps repeating and should not need somebody's constant attention.",
 ];
 
 // The concession. It is the line that keeps the email alive when the reader has
@@ -114,6 +114,16 @@ const ASK_DAY0 = [
   "Which part deserves attention first? Reply with that one and I'll send two possible times for the free review. There is no obligation.",
   "Which side of that is more frustrating today? Reply with the one you would rather solve and I'll send two possible times. Nothing to sign and no obligation.",
   "If one part stands out, reply with which one. I'll send two possible times for the free review, with no obligation afterward.",
+];
+
+// The tailored sequence writer asks a company-specific either-or question of
+// its own. This fixed line makes replying effortless without repeating a
+// second generic question beneath it.
+const AFTER_DIAGNOSTIC = [
+  "Reply with either one and I'll send two possible times. There is no obligation.",
+  "Reply with the one you would examine first and I'll send two possible times. There is no obligation.",
+  "Send me either one in a reply and I'll offer two possible times for the free review. Nothing to sign and no obligation.",
+  "Reply with which one and I'll send two possible times for the free review, with no obligation afterward.",
 ];
 
 const ASK_DAY4 = [
@@ -390,6 +400,7 @@ function slotsOfTheMessage() {
     whyme: waysToSay(WHY_ME, 'whyme'),
     offer: waysToSay(THE_OFFER, 'offer'),
     ask0: waysToSay(ASK_DAY0, 'ask0'),
+    afterDiagnostic: waysToSay(AFTER_DIAGNOSTIC, 'afterDiagnostic'),
     ask4: waysToSay(ASK_DAY4, 'ask4'),
     ask8: waysToSay(ASK_DAY8, 'ask8'),
     part: waysToSay(DAY4_THE_PART, 'part'),
@@ -536,7 +547,7 @@ function linkedInNote(name, t, seed = '') {
 module.exports = {
   daySmallAsk,
   LETTER_ORDER_SLOT, THE_ORDER_AS_BUILT, orderOfTheLetter,
-  WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, TRADES,
+  WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, AFTER_DIAGNOSTIC, TRADES,
   tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,
   loadHisWordings, waysToSay, slotsOfTheMessage,
 };

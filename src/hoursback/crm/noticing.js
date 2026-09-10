@@ -495,6 +495,12 @@ const NAMES_THEIR_SOFTWARE = /\b(QuickBooks|Xero|Sage|FreshBooks|Salesforce|HubS
 // of the usual objects may sit in the middle now.
 const CLAIMS_HOURS = /\b(sav(?:e|es|ed|ing)|free(?:s|d)? up|get(?:s|ting)?|tak(?:e|es|en|ing)|win(?:s|ning)?|giv(?:e|es|ing)|hand(?:s|ed|ing)?|buy(?:s|ing)?)\b(?: (?:you|them|him|her|us|the team|your \w+))? back\b[^.]{0,80}?\bhours?\b|\b(sav(?:e|es|ed|ing)|free(?:s|d)? up)\b[^.]{0,80}?\bhours?\b|\bhours?\b[^.]{0,40}?\b(back|saved|freed)\b/i;
 
+// A public website proves which work a business does. It does not prove the
+// private system behind that work. The first full-sequence test claimed two
+// processes "run on someone's memory or a spreadsheet" even though neither
+// fact was in the recorded evidence. Reject those plausible-sounding guesses.
+const INVENTS_INTERNAL_SYSTEM = /\b(?:run|runs|running|track(?:s|ed|ing)?|hold|holds|held|keep|keeps|kept|manag(?:e|es|ed|ing))\b[^.]{0,35}\b(?:someone(?:'s)?\s+)?(?:memory|spreadsheets?|inboxes?|email|whiteboards?|paper|sticky notes?|manual(?:ly)?|by hand)\b/i;
+
 function normalise(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -525,7 +531,8 @@ function passable(sentence, {
   if (!s) return { ok: false, why: 'empty' };
   if (/\n/.test(s)) return { ok: false, why: 'more than one paragraph' };
   if (s.length < 30) return { ok: false, why: 'too short to be saying anything specific' };
-  if (s.length > (twoJobs ? 400 : 280)) {
+  const maxLength = twoJobs ? (allowQuestion ? 520 : 400) : 280;
+  if (s.length > maxLength) {
     return {
       ok: false,
       why: twoJobs
@@ -537,6 +544,12 @@ function passable(sentence, {
   if (!allowQuestion && /\?/.test(s)) return { ok: false, why: 'a question — the first message does not ask one' };
   if (/[—–]/.test(s)) return { ok: false, why: 'a dash — the voice rules say no dashes' };
   if (/[{}<>]/.test(s)) return { ok: false, why: 'placeholder braces' };
+  if (INVENTS_INTERNAL_SYSTEM.test(s)) {
+    return { ok: false, why: 'guesses at an internal system the website did not prove' };
+  }
+  if (/\bsomeone (?:free|available) to (?:catch|notice|see|handle|move)\b/i.test(s)) {
+    return { ok: false, why: 'awkward staffing language — name the waiting step instead of an available person' };
+  }
   // A message allowed to ask a question is allowed to end on one. Without
   // this, every day-eight message failed for ending the way it was told to
   // (2026-09-08): 59 of 60 of them, all correct.
@@ -557,8 +570,9 @@ function passable(sentence, {
   // One sentence, occasionally two short ones — three at most when two jobs
   // are named. Never a paragraph.
   const parts = s.slice(0, -1).split(/(?<=[.])\s+/);
-  if (parts.length > (twoJobs ? 3 : 2)) {
-    return { ok: false, why: twoJobs ? 'more than three sentences' : 'more than two sentences' };
+  const maxSentences = twoJobs && allowQuestion ? 4 : twoJobs ? 3 : 2;
+  if (parts.length > maxSentences) {
+    return { ok: false, why: `more than ${maxSentences} sentences` };
   }
   // Never address someone by their job title, never a clause about the role.
   if (roleTitle) {

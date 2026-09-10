@@ -133,7 +133,7 @@ function judgeStandingLine(standing) {
 // (noticing.js passable); what changes per message is which of them apply.
 const BY_DAY = {
   // The first message. Every rule, in full.
-  0: { allowQuestion: false, needsCost: true, mustAskQuestion: false },
+  0: { allowQuestion: true, needsCost: true, mustAskQuestion: true },
   // Four days later, one job taken a level deeper. Judged like the first.
   4: { allowQuestion: false, needsCost: true, mustAskQuestion: false },
   // Eight days later. Its whole job is one plain question, so a question is
