@@ -1614,7 +1614,7 @@ async function businessCard(id, saved) {
     // or they reply? Is it tracked on the Account screen?" It was recorded and
     // acted on, and invisible here.
     if (p.repliedAt) return `<div class="card" style="background:#dcfce7;border-color:#16a34a">
-      <b>They answered on ${new Date(p.repliedAt).toLocaleDateString()}.</b>
+      <b>They answered on ${new Date(p.repliedAt).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })}.</b>
       Every message still waiting, on every lane, stopped the moment they did. Nothing else goes out to them.</div>`;
     if (p.emailBouncedAt) return `<div class="card" style="background:#fee2e2;border-color:#dc2626">
       <b>The address bounced on ${new Date(p.emailBouncedAt).toLocaleDateString()}.</b>
