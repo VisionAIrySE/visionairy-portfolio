@@ -990,8 +990,32 @@ const VISIBLE_TO = {
   neutral: { admin: 1, operations: 1, finance: 1, sales: 1, marketing: 1 },
 };
 
-function rankAreas(qualifying, { trade, angle = 'neutral' } = {}) {
-  const seen = VISIBLE_TO[angle] || VISIBLE_TO.neutral;
+// Industry supplies the shortlist through tierFor. The selected person's
+// actual role decides which item on that shortlist is most relevant to them.
+const ROLE_DEPARTMENTS = [
+  ['finance', /\b(cfo|chief financial|controller|accounting|accountant|finance|financial|bookkeep|billing|accounts? payable|accounts? receivable|payroll|treasurer)\b/i],
+  ['sales', /\b(sales|business development|broker(?:age)?|realtor|agent|leasing|loan officer|producer|estimator|revenue|growth|customer success)\b/i],
+  ['marketing', /\b(marketing|communications?|brand|content|social media|public relations|community relations)\b/i],
+  ['operations', /\b(operations?|general manager|project manager|construction manager|field manager|service manager|dispatch|scheduler|superintendent|property manager|practice manager)\b/i],
+  ['admin', /\b(office manager|administrator|administrative|admin|coordinator|receptionist|front desk|secretary|executive assistant)\b/i],
+];
+
+function departmentForRole(roleTitle) {
+  const title = String(roleTitle || '').trim();
+  const found = ROLE_DEPARTMENTS.find(([, pattern]) => pattern.test(title));
+  return found ? found[0] : null;
+}
+
+function visibilityFor(roleTitle, angle = 'neutral') {
+  const base = { ...(VISIBLE_TO[angle] || VISIBLE_TO.neutral) };
+  const department = departmentForRole(roleTitle);
+  if (department) base[department] = 4;
+  return base;
+}
+
+function rankAreas(qualifying, { trade, angle = 'neutral', roleTitle = null } = {}) {
+  const seen = visibilityFor(roleTitle, angle);
+  const roleDepartment = departmentForRole(roleTitle);
   for (const x of qualifying) {
     const { tier, at } = tierFor(trade, x.type);
     const { hours, verified } = hoursFor(x.type);
@@ -1003,9 +1027,11 @@ function rankAreas(qualifying, { trade, angle = 'neutral' } = {}) {
     // neutral 0.5 orders things internally and NOTHING is recorded in its
     // place — the record keeps exactly what the check said (absence is data).
     const plainly = x.plainly === null || x.plainly === undefined ? 0.5 : Number(x.plainly);
+    x.roleFit = Boolean(roleDepartment && x.department === roleDepartment);
     x.score = (hours || 0) * 0.5 + plainly * 4 + (seen[x.department] || 0);
   }
-  const ranked = [...qualifying].sort((a, b) => (a.tier - b.tier)
+  const ranked = [...qualifying].sort((a, b) => (Number(b.roleFit) - Number(a.roleFit))
+    || (a.tier - b.tier)
     || (b.score - a.score)
     || ((a.at === null ? 9 : a.at) - (b.at === null ? 9 : b.at)));
   ranked.forEach((x, i) => {
@@ -1058,8 +1084,9 @@ function chooseForEmail(ranked) {
   let second = null;
   if (rest.length) {
     const top = rest[0];
+    const sameRole = first.roleFit && rest.find((x) => x.roleFit);
     const otherDept = rest.find((x) => x.tier === top.tier && x.department !== first.department);
-    second = (top.department === first.department && otherDept) ? otherDept : top;
+    second = sameRole || ((top.department === first.department && otherDept) ? otherDept : top);
   }
 
   // TWO, AS INSTRUCTED (Russ, 2026-08-27, again 2026-09-04 in capitals).
@@ -1597,7 +1624,7 @@ async function askForNoticing({
 
   // RANK and CHOOSE — in code, on the library's own evidence.
   const angle = angleFor(roleTitle);
-  const ranked = rankAreas(recurring, { trade: evidence.trade, angle });
+  const ranked = rankAreas(recurring, { trade: evidence.trade, angle, roleTitle });
 
   // WRITE. The passage names exactly the chosen work, in Russ's voice,
   // checked in code; a rejection twice is silence, never a shrug-and-send.
@@ -1922,6 +1949,6 @@ module.exports = {
   recordNoticing, noticingFor,
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
   tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
-  CLAIMS_HOURS, VISIBLE_TO,
+  CLAIMS_HOURS, VISIBLE_TO, ROLE_DEPARTMENTS, departmentForRole, visibilityFor,
   notAJob, namesAPerson,
 };

@@ -33,9 +33,8 @@
 //   or four more" — belongs to the FIRST message only. A version is picked per
 //   business, and four repeats of it reads as a template.
 //
-//   The offer is restated on day 4 and day 14, not on day 8. Day 8's whole job
-//   is one plain question, and an offer sitting under it weakens the question.
-//   The offer never CHANGES across the four; that was the rule.
+// The current sequence puts the same clear action in every email: a free
+// fifteen-minute review, two practical tool concepts, and no obligation.
 //
 // They are stored as DRAFTS. Nothing sends until it is due.
 //
@@ -45,6 +44,7 @@ const { PrismaClient } = require('@prisma/client');
 const FC = require('../../src/hoursback/crm/firstContact.js');
 const C = require('../../src/hoursback/crm/campaign.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
+const L = require('../../src/hoursback/crm/lanes.js');
 const { pick } = require('../../src/hoursback/crm/variants.js');
 const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
 const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
@@ -92,9 +92,8 @@ const THE_ANGLES = {
       'named. One he might not have thought of as costing him anything. Say what',
       'it costs.',
       '',
-      'Then ask him one plain question he could answer in a single line. No',
-      'calendar, no offer, no pitch — none of those are added to this one. Just',
-      'the observation and the question.',
+      'Then ask one plain question the recipient could answer in a single line.',
+      'The review offer and calendar line are added after this passage.',
       '',
       'Two or three sentences and the question.',
     ],
@@ -118,7 +117,7 @@ const THE_ANGLES = {
 };
 
 function askFor({
-  name, trade, jobs, otherJobs, dayZero, touch, why,
+  name, trade, roleTitle, jobs, otherJobs, dayZero, touch, why,
 }) {
   const a = THE_ANGLES[touch];
   return [
@@ -130,6 +129,14 @@ function askFor({
     'added around what you write.',
     '',
     `The business: ${name}${trade ? ` (${trade})` : ''}`,
+    `The recipient's role: ${roleTitle || 'not recorded'}`,
+    'Choose a problem that is relevant to both this industry and this role.',
+    'Finance roles: billing, collections, reporting or data. Sales roles:',
+    'enquiries, follow-up, proposals or referrals. Operations roles: scheduling,',
+    'handoffs, field work or workflow. Administrative roles: intake, documents,',
+    'reminders or data entry. Marketing roles: visibility, reviews, content or',
+    'lead capture. Use only work found on this company\'s own site. If the role',
+    'is not recorded, choose the strongest company-wide problem.',
     '',
     'The two jobs named in the first message:',
     ...jobs.map((j, i) => `  ${i + 1}. ${j}`),
@@ -190,9 +197,10 @@ function buildLetter(touch, { greeting, passage, seed }) {
     // Day 4: their job, deeper. Then the offer and the ask, unchanged.
     parts.push(passage, say('offer'), say('ask4'));
   } else if (touch === 3) {
-    // Day 8: the observation and the question, and nothing under it. An offer
-    // here weakens the only question in the sequence (Russ, 2026-09-08).
-    parts.push(passage);
+    // Day 8 keeps its one easy question, followed by the same clear call to
+    // action as every other email: free review, two tool concepts, and
+    // no obligation.
+    parts.push(passage, say('ask8'));
   } else {
     // Day 14: his own last-message wordings, with the passage in the middle.
     // "Last note from me." above it, what the fifteen minutes is for below,
@@ -245,6 +253,9 @@ function buildLetter(touch, { greeting, passage, seed }) {
     });
     if (!dayZeroRow) { skipped += 1; return; }
 
+    const { writeTo } = await L.whoTheLetterGoesTo(db, p.id, p);
+    const roleTitle = writeTo.contactRole || null;
+
     const reading = await db.reading.findFirst({
       where: { prospectId: p.id, findings: { some: { field: 'noticingJob' } } },
       orderBy: { startedAt: 'desc' },
@@ -271,7 +282,7 @@ function buildLetter(touch, { greeting, passage, seed }) {
       let full = null; let why = null;
       for (let go = 0; go < 3 && !full; go += 1) {
         const answer = await writer.ask(askFor({
-          name: p.name, trade: p.trade, jobs, otherJobs: others, dayZero, touch, why,
+          name: p.name, trade: p.trade, roleTitle, jobs, otherJobs: others, dayZero, touch, why,
         }));
         const got = answer && answer.answer ? String(answer.answer.body || '').trim().replace(/\n+/g, ' ') : '';
         if (!got) { why = 'the answer could not be read'; continue; }
@@ -279,7 +290,7 @@ function buildLetter(touch, { greeting, passage, seed }) {
         // JUDGED BY THE ONE JUDGE, TOLD WHICH DAY IT IS. The same judge the
         // page, the send queue and the nightly check use — so a letter that
         // passes here cannot be reported as failing anywhere else.
-        const v = J.judgeLetter(candidate, { day: THE_ANGLES[touch].day, jobs, roleTitle: p.contactRole });
+        const v = J.judgeLetter(candidate, { day: THE_ANGLES[touch].day, jobs, roleTitle });
         if (v.ok) full = candidate; else why = v.why;
       }
       if (!full) { console.log(`  ✗ ${p.name} day ${THE_ANGLES[touch].day}: ${String(why).slice(0, 80)}`); refused += 1; continue; }

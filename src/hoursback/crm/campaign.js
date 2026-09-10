@@ -97,29 +97,36 @@ const WHY_ME = [
   "I've done the work I'm offering to take off you, in my own businesses and alongside plenty of others. Not a software person guessing at your week.",
 ];
 
-// The offer, whole, and the only place the deliverable is described. Note what
-// it does NOT say: no price, no fee, and no claim about a client Russ has
-// served. "Customers like you have found" is what businesses in their position
-// find, not a case study — he has no clients yet and must never write one.
+// The offer, whole. Every version says the same three things plainly: the
+// review takes fifteen minutes and is free, Russ returns two practical tool
+// concepts with their likely cost and fit, and there is no obligation. It makes
+// no customer or case-study claim.
 const THE_OFFER = [
-  "Give me fifteen minutes on the phone and I'll go away and do the research for you at no cost. I'll bring you back one tool that solves a specific challenge for you, what it costs to implement and why it makes sense, plus what it would take to build the parts nothing off the shelf covers. Customers like you have found anywhere from five to twenty hours a week of repetitive tasks and taken them off the table this way.",
-  "Give me fifteen minutes on the phone and I'll go away and do the research at no cost to you. What comes back is one tool that solves something specific, what it costs to put in and why it makes sense, plus what building the parts nothing off the shelf covers would take. Customers like you have found five to twenty hours a week of repetitive tasks this way and taken them off the table.",
-  "Fifteen minutes on the phone is all I need, and then I do the research for you at no cost. You get one tool that solves a specific challenge, what it costs to implement and why that one, plus what it would take to build whatever nothing off the shelf covers. Customers like you have taken anywhere from five to twenty hours a week off the table doing this.",
-  "Fifteen minutes on the phone, then I go away and do the research at no cost. Back comes one tool that solves a specific challenge for you, what implementing it costs and why it makes sense, and what building the parts nothing off the shelf covers would involve. Customers like you have found five to twenty hours a week of repetitive work this way.",
+  "Give me fifteen minutes on the phone and I'll review where repetitive work is costing you time. At no cost, I'll come back with two practical tool concepts, what they are likely to cost and why each fits, plus what would need to be built if nothing off the shelf covers the rest.",
+  "Give me fifteen minutes and I'll review the repetitive work in your week. The review is free, and I come back with two practical tool concepts, their likely cost and why they fit, plus what building the parts no ready-made tool covers would take.",
+  "Fifteen minutes on the phone is all I need to review where the manual work sits. At no cost, you get two practical tool concepts, what they are likely to cost and why those two fit, along with what would have to be built for anything a ready-made tool cannot handle.",
+  "In a free fifteen-minute review, we'll identify the repetitive work worth solving first. I then come back with two practical tool concepts, their likely cost and why they make sense, and what building any uncovered parts would involve.",
 ];
 
 const ASK_DAY0 = [
-  'No charge for the review, nothing to sign and you get my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
-  'No charge for the review, nothing to sign, and my best recommendation for a tool that saves your team real time and money. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
-  "There's no charge for the review and nothing to sign, just my best recommendation for a tool that will save your team significant time and money. Worth a quarter of an hour? Reply, or take a time from my calendar below.",
-  'No charge, nothing to sign, and you come away with my best recommendation for a tool that saves your team serious time and money. Worth a quarter of an hour? Reply here, or grab a time from my calendar below.',
+  'There is no obligation and nothing to sign. Worth fifteen minutes? Reply here, or take a time from my calendar below.',
+  'No obligation and nothing to buy. Worth a quarter of an hour? Reply here, or take a time from my calendar below.',
+  "There is no obligation after the review and nothing to sign. Worth fifteen minutes? Reply, or take a time from my calendar below.",
+  'No obligation and no sales commitment. Worth a quarter of an hour? Reply here, or grab a time from my calendar below.',
 ];
 
 const ASK_DAY4 = [
-  'No charge, nothing to sign, and you get my best recommendation for a tool that will save your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
-  'No charge and nothing to sign, and what you get is my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or take a time from my calendar below.',
-  "There's no charge and nothing to sign, just my best recommendation for a tool that will save your team time and money. Fifteen minutes? Reply, or take a time from my calendar below.",
-  'Free, nothing to sign, and you come away with my best recommendation for a tool that saves your team real time and money. Fifteen minutes? Reply here, or grab a time from my calendar below.',
+  'The fifteen-minute review is free. I come back with two practical tool concepts, their likely cost and why they fit, with no obligation. Reply here, or take a time from my calendar below.',
+  'Give me fifteen minutes and I will return with two practical tool concepts, their likely cost and why they suit you. The review is free and there is no obligation. Reply here, or take a time from my calendar below.',
+  "A free fifteen-minute review gets you two practical tool concepts, what they are likely to cost and why they fit. There is no obligation and nothing to sign. Reply, or take a time from my calendar below.",
+  'Fifteen minutes, free, then two practical tool concepts with their likely cost and the reason for each. No obligation. Reply here, or grab a time from my calendar below.',
+];
+
+const ASK_DAY8 = [
+  'If a free fifteen-minute review would help, I will come back with two practical tool concepts, their likely cost and why they fit. There is no obligation. Reply here, or take a time from my calendar below.',
+  'Give me fifteen minutes and I will return with two practical tool concepts, their likely cost and why they suit you. The review is free and there is no obligation. Reply here, or take a time from my calendar below.',
+  'The review takes fifteen minutes and costs nothing. I come back with two practical tool concepts, what they are likely to cost and why they fit, with no obligation. Reply here, or use my calendar below.',
+  'A free fifteen-minute review gets you two practical tool concepts, their likely cost and the reason for each. No obligation and nothing to sign. Reply here, or grab a time from my calendar below.',
 ];
 
 // WE DO NOT KNOW WHO THEY HIRED (Russ, 2026-09-03).
@@ -156,10 +163,10 @@ const DAY8_OPEN = ['Last note from me.', 'This is the last one from me.', 'Final
 // what comes back and never said it costs nothing — the one fact most likely
 // to make somebody reply to a fourth email.
 const DAY8_THATS_WHAT_ITS_FOR = [
-  "That's what the fifteen minutes is for. I come back to you with the specific product, what it costs, and why it fits you, all at no cost to you.",
-  "That's what the fifteen minutes is for: I come back with the specific product, its cost, and why it fits you. None of that costs you anything.",
-  "That's the job of the fifteen minutes. I go away and come back with the specific product, what it costs and why it suits you, at no cost to you.",
-  "The fifteen minutes is for exactly that. I come back with the product, what it costs, and why it's the right one for you, and none of it costs you a thing.",
+  "Give me fifteen minutes and I come back with two practical tool concepts, their likely cost and why they fit you. The review is free and there is no obligation.",
+  "A free fifteen-minute review gets you two practical tool concepts, their likely cost and why they suit you. There is no obligation and nothing to sign.",
+  "That's the job of the free fifteen-minute review. I come back with two practical tool concepts, what they are likely to cost and why they fit, with no obligation.",
+  "The fifteen minutes is free. I come back with two practical tool concepts, their likely cost and why they make sense for you, and there is no obligation.",
 ];
 
 const DAY8_CLOSE = [
@@ -383,6 +390,7 @@ function slotsOfTheMessage() {
     offer: waysToSay(THE_OFFER, 'offer'),
     ask0: waysToSay(ASK_DAY0, 'ask0'),
     ask4: waysToSay(ASK_DAY4, 'ask4'),
+    ask8: waysToSay(ASK_DAY8, 'ask8'),
     part: waysToSay(DAY4_THE_PART, 'part'),
     look: waysToSay(DAY4_WHAT_ID_LOOK_FOR, 'look'),
     last: waysToSay(DAY8_OPEN, 'last'),
@@ -444,9 +452,9 @@ function dayFour(name, t, seed = '') {
   ].join('\n\n');
 }
 
-// THE THIRD MESSAGE (day eight). One question, answerable in a line, and no
-// calendar. It names their week again — briefly — so the question has
-// something to sit against, then asks and explains why it is asking.
+// THE THIRD MESSAGE (day eight). One question, answerable in a line. It names
+// their week again briefly, then repeats the same clear review offer and reply
+// or calendar choice carried by every message.
 function daySmallAsk(name, t, seed = '') {
   const C = require('./firstContact.js');
   return [
@@ -454,6 +462,7 @@ function daySmallAsk(name, t, seed = '') {
     `I wrote about ${t.hook}. No reply needed on that one.`,
     pick(waysToSay(C.THIRD_ASK, 'ask3'), seed, 'ask3'),
     pick(waysToSay(C.THIRD_WHY, 'why3'), seed, 'why3'),
+    pick(waysToSay(ASK_DAY8, 'ask8'), seed, 'ask8'),
   ].join('\n\n');
 }
 

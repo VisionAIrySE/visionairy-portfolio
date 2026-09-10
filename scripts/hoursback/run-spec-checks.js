@@ -2033,12 +2033,30 @@ def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (d
   const greeting = firstContact().draftFirstContact(writeTo, [{ signal: 'fax_listed' }]).body.split('\n')[0];
   const draft = await lanes().draftFor(db, p.id, 'EMAIL');
   const ok = after.email === 'info@p.example' && recipient === 'sara@p.example'
-    && draft.sentTo === 'sara@p.example' && greeting === 'Hi Sara,';
+    && draft.sentTo === 'sara@p.example' && greeting === 'Hi Sara,'
+    && writeTo.contactRole === 'Office Manager';
   await cleanLane(db, 'primary');
   return { ok, detail: ok
     ? 'picking Sara addressed the message to her and kept the shared inbox as a separate business fact'
     : JSON.stringify({ businessEmail: after.email, recipient, draftTo: draft && draft.sentTo, greeting }) };
 }), 'lanes');
+
+def('message_topics_match_the_selected_persons_role_and_company_industry', () => {
+  const N = require(path.join(ROOT, 'src/hoursback/crm/noticing.js'));
+  const areas = [
+    { job: 'following up on enquiries', type: 'lead_follow_up', department: 'sales', plainly: 0.8 },
+    { job: 'typing property details', type: 'data_entry', department: 'admin', plainly: 0.8 },
+    { job: 'asking for the next referral', type: 'referral_and_repeat', department: 'sales', plainly: 0.8 },
+    { job: 'posting on social media', type: 'social_content', department: 'marketing', plainly: 0.8 },
+  ];
+  const ranked = N.rankAreas(areas, { trade: 'real estate', angle: N.angleFor('VP Brokerage'), roleTitle: 'VP Brokerage' });
+  const chosen = N.chooseForEmail(ranked).chosen;
+  const ok = chosen.length === 2 && chosen.every((x) => x.department === 'sales')
+    && chosen.every((x) => ['lead_follow_up', 'referral_and_repeat'].includes(x.type));
+  return { ok, detail: ok
+    ? 'a real-estate brokerage leader gets the two sales problems from that industry, rather than unrelated office work'
+    : JSON.stringify(chosen.map((x) => ({ type: x.type, department: x.department, roleFit: x.roleFit }))) };
+}, 'messages');
 
 def('a_contact_address_is_enough_for_the_email_lane', () => withDb(async (db) => {
   await cleanLane(db, 'contact-only');
@@ -2179,7 +2197,7 @@ def('message_matches_how_they_write_without_flattering_them', () => {
     // The current offer gets a paragraph short enough to be read rather than
     // scanned past. The paid guarantee left cold outreach on 2026-08-30.
     && [a, b, c].every((m) => m.body.split('\n\n').some((par) =>
-      /fifteen minutes|quarter of an hour/i.test(par) && /no cost|no charge|free/i.test(par) && par.length < 700));
+      /fifteen[- ]minutes?|quarter of an hour/i.test(par) && /no cost|no charge|free/i.test(par) && par.length < 700));
   return { ok, detail: ok ? 'a formal firm and a plain-spoken outfit keep their own register, neither is flattered, and both receive the free review offer' : `${a.register}/${b.register}/${c.register}` };
 }, 'lanes');
 
@@ -2371,7 +2389,7 @@ def('message_guarantee_stands_alone_and_uses_their_numbers', () => {
   const bad = [];
   for (const [name, count] of [['Sunwest Builders', 40], ['Cascade Smiles Dental', 8], ['Highland Veterinary Hospital', 22]]) {
     const m = fc.draftFirstContact({ name, ownerName: 'Sara', employeeCount: count }, [{ signal: 'fax_listed' }]);
-    if (!/fifteen minutes|quarter of an hour/i.test(m.body)) bad.push(`${name}: no fifteen-minute call`);
+    if (!/fifteen[- ]minutes?|quarter of an hour/i.test(m.body)) bad.push(`${name}: no fifteen-minute call`);
     if (!/no cost|no charge|free/i.test(m.body)) bad.push(`${name}: the research is not clearly free`);
     if (!/\btool\b/i.test(m.body) || !/cost/i.test(m.body)) bad.push(`${name}: no tool and implementation cost`);
     if (/\$[\d,]+|refund|nothing to pay/i.test(m.body)) bad.push(`${name}: the paid audit crept into cold outreach`);
@@ -2388,10 +2406,13 @@ def('message_price_only_in_the_second_and_it_carries_no_value_on_an_hour', () =>
   for (const count of [8, 22, 40, 90]) {
     const p = { name: `Test ${count} Co`, ownerName: 'Sara', employeeCount: count, trade: 'construction' };
     const touches = [fc.draftFirstContact(p, [{ signal: 'fax_listed' }]),
-      fc.draftFollowUpTouch(p, 'fax_listed', 2), fc.draftFollowUpTouch(p, 'fax_listed', 4)];
+      fc.draftFollowUpTouch(p, 'fax_listed', 2), fc.draftFollowUpTouch(p, 'fax_listed', 3),
+      fc.draftFollowUpTouch(p, 'fax_listed', 4)];
     for (const m of touches) {
       if (/\$[\d,]+|\b999\b|refund|nothing to pay/i.test(m.body)) bad.push(`${count}: a price or paid promise appears in the sequence`);
-      if (!/fifteen minutes|quarter of an hour/i.test(m.body)) bad.push(`${count}: a touch lost the fifteen-minute offer`);
+      if (!/fifteen[- ]minutes?|quarter of an hour/i.test(m.body)) bad.push(`${count}: a touch lost the fifteen-minute offer`);
+      if (!/no obligation|nothing to sign|nothing to buy/i.test(m.body)) bad.push(`${count}: a touch lost the no-obligation language`);
+      if (!/\btwo practical tool concepts\b/i.test(m.body)) bad.push(`${count}: a touch lost the two tool concepts`);
       if (/\b\d{1,3}x\b|per guaranteed hour/i.test(m.body)) bad.push(`${count}: a value was put on an hour`);
     }
   }
@@ -2641,7 +2662,7 @@ def('a_stale_draft_is_rewritten_but_a_hand_edited_one_is_not', () => withDb(asyn
   const refreshed = await L.draftFor(db, a.id, 'EMAIL');
   const untouched = await L.draftFor(db, b.id, 'EMAIL');
   const ok = refreshed.body !== 'wording from an earlier night'
-    && /fifteen minutes|quarter of an hour/i.test(refreshed.body)
+    && /fifteen[- ]minutes?|quarter of an hour/i.test(refreshed.body)
     && /no cost|no charge|free/i.test(refreshed.body)
     && untouched.body === 'what Russ typed himself';
   await cleanLane(db, 'stale');
@@ -2672,8 +2693,8 @@ def('approval_stops_counting_once_the_message_moves_on', () => withDb(async (db)
 
 def('every_first_message_states_the_guarantee', () => {
   // Legacy check name. On 2026-08-30 Russ replaced the paid guarantee in cold
-  // outreach with one consistent offer: fifteen minutes, free research, one
-  // recommended tool and the cost to implement it. The audit guarantee still
+  // outreach with one consistent offer: fifteen minutes, free research, two
+  // practical tool concepts and their likely cost. The audit guarantee still
   // exists, but it belongs after the call.
   const fc = firstContact();
   const people = [
@@ -2687,16 +2708,17 @@ def('every_first_message_states_the_guarantee', () => {
     for (const signal of ['fax_listed', 'hiring_admin_role', 'no_online_booking']) {
       const m = fc.draftFirstContact(p, [{ signal }]);
       if (!m) continue;
-      const freeLook = /fifteen minutes|quarter of an hour/i.test(m.body)
+      const freeLook = /fifteen[- ]minutes?|quarter of an hour/i.test(m.body)
         && /no cost|no charge|free/i.test(m.body);
-      const deliverable = /\btool\b/i.test(m.body) && /what it costs|what implementing it costs|costs to put in/i.test(m.body);
+      const deliverable = /\btwo practical tool concepts\b/i.test(m.body)
+        && /likely cost|what they are likely to cost/i.test(m.body);
       const noPaidPitch = !/\$\s*999|refund|nothing to pay/i.test(m.body);
       if (!freeLook || !deliverable || !noPaidPitch) missing.push(`${p.name}/${signal} free=${freeLook} tool=${deliverable} paid=${!noPaidPitch}`);
     }
   }
   const ok = missing.length === 0;
   return { ok, detail: ok
-    ? 'every first message offers the free fifteen-minute review and a costed tool, without pitching the paid audit'
+    ? 'every first message offers the free fifteen-minute review and two costed tool concepts, without pitching the paid audit'
     : missing.join('; ') };
 }, 'message');
 
@@ -4356,7 +4378,7 @@ def('the_first_message_asks_for_fifteen_free_minutes', () => {
   // one thing needs no belief at all (Russ chose this, 2026-08-27).
   const fc = require(path.join(ROOT, 'src/hoursback/crm/firstContact.js'));
   const m = fc.draftFirstContact({ name: 'Cascade Test Dental', contactName: 'Dale Hutchins', trade: 'dental' }, []);
-  const asks = /fifteen minutes|quarter of an hour/i.test(m.body) && /no cost|no charge|free/i.test(m.body);
+  const asks = /fifteen[- ]minutes?|quarter of an hour/i.test(m.body) && /no cost|no charge|free/i.test(m.body);
   const noGuarantee = !/\$\s*999|money back|refund|nothing to pay/i.test(m.body);
   const ok = asks && noGuarantee;
   return { ok, detail: ok
@@ -5100,8 +5122,8 @@ def('no_message_ever_prints_the_word_null', () => {
 // threw the results away.
 
 // What everything here counts as the same sentence said different ways.
-const FIFTEEN = /fifteen minutes|quarter of an hour/i;
-const WHAT_IT_COSTS = /what it costs|its cost|the cost\b|its price|the price\b|what it runs to/i;
+const FIFTEEN = /fifteen[- ]minutes?|quarter of an hour/i;
+const WHAT_IT_COSTS = /likely cost|what they are likely to cost|what it costs|its cost|the cost\b|its price|the price\b|what it runs to/i;
 const THE_BUILD = /\bbuilt?\b|building|to build|to make|has to be made|worth making|having it made|worth having made/i;
 // The paragraph body, without Russ's own sign-off. His signature carries a
 // calendly.com link, which is a named product and would fail the software test
@@ -5117,18 +5139,18 @@ def('every_message_offers_the_fifteen_minutes_and_a_priced_tool', () => {
   const fc = firstContact();
   const campaigns = ['dental', 'construction', 'auto', 'legal', 'other'].map((trade, i) => {
     const p = { name: `Campaign ${i} Co`, ownerName: 'Dale', trade };
-    return [fc.draftFirstContact(p, []), fc.draftFollowUpTouch(p, null, 2), fc.draftFollowUpTouch(p, null, 4)];
+    return [fc.draftFirstContact(p, []), fc.draftFollowUpTouch(p, null, 2),
+      fc.draftFollowUpTouch(p, null, 3), fc.draftFollowUpTouch(p, null, 4)];
   });
   const drafts = campaigns.flat();
   const noCall = drafts.filter((d) => !FIFTEEN.test(justTheLetter(d.body)));
-  // The first message states the deliverable in full. Follow-ups repeat the
-  // same free call in shorter forms instead of reselling every detail.
-  const noTool = campaigns.filter(([d]) => !/\btool\b/i.test(justTheLetter(d.body)) || !WHAT_IT_COSTS.test(justTheLetter(d.body)));
+  const noTool = drafts.filter((d) => !/\btwo practical tool concepts\b/i.test(justTheLetter(d.body)) || !WHAT_IT_COSTS.test(justTheLetter(d.body)));
+  const noObligation = drafts.filter((d) => !/no obligation|nothing to sign|nothing to buy/i.test(justTheLetter(d.body)));
   const noBuild = campaigns.filter(([d]) => !THE_BUILD.test(justTheLetter(d.body)));
-  if (noCall.length || noTool.length || noBuild.length) {
-    return { ok: false, detail: `${noCall.length} without the free fifteen minutes, ${noTool.length} without a tool and what it costs, ${noBuild.length} without building on the table` };
+  if (noCall.length || noTool.length || noObligation.length || noBuild.length) {
+    return { ok: false, detail: `${noCall.length} without the free fifteen minutes, ${noTool.length} without a tool and what it costs, ${noObligation.length} without no-obligation language, ${noBuild.length} openings without building on the table` };
   }
-  return { ok: true, detail: `${drafts.length} generated messages keep the free call; every opening states the tool, its cost and the build option in full` };
+  return { ok: true, detail: `${drafts.length} generated messages each offer the free review, two costed tool concepts and no obligation; every opening also keeps the build option` };
 }, 'messages');
 
 def('no_first_message_carries_a_price', () => withLiveDb(async (db) => {

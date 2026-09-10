@@ -260,8 +260,8 @@ const BY_TRADE = {
 // The platforms themselves.
 //
 // One or two per type, not a directory. The free fifteen-minute call ends with
-// ONE tool named, so what matters is having a defensible first answer for
-// every common problem, not a catalogue nobody reads.
+// TWO practical tool concepts named, so what matters is having two defensible
+// answers for every common problem, not a catalogue nobody reads.
 //
 // `runsOn` matters more than it looks. Reading 1,322 Central Oregon business
 // websites on 2026-08-27 found 411 on WordPress, 108 on Squarespace, 33 on

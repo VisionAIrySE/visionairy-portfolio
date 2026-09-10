@@ -210,7 +210,11 @@ async function whoTheLetterGoesTo(db, prospectId, p) {
   // page that lists only "Kevin".
   const { firstNameOfMarked } = require('./names.js');
   const marked = person && person.name && firstNameOfMarked(person.name) ? person.name : null;
-  let writeTo = marked ? { ...p, contactName: marked, ownerName: null } : p;
+  // Keep the selected person's role with their name. Otherwise a message can
+  // greet the right person while aiming its examples at somebody else's job.
+  let writeTo = marked
+    ? { ...p, contactName: marked, contactRole: person.role || null, ownerName: null }
+    : p;
   // At a small shop the "general" inbox is the owner's inbox. 404 businesses
   // had a person's name on file and only a general address, and every one of
   // them was greeted "Hello,". Where three or fewer people are named on the
