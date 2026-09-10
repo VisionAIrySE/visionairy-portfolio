@@ -240,6 +240,7 @@ const SLOT_NAMES = {
   offer: 'the fifteen minutes and what comes back',
   ask0: 'the closing ask',
   ask4: 'the closing ask on the second email',
+  ask8: 'the closing ask on the third email',
   part: 'the part most owners have never considered',
   look: 'what you would go looking for',
   last: 'the opening of the last email',
@@ -1086,6 +1087,16 @@ async function emailScreen(params) {
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
   ]);
+
+  // Refresh the bounded page of first messages before Russ reads it. This is
+  // what makes a changed selected role or approved campaign wording appear in
+  // the actual draft on screen. It never queues or sends; hand-edited and sent
+  // messages remain protected by draftFor.
+  await Promise.all(ready.map(async (shown) => {
+    const fresh = await L.draftFor(db, shown.prospectId, 'EMAIL');
+    if (fresh) Object.assign(shown, fresh, { prospect: shown.prospect });
+  }));
+
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
   // steady until a refresh, otherwise I never get through them").
   //

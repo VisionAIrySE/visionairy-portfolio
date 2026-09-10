@@ -253,7 +253,7 @@ async function draftFor(db, prospectId, lane) {
   // pasted by hand and stays as approved.
   if (lane === 'EMAIL') {
     const { noticingFor } = require('./noticing.js');
-    const noticed = await noticingFor(db, prospectId);
+    const noticed = await noticingFor(db, prospectId, { roleTitle: writeTo.contactRole, trade: p.trade });
     if (noticed) writeTo = { ...writeTo, noticing: noticed };
   }
   // BOTH LANES GET THE PERSON IT IS ACTUALLY GOING TO.

@@ -2052,10 +2052,23 @@ def('message_topics_match_the_selected_persons_role_and_company_industry', () =>
   const ranked = N.rankAreas(areas, { trade: 'real estate', angle: N.angleFor('VP Brokerage'), roleTitle: 'VP Brokerage' });
   const chosen = N.chooseForEmail(ranked).chosen;
   const ok = chosen.length === 2 && chosen.every((x) => x.department === 'sales')
-    && chosen.every((x) => ['lead_follow_up', 'referral_and_repeat'].includes(x.type));
+    && chosen.every((x) => ['lead_follow_up', 'referral_and_repeat'].includes(x.type))
+    && /opportunity can go cold/i.test(N.roleMatchedSentence(chosen, 'VP Brokerage'));
   return { ok, detail: ok
     ? 'a real-estate brokerage leader gets the two sales problems from that industry, rather than unrelated office work'
     : JSON.stringify(chosen.map((x) => ({ type: x.type, department: x.department, roleFit: x.roleFit }))) };
+}, 'messages');
+
+def('a_customer_portal_does_not_hide_sales_follow_up', () => {
+  const N = require(path.join(ROOT, 'src/hoursback/crm/noticing.js'));
+  const verdict = N.offersWhatTheyHave(
+    'Following up on property enquiries can leave a live opportunity waiting.',
+    [{ job: 'following up on property inquiries and leads' }],
+    [{ name: 'Tenant Portal', does: 'routine requests and payments', covers: null }],
+  );
+  return { ok: verdict.ok, detail: verdict.ok
+    ? 'a tenant portal no longer makes the CRM discard brokerage lead follow-up'
+    : verdict.why };
 }, 'messages');
 
 def('a_contact_address_is_enough_for_the_email_lane', () => withDb(async (db) => {

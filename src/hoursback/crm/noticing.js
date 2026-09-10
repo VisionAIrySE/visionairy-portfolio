@@ -385,7 +385,10 @@ async function whatTheyAlreadyRun(db, prospectId, prospect, keptPages) {
         out.push({
           name: m[1] ? m[1].trim() : 'a portal on their site',
           does: 'a portal for routine requests and payments',
-          covers: 'enquiries',
+          // A signed-in customer or tenant portal serves people who already
+          // have a relationship with the business. It does not prove that new
+          // sales enquiries are captured or followed up.
+          covers: null,
         });
         break;
       }
@@ -1923,7 +1926,23 @@ async function recordNoticing(db, prospectId, result, { sourceUrl = null } = {})
 // doing the thing would keep an old sentence. It is small — the sentence is
 // about how their work runs, never a price or a claim about them — and every
 // one is dated and traceable to the visit that found it.
-async function noticingFor(db, prospectId) {
+function roleMatchedSentence(chosen, roleTitle) {
+  const jobs = (chosen || []).map((x) => String(x.job || '').trim().replace(/[.!]+$/, '')).filter(Boolean);
+  if (!jobs.length) return null;
+  const named = jobs.length > 1 ? `${jobs[0]}, and ${jobs[1]}` : jobs[0];
+  const count = jobs.length > 1 ? 'two places' : 'one place';
+  const department = departmentForRole(roleTitle);
+  const cost = {
+    finance: 'When that work waits, cash sits uncollected or the numbers arrive too late to act on.',
+    sales: 'When that follow-up waits, a live opportunity can go cold.',
+    marketing: 'When that work slips, fewer of the right customers find or remember the business.',
+    operations: 'When that work slips, a job, appointment or handoff gets delayed.',
+    admin: "Every repeat takes time from work that still needs a person's judgment.",
+  }[department] || "Every repeat costs somebody's time, and a missed handoff can cost the job.";
+  return `From your site, ${count} worth a look ${jobs.length > 1 ? 'are' : 'is'} ${named}. ${cost}`;
+}
+
+async function noticingFor(db, prospectId, { roleTitle = null, trade = null } = {}) {
   const said = await db.finding.findMany({
     where: { prospectId, field: 'noticing', retiredAt: null },
     include: { reading: { select: { source: true } } },
@@ -1938,7 +1957,30 @@ async function noticingFor(db, prospectId) {
   }
 
   const found = said.find((f) => f.value && f.status !== R.COULD_NOT_TELL);
-  return found ? found.value : null;
+  if (!found) return null;
+
+  // A polished stored sentence remains the default. When the selected person
+  // has a clear departmental role and the stored sentence chose different
+  // work, rebuild only the company-specific passage from the evidence already
+  // on file. This lets changing the recipient change the subject matter without
+  // rereading the site or inventing a claim.
+  const roleDepartment = departmentForRole(roleTitle);
+  if (!roleDepartment || !found.readingId) return found.value;
+  const rows = await db.finding.findMany({
+    where: { readingId: found.readingId, field: { in: ['noticingArea', 'noticingJob'] }, retiredAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
+  const areas = rows.filter((f) => f.field === 'noticingArea').map((f) => {
+    try { return { ...JSON.parse(f.value), quote: f.quote || null, url: f.url || null }; } catch { return null; }
+  }).filter((x) => x && x.job && x.type && x.recurs === 'yes');
+  if (!areas.length) return found.value;
+  const ranked = rankAreas(areas, { trade, angle: angleFor(roleTitle), roleTitle });
+  if (!ranked[0] || !ranked[0].roleFit) return found.value;
+  const chosen = chooseForEmail(ranked).chosen;
+  const before = rows.filter((f) => f.field === 'noticingJob').map((f) => normalise(f.value)).filter(Boolean);
+  const after = chosen.map((x) => normalise(x.job));
+  if (before.length === after.length && before.every((job, i) => job === after[i])) return found.value;
+  return roleMatchedSentence(chosen, roleTitle) || found.value;
 }
 
 module.exports = {
@@ -1946,7 +1988,7 @@ module.exports = {
   angleFor, ANGLES, passable, normalise, pickPages, pageScore,
   promptToFind, promptForRecurrence, promptToWrite,
   groundingPage, askForNoticing, gatherEvidence, noticeOneBusiness,
-  recordNoticing, noticingFor,
+  recordNoticing, noticingFor, roleMatchedSentence,
   kindsOf, offersWhatTheyHave, whatTheyAlreadyRun,
   tierFor, hoursFor, rankAreas, chooseForEmail, materiallyWeaker,
   CLAIMS_HOURS, VISIBLE_TO, ROLE_DEPARTMENTS, departmentForRole, visibilityFor,
