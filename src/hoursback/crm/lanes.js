@@ -700,11 +700,18 @@ function safeProviderReason(body) {
     .slice(0, 300);
 }
 
-function defaultSender(key) {
-  return async ({ from, to, subject, html, text, idempotencyKey }) => {
+function defaultSender(key, options = {}) {
+  const configuredReplyTo = options.replyTo || process.env.HOURSBACK_EMAIL_REPLY_TO || null;
+  return async ({ from, to, subject, html, text, idempotencyKey, replyTo = configuredReplyTo }) => {
     if (!senderAddressIsValid(from)) {
       const error = new Error('invalid email sender configuration — nothing was sent');
       error.code = 'INVALID_EMAIL_SENDER';
+      error.definitelyNotSent = true;
+      throw error;
+    }
+    if (replyTo && !senderAddressIsValid(replyTo)) {
+      const error = new Error('invalid reply address configuration — nothing was sent');
+      error.code = 'INVALID_EMAIL_REPLY_TO';
       error.definitelyNotSent = true;
       throw error;
     }
@@ -712,7 +719,7 @@ function defaultSender(key) {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json',
         'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify({ from, to, subject, html, text }),
+      body: JSON.stringify({ from, to, subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {

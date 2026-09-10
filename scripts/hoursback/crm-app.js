@@ -1242,12 +1242,13 @@ async function emailScreen(params) {
          rather than guessed at. Russ asked to confirm the setting for the
          automatic path (2026-08-31) and it can only be seen from the host
          itself, so the app now says. -->
-    <b>Bounces and replies: ${process.env.RESEND_WEBHOOK_SECRET
+    <b>Delivery failures and spam reports: ${process.env.RESEND_WEBHOOK_SECRET
       ? 'reported automatically.'
       : 'NOT set up.'}</b>
     ${process.env.RESEND_WEBHOOK_SECRET
-      ? 'The mail service tells this site when an address fails, somebody answers, or somebody marks it as spam, and the sending stops on its own.'
-      : 'Nothing tells this site when an address fails or somebody answers, so a bounce goes unnoticed and a person who replied keeps getting chased. Add RESEND_WEBHOOK_SECRET in the site settings and point the mail service at /mail-events.'}
+      ? 'The sending service tells this site when an address fails or somebody marks it as spam.'
+      : 'Nothing tells this site when an address fails or somebody marks it as spam. Add RESEND_WEBHOOK_SECRET in the site settings and point the sending service at /mail-events.'}
+    <br><br><b>Replies:</b> Before any scheduled customer email leaves, the CRM checks its private copy inbox. If that read-only check cannot run, nothing is sent. The &ldquo;They replied&rdquo; button remains as a backup.
   </div>
 
   <h2>Written and waiting (${onlyTrade || floor || review

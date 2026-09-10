@@ -25,6 +25,13 @@ async function dailySendRun(db, options = {}) {
       report: { sent: false, reason },
     };
   }
+  // Check the private copy inbox before creating or sending anything. If the
+  // read-only connection is missing or unavailable, fail closed: a follow-up
+  // must not leave while the CRM may have missed the customer's reply.
+  const replyMonitor = options.replyMonitor || require('./gmailInbox.js');
+  const replies = await replyMonitor.syncReplies(db, {
+    now, env: options.env,
+  });
   const limit = Math.min(Number(options.limit || lanes.MAX_PER_RUN || 200), lanes.MAX_PER_RUN || 200);
   const messageIds = Array.isArray(options.messageIds)
     ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
@@ -73,7 +80,7 @@ async function dailySendRun(db, options = {}) {
       report.reason = String(error && error.message || error).slice(0, 500);
     }
   }
-  return { queued, delivery, report };
+  return { replies, queued, delivery, report };
 }
 
 module.exports = { dailySendRun };

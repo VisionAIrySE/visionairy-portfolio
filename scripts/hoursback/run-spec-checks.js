@@ -3659,6 +3659,7 @@ def('email_sends_without_a_click', async () => {
   const result = await dailySendRun({}, {
     lanes: fakeLanes, limit: 999, now: new Date('2026-09-09T17:00:00Z'),
     customerEmailEnabled: true,
+    replyMonitor: { syncReplies: async () => { calls.push(['replies']); return { read: 0, replies: 0 }; } },
     apiKey: 'test-key', reportTo: 'russ@example.test',
     reportSend: async (payload) => { calls.push(['report', payload.to]); return { id: 'report-1' }; },
   });
@@ -3667,7 +3668,7 @@ def('email_sends_without_a_click', async () => {
   const blueprint = read(path.join(ROOT, 'render.yaml'));
   const scheduled = /type:\s*cron[\s\S]*hoursback-email-sender[\s\S]*send-due-emails\.js/.test(blueprint)
     && /schedule:\s*["']0 17 \* \* MON-FRI["']/.test(blueprint);
-  const boundedInOrder = JSON.stringify(calls) === JSON.stringify([['queue', 200], ['send', 200], ['report', 'russ@example.test']])
+  const boundedInOrder = JSON.stringify(calls) === JSON.stringify([['replies'], ['queue', 200], ['send', 200], ['report', 'russ@example.test']])
     && result.delivery.sent === 2 && result.report.sent;
   const exits = /dailySendRun[\s\S]*\.finally\(\(\) => db\.\$disconnect\(\)\)/.test(runner);
   const defaultOff = /HOURSBACK_CUSTOMER_EMAIL_ENABLED/.test(scheduler)
@@ -3701,6 +3702,26 @@ def('a_database_address_can_never_be_used_as_the_email_sender', async () => {
     : JSON.stringify({ providerCalls, validDisplayName, code: refused && refused.code }) };
 }, 'linkedin');
 
+def('customer_email_uses_the_private_copy_reply_address', async () => {
+  const { defaultSender } = require(path.join(ROOT, 'src/hoursback/crm/lanes.js'));
+  let sent = null;
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    sent = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ id: 'reply-address-test' }) };
+  };
+  try {
+    await defaultSender('test-key', { replyTo: 'replies@visionairy.biz' })({
+      from: 'Russ Wright <russ@visionairy.biz>', to: 'reader@example.test',
+      subject: 'Test', html: '<p>Test</p>', text: 'Test', idempotencyKey: 'reply-address-test',
+    });
+  } finally { global.fetch = originalFetch; }
+  const ok = sent && sent.reply_to === 'replies@visionairy.biz'
+    && sent.from === 'Russ Wright <russ@visionairy.biz>';
+  return { ok, detail: ok
+    ? 'customer mail still comes from Russ and replies go to the private copy address'
+    : JSON.stringify(sent) };
+}, 'mail');
 def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () => {
   const { dailySendRun } = require(path.join(ROOT, 'src/hoursback/crm/scheduler.js'));
   const fakeLanes = {
@@ -3711,6 +3732,7 @@ def('a_failed_run_report_does_not_hide_the_customer_delivery_result', async () =
   };
   const result = await dailySendRun({}, {
     lanes: fakeLanes, customerEmailEnabled: true, limit: 5, apiKey: 'test-key',
+    replyMonitor: { syncReplies: async () => ({ read: 0, replies: 0 }) },
     from: 'Russ Wright <russ@visionairy.biz>', reportTo: 'russ@example.test',
     reportSend: async () => { throw new Error('summary refused'); },
   });
@@ -3735,6 +3757,7 @@ def('a_named_recovery_run_does_not_queue_other_customers', async () => {
   };
   const result = await dailySendRun({}, {
     lanes: fakeLanes, customerEmailEnabled: true, limit: 5, messageIds: ids,
+    replyMonitor: { syncReplies: async () => ({ read: 0, replies: 0 }) },
     apiKey: 'test-key', reportTo: null,
   });
   const ok = JSON.stringify(calls) === JSON.stringify([['send', ids]])
@@ -3744,6 +3767,94 @@ def('a_named_recovery_run_does_not_queue_other_customers', async () => {
     : JSON.stringify({ calls, result }) };
 }, 'linkedin');
 
+def('the_inbox_is_checked_before_any_customer_email', async () => {
+  const { dailySendRun } = require(path.join(ROOT, 'src/hoursback/crm/scheduler.js'));
+  const calls = [];
+  const monitor = {
+    syncReplies: async () => { calls.push('inbox'); throw new Error('copy inbox unavailable'); },
+  };
+  const lanes = {
+    MAX_PER_RUN: 5,
+    queueDueTouches: async () => { calls.push('queue'); return {}; },
+    sendQueuedEmails: async () => { calls.push('send'); return { sent: 1 }; },
+  };
+  let failed = null;
+  try {
+    await dailySendRun({}, { lanes, replyMonitor: monitor, customerEmailEnabled: true });
+  } catch (error) { failed = error; }
+  const ok = failed && failed.message === 'copy inbox unavailable'
+    && JSON.stringify(calls) === JSON.stringify(['inbox']);
+  return { ok, detail: ok
+    ? 'an unavailable reply check stops the run before anything is queued or sent'
+    : JSON.stringify({ calls, failed: failed && failed.message }) };
+}, 'mail');
+
+def('gmail_is_read_only_and_human_replies_stop_followups', async () => {
+  const G = require(path.join(ROOT, 'src/hoursback/crm/gmailInbox.js'));
+  const calls = [];
+  const mailbox = {
+    connect: async () => calls.push('connect'),
+    getMailboxLock: async () => ({ release: () => calls.push('release') }),
+    fetch: async function* (query, fields) {
+      calls.push(['fetch', query, fields]);
+      yield { source: Buffer.from('reply') };
+      yield { source: Buffer.from('away') };
+    },
+    logout: async () => calls.push('logout'),
+  };
+  const parsed = {
+    reply: {
+      from: { text: 'Owner <owner@customer.example>' },
+      subject: 'Re: your note', text: 'Please call me Thursday.',
+      date: new Date('2026-09-09T16:00:00Z'),
+    },
+    away: {
+      from: { text: 'Office <office@another.example>' },
+      subject: 'Automatic reply: Out of Office', text: 'I am away.',
+      date: new Date('2026-09-09T15:00:00Z'),
+    },
+  };
+  const db = {
+    outreachMessage: { findFirst: async ({ where }) => (
+      where.sentTo && where.sentTo.equals === 'owner@customer.example'
+        ? { prospectId: 'prospect-1' } : null
+    ) },
+    prospect: { findUnique: async () => ({ repliedAt: null }) },
+  };
+  const marked = [];
+  const result = await G.syncReplies(db, {
+    env: {
+      INBOX_USER: 'crm-replies@gmail.com', INBOX_APP_PASSWORD: 'test app password',
+      HOURSBACK_EMAIL_REPLY_TO: 'replies@visionairy.biz',
+    },
+    now: new Date('2026-09-09T17:00:00Z'),
+    makeClient: () => mailbox,
+    parse: async (source) => parsed[String(source)],
+    lanes: { markReplied: async (...args) => marked.push(args) },
+  });
+  const fetchCall = calls.find((call) => Array.isArray(call) && call[0] === 'fetch');
+  const readOnly = fetchCall && fetchCall[2].source === true
+    && !calls.some((call) => Array.isArray(call) && /move|delete|flag|store/i.test(String(call[0])));
+  const ok = result.read === 2 && result.replies === 1 && result.automatic === 1
+    && marked.length === 1 && marked[0][1] === 'prospect-1'
+    && readOnly && calls.includes('release') && calls.includes('logout');
+  return { ok, detail: ok
+    ? 'the CRM only reads the copy inbox, ignores an out-of-office message, and stops follow-ups for a human reply'
+    : JSON.stringify({ result, marked: marked.length, readOnly, calls }) };
+}, 'mail');
+
+def('a_copied_reply_must_match_a_recent_message_we_sent', async () => {
+  const G = require(path.join(ROOT, 'src/hoursback/crm/gmailInbox.js'));
+  const seen = [];
+  const db = { outreachMessage: { findFirst: async (query) => { seen.push(query); return null; } } };
+  const unknown = await G.recentProspectFor(db, 'known-contact@example.test', new Date('2026-09-09T17:00:00Z'));
+  const publicMailbox = await G.recentProspectFor(db, 'other@gmail.com', new Date('2026-09-09T17:00:00Z'));
+  const publicDomainWasNotGuessed = seen.length === 3;
+  const ok = unknown === null && publicMailbox === null && publicDomainWasNotGuessed;
+  return { ok, detail: ok
+    ? 'a stored address alone is not called a reply, and unrelated Gmail users are never matched by domain'
+    : JSON.stringify({ unknown, publicMailbox, lookups: seen.length }) };
+}, 'mail');
 // Sentences that are individually true and collectively wrong.
 //
 // Every item in "the report names the tools, how to put them in, and at least
