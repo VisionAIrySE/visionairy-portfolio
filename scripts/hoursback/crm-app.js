@@ -1321,7 +1321,7 @@ async function emailScreen(params) {
   <p class="row">
     <form method="POST" action="/email/write"><button ${approved ? '' : 'disabled'}>Write what is due</button></form>
     <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Mark due follow-ups as ready</button></form>
-    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready — up to ${Math.min(left, L.MAX_PER_RUN)} now</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready now</button></form>
     <button form="pickForm" ${approved ? '' : 'disabled'}>Mark ticked as ready</button>
     <form method="POST" action="/email/testsend"><button>Send reply test to me</button></form>
   </p>

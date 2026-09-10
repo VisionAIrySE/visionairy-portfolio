@@ -525,7 +525,8 @@ function touchDue(sentTouches, firstSentAt, now = new Date()) {
 
 // Write and queue whatever a business is due next. Returns null when it is
 // due nothing, or when anything at all says stop.
-async function queueNextTouch(db, prospectId, now = new Date()) {
+async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
+  const allowFirstContact = options.allowFirstContact !== false;
   if (!await templateIsApproved(db)) return null;
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact || p.repliedAt) return null;
@@ -538,7 +539,7 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
   });
   // Anyone else Russ marked who has not heard from him gets their own first
   // message, before the sequence moves on for the people who have.
-  const waiting = await nextUnwrittenPerson(db, prospectId);
+  const waiting = allowFirstContact ? await nextUnwrittenPerson(db, prospectId) : null;
   if (waiting) {
     const built = draftFirstContact({ ...p, contactName: waiting.name || p.contactName }, signalsOf(p));
     if (built) {
@@ -557,7 +558,7 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
 
   const due = touchDue(sent.length, sent[0] ? sent[0].sentAt : null, now);
   if (due === null) return null;
-  if (due === 1) return queueEmail(db, prospectId);
+  if (due === 1) return allowFirstContact ? queueEmail(db, prospectId) : null;
 
   const already = await db.outreachMessage.findFirst({ where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` } });
   if (already) return already;
@@ -576,11 +577,21 @@ async function queueNextTouch(db, prospectId, now = new Date()) {
 // everything else that could run away.
 async function queueDueTouches(db, options = {}) {
   const now = options.now || new Date();
-  const limit = Math.min(Number(options.limit || 200), 500);
-  const rows = await reachableOn(db, 'EMAIL', limit);
+  const allowFirstContact = options.allowFirstContact !== false;
+  // At the scheduled time, only continue sequences Russ already started.
+  // A fresh first-contact draft stays untouched until he reviews and ticks it.
+  const rows = allowFirstContact
+    ? await reachableOn(db, 'EMAIL', Math.min(Number(options.limit || 200), 500))
+    : await db.prospect.findMany({
+      where: {
+        doNotContact: false, repliedAt: null, ...emailReachableWhere(),
+        messages: { some: { lane: 'EMAIL', state: { in: ['SENT', 'REPLIED'] }, openedWith: { not: 'after_the_call' } } },
+      },
+      orderBy: { automationScore: 'desc' },
+    });
   const out = { first: 0, second: 0, third: 0, skipped: 0 };
   for (const p of rows) {
-    const m = await queueNextTouch(db, p.id, now);
+    const m = await queueNextTouch(db, p.id, now, { allowFirstContact });
     if (!m) { out.skipped += 1; continue; }
     if (m.openedWith === 'touch_2') out.second += 1;
     else if (m.openedWith === 'touch_3') out.third += 1;
@@ -592,23 +603,10 @@ async function queueDueTouches(db, options = {}) {
 // ---------------------------------------------------------------------------
 // actually sending
 //
-// Three ceilings, all in the code, none of them optional:
-//   · the day's ramp, which no run may exceed
-//   · a per-run ceiling, so one click can never empty the queue
-//   · a refusal to start at all without a key and an approved message
-//
-// The one that matters: a run counts what it has already sent and stops. It
-// never trusts a loop to end on its own.
-
-// ONE CLICK NEVER EMPTIES THE QUEUE. This is not the reputation ramp — that
-// was removed on 2026-09-06 because Russ sends from his own work address, which
-// already has a history. This is the runaway guard, and it stays.
-//
-// Raised 25 → 200 the same day. He reviews fifty at a time and ticks them all,
-// so a ceiling of 25 meant half of what he approved silently did not go. Two
-// hundred covers everything he has today and everything tonight's run adds,
-// while still stopping one accidental click from emptying a queue of thousands.
-const MAX_PER_RUN = 200;
+// There is no daily or per-run quota. The queue itself is the safety boundary:
+// a first message enters it only after Russ reviews and ticks that recipient.
+// Provider failures still stop and remain visible instead of being retried blindly.
+const MAX_PER_RUN = NO_DAILY_CAP;
 
 async function sendQueuedEmails(db, options = {}) {
   const D = require('./delivery.js');
@@ -637,7 +635,7 @@ async function sendQueuedEmails(db, options = {}) {
     ] },
     include: { prospect: true },
     orderBy: { prospect: { automationScore: 'desc' } },
-    take: ceiling,
+    take: ceiling < MAX_PER_RUN ? ceiling : undefined,
   });
 
   const { toHtmlEmail, signatureText } = require('./signature.js');

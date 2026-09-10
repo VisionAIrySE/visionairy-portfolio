@@ -22,9 +22,8 @@ const messageIds = process.env.HOURSBACK_MESSAGE_IDS
 dailySendRun(db, {
   from: process.env.HOURSBACK_EMAIL_FROM,
   reportTo: process.env.HOURSBACK_REPORT_TO,
-  // Begin with the small batch Russ approved. Raising this is a deliberate
-  // Render setting change; the scheduler still enforces its hard ceiling.
-  limit: Number(process.env.HOURSBACK_SEND_LIMIT || 5),
+  // No daily quota. A limit is used only when deliberately supplied for a recovery run.
+  limit: process.env.HOURSBACK_SEND_LIMIT ? Number(process.env.HOURSBACK_SEND_LIMIT) : undefined,
   messageIds,
 })
   .then((result) => console.log(JSON.stringify(result)))

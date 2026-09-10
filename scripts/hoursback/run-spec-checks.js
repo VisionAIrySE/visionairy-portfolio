@@ -1739,7 +1739,7 @@ def('send_refuses_without_a_key_or_approval', () => withDb(async (db) => {
   return { ok, detail: ok ? 'nothing left the building without both an approved message and a key' : JSON.stringify({ calls, unapproved, keyless }) };
 }), 'lanes');
 
-def('send_never_exceeds_its_ceiling', () => withDb(async (db) => {
+def('send_has_no_daily_quota_but_honors_an_explicit_limit', () => withDb(async (db) => {
   await cleanLane(db, 'ceiling');
   const L = lanes();
   await approvedTemplate(db);
@@ -1749,11 +1749,11 @@ def('send_never_exceeds_its_ceiling', () => withDb(async (db) => {
   }
   let calls = 0;
   const counting = async () => { calls += 1; };
-  const run = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting, limit: 3 });
-  const overAsk = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting, limit: 9999 });
+  const first = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting, limit: 3 });
+  const rest = await L.sendQueuedEmails(db, { apiKey: 'test-key', send: counting });
   await cleanLane(db, 'ceiling');
-  const ok = run.sent === 3 && calls <= 3 + L.MAX_PER_RUN && overAsk.sent <= L.MAX_PER_RUN;
-  return { ok, detail: ok ? `asked for 3 and sent 3; asked for 9999 and never passed the built-in ceiling of ${L.MAX_PER_RUN}` : JSON.stringify({ run, overAsk, calls }) };
+  const ok = first.sent === 3 && rest.sent === 5 && calls === 8;
+  return { ok, detail: ok ? 'an explicit three-message batch sent three, then the uncapped run sent every reviewed message left' : JSON.stringify({ first, rest, calls }) };
 }), 'lanes');
 
 def('a_recovery_run_sends_only_the_named_messages', () => withDb(async (db) => {
@@ -2464,12 +2464,12 @@ def('linkedin_hand_send_queue', () => withDb(async (db) => {
 def('email_ramp_caps_daily_volume', () => {
   const { dailyEmailCap, EMAIL_RAMP } = lanes();
   // The historical ramp stays visible as reference, but Russ removed the
-  // daily cap on 2026-09-06. The per-run ceiling remains the runaway guard.
+  // daily cap on 2026-09-06. Reviewed messages now have no second hidden quota.
   const caps = EMAIL_RAMP.map((_, i) => dailyEmailCap(i));
   const uncapped = caps.every((c) => c === Number.MAX_SAFE_INTEGER)
     && dailyEmailCap(99) === Number.MAX_SAFE_INTEGER;
   return { ok: uncapped, detail: uncapped
-    ? 'the retired ramp is not applied; the per-run ceiling remains in force'
+    ? 'the retired ramp is not applied and reviewed messages have no daily quota'
     : caps.join(',') };
 }, 'lanes');
 
@@ -2485,9 +2485,29 @@ def('retired_email_ramp_still_reads_as_no_daily_limit_after_sends', async () => 
     && leftTomorrow === Number.MAX_SAFE_INTEGER
     && countQueries === 0;
   return { ok, detail: ok
-    ? 'after real sends, the screen still says there is no daily ceiling; the per-run limit remains separate'
+    ? 'after real sends, the screen still says there is no daily or per-run quota'
     : `cap=${cap} today=${leftToday} tomorrow=${leftTomorrow} countQueries=${countQueries}` };
 }, 'lanes');
+
+def('scheduled_followups_never_queue_an_unreviewed_first_email', () => withDb(async (db) => {
+  await cleanLane(db, 'review-gate');
+  const L = lanes();
+  await approvedTemplate(db);
+  const fresh = await seedLane(db, 'review-gate-fresh', { automationScore: 99 });
+  const active = await seedLane(db, 'review-gate-active', { automationScore: 98 });
+  const untouched = await L.draftFor(db, fresh.id, 'EMAIL');
+  const first = await L.queueEmail(db, active.id);
+  const firstSentAt = new Date('2026-09-01T17:00:00Z');
+  await db.outreachMessage.update({ where: { id: first.id }, data: { state: 'SENT', sentAt: firstSentAt, sentBy: 'engine' } });
+  await L.queueDueTouches(db, { now: new Date('2026-09-05T17:00:00Z'), allowFirstContact: false });
+  const freshAfter = await db.outreachMessage.findUnique({ where: { id: untouched.id } });
+  const followUp = await db.outreachMessage.findFirst({ where: { prospectId: active.id, openedWith: 'touch_2' } });
+  const ok = freshAfter.state === 'DRAFT' && followUp && followUp.state === 'QUEUED' && followUp.sentTo === first.sentTo;
+  await cleanLane(db, 'review-gate');
+  return { ok, detail: ok
+    ? 'the scheduled job left the unreviewed first email untouched and queued only the due follow-up for the approved recipient'
+    : JSON.stringify({ freshState: freshAfter.state, followUp }) };
+}), 'lanes');
 
 def('bounce_suppresses_email_only', () => withDb(async (db) => {
   await cleanLane(db, 'bounce');
@@ -3647,7 +3667,7 @@ def('email_sends_without_a_click', async () => {
   const calls = [];
   const fakeLanes = {
     MAX_PER_RUN: 200,
-    queueDueTouches: async (_db, options) => { calls.push(['queue', options.limit]); return { first: 2 }; },
+    queueDueTouches: async (_db, options) => { calls.push(['queue', options.allowFirstContact]); return { first: 0, second: 2 }; },
     sendQueuedEmails: async (_db, options) => { calls.push(['send', options.limit]); return { sent: 2 }; },
   };
   const stopped = await dailySendRun({}, {
@@ -3668,17 +3688,18 @@ def('email_sends_without_a_click', async () => {
   const blueprint = read(path.join(ROOT, 'render.yaml'));
   const scheduled = /type:\s*cron[\s\S]*hoursback-email-sender[\s\S]*send-due-emails\.js/.test(blueprint)
     && /schedule:\s*["']0 17 \* \* MON-FRI["']/.test(blueprint);
-  const boundedInOrder = JSON.stringify(calls) === JSON.stringify([['reply-protection'], ['queue', 200], ['send', 200], ['report', 'russ@example.test']])
+  const reviewedOnlyInOrder = JSON.stringify(calls) === JSON.stringify([['reply-protection'], ['queue', false], ['send', 200], ['report', 'russ@example.test']])
     && result.delivery.sent === 2 && result.report.sent;
   const exits = /dailySendRun[\s\S]*\.finally\(\(\) => db\.\$disconnect\(\)\)/.test(runner);
   const defaultOff = /HOURSBACK_CUSTOMER_EMAIL_ENABLED/.test(scheduler)
     && /HOURSBACK_CUSTOMER_EMAIL_ENABLED=true/.test(blueprint);
-  const firstRunIsFive = /HOURSBACK_SEND_LIMIT\s*\|\|\s*5/.test(runner)
-    && /key:\s*HOURSBACK_SEND_LIMIT[\s\S]*?value:\s*["']5["']/.test(blueprint);
-  const ok = scheduled && stayedOff && defaultOff && firstRunIsFive && boundedInOrder && exits;
+  const noDailyQuota = /HOURSBACK_SEND_LIMIT\s*\?/.test(runner)
+    && !/key:\s*HOURSBACK_SEND_LIMIT/.test(blueprint)
+    && /allowFirstContact:\s*false/.test(scheduler);
+  const ok = scheduled && stayedOff && defaultOff && noDailyQuota && reviewedOnlyInOrder && exits;
   return { ok, detail: ok
-    ? 'the weekday Render job defaults to inert; once separately enabled it queues a bounded run, sends through the protected path, reports the result, and exits'
-    : JSON.stringify({ scheduled, stayedOff, defaultOff, firstRunIsFive, boundedInOrder, exits, calls }) };
+    ? 'the weekday job sends the reviewed queue, writes only due follow-ups for approved recipients, reports the result, and exits'
+    : JSON.stringify({ scheduled, stayedOff, defaultOff, noDailyQuota, reviewedOnlyInOrder, exits, calls }) };
 }, 'linkedin');
 
 def('a_database_address_can_never_be_used_as_the_email_sender', async () => {
