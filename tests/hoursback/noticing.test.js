@@ -262,6 +262,13 @@ test('the writer cannot hide an awkward staffing guess inside a condition', () =
   assert.match(N.passable(awkward, { allowQuestion: true }).why, /awkward staffing/);
 });
 
+test('one verified area can support a complete first-email opening and question', () => {
+  const focused = 'I was looking at how Smith schedules service visits. That made me wonder whether automation could help keep those appointments moving. If a visit waits, a customer can go elsewhere. Would service scheduling be worth a closer look?';
+  assert.equal(N.passable(focused, {
+    jobs: ['scheduling service visits'], allowQuestion: true, needsCost: true,
+  }).ok, true);
+});
+
 // ---------------------------------------------------------------------------
 // 3. Two businesses in one trade cannot receive identical sentences.
 

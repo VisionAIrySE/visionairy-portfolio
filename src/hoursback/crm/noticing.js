@@ -531,7 +531,7 @@ function passable(sentence, {
   if (!s) return { ok: false, why: 'empty' };
   if (/\n/.test(s)) return { ok: false, why: 'more than one paragraph' };
   if (s.length < 30) return { ok: false, why: 'too short to be saying anything specific' };
-  const maxLength = twoJobs ? (allowQuestion ? 520 : 400) : 280;
+  const maxLength = allowQuestion ? 520 : twoJobs ? 400 : 280;
   if (s.length > maxLength) {
     return {
       ok: false,
@@ -570,7 +570,7 @@ function passable(sentence, {
   // One sentence, occasionally two short ones — three at most when two jobs
   // are named. Never a paragraph.
   const parts = s.slice(0, -1).split(/(?<=[.])\s+/);
-  const maxSentences = twoJobs && allowQuestion ? 4 : twoJobs ? 3 : 2;
+  const maxSentences = allowQuestion ? 4 : twoJobs ? 3 : 2;
   if (parts.length > maxSentences) {
     return { ok: false, why: `more than ${maxSentences} sentences` };
   }

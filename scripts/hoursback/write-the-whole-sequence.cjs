@@ -117,6 +117,7 @@ const THE_ANGLES = {
 };
 
 function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
+  const twoAreas = jobs.length >= 2;
   return [
     'Write the company-specific opening and subject for the FIRST cold email.',
     'Answer with JSON only: {"subject":"...","body":"...","question":"..."}.',
@@ -124,7 +125,7 @@ function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
     `The business: ${name}${trade ? ` (${trade})` : ''}`,
     `The recipient's role: ${roleTitle || 'not recorded'}`,
     '',
-    'Two recurring areas verified from this company\'s own website:',
+    `${twoAreas ? 'Two recurring areas' : 'One recurring area'} verified from this company\'s own website:`,
     ...jobs.slice(0, 2).map((j, i) => `  ${i + 1}. ${j}`),
     ...(otherJobs.length ? ['', 'Other verified work for context only:', ...otherJobs.map((j) => `  · ${j}`)] : []),
     '',
@@ -132,7 +133,7 @@ function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
     '350 characters total. Russ\'s introduction will appear immediately before',
     'this paragraph, so continue naturally from it. Sentence 1 says he was',
     'looking at the relevant work the company publicly describes. Sentence 2',
-    'uses "That made me wonder whether" to name BOTH areas where AI or',
+    `uses "That made me wonder whether" to name ${twoAreas ? 'BOTH areas' : 'that area'} where AI or`,
     'automation might help, in concrete language relevant to this recipient\'s',
     'role. Do not say Russ will examine, review, assess, or fix anything before',
     'the recipient accepts the offer. Sentence 3 explains the',
@@ -152,15 +153,16 @@ function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
     'or similar staffing language. Say plainly that a next step may wait to be',
     'noticed, without guessing who works there or whether they are available.',
     '',
-    'Safe pattern: "I was looking at how Compass describes X and Y. That made',
-    'me wonder whether automation could help with A and B. If either handoff',
+    `Safe pattern: "I was looking at how the company describes ${twoAreas ? 'X and Y' : 'X'}. That made`,
+    `me wonder whether automation could help with ${twoAreas ? 'A and B' : 'A'}. If ${twoAreas ? 'either handoff' : 'that work'}`,
     'relies on a person catching the next step, the cost can show up as C."',
     'Do not copy these placeholder words.',
     '',
-    'The question is one short either-or question naming the same two areas.',
-    'It must be answerable in a few words and end with a question mark. Example',
-    'shape: "Which is harder to keep visible today: phase handoffs or crew',
-    'routing?" Use the actual areas and do not copy the example.',
+    `The question is one short ${twoAreas ? 'either-or question naming the same two areas' : 'yes-or-no question naming that same area'}.`,
+    'It must be answerable in a few words and end with a question mark.',
+    ...(twoAreas
+      ? ['Example shape: "Which is harder to keep visible today: phase handoffs or crew routing?" Use the actual areas and do not copy the example.']
+      : ['Example shape: "Would phase handoffs be worth a closer look?" Use the actual area and do not copy the example.']),
     '',
     'The subject should sound like a quiet note from one person, use a concrete',
     'noun from one of the two areas, and stay under 48 characters so the',
@@ -175,7 +177,7 @@ function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
     'Plain and spoken. No dashes, hype, jargon, flattery, or unsupported claims.',
     'Write as an expert direct-response sales writer. The reader should quickly',
     'recognize the work, see why it may matter economically, and want to answer',
-    'the simple either-or question that follows later in the email.',
+    `the simple ${twoAreas ? 'either-or' : 'yes-or-no'} question that follows later in the email.`,
     ...(why ? ['', `Your previous answer was rejected: ${why}`] : []),
   ].join('\n');
 }
@@ -184,6 +186,28 @@ function askFor({
   name, trade, roleTitle, jobs, otherJobs, dayZero, touch, why,
 }) {
   const a = THE_ANGLES[touch];
+  const twoAreas = jobs.length >= 2;
+  const brief = !twoAreas && touch === 3 ? [
+    'This is the THIRD message, eight days after the first. Still no reply.',
+    '',
+    'Return to the one verified job from a different practical angle. Show one',
+    'additional economic consequence, then ask one plain diagnostic question',
+    'the recipient could answer in a single line. Do not invent another job.',
+    'The review offer and calendar line are added after this passage.',
+    '',
+    'Two or three sentences and the question.',
+  ] : !twoAreas && touch === 4 ? [
+    'This is the LAST message, two weeks after the first. No reply to any.',
+    '',
+    'Briefly return to the one original area and name what you would have',
+    'examined. Keep it specific and say it the way you would aloud.',
+    '',
+    'Do NOT say you are stopping, do not say goodbye, do not pitch and do not',
+    'ask for anything. A line saying this is the last note goes ABOVE what you',
+    'write, and the offer goes below it. Write only the middle.',
+    '',
+    'Two sentences. No question.',
+  ] : a.brief;
   return [
     'Write ONE passage for a cold email. Answer with JSON only:',
     '{"body":"..."}  — no preamble, no code fences.',
@@ -202,14 +226,14 @@ function askFor({
     'lead capture. Use only work found on this company\'s own site. If the role',
     'is not recorded, choose the strongest company-wide problem.',
     '',
-    'The two jobs named in the first message:',
+    `The ${twoAreas ? 'two jobs' : 'one job'} named in the first message:`,
     ...jobs.map((j, i) => `  ${i + 1}. ${j}`),
     ...(otherJobs.length ? ['', 'Other repetitive work found on their own site:', ...otherJobs.map((j) => `  · ${j}`)] : []),
     '',
     'What the first message said to them:',
     `  ${dayZero}`,
     '',
-    ...a.brief,
+    ...brief,
     ...(why ? ['', `Your previous answer was rejected: ${why}`] : []),
     '',
     'THE RULES, THE SAME AS EVERY MESSAGE.',
@@ -303,10 +327,11 @@ function addressedSubject(subject, greeting) {
   return `${person} — ${shortened}`;
 }
 
-function acceptableQuestion(question) {
+function acceptableQuestion(question, jobCount) {
   const q = String(question || '').trim();
   return q.length >= 20 && q.length <= 120 && /\?$/.test(q)
-    && !/[!—–\r\n]/.test(q) && /\b(or|which)\b/i.test(q);
+    && !/[!—–\r\n]/.test(q)
+    && (jobCount >= 2 ? /\b(or|which)\b/i.test(q) : /^(would|could|is|does|do|has|have|how)\b/i.test(q));
 }
 
 function acceptableOpening(passage) {
@@ -390,7 +415,6 @@ function acceptableOpening(passage) {
     });
     const jobs = reading ? reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean) : [];
     if (!jobs.length) { console.log(`  · ${p.name}: no work recorded — skipped`); skipped += 1; return; }
-    if (jobs.length < 2) { console.log(`  · ${p.name}: only one verified area — skipped`); skipped += 1; return; }
 
     const others = reading.findings.filter((f) => f.field === 'noticingArea')
       .map((f) => { try { return JSON.parse(f.value).job; } catch { return null; } })
@@ -418,7 +442,7 @@ function acceptableOpening(passage) {
         const passage = answer && answer.answer ? String(answer.answer.body || '').trim().replace(/\s+/g, ' ') : '';
         const subject = answer && answer.answer ? String(answer.answer.subject || '').trim() : '';
         const question = answer && answer.answer ? String(answer.answer.question || '').trim() : '';
-        if (!passage || !acceptableOpening(passage) || !acceptableSubject(subject) || !acceptableQuestion(question)) {
+        if (!passage || !acceptableOpening(passage) || !acceptableSubject(subject) || !acceptableQuestion(question, jobs.length)) {
           whyFirst = !passage ? 'the opening could not be read'
             : !acceptableOpening(passage) ? 'the opening did not explain the reason for raising the two areas'
               : !acceptableSubject(subject) ? 'the subject was generic, promotional, or the wrong length'
