@@ -1323,9 +1323,9 @@ async function emailScreen(params) {
     <form method="POST" action="/email/followups"><button ${approved ? '' : 'disabled'}>Mark due follow-ups as ready</button></form>
     <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 ? 'class="primary"' : 'disabled'}>Send everything marked ready — up to ${Math.min(left, L.MAX_PER_RUN)} now</button></form>
     <button form="pickForm" ${approved ? '' : 'disabled'}>Mark ticked as ready</button>
-    <form method="POST" action="/email/testsend"><button>Send one to me</button></form>
+    <form method="POST" action="/email/testsend"><button>Send reply test to me</button></form>
   </p>
-  <p class="mini">"Send one to me" posts a real message to russ@visionairy.biz and nowhere else. It proves the sending key on this site works before a single prospect hears from you.</p>
+  <p class="mini">"Send reply test to me" uses the temporary VISIONAIRY REPLY TEST record and posts one labeled message to russ@visionairy.biz. It refuses a second send. Replying proves the CRM can receive the answer, stop follow-ups, and forward it to the ordinary VisionAIry inbox before a prospect hears from you.</p>
   <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go${L.dailyEmailCap(weeks) >= Number.MAX_SAFE_INTEGER ? '' : `, never passes today's ${L.dailyEmailCap(weeks)}`}, and refuses entirely without an approved message.</p>
   ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
@@ -2419,28 +2419,65 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(303, { Location: '/email?skipped=1' });
           return res.end();
         }
-        // Prove the sending key works without spending a prospect on it.
-        // The key lives only on this host, so it cannot be tested from a
-        // laptop — this is the one honest way to check (2026-08-26).
+        // One password-gated, one-shot end-to-end reply test. The temporary
+        // record is created by hand first and removed after verification. A
+        // successful send is recorded because inbound mail only counts as a
+        // reply when its sender matches a recent real send.
         if (what === 'testsend') {
           const { toHtmlEmail } = require('../../src/hoursback/crm/signature.js');
-          const sample = await db.outreachMessage.findFirst({ where: { lane: 'EMAIL', state: 'DRAFT' } });
           const key = process.env.RESEND_API_KEY;
+          const from = process.env.HOURSBACK_EMAIL_FROM || 'Russ Wright <russ@visionairy.biz>';
+          const to = 'russ@visionairy.biz';
+          const replyTo = process.env.HOURSBACK_EMAIL_REPLY_TO || 'russ@reply.visionairy.biz';
+          const subject = 'VisionAIry CRM reply-route test — please reply';
+          const testBody = 'This is the approved VisionAIry CRM reply-routing test. Reply to this message with: Reply test received.';
           let outcome;
           if (!key) outcome = 'There is no sending key set on this site.';
           else {
             try {
-              const r = await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  from: process.env.HOURSBACK_EMAIL_FROM || 'Russ Wright <russ@visionairy.biz>',
-                  to: ['russ@visionairy.biz'],
-                  subject: 'Hours Back — this is what a prospect will see',
-                  html: toHtmlEmail(sample ? sample.body : 'No draft to show.'),
-                }),
+              const testProspect = await db.prospect.findFirst({
+                where: { OR: [
+                  { name: 'VISIONAIRY REPLY TEST - DELETE' },
+                  { nameManualValue: 'VISIONAIRY REPLY TEST - DELETE' },
+                ] },
               });
-              outcome = r.ok ? 'Sent. Check your inbox.' : `The sending service refused it: ${r.status} ${(await r.text()).slice(0, 160)}`;
+              const alreadySent = testProspect && await db.outreachMessage.findFirst({
+                where: { prospectId: testProspect.id, sentBy: 'engine-reply-test' },
+              });
+              const testMessage = testProspect && !alreadySent && await db.outreachMessage.findFirst({
+                where: { prospectId: testProspect.id, lane: 'EMAIL', state: 'DRAFT' },
+                orderBy: { createdAt: 'desc' },
+              });
+              if (!testProspect) outcome = 'The temporary reply-test business is missing.';
+              else if (alreadySent) outcome = 'The reply test was already sent. This button will not send it twice.';
+              else if (!testMessage) outcome = 'The temporary reply-test message is not ready.';
+              else {
+                const html = toHtmlEmail(testBody);
+                const r = await fetch('https://api.resend.com/emails', {
+                  method: 'POST',
+                  headers: {
+                    authorization: `Bearer ${key}`,
+                    'content-type': 'application/json',
+                    'Idempotency-Key': `reply-route-test-${testMessage.id}`,
+                  },
+                  body: JSON.stringify({ from, to: [to], reply_to: replyTo, subject, html, text: testBody }),
+                });
+                if (!r.ok) outcome = `The sending service refused it: ${r.status} ${(await r.text()).slice(0, 160)}`;
+                else {
+                  const provider = await r.json();
+                  const sentAt = new Date();
+                  await db.outreachMessage.update({
+                    where: { id: testMessage.id },
+                    data: {
+                      state: 'SENT', sentAt, sentBy: 'engine-reply-test', sentTo: to,
+                      providerMessageId: provider.id || null, deliveryState: 'DELIVERED',
+                      deliveryLastAttemptAt: sentAt, deliveryTo: to, deliveryFrom: from,
+                      deliverySubject: subject, deliveryHtml: html, deliveryText: testBody,
+                    },
+                  });
+                  outcome = 'Sent. Reply to the labeled test message to finish checking the reply route.';
+                }
+              }
             } catch (e) { outcome = `It could not reach the sending service: ${e.message}`; }
           }
           res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent(outcome)}` });
