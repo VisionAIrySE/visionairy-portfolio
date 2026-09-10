@@ -1326,7 +1326,7 @@ async function emailScreen(params) {
     <form method="POST" action="/email/testsend"><button>Send reply test to me</button></form>
   </p>
   <p class="mini">"Send reply test to me" uses the temporary VISIONAIRY REPLY TEST record and posts one labeled message to russ@visionairy.biz. It refuses a second send. Replying proves the CRM can receive the answer, stop follow-ups, and forward it to the ordinary VisionAIry inbox before a prospect hears from you.</p>
-  <p class="muted">Sending never passes ${L.MAX_PER_RUN} in one go${L.dailyEmailCap(weeks) >= Number.MAX_SAFE_INTEGER ? '' : `, never passes today's ${L.dailyEmailCap(weeks)}`}, and refuses entirely without an approved message.</p>
+  <p class="muted">There is no daily or per-run message limit. Only messages you marked ready can send, and sending refuses entirely without approved wording.</p>
   ${ready.map(one).join('') || '<p class="muted">Nothing written yet.</p>'}`);
 }
 
@@ -1793,8 +1793,8 @@ async function businessCard(id, saved) {
     <textarea name="m.${m.id}.body" rows="${m.lane === 'EMAIL' ? 14 : 8}" style="margin-top:6px">${esc(m.body)}</textarea>
   </div>`).join('') : '<p class="muted">Nothing written for them yet.</p>'}
 
-  <p><button class="primary">Save everything above</button>
-    <span class="muted"> — the people, the messages, and who it goes to. Ticking lines a message up; it never sends.</span></p>
+  <p><button class="primary">Save contact and message changes</button>
+    <span class="muted"> — this saves what you changed. Ticking a person who has an email address also marks only the first message ready; it never sends. To use the business inbox, return to Email and tick the business there.</span></p>
   </form>
 
   <form method="POST" action="/contact/add/${p.id}" class="row" style="margin-top:10px">
@@ -2692,7 +2692,13 @@ const server = http.createServer(async (req, res) => {
               await db.contact.update({ where: { id: c.id }, data: { isPrimary: true } });
               if (c.email) {
                 const r = await db.outreachMessage.updateMany({
-                  where: { prospectId: c.prospectId, lane: 'EMAIL', state: 'DRAFT', sentAt: null },
+                  // Choosing a recipient approves the first contact only.
+                  // Later messages stay in draft until their scheduled day.
+                  where: {
+                    prospectId: c.prospectId, lane: 'EMAIL', state: 'DRAFT', sentAt: null,
+                    openedWith: { not: 'after_the_call' },
+                    NOT: { openedWith: { startsWith: 'touch_' } },
+                  },
                   data: { state: 'QUEUED', queuedAt: new Date(), sentTo: c.email },
                 });
                 lined += r.count;

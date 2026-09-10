@@ -143,7 +143,7 @@ def('the_account_page_is_editable_where_you_sit', () => {
     if (!src.includes(`name="p.\${c.id}.${field}"`)) return { ok: false, detail: `${field} is not editable on the account page` };
   }
   if (!src.includes('name="send" value="${c.id}"')) return { ok: false, detail: 'no tick box beside a person on the account page' };
-  if (!src.includes('Save everything above')) return { ok: false, detail: 'no single save' };
+  if (!src.includes('Save contact and message changes')) return { ok: false, detail: 'no single save' };
   if (!src.includes('/people/save?back=${p.id}')) return { ok: false, detail: 'saving does not come back to the business' };
   return { ok: true, detail: 'name, role, address, direct line, profile, tick box and messages — all editable, one save' };
 });
@@ -2499,10 +2499,17 @@ def('scheduled_followups_never_queue_an_unreviewed_first_email', () => withDb(as
   const first = await L.queueEmail(db, active.id);
   const firstSentAt = new Date('2026-09-01T17:00:00Z');
   await db.outreachMessage.update({ where: { id: first.id }, data: { state: 'SENT', sentAt: firstSentAt, sentBy: 'engine' } });
+  const prewritten = await db.outreachMessage.create({
+    data: {
+      prospectId: active.id, lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2',
+      subject: 'Already written day four', body: 'This was written ahead of time for review.',
+    },
+  });
   await L.queueDueTouches(db, { now: new Date('2026-09-05T17:00:00Z'), allowFirstContact: false });
   const freshAfter = await db.outreachMessage.findUnique({ where: { id: untouched.id } });
   const followUp = await db.outreachMessage.findFirst({ where: { prospectId: active.id, openedWith: 'touch_2' } });
-  const ok = freshAfter.state === 'DRAFT' && followUp && followUp.state === 'QUEUED' && followUp.sentTo === first.sentTo;
+  const ok = freshAfter.state === 'DRAFT' && followUp && followUp.id === prewritten.id
+    && followUp.state === 'QUEUED' && followUp.sentTo === first.sentTo;
   await cleanLane(db, 'review-gate');
   return { ok, detail: ok
     ? 'the scheduled job left the unreviewed first email untouched and queued only the due follow-up for the approved recipient'

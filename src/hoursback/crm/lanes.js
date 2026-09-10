@@ -561,7 +561,22 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
   if (due === 1) return allowFirstContact ? queueEmail(db, prospectId) : null;
 
   const already = await db.outreachMessage.findFirst({ where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` } });
-  if (already) return already;
+  // Follow-ups may be written ahead of time so the whole sequence can be
+  // reviewed. On its due date, move that saved draft into the send queue.
+  // Returning it unchanged made the scheduler report progress without making
+  // the message eligible to send.
+  if (already) {
+    if (already.state === 'DRAFT' && !already.sentAt && !already.deliveryState) {
+      return db.outreachMessage.update({
+        where: { id: already.id },
+        data: {
+          state: 'QUEUED', queuedAt: now,
+          sentTo: already.sentTo || (sent[0] && sent[0].sentTo) || recipient,
+        },
+      });
+    }
+    return already;
+  }
   const built = draftFollowUpTouch(p, sent[0] ? sent[0].openedWith : null, due);
   if (!built) return null;
   return db.outreachMessage.create({
