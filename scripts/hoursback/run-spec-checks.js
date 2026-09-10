@@ -2473,20 +2473,21 @@ def('email_ramp_caps_daily_volume', () => {
     : caps.join(',') };
 }, 'lanes');
 
-def('email_ramp_stops_at_cap', () => withDb(async (db) => {
-  await cleanLane(db, 'cap');
+def('retired_email_ramp_still_reads_as_no_daily_limit_after_sends', async () => {
   const L = lanes();
+  let countQueries = 0;
+  const db = { outreachMessage: { count: async () => { countQueries += 1; return 5; } } };
   const cap = L.dailyEmailCap(0);
   const leftToday = await L.emailsLeftToday(db, 0);
   const leftTomorrow = await L.emailsLeftToday(db, 0, new Date(Date.now() + 24 * 3600 * 1000));
   const ok = cap === Number.MAX_SAFE_INTEGER
     && leftToday === Number.MAX_SAFE_INTEGER
-    && leftTomorrow === Number.MAX_SAFE_INTEGER;
-  await cleanLane(db, 'cap');
+    && leftTomorrow === Number.MAX_SAFE_INTEGER
+    && countQueries === 0;
   return { ok, detail: ok
-    ? 'there is no daily ceiling; a single run is still limited separately'
-    : `cap=${cap} today=${leftToday} tomorrow=${leftTomorrow}` };
-}), 'lanes');
+    ? 'after real sends, the screen still says there is no daily ceiling; the per-run limit remains separate'
+    : `cap=${cap} today=${leftToday} tomorrow=${leftTomorrow} countQueries=${countQueries}` };
+}, 'lanes');
 
 def('bounce_suppresses_email_only', () => withDb(async (db) => {
   await cleanLane(db, 'bounce');

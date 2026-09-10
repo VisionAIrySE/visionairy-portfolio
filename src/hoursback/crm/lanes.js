@@ -323,10 +323,15 @@ async function queueEmail(db, prospectId) {
 // How many more may go out today. Sending stops at the cap and picks up
 // tomorrow; it never spills over.
 async function emailsLeftToday(db, weeksSending = 0, now = new Date()) {
+  const cap = dailyEmailCap(weeksSending);
+  // MAX_SAFE_INTEGER is the sentinel for "the daily cap is off." Subtracting
+  // today's sent count from it turned that sentinel into a giant number on
+  // the Email screen after the first real send.
+  if (cap >= NO_DAILY_CAP) return NO_DAILY_CAP;
   const sentToday = await db.outreachMessage.count({
     where: { lane: 'EMAIL', state: 'SENT', sentAt: { gte: startOfDay(now), lte: endOfDay(now) } },
   });
-  return Math.max(0, dailyEmailCap(weeksSending) - sentToday);
+  return Math.max(0, cap - sentToday);
 }
 
 // The next person Russ marked who has not heard from him yet. He can mark as
