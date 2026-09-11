@@ -327,7 +327,29 @@ async function draftFor(db, prospectId, lane) {
   // underneath it — then it is rewritten rather than left stale. Twenty-five
   // drafts from 3am survived a whole night of rewrites because this returned
   // the existing row before it ever looked at the new words, 2026-08-26.
-  const existing = await db.outreachMessage.findFirst({ where: { prospectId, lane } });
+  // An email business can also have three follow-ups and an after-call note.
+  // Asking for "the first row" here used to return any of those. The Email
+  // screen then replaced the real first email with that unrelated row, and a
+  // follow-up could appear as the message being reviewed for Day 0.
+  let existing;
+  if (lane === 'EMAIL') {
+    const candidates = await db.outreachMessage.findMany({
+      where: { prospectId, lane },
+      orderBy: { createdAt: 'asc' },
+    });
+    const liveFirsts = candidates.filter((m) => isFirstContactMessage(m)
+      && !m.sentAt && ['DRAFT', 'QUEUED'].includes(m.state));
+    existing = canonicalFirstMessages(liveFirsts)[0]
+      || candidates.find((m) => isFirstContactMessage(m) && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
+      // Preserve a deliberately skipped or suppressed first email. A later
+      // refresh must not quietly create it again.
+      || candidates.find((m) => isFirstContactMessage(m))
+      || null;
+  } else {
+    existing = await db.outreachMessage.findFirst({
+      where: { prospectId, lane }, orderBy: { createdAt: 'asc' },
+    });
+  }
   if (existing) {
     // Lined up to send is NOT sent. A message sitting in the queue with old
     // wording is the DANGEROUS one — it is the closest to somebody's inbox.

@@ -74,9 +74,10 @@ const THE_ANGLES = {
     brief: [
       'This is the SECOND message, four days after the first. He has not replied.',
       '',
-      'Do NOT re-introduce yourself, do not describe the offer, and do not say',
-      '"just following up" or "circling back". He knows who you are, and the',
-      'offer is added underneath what you write.',
+      'Do not write the introduction or describe the offer, and do not say',
+      '"just following up" or "circling back". A one-sentence reminder of who',
+      'Russ is and what VisionAIry builds is added above your passage, and the',
+      'offer is added underneath it.',
       '',
       'Take ONE of the two jobs already named and go a level deeper into it: the',
       'part of that job nobody mentions, the bit that makes it worse than it',
@@ -304,7 +305,7 @@ function greetingFrom(firstBody, prospect) {
 function buildLetter(touch, { greeting, passage, seed }) {
   const S = C.slotsOfTheMessage();
   const say = (slot) => pick(S[slot], seed, slot);
-  const parts = [greeting];
+  const parts = [greeting, say('followContext')];
   if (touch === 2) {
     // Day 4: their job, deeper. Then the offer and the ask, unchanged.
     parts.push(passage, say('ask4'));

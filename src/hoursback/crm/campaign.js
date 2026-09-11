@@ -109,6 +109,17 @@ const THE_OFFER = [
   "In a free fifteen-minute review, we'll identify which part is worth solving first. I'll then send you one specific tool recommendation with its expected benefit, whether it should be bought or built, its likely implementation cost, and whether the return supports doing it.",
 ];
 
+// A recipient should not need the first email open beside a follow-up to know
+// who is writing or why. Keep the reminder to one sentence so the later note
+// still earns attention with the business-specific point rather than another
+// full introduction.
+const FOLLOWUP_CONTEXT = [
+  "I'm Russ Wright, founder of VisionAIry, where we build practical AI and automation tools for costly workflow gaps like these.",
+  "I'm Russ Wright with VisionAIry, and we build focused AI and automation tools that remove repetitive work.",
+  "I'm Russ Wright, founder of VisionAIry, and we help businesses turn repetitive work into practical automation tools.",
+  "I'm Russ Wright with VisionAIry, where we build practical automation and AI tools around work that keeps repeating.",
+];
+
 const ASK_DAY0 = [
   "What would you fix first? Reply with the part that is costing you more and I'll send two possible times. There is no obligation.",
   "Which part deserves attention first? Reply with that one and I'll send two possible times for the free review. There is no obligation.",
@@ -401,6 +412,7 @@ function slotsOfTheMessage() {
     offer: waysToSay(THE_OFFER, 'offer'),
     ask0: waysToSay(ASK_DAY0, 'ask0'),
     afterDiagnostic: waysToSay(AFTER_DIAGNOSTIC, 'afterDiagnostic'),
+    followContext: waysToSay(FOLLOWUP_CONTEXT, 'followContext'),
     ask4: waysToSay(ASK_DAY4, 'ask4'),
     ask8: waysToSay(ASK_DAY8, 'ask8'),
     part: waysToSay(DAY4_THE_PART, 'part'),
@@ -457,6 +469,7 @@ function dayZero(name, t, seed = '') {
 function dayFour(name, t, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
+    pick(waysToSay(FOLLOWUP_CONTEXT, 'followContext'), seed, 'followContext'),
     `I wrote to you earlier this week about ${t.hook}.`,
     pick(waysToSay(DAY4_THE_PART, 'part'), seed, 'part').replace('{task}', t.task),
     pick(waysToSay(DAY4_WHAT_ID_LOOK_FOR, 'look'), seed, 'look'),
@@ -471,6 +484,7 @@ function daySmallAsk(name, t, seed = '') {
   const C = require('./firstContact.js');
   return [
     name ? `Hi ${name},` : 'Hello,',
+    pick(waysToSay(FOLLOWUP_CONTEXT, 'followContext'), seed, 'followContext'),
     `I wrote about ${t.hook}. No reply needed on that one.`,
     pick(waysToSay(C.THIRD_ASK, 'ask3'), seed, 'ask3'),
     pick(waysToSay(C.THIRD_WHY, 'why3'), seed, 'why3'),
@@ -481,6 +495,7 @@ function daySmallAsk(name, t, seed = '') {
 function dayEight(name, t, tradeWord, seed = '') {
   return [
     name ? `Hi ${name},` : 'Hello,',
+    pick(waysToSay(FOLLOWUP_CONTEXT, 'followContext'), seed, 'followContext'),
     pick(waysToSay(DAY8_OPEN, 'last'), seed, 'last'),
     `For ${tradeWord} the first thing I'd look at is ${t.firstLook}. Which one is right depends on how you actually work.`,
     pick(waysToSay(DAY8_THATS_WHAT_ITS_FOR, 'forthat'), seed, 'forthat'),
@@ -547,7 +562,7 @@ function linkedInNote(name, t, seed = '') {
 module.exports = {
   daySmallAsk,
   LETTER_ORDER_SLOT, THE_ORDER_AS_BUILT, orderOfTheLetter,
-  WHO_I_AM, WHO_I_AM_SHORT, WHY_ME, THE_OFFER, ALREADY_HANDLED, AFTER_DIAGNOSTIC, TRADES,
+  WHO_I_AM, WHO_I_AM_SHORT, FOLLOWUP_CONTEXT, WHY_ME, THE_OFFER, ALREADY_HANDLED, AFTER_DIAGNOSTIC, TRADES,
   tradeCopy, tradeWordFor, subjectDayFour, dayZero, dayFour, dayEight, linkedInNote,
   loadHisWordings, waysToSay, slotsOfTheMessage,
 };

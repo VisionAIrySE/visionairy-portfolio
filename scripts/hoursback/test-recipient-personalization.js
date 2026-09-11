@@ -49,7 +49,17 @@ async function main() {
       email: 'carol@cascade.test', source: 'RUSS', isPrimary: false,
     } });
 
+    // A follow-up may already exist when the review screen refreshes a first
+    // email. draftFor must never return that follow-up as the Day 0 draft.
+    const decoyFollowUp = await db.outreachMessage.create({ data: {
+      prospectId: prospect.id, lane: 'EMAIL', state: 'DRAFT',
+      subject: 'Follow-up subject', body: 'Hi Alice,\n\nThis is a later message.',
+      openedWith: 'touch_2', sentTo: 'alice@cascade.test',
+    } });
     let first = await L.draftFor(db, prospect.id, 'EMAIL');
+    assert.notEqual(first.id, decoyFollowUp.id);
+    assert.equal(L.isFirstContactMessage(first), true);
+    await db.outreachMessage.delete({ where: { id: decoyFollowUp.id } });
     await db.outreachMessage.update({
       where: { id: first.id },
       data: { body: `Hi Alice,\n\n${first.body}`, editedAt: new Date() },
