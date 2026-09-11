@@ -1745,7 +1745,7 @@ async function businessCard(id, saved) {
     bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
   <form method="POST" action="/people/save?back=${p.id}">
   ${p.contacts.length ? `<p class="row" style="margin:6px 0 12px">
-    <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle"
+    <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle" ${p.contacts.every((c) => c.isPrimary) ? 'checked' : ''}
       onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this))">
       <b>Select all ${p.contacts.length} contacts</b></label>
   </p>
@@ -2628,8 +2628,9 @@ const server = http.createServer(async (req, res) => {
             if (!bag.has(id)) bag.set(id, {});
             bag.get(id)[field] = String(Array.isArray(value) ? value[0] : value).trim() || null;
           }
+          const submittedPersonIds = [...changedPerson.keys()];
 
-          let people = 0; let notes = 0; let lined = 0; let removed = 0;
+          let people = 0; let notes = 0; let lined = 0; let removed = 0; let selectedPeople = 0;
           const clashes = [];
 
           // Taking somebody off the list. Done FIRST, so a person being removed
@@ -2701,11 +2702,14 @@ const server = http.createServer(async (req, res) => {
           // the approved wording and the key all still stand in the way.
           const ticked = [].concat(form.send || []).filter(Boolean);
           try {
-          if (ticked.length) {
-            const chosen = await db.contact.findMany({ where: { id: { in: ticked } }, select: { id: true, prospectId: true, email: true } });
+          const activeSubmittedPersonIds = submittedPersonIds.filter((id) => !goners.includes(id));
+          const submittedSet = new Set(activeSubmittedPersonIds);
+          const selectedSubmittedIds = ticked.filter((id) => submittedSet.has(id));
+          const selection = await L.saveContactSelections(db, activeSubmittedPersonIds, selectedSubmittedIds);
+          selectedPeople = selection.selected;
+          if (selectedSubmittedIds.length) {
+            const chosen = await db.contact.findMany({ where: { id: { in: selectedSubmittedIds } }, select: { id: true, prospectId: true, email: true } });
             for (const c of chosen) {
-              await db.contact.updateMany({ where: { prospectId: c.prospectId }, data: { isPrimary: false } });
-              await db.contact.update({ where: { id: c.id }, data: { isPrimary: true } });
               if (c.email) {
                 const r = await db.outreachMessage.updateMany({
                   // Choosing a recipient approves the first contact only.
@@ -2736,7 +2740,7 @@ const server = http.createServer(async (req, res) => {
             } catch { noteSaid = ' The LinkedIn note could not be written.'; }
           }
 
-          const said = `Saved. ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
+          const said = `Saved. ${selectedPeople} ${selectedPeople === 1 ? 'contact selected' : 'contacts selected'}, ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
             + noteSaid
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.

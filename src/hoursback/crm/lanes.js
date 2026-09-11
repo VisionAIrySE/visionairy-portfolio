@@ -138,6 +138,26 @@ async function everyoneMarked(db, prospectId) {
   });
 }
 
+// Save exactly the ticks that were visible in the submitted form. Limiting the
+// update to those rows matters on the paged People screen: saving one page must
+// not clear a choice that happens to be on another page. On a business page all
+// of that business's contacts are present, so "select all" remains selected
+// after the page reloads.
+async function saveContactSelections(db, visibleContactIds, selectedContactIds) {
+  const visible = [...new Set([].concat(visibleContactIds || []).filter(Boolean))];
+  const visibleSet = new Set(visible);
+  const selected = [...new Set([].concat(selectedContactIds || []).filter((id) => visibleSet.has(id)))];
+  if (!visible.length) return { visible: 0, selected: 0 };
+
+  await db.$transaction([
+    db.contact.updateMany({ where: { id: { in: visible } }, data: { isPrimary: false } }),
+    ...(selected.length
+      ? [db.contact.updateMany({ where: { id: { in: selected } }, data: { isPrimary: true } })]
+      : []),
+  ]);
+  return { visible: visible.length, selected: selected.length };
+}
+
 // The person that address belongs to, for the greeting and the screen.
 //
 // These two used to be joined by `||` with no await between them. A database
@@ -806,6 +826,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };
