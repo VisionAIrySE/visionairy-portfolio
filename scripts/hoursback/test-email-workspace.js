@@ -5,6 +5,7 @@ const path = require('node:path');
 const app = fs.readFileSync(path.resolve(__dirname, 'crm-app.js'), 'utf8');
 const writer = fs.readFileSync(path.resolve(__dirname, 'write-the-whole-sequence.cjs'), 'utf8');
 const C = require('../../src/hoursback/crm/campaign.js');
+const { addContext, hasContext } = require('./add-followup-context.cjs');
 
 assert.match(app, /<h1>Email workspace<\/h1>/);
 assert.match(app, /1\. Review/);
@@ -28,5 +29,13 @@ for (const message of followUps) {
     'every follow-up should remind the reader who Russ is and what VisionAIry builds');
 }
 assert.match(writer, /const parts = \[greeting, say\('followContext'\)\]/);
+
+const oldFollowUp = 'Hi Alli,\n\nThe invoice can:// wait to be noticed.\n\nBest regards,\n\nRuss Wright';
+const revisedFollowUp = addContext(oldFollowUp, 'Bryant, Lovlien & Jarvis');
+assert.equal(hasContext(oldFollowUp), false);
+assert.equal(hasContext(revisedFollowUp), true);
+assert.match(revisedFollowUp, /^Hi Alli,\n\nI'm Russ Wright/);
+assert.equal(addContext(revisedFollowUp, 'Bryant, Lovlien & Jarvis'), revisedFollowUp,
+  'running the backfill twice must not duplicate the reminder');
 
 console.log('PASS: email workspace has one clear review flow, no embedded company page, and self-contained follow-ups');
