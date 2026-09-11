@@ -23,9 +23,9 @@
 //   node scripts/hoursback/check-the-letters.cjs          — the counts
 //   node scripts/hoursback/check-the-letters.cjs --show 5 — and five examples
 const { PrismaClient } = require('@prisma/client');
-const N = require('../../src/hoursback/crm/noticing.js');
 const C = require('../../src/hoursback/crm/campaign.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
+const L = require('../../src/hoursback/crm/lanes.js');
 
 const db = new PrismaClient();
 const SHOW = Number((process.argv.find((a) => a.startsWith('--show=')) || '').split('=')[1]
@@ -48,20 +48,49 @@ const DAY_NAME = {
   // email address, their own site has been read, and the sentence was written
   // under the current wording. That is the pile Russ would actually send, and
   // the only one worth judging.
-  const readable = (await db.reading.groupBy({ by: ['prospectId'], where: { pages: { some: {} } } })).map((r) => r.prospectId);
-  const current = await db.reading.findMany({
-    where: { prospectId: { in: readable }, readerVersion: N.READER_VERSION },
-    select: { prospectId: true }, distinct: ['prospectId'],
-  });
-  const readyIds = current.map((c) => c.prospectId);
-  const letters = await db.outreachMessage.findMany({
+  const readyIds = (await db.reading.groupBy({
+    by: ['prospectId'],
     where: {
-      lane: 'EMAIL', sentAt: null,
+      source: 'website', outcome: 'read',
+      pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+    },
+  })).map((r) => r.prospectId);
+  const storedLetters = await db.outreachMessage.findMany({
+    where: {
+      lane: 'EMAIL', sentAt: null, openedWith: { not: 'after_the_call' },
       prospectId: { in: readyIds },
       prospect: { doNotContact: false, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
     },
-    include: { prospect: { select: { name: true } } },
+    include: { prospect: true },
   });
+
+  // A few older imports left more than one unsent row for the same campaign
+  // slot. The runtime keeps the first row for that prospect and touch, so the
+  // audit must judge that same active row while reporting the dormant extras.
+  const slots = new Map();
+  for (const m of storedLetters.sort((a, b) => a.createdAt - b.createdAt)) {
+    const key = `${m.prospectId}:${J.dayOf(m.openedWith)}`;
+    if (!slots.has(key)) slots.set(key, m);
+  }
+  const letters = [...slots.values()];
+  const dormantExtras = storedLetters.length - letters.length;
+
+  const evidence = new Map();
+  const prospects = new Map(letters.map((m) => [m.prospectId, m.prospect]));
+  for (let i = 0; i < readyIds.length; i += 20) {
+    const rows = await Promise.all(readyIds.slice(i, i + 20).map(async (id) => {
+      const reading = await db.reading.findFirst({
+        where: { prospectId: id, findings: { some: { field: 'noticingJob' } } },
+        orderBy: { startedAt: 'desc' }, include: { findings: true },
+      });
+      const prospect = prospects.get(id);
+      if (!reading || !prospect) return null;
+      const jobs = reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean);
+      const { writeTo } = await L.whoTheLetterGoesTo(db, id, prospect);
+      return [id, { jobs, roleTitle: writeTo.contactRole || null }];
+    }));
+    for (const row of rows) if (row) evidence.set(...row);
+  }
 
   // COUNTED PER MESSAGE, BECAUSE THE FOUR ARE NOT THE SAME THING. One total
   // mixed 382 first messages with 158 follow-ups and judged them all alike,
@@ -72,12 +101,14 @@ const DAY_NAME = {
   for (const m of letters) byDay[J.dayOf(m.openedWith)].push(m);
 
   let cleanAll = 0;
+  console.log(`\n${dormantExtras} dormant duplicate campaign drafts excluded from the active-message counts.`);
   for (const day of [0, 4, 8, 14]) {
     const pile = byDay[day];
     const faults = {};
     let clean = 0;
     for (const m of pile) {
-      const v = J.judgeStored(m, { jobs: ['a', 'b'] });
+      const actual = evidence.get(m.prospectId) || { jobs: [], roleTitle: null };
+      const v = J.judgeStored(m, actual);
       if (v.ok) { clean += 1; continue; }
       const key = String(v.why).slice(0, 72);
       (faults[key] = faults[key] || []).push({ m, p: v.passage });

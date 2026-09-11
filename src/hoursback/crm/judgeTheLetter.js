@@ -179,7 +179,10 @@ function judgeLetter(body, { day = 0, jobs = [], roleTitle = null, avoid = [] } 
 
   // A question is punctuation the sentence rules read, so ask about it before
   // handing the passage over.
-  const asks = /\?/.test(written);
+  // The reply question is deliberately short and may live in its own block.
+  // Passage extraction ignores short furniture-sized blocks, so looking only
+  // at `written` made a valid 20-to-60 character question invisible.
+  const asks = /\?/.test(text);
   if (rules.mustAskQuestion && !asks) {
     return { ok: false, why: 'does not ask a question, which is the whole reason this message exists', passage };
   }

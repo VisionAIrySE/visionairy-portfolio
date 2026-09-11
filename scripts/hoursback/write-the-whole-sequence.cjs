@@ -57,6 +57,7 @@ const ONLY = arg('only', '');
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
 const TOUCH = Number(arg('touch', 0));
 const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
+const RESUME = process.argv.includes('--resume');
 
 // EACH MESSAGE TAKES A DIFFERENT ANGLE ON THE SAME BUSINESS.
 //
@@ -237,6 +238,24 @@ function askFor({
     ...(why ? ['', `Your previous answer was rejected: ${why}`] : []),
     '',
     'THE RULES, THE SAME AS EVERY MESSAGE.',
+    '',
+    ...(touch === 2 ? [
+      'Hard limit: the JSON body must be 320 characters or fewer. Use exactly',
+      'two short sentences. The second sentence must name a concrete economic',
+      'cost using money, revenue, invoice, paid hours, a lost customer, an',
+      'empty appointment, or work that went elsewhere.',
+      '',
+    ] : []),
+    ...(touch === 3 ? [
+      'Hard limit: the JSON body must be 400 characters or fewer. It must',
+      'explicitly contain at least one of these concrete',
+      'cost phrases: lost revenue, delayed payment, unpaid invoice, paid hours,',
+      'lost customer, empty appointment, or went elsewhere. End with exactly',
+      'one short diagnostic question.',
+      '',
+    ] : []),
+    'Before answering, remove these forbidden words if they appear: most,',
+    'mostly, usually, typically, generally, always, everyone, transformation.',
     '',
     'Say what the work COSTS them — money, or a customer lost. Never that they',
     'are busy. Being busy is what a good business feels like; an owner reads it,',
@@ -421,6 +440,9 @@ function acceptableOpening(passage) {
       .filter((j) => j && !jobs.includes(j));
 
     const greeting = greetingFrom(dayZeroRow.body, p);
+    const tailoredFirstAlreadyPassed = RESUME
+      && dayZeroRow.openedWith === 'tailored_first'
+      && J.judgeStored(dayZeroRow, { jobs, roleTitle }).ok;
 
     // The first email and all three follow-ups are one campaign. Earlier this
     // script regenerated only touches 2-4, leaving an older opening in touch 1.
@@ -428,7 +450,7 @@ function acceptableOpening(passage) {
     // follow-up prompts. Sent messages always remain untouchable. Hand-edited
     // drafts are replaced only for a run that explicitly carries the one-time
     // --overwrite-edits instruction Russ approved for this inaugural rewrite.
-    if ((!TOUCH || TOUCH === 1) && !dayZeroRow.sentAt
+    if ((!TOUCH || TOUCH === 1) && !tailoredFirstAlreadyPassed && !dayZeroRow.sentAt
       && (!dayZeroRow.editedAt || OVERWRITE_EDITS) && !dayZeroRow.deliveryState) {
       let first = null; let firstSubject = null; let whyFirst = null;
       for (let go = 0; go < 3 && !first; go += 1) {
@@ -483,6 +505,10 @@ function acceptableOpening(passage) {
       if (have && have.sentAt) { already += 1; continue; }
       if (have && have.deliveryState) { already += 1; continue; }
       if (have && have.editedAt && !OVERWRITE_EDITS) { already += 1; continue; }
+      if (tailoredFirstAlreadyPassed && have && J.judgeStored(have, { jobs, roleTitle }).ok) {
+        already += 1;
+        continue;
+      }
 
       let full = null; let why = null;
       for (let go = 0; go < 3 && !full; go += 1) {
