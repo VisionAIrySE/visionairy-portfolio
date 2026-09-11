@@ -31,10 +31,10 @@
 const { pick } = require('./variants.js');
 
 const WHO_I_AM = [
-  "I'm Russ Wright, founder of VisionAIry. We build practical AI and automation tools around costly gaps like these.",
-  "I'm Russ Wright, founder of VisionAIry. We build focused AI and automation tools that remove repetitive work and keep the important decisions with your team.",
-  "I'm Russ Wright, founder of VisionAIry. We help small and midsize businesses turn repetitive work into practical tools that save time and protect opportunities.",
-  "I'm Russ Wright, founder of VisionAIry. We build small, practical automation tools for work that keeps repeating and should not need somebody's constant attention.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon. We build practical AI and automation tools around costly gaps like these.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon. We build focused AI and automation tools that remove repetitive work and keep the important decisions with your team.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon. We help small and midsize businesses turn repetitive work into practical tools that save time and protect opportunities.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon. We build small, practical automation tools for work that keeps repeating and should not need somebody's constant attention.",
 ];
 
 // The concession. It is the line that keeps the email alive when the reader has
@@ -114,10 +114,10 @@ const THE_OFFER = [
 // still earns attention with the business-specific point rather than another
 // full introduction.
 const FOLLOWUP_CONTEXT = [
-  "I'm Russ Wright, founder of VisionAIry, where we build practical AI and automation tools for costly workflow gaps like these.",
-  "I'm Russ Wright with VisionAIry, and we build focused AI and automation tools that remove repetitive work.",
-  "I'm Russ Wright, founder of VisionAIry, and we help businesses turn repetitive work into practical automation tools.",
-  "I'm Russ Wright with VisionAIry, where we build practical automation and AI tools around work that keeps repeating.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon, where we build practical AI and automation tools for costly workflow gaps like these.",
+  "I'm Russ Wright with VisionAIry, based here in Central Oregon, and we build focused AI and automation tools that remove repetitive work.",
+  "I'm Russ Wright, founder of VisionAIry, based here in Central Oregon, and we help businesses turn repetitive work into practical automation tools.",
+  "I'm Russ Wright with VisionAIry, based here in Central Oregon, where we build practical automation and AI tools around work that keeps repeating.",
 ];
 
 const ASK_DAY0 = [
