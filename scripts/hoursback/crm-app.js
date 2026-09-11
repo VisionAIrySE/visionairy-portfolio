@@ -217,20 +217,20 @@ function spreadCard(messageId, found) {
        <p class="muted" style="margin:6px 0">The letter is written: ${esc(say(found.was))}</p>
        <p style="margin:6px 0">You want: ${esc(say(found.now))}</p>
        ${lost.length ? `<p class="muted" style="margin:6px 0">and you took out: ${esc(lost.join(', '))}</p>` : ''}
-       <form method="POST" action="/spread/${messageId}"
-         onsubmit="return confirm('Write every future letter in this order?')">
-         <button class="primary">Write every letter this way</button>
-         <span class="muted"> &mdash; it changes the order for everybody, not the words.</span></form>`);
+       <div>
+         <button type="submit" class="primary" formmethod="POST" formaction="/spread/${messageId}"
+           onclick="return confirm('Write every future letter in this order?')">Write every letter this way</button>
+         <span class="muted"> &mdash; it changes the order for everybody, not the words.</span></div>`);
   }
 
   return box('#e0f2fe', '#0284c7',
     `<b>You rewrote ${esc(SLOT_NAMES[found.slot] || 'a line every message uses')}.</b>
      <p class="muted" style="margin:6px 0">Was: ${esc(String(found.was).slice(0, 150))}${String(found.was).length > 150 ? '…' : ''}</p>
      <p style="margin:6px 0">Yours: ${esc(found.now)}</p>
-     <form method="POST" action="/spread/${messageId}"
-       onsubmit="return confirm('Use your version everywhere? It joins the other ways of saying that line, so no two businesses get the same letter.')">
-       <button class="primary">Use this everywhere</button>
-       <span class="muted"> &mdash; it joins the other wordings of that line rather than replacing them.</span></form>`);
+     <div>
+       <button type="submit" class="primary" formmethod="POST" formaction="/spread/${messageId}"
+         onclick="return confirm('Use your version everywhere? It joins the other ways of saying that line, so no two businesses get the same letter.')">Use this everywhere</button>
+       <span class="muted"> &mdash; it joins the other wordings of that line rather than replacing them.</span></div>`);
 }
 
 const SLOT_NAMES = {
@@ -1736,7 +1736,7 @@ async function businessCard(id, saved) {
   <h2>Who works there (${p.contacts.length})</h2>
   <p class="muted">Every box below is editable. Change anything, tick who the message goes to, and press save once at the
     bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
-  <form method="POST" action="/people/save?back=${p.id}">
+  <form id="contactMessageChanges" method="POST" action="/people/save?back=${p.id}">
   ${p.contacts.length ? `<p class="row" style="margin:6px 0 12px">
     <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle" ${p.contacts.every((c) => c.isPrimary) ? 'checked' : ''}
       onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this))">
@@ -1802,7 +1802,7 @@ async function businessCard(id, saved) {
     <textarea name="m.${m.id}.body" rows="${m.lane === 'EMAIL' ? 14 : 8}" style="margin-top:6px">${esc(m.body)}</textarea>
   </div>`).join('') : '<p class="muted">Nothing written for them yet.</p>'}
 
-  <p><button class="primary">Save contact and message changes</button>
+  <p><button type="submit" form="contactMessageChanges" class="primary">Save contact and message changes</button>
     <span class="muted"> — this saves what you changed. Ticking a person who has an email address also marks only the first message ready; it never sends. To use the business inbox, return to Email and tick the business there.</span></p>
   </form>
 
