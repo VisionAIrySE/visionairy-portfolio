@@ -1744,7 +1744,12 @@ async function businessCard(id, saved) {
   <p class="muted">Every box below is editable. Change anything, tick who the message goes to, and press save once at the
     bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
   <form method="POST" action="/people/save?back=${p.id}">
-  ${p.contacts.length ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
+  ${p.contacts.length ? `<p class="row" style="margin:6px 0 12px">
+    <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle"
+      onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this))">
+      <b>Select all ${p.contacts.length} contacts</b></label>
+  </p>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
     <tr style="text-align:left"><th>Send</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th></tr>
     ${p.contacts.map((c) => `<tr style="border-bottom:1px solid #f0eee5${c.bouncedAt ? ';opacity:.5' : ''}">
       <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
