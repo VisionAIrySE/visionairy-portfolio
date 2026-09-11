@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { saveContactSelections, canonicalFirstMessages } = require('../../src/hoursback/crm/lanes.js');
+const { saveContactSelections, canonicalFirstMessages, activeUnsentMessages } = require('../../src/hoursback/crm/lanes.js');
 
 async function main() {
   const rows = new Map([
@@ -36,8 +36,9 @@ async function main() {
     { id: 'follow-up', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
   ];
   assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old']);
+  assert.deepEqual(activeUnsentMessages(messages).map((m) => m.id), ['old', 'follow-up']);
 
-  console.log('PASS: selections persist and each company has one authoritative first email at a time');
+  console.log('PASS: selections persist and every screen keeps one authoritative first email at a time');
 }
 
 main().catch((error) => {

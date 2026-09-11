@@ -1408,7 +1408,7 @@ async function peopleScreen(params, saved) {
       prospect: {
         select: {
           id: true, name: true, nameManualValue: true, trade: true, automationScore: true,
-          messages: { where: { sentAt: null, lane: 'EMAIL' }, take: 1 },
+          messages: { where: { sentAt: null, lane: 'EMAIL' } },
         },
       },
     },
@@ -1425,7 +1425,8 @@ async function peopleScreen(params, saved) {
 
   const row = (c) => {
     const biz = resolveField(c.prospect, 'name');
-    const msg = c.prospect.messages[0];
+    const activeMessages = L.activeUnsentMessages(c.prospect.messages);
+    const msg = activeMessages.find(L.isFirstContactMessage) || activeMessages[0];
     return `<tr style="border-bottom:1px solid #f0eee5">
       <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
       <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"> go</label></td>
@@ -1508,6 +1509,7 @@ async function businessCard(id, saved) {
     messages: { where: { sentAt: null }, orderBy: [{ lane: 'asc' }] },
   } });
   if (!p) return page('<p>Not found. <a href="/">Back</a></p>');
+  p.messages = L.activeUnsentMessages(p.messages);
   let evidence = [];
   try { evidence = JSON.parse(p.scoreEvidence || '[]'); } catch { evidence = []; }
 

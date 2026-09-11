@@ -187,6 +187,14 @@ function canonicalFirstMessages(messages) {
   return (messages || []).filter((m) => ids.has(m.id));
 }
 
+// Keep follow-ups and LinkedIn notes, but show only the first email that can
+// actually move forward. Historical first-email rows remain in the database;
+// they simply cannot masquerade as a second live message on another screen.
+function activeUnsentMessages(messages) {
+  const activeFirstIds = new Set(canonicalFirstMessages(messages).map((m) => m.id));
+  return (messages || []).filter((m) => !isFirstContactMessage(m) || activeFirstIds.has(m.id));
+}
+
 // The person that address belongs to, for the greeting and the screen.
 //
 // These two used to be joined by `||` with no await between them. A database
@@ -687,7 +695,13 @@ const MAX_PER_RUN = NO_DAILY_CAP;
 async function sendQueuedEmails(db, options = {}) {
   const D = require('./delivery.js');
   const weeks = Number(options.weeksSending || 0);
-  const key = options.apiKey || process.env.RESEND_API_KEY;
+  // An explicitly supplied blank key is deliberate: tests and safety checks
+  // use it to prove that delivery is refused without provider credentials.
+  // Falling back to the process environment in that case could silently turn
+  // a no-key check into a live-key check.
+  const key = Object.prototype.hasOwnProperty.call(options, 'apiKey')
+    ? options.apiKey
+    : process.env.RESEND_API_KEY;
   const from = options.from || 'Russ Wright <russ@visionairy.biz>';
   const now = options.now || new Date();
   const messageIds = Array.isArray(options.messageIds)
@@ -874,6 +888,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };
