@@ -311,6 +311,10 @@ test('punctuation and case differences are still the same sentence', () => {
 
 function fakeDb({ prospect, contact, findings, existingMessage }) {
   const writes = { updated: 0, created: 0, lastUpdate: null };
+  const storedMessage = existingMessage ? {
+    prospectId: prospect.id, lane: 'EMAIL', state: 'DRAFT', openedWith: 'trade_week',
+    ...existingMessage,
+  } : null;
   return {
     writes,
     prospect: { findUniqueOrThrow: async () => prospect },
@@ -320,8 +324,9 @@ function fakeDb({ prospect, contact, findings, existingMessage }) {
     },
     finding: { findMany: async () => findings || [] },
     outreachMessage: {
-      findFirst: async () => existingMessage || null,
-      update: async (args) => { writes.updated += 1; writes.lastUpdate = args; return { ...existingMessage, ...args.data }; },
+      findFirst: async () => storedMessage,
+      findMany: async () => (storedMessage ? [storedMessage] : []),
+      update: async (args) => { writes.updated += 1; writes.lastUpdate = args; return { ...storedMessage, ...args.data }; },
       updateMany: async () => ({ count: 0 }),
       create: async (args) => { writes.created += 1; return { id: 'new', ...args.data }; },
     },
@@ -342,7 +347,7 @@ const NOTICING_FINDINGS = [{
 test('a draft Russ edited by hand is returned untouched', async () => {
   const db = fakeDb({
     prospect: PROSPECT, contact: DALE, findings: NOTICING_FINDINGS,
-    existingMessage: { id: 'm1', state: 'DRAFT', body: 'HIS OWN WORDS', sentAt: null, editedAt: new Date(), inviteBody: null },
+    existingMessage: { id: 'm1', state: 'DRAFT', body: 'HIS OWN WORDS', sentTo: DALE.email, sentAt: null, editedAt: new Date(), inviteBody: null },
   });
   const out = await L.draftFor(db, 'p1', 'EMAIL');
   assert.equal(out.body, 'HIS OWN WORDS');
@@ -390,7 +395,7 @@ test('a tailored first email is invalidated when its recipient changes', async (
   const db = fakeDb({
     prospect: PROSPECT, contact: DALE, findings: NOTICING_FINDINGS,
     existingMessage: {
-      id: 'm1', state: 'DRAFT', subject: 'the organizer that never came back',
+      id: 'm1', state: 'QUEUED', subject: 'the organizer that never came back',
       body: 'WRITTEN FOR SOMEBODY ELSE', openedWith: 'tailored_first',
       sentTo: 'somebody-else@smithcpa.example', sentAt: null, editedAt: null,
       deliveryState: null, inviteBody: null,
@@ -399,6 +404,8 @@ test('a tailored first email is invalidated when its recipient changes', async (
   await L.draftFor(db, 'p1', 'EMAIL');
   assert.equal(db.writes.updated, 1);
   assert.equal(db.writes.lastUpdate.data.sentTo, DALE.email);
+  assert.equal(db.writes.lastUpdate.data.state, 'DRAFT');
+  assert.equal(db.writes.lastUpdate.data.queuedAt, null);
   assert.notEqual(db.writes.lastUpdate.data.body, 'WRITTEN FOR SOMEBODY ELSE');
 });
 

@@ -1075,7 +1075,7 @@ async function emailScreen(params) {
       include: { prospect: { include: {
         contacts: {
           where: { setAsideAt: null },
-          select: { name: true, role: true, email: true, isPrimary: true },
+          select: { id: true, name: true, role: true, email: true, isPrimary: true, bouncedAt: true },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
         },
         messages: {
@@ -1207,7 +1207,14 @@ async function emailScreen(params) {
   const one = (m) => {
     const recipient = emailRecipient(m);
     const step = emailStep(m);
-    return `<details class="card" style="padding:0" data-business="${m.prospectId}">
+    const recipientQuery = new URLSearchParams();
+    for (const key of ['trade', 'floor', 'review']) {
+      if (params.get(key)) recipientQuery.set(key, params.get(key));
+    }
+    const availableContacts = (m.prospect.contacts || []).filter((person) => person.email && !person.bouncedAt);
+    const selectedContacts = availableContacts.filter((person) => person.isPrimary
+      || String(person.email).trim().toLowerCase() === String(recipient.address).trim().toLowerCase());
+    return `<details class="card" id="email-${m.id}" style="padding:0" data-business="${m.prospectId}"${params.get('changed') === m.id ? ' open' : ''}>
     <summary class="email-summary" style="cursor:pointer;padding:11px 12px;list-style:none">
       <label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
         <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
@@ -1223,6 +1230,19 @@ async function emailScreen(params) {
         <b>Recipient: ${esc(recipient.name)}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ''}<br>
         <span class="muted">${esc(recipient.address)} · ${esc(step.label)}, ${esc(step.day)}</span>
       </div>
+      ${availableContacts.length ? `<form method="POST" action="/email/recipients/${m.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices">
+        <h3 style="margin:16px 0 4px">Who should receive this campaign?</h3>
+        <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Saving updates the recipient shown above and refreshes the first email for that person. It does not send anything.</p>
+        ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;vertical-align:middle"
+          ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
+          onclick="this.form.querySelectorAll('input[name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this))">
+          <b>Select all ${availableContacts.length} contacts</b></label>` : ''}
+        <div class="contact-choices">${availableContacts.map((person) => `<label style="display:block;margin:7px 0">
+          <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}>
+          <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)}</span>
+        </label>`).join('')}</div>
+        <button>Save recipient choices and refresh first email</button>
+      </form>` : `<p class="mini">No individual contact with a working email is on file. This message uses the business email shown above.</p>`}
       <h3 style="margin:16px 0 4px">Message to review now</h3>
       <form method="POST" action="/email/edit/${m.id}">
         <input name="subject" value="${esc(m.subject || '')}" style="font-weight:600">
@@ -1245,12 +1265,14 @@ async function emailScreen(params) {
   };
 
   const justSent = params.get('sent');
+  const notice = params.get('notice');
   const sendFailed = Number(params.get('failed') || 0);
   const sendBlocked = Number(params.get('blocked') || 0);
   const sendUnconfirmed = Number(params.get('unconfirmed') || 0);
   const sendRecovered = Number(params.get('recovered') || 0);
   return page(`<h1>Email workspace</h1>
   <p class="muted">Review who each message is for, select the messages you approve, mark them ready, then send the ready group when you choose.</p>
+  ${notice ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(notice)}</b></div>` : ''}
   ${justSent !== null ? `<div class="card" style="background:${sendUnconfirmed ? '#fef3c7;border-color:#d97706' : '#dcfce7;border-color:#16a34a'}"><b>${esc(justSent)} sent.</b>
     ${sendFailed ? `${sendFailed} refused and left queued. ` : ''}${sendBlocked ? `${sendBlocked} blocked before delivery. ` : ''}${sendRecovered ? `${sendRecovered} safely recovered. ` : ''}
     ${sendUnconfirmed ? `<b>${sendUnconfirmed} outcome${sendUnconfirmed === 1 ? ' is' : 's are'} unconfirmed; check the provider before taking action.</b> ` : ''}${esc(params.get('why') || '')}</div>` : ''}
@@ -2530,6 +2552,41 @@ const server = http.createServer(async (req, res) => {
           }
           // Stamped so no later rewrite of the wording overwrites his words.
           await db.outreachMessage.update({ where: { id: arg }, data: { body, subject, editedAt: new Date() } });
+        }
+        // Change the audience without leaving the Email workspace. This uses
+        // the same contact choices as the People and business screens, then
+        // rebuilds Day 0 before it can be reviewed or sent to the new person.
+        if (what === 'recipients' && arg) {
+          const returnToMessage = (notice) => {
+            const back = new URLSearchParams();
+            for (const key of ['trade', 'floor', 'review']) {
+              if (url.searchParams.get(key)) back.set(key, url.searchParams.get(key));
+            }
+            back.set('changed', arg);
+            back.set('notice', notice);
+            res.writeHead(303, { Location: `/email?${back.toString()}#email-${encodeURIComponent(arg)}` });
+            return res.end();
+          };
+          const message = await db.outreachMessage.findUnique({ where: { id: arg } });
+          if (!message || message.lane !== 'EMAIL' || message.sentAt || message.deliveryState) {
+            return returnToMessage('That recipient could not be changed because delivery has already started.');
+          }
+          const contacts = await db.contact.findMany({
+            where: { prospectId: message.prospectId, setAsideAt: null },
+            select: { id: true, email: true, bouncedAt: true },
+            orderBy: { createdAt: 'asc' },
+          });
+          const allowed = new Set(contacts.filter((person) => person.email && !person.bouncedAt).map((person) => person.id));
+          const selected = [...new Set([].concat(form.recipient || []).filter((contactId) => allowed.has(contactId)))];
+          if (!selected.length) {
+            return returnToMessage('Choose at least one contact with a working email. Nothing was changed.');
+          }
+          await L.saveContactSelections(db, contacts.map((person) => person.id), selected);
+          const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
+          const said = refreshed
+            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. The first email now matches ${refreshed.sentTo || 'the selected contact'}. Review it before marking it ready.`
+            : 'The recipient choices were saved, but there is no sendable first email for this company.';
+          return returnToMessage(said);
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
         if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');

@@ -384,7 +384,9 @@ async function draftFor(db, prospectId, lane) {
       data: {
         subject: built.subject, body: built.body, openedWith: built.openedWith,
         ...(lane === 'EMAIL' ? { sentTo: recipient } : {}),
-        ...(recipientChanged ? { editedAt: null } : {}),
+        // Approval belonged to the old recipient and their wording. Put a
+        // ready message back into review when its audience changes.
+        ...(recipientChanged ? { editedAt: null, state: 'DRAFT', queuedAt: null } : {}),
         ...(built.inviteBody ? { inviteBody: built.inviteBody } : {}),
       },
     });
