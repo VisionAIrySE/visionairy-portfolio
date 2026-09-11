@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { saveContactSelections } = require('../../src/hoursback/crm/lanes.js');
+const { saveContactSelections, canonicalFirstMessages } = require('../../src/hoursback/crm/lanes.js');
 
 async function main() {
   const rows = new Map([
@@ -29,7 +29,15 @@ async function main() {
   assert.equal(rows.get('second').isPrimary, false);
   assert.equal(rows.get('not-on-this-page').isPrimary, true);
 
-  console.log('PASS: all visible contacts stay selected after save, clearing all works, and other pages are untouched');
+  const messages = [
+    { id: 'old', prospectId: 'business-1', lane: 'EMAIL', state: 'QUEUED', openedWith: 'trade_week', sentTo: 'sara@example.test', editedAt: new Date() },
+    { id: 'tailored', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'tailored_first', sentTo: 'sara@example.test' },
+    { id: 'sam', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'tailored_first', sentTo: 'sam@example.test' },
+    { id: 'follow-up', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
+  ];
+  assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old', 'sam']);
+
+  console.log('PASS: selections persist and each recipient has one authoritative first email');
 }
 
 main().catch((error) => {

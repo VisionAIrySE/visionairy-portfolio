@@ -158,6 +158,42 @@ async function saveContactSelections(db, visibleContactIds, selectedContactIds) 
   return { visible: visible.length, selected: selected.length };
 }
 
+function isFirstContactMessage(message) {
+  const opening = String(message && message.openedWith || '');
+  return message && message.lane === 'EMAIL'
+    && opening !== 'after_the_call' && !opening.startsWith('touch_');
+}
+
+// A tailored rewrite replaces the older first draft; it does not become a
+// second first email. A hand edit still wins over an automated rewrite. Keep
+// separate rows only when they are explicitly for different recipients.
+function canonicalFirstMessages(messages) {
+  const byBusiness = new Map();
+  for (const message of messages || []) {
+    if (!isFirstContactMessage(message)) continue;
+    const rows = byBusiness.get(message.prospectId) || [];
+    rows.push(message);
+    byBusiness.set(message.prospectId, rows);
+  }
+
+  const keep = [];
+  for (const rows of byBusiness.values()) {
+    const recipients = [...new Set(rows.map((m) => String(m.sentTo || '').trim().toLowerCase()).filter(Boolean))];
+    const byRecipient = new Map();
+    const rank = (m) => (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
+      + (m.state === 'QUEUED' ? 2 : 0);
+    for (const message of rows) {
+      const address = String(message.sentTo || '').trim().toLowerCase();
+      const key = address || (recipients.length === 1 ? recipients[0] : '__unaddressed__');
+      const existing = byRecipient.get(key);
+      if (!existing || rank(message) > rank(existing)) byRecipient.set(key, message);
+    }
+    keep.push(...byRecipient.values());
+  }
+  const ids = new Set(keep.map((m) => m.id));
+  return (messages || []).filter((m) => ids.has(m.id));
+}
+
 // The person that address belongs to, for the greeting and the screen.
 //
 // These two used to be joined by `||` with no await between them. A database
@@ -674,16 +710,35 @@ async function sendQueuedEmails(db, options = {}) {
   const ceiling = Math.min(allowedToday, Number(options.limit || MAX_PER_RUN), MAX_PER_RUN);
   if (ceiling <= 0) { result.stoppedBecause = "today's ceiling is already spent"; return result; }
 
-  const queued = await db.outreachMessage.findMany({
+  const queuedRows = await db.outreachMessage.findMany({
     where: { lane: 'EMAIL', ...(messageIds ? { id: { in: messageIds } } : {}), OR: [
       { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null } },
       { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
         deliveryLeaseExpiresAt: { lte: now } },
     ] },
-    include: { prospect: true },
+    include: { prospect: { include: { messages: {
+      where: {
+        lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] },
+        openedWith: { not: 'after_the_call' }, NOT: { openedWith: { startsWith: 'touch_' } },
+      },
+      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true },
+    } } } },
     orderBy: { prospect: { automationScore: 'desc' } },
     take: ceiling < MAX_PER_RUN ? ceiling : undefined,
   });
+  // Old first drafts can survive a campaign rewrite. If a tailored first
+  // email exists, the older copy is neither displayed nor delivered. This is
+  // a read-time safety gate; the historical row remains for an explicit,
+  // separately approved cleanup.
+  const siblingFirsts = [];
+  const seenFirst = new Set();
+  for (const message of queuedRows) {
+    for (const sibling of (message.prospect.messages || [])) {
+      if (!seenFirst.has(sibling.id)) { siblingFirsts.push(sibling); seenFirst.add(sibling.id); }
+    }
+  }
+  const allowedFirst = new Set(canonicalFirstMessages(siblingFirsts).map((m) => m.id));
+  const queued = queuedRows.filter((m) => !isFirstContactMessage(m) || allowedFirst.has(m.id));
 
   const { toHtmlEmail, signatureText } = require('./signature.js');
   const send = options.send || defaultSender(key);
@@ -826,6 +881,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

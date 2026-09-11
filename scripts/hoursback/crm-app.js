@@ -1029,7 +1029,7 @@ async function emailScreen(params) {
   if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
   if (review === 'readthrough') Object.assign(prospectWhere, WAS_READ_RIGHT_THROUGH);
 
-  const [left, ready, sent, batch, waitingAllTold, queuedAllTold, unconfirmed, unconfirmedTotal] = await Promise.all([
+  const [left, readyRows, sent, batch, allFirstRows, unconfirmed, unconfirmedTotal] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.outreachMessage.findMany({
       // THE FIRST MESSAGE ONLY. The follow-ups are written and stored now
@@ -1060,7 +1060,6 @@ async function emailScreen(params) {
       // A business with no score still sorts last: four unscored ones once sat
       // above every 100 and the whole screen read as random.
       orderBy: [{ prospect: { automationScore: { sort: 'desc', nulls: 'last' } } }],
-      take: 25,
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
@@ -1069,17 +1068,12 @@ async function emailScreen(params) {
     // The list is shown 25 at a time, and "written and waiting" was counting
     // the rows on this page — so it read 25 whether he had 25 letters or 336.
     // Russ asked why it said 25 when the queue held 336. It was never a total.
-    db.outreachMessage.count({
+    db.outreachMessage.findMany({
       where: {
         lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
         NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
       },
-    }),
-    db.outreachMessage.count({
-      where: {
-        lane: 'EMAIL', state: 'QUEUED', openedWith: { not: 'after_the_call' },
-        NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
-      },
+      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true },
     }),
     db.outreachMessage.findMany({
       where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' }, include: { prospect: true },
@@ -1087,6 +1081,11 @@ async function emailScreen(params) {
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
   ]);
+  const matchingFirstRows = L.canonicalFirstMessages(readyRows);
+  const ready = matchingFirstRows.slice(0, 25);
+  const allFirst = L.canonicalFirstMessages(allFirstRows);
+  const waitingAllTold = allFirst.length;
+  const queuedAllTold = allFirst.filter((m) => m.state === 'QUEUED').length;
 
   // Refresh the bounded page of first messages before Russ reads it. This is
   // what makes a changed selected role or approved campaign wording appear in
@@ -1117,18 +1116,12 @@ async function emailScreen(params) {
     ready.sort((a, b) => (place.has(a.id) ? place.get(a.id) : 9999) - (place.has(b.id) ? place.get(b.id) : 9999));
   }
 
-  const waitingTotal = await db.outreachMessage.count({
-    where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: { doNotContact: false, repliedAt: null } },
-  });
+  const waitingTotal = waitingAllTold;
   // HOW MANY THE FILTER ACTUALLY MATCHES — not how many exist. "25 of 865"
   // read as "25 messages match out of 865", which is not what it meant: 25 is
   // simply one page. With a filter on, the honest second number is how many
   // that filter finds (2026-09-02).
-  const matching = (onlyTrade || floor || review)
-    ? await db.outreachMessage.count({
-      where: { lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' }, prospect: prospectWhere },
-    })
-    : waitingTotal;
+  const matching = (onlyTrade || floor || review) ? matchingFirstRows.length : waitingTotal;
   const reachable = await db.prospect.count({
     where: { doNotContact: false, repliedAt: null, ...L.emailReachableWhere() },
   });
@@ -2626,7 +2619,11 @@ const server = http.createServer(async (req, res) => {
             const [, kind, id, field] = m;
             const bag = kind === 'p' ? changedPerson : changedMessage;
             if (!bag.has(id)) bag.set(id, {});
-            bag.get(id)[field] = String(Array.isArray(value) ? value[0] : value).trim() || null;
+            const typed = String(Array.isArray(value) ? value[0] : value);
+            // Browsers submit textarea line breaks as CRLF while stored drafts
+            // use LF. Treating that formatting difference as a rewrite marked
+            // every untouched email as hand-edited when the company was saved.
+            bag.get(id)[field] = (field === 'body' ? typed.replace(/\r\n?/g, '\n') : typed).trim() || null;
           }
           const submittedPersonIds = [...changedPerson.keys()];
 
@@ -2683,7 +2680,8 @@ const server = http.createServer(async (req, res) => {
               clashes.push(`${before.prospect.name || 'one message'} could not be edited because delivery has started`);
               continue;
             }
-            if (!before || !fields.body || fields.body === before.body) {
+            const beforeBody = before && String(before.body || '').replace(/\r\n?/g, '\n').trim();
+            if (!before || !fields.body || fields.body === beforeBody) {
               if (before && fields.subject && fields.subject !== before.subject) {
                 await db.outreachMessage.update({ where: { id }, data: { subject: fields.subject, editedAt: new Date() } });
                 notes += 1;
@@ -2709,20 +2707,32 @@ const server = http.createServer(async (req, res) => {
           selectedPeople = selection.selected;
           if (selectedSubmittedIds.length) {
             const chosen = await db.contact.findMany({ where: { id: { in: selectedSubmittedIds } }, select: { id: true, prospectId: true, email: true } });
-            for (const c of chosen) {
-              if (c.email) {
-                const r = await db.outreachMessage.updateMany({
-                  // Choosing a recipient approves the first contact only.
-                  // Later messages stay in draft until their scheduled day.
-                  where: {
-                    prospectId: c.prospectId, lane: 'EMAIL', state: 'DRAFT', sentAt: null,
-                    openedWith: { not: 'after_the_call' },
-                    NOT: { openedWith: { startsWith: 'touch_' } },
-                  },
-                  data: { state: 'QUEUED', queuedAt: new Date(), sentTo: c.email },
-                });
-                lined += r.count;
-              }
+            const byBusiness = new Map();
+            for (const contact of chosen.filter((c) => c.email)) {
+              const contacts = byBusiness.get(contact.prospectId) || [];
+              contacts.push(contact);
+              byBusiness.set(contact.prospectId, contacts);
+            }
+            for (const [prospectId, contacts] of byBusiness) {
+              const candidates = await db.outreachMessage.findMany({
+                where: {
+                  prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
+                  openedWith: { not: 'after_the_call' },
+                  NOT: { openedWith: { startsWith: 'touch_' } },
+                },
+                orderBy: { createdAt: 'asc' },
+              });
+              const first = L.canonicalFirstMessages(candidates)[0];
+              if (!first || first.state !== 'DRAFT') continue;
+              const recipient = contacts.find((c) => c.email === first.sentTo) || contacts[0];
+              await db.outreachMessage.update({
+                // One authoritative day-zero message is approved here. The
+                // other selected people remain marked and get their own first
+                // message through the normal sequence writer.
+                where: { id: first.id },
+                data: { state: 'QUEUED', queuedAt: new Date(), sentTo: recipient.email },
+              });
+              lined += 1;
             }
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
