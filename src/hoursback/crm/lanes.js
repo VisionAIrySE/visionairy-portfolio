@@ -206,6 +206,7 @@ function activeUnsentMessages(messages) {
 async function personFor(db, prospectId) {
   const marked = await db.contact.findFirst({
     where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
+    orderBy: { createdAt: 'asc' },
   });
   if (marked) return marked;
   return db.contact.findFirst({
@@ -345,16 +346,23 @@ async function draftFor(db, prospectId, lane) {
     if (lane === 'EMAIL' && existing.openedWith === 'tailored_first'
         && !existing.sentAt && !existing.editedAt && !existing.deliveryState
         && existing.sentTo === recipient) return existing;
-    const rewritable = !existing.sentAt && !existing.editedAt && !existing.deliveryState
+    const recipientChanged = lane === 'EMAIL' && existing.sentTo !== recipient;
+    // Choosing a different recipient changes the message's audience. Keeping
+    // a hand-edited letter for the prior person would preserve the wrong name
+    // and role, so rebuild it from the selected person's record before it can
+    // remain queued. Edits stay protected while the recipient is unchanged.
+    const rewritable = !existing.sentAt && !existing.deliveryState
+      && (!existing.editedAt || recipientChanged)
       && (existing.body !== built.body
         || (built.inviteBody && existing.inviteBody !== built.inviteBody)
-        || (lane === 'EMAIL' && existing.sentTo !== recipient));
+        || recipientChanged);
     if (!rewritable) return existing;
     return db.outreachMessage.update({
       where: { id: existing.id },
       data: {
         subject: built.subject, body: built.body, openedWith: built.openedWith,
         ...(lane === 'EMAIL' ? { sentTo: recipient } : {}),
+        ...(recipientChanged ? { editedAt: null } : {}),
         ...(built.inviteBody ? { inviteBody: built.inviteBody } : {}),
       },
     });
@@ -610,7 +618,16 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
   // message, before the sequence moves on for the people who have.
   const waiting = allowFirstContact ? await nextUnwrittenPerson(db, prospectId) : null;
   if (waiting) {
-    const built = draftFirstContact({ ...p, contactName: waiting.name || p.contactName }, signalsOf(p));
+    let writeTo = {
+      ...p,
+      contactName: waiting.name || p.contactName,
+      contactRole: waiting.role || null,
+      ownerName: null,
+    };
+    const { noticingFor } = require('./noticing.js');
+    const noticed = await noticingFor(db, prospectId, { roleTitle: writeTo.contactRole, trade: p.trade });
+    if (noticed) writeTo = { ...writeTo, noticing: noticed };
+    const built = draftFirstContact(writeTo, signalsOf(p));
     if (built) {
       const existing = await db.outreachMessage.findFirst({
         where: { prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentTo: waiting.email },

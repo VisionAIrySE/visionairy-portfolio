@@ -2716,6 +2716,11 @@ const server = http.createServer(async (req, res) => {
               byBusiness.set(contact.prospectId, contacts);
             }
             for (const [prospectId, contacts] of byBusiness) {
+              // The selection has just been saved, so rebuild the current
+              // first email for the selected person's name, role, company and
+              // industry before marking it ready. Without this step the old
+              // recipient's wording could be sent to the newly selected one.
+              await L.draftFor(db, prospectId, 'EMAIL');
               const candidates = await db.outreachMessage.findMany({
                 where: {
                   prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
