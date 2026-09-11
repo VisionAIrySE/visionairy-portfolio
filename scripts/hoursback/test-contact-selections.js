@@ -35,9 +35,9 @@ async function main() {
     { id: 'sam', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'tailored_first', sentTo: 'sam@example.test' },
     { id: 'follow-up', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
   ];
-  assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old', 'sam']);
+  assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old']);
 
-  console.log('PASS: selections persist and each recipient has one authoritative first email');
+  console.log('PASS: selections persist and each company has one authoritative first email at a time');
 }
 
 main().catch((error) => {

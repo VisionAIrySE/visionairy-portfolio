@@ -165,8 +165,9 @@ function isFirstContactMessage(message) {
 }
 
 // A tailored rewrite replaces the older first draft; it does not become a
-// second first email. A hand edit still wins over an automated rewrite. Keep
-// separate rows only when they are explicitly for different recipients.
+// second first email. A hand edit still wins over an automated rewrite. The
+// sequence advances through additional marked contacts one at a time, so only
+// one current first email per business belongs in the review/send queue.
 function canonicalFirstMessages(messages) {
   const byBusiness = new Map();
   for (const message of messages || []) {
@@ -178,17 +179,9 @@ function canonicalFirstMessages(messages) {
 
   const keep = [];
   for (const rows of byBusiness.values()) {
-    const recipients = [...new Set(rows.map((m) => String(m.sentTo || '').trim().toLowerCase()).filter(Boolean))];
-    const byRecipient = new Map();
     const rank = (m) => (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
       + (m.state === 'QUEUED' ? 2 : 0);
-    for (const message of rows) {
-      const address = String(message.sentTo || '').trim().toLowerCase();
-      const key = address || (recipients.length === 1 ? recipients[0] : '__unaddressed__');
-      const existing = byRecipient.get(key);
-      if (!existing || rank(message) > rank(existing)) byRecipient.set(key, message);
-    }
-    keep.push(...byRecipient.values());
+    keep.push(rows.reduce((best, message) => rank(message) > rank(best) ? message : best));
   }
   const ids = new Set(keep.map((m) => m.id));
   return (messages || []).filter((m) => ids.has(m.id));
