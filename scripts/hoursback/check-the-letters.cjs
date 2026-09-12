@@ -55,11 +55,30 @@ const DAY_NAME = {
       pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
     },
   })).map((r) => r.prospectId);
+  const expectedBusinesses = await db.prospect.findMany({
+    where: {
+      id: { in: readyIds }, doNotContact: false, ...L.emailReachableWhere(),
+      messages: {
+        some: {
+          lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null, openedWith: { not: 'after_the_call' },
+          NOT: { openedWith: { startsWith: 'touch_' } },
+        },
+      },
+    },
+    select: {
+      id: true, name: true, email: true, emailManualValue: true, contactName: true, contactRole: true,
+      contacts: {
+        where: { setAsideAt: null },
+        select: { name: true, role: true, email: true, bouncedAt: true, isPrimary: true },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  const expectedIds = expectedBusinesses.map((p) => p.id);
   const storedLetters = await db.outreachMessage.findMany({
     where: {
-      lane: 'EMAIL', sentAt: null, openedWith: { not: 'after_the_call' },
-      prospectId: { in: readyIds },
-      prospect: { doNotContact: false, OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] },
+      lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null, openedWith: { not: 'after_the_call' },
+      prospectId: { in: expectedIds },
     },
     include: { prospect: true },
   });
@@ -67,13 +86,51 @@ const DAY_NAME = {
   // A few older imports left more than one unsent row for the same campaign
   // slot. The runtime keeps the first row for that prospect and touch, so the
   // audit must judge that same active row while reporting the dormant extras.
+  const normalized = (value) => String(value || '').trim().toLowerCase();
+  const expectedCampaigns = expectedBusinesses.flatMap((p) => {
+    const usable = p.contacts.filter((c) => c.email && !c.bouncedAt);
+    const marked = usable.filter((c) => c.isPrimary);
+    const recipients = marked.length ? marked : usable.filter((c) => c.name).slice(0, 1);
+    const selected = recipients
+      .map((c) => ({ prospect: p, sentTo: normalized(c.email), roleTitle: c.role || null, label: c.name || c.email }));
+    const fallback = normalized(p.emailManualValue || p.email);
+    return selected.length ? selected : fallback ? [{
+      prospect: p, sentTo: fallback, roleTitle: p.contactRole || null,
+      label: p.contactName ? `${p.contactName} at ${fallback}` : fallback,
+    }] : [];
+  });
+  const recipientsByBusiness = new Map();
+  for (const campaign of expectedCampaigns) {
+    const list = recipientsByBusiness.get(campaign.prospect.id) || [];
+    list.push(campaign.sentTo);
+    recipientsByBusiness.set(campaign.prospect.id, list);
+  }
+  const recipientOf = (message) => normalized(message.sentTo)
+    || ((recipientsByBusiness.get(message.prospectId) || []).length === 1
+      ? recipientsByBusiness.get(message.prospectId)[0] : '');
+  const campaignKey = (prospectId, sentTo) => `${prospectId}:${sentTo}`;
+  const expectedCampaignKeys = new Set(expectedCampaigns.map((campaign) =>
+    campaignKey(campaign.prospect.id, campaign.sentTo)));
   const slots = new Map();
   for (const m of storedLetters.sort((a, b) => a.createdAt - b.createdAt)) {
-    const key = `${m.prospectId}:${J.dayOf(m.openedWith)}`;
+    const activeCampaign = campaignKey(m.prospectId, recipientOf(m));
+    if (!expectedCampaignKeys.has(activeCampaign)) continue;
+    const key = `${activeCampaign}:${J.dayOf(m.openedWith)}`;
     if (!slots.has(key)) slots.set(key, m);
   }
   const letters = [...slots.values()];
   const dormantExtras = storedLetters.length - letters.length;
+  const daysByCampaign = new Map();
+  for (const m of letters) {
+    const key = campaignKey(m.prospectId, recipientOf(m));
+    const days = daysByCampaign.get(key) || new Set();
+    days.add(J.dayOf(m.openedWith));
+    daysByCampaign.set(key, days);
+  }
+  const incomplete = expectedCampaigns.map((campaign) => {
+    const days = daysByCampaign.get(campaignKey(campaign.prospect.id, campaign.sentTo)) || new Set();
+    return { ...campaign, missing: [0, 4, 8, 14].filter((day) => !days.has(day)) };
+  }).filter((p) => p.missing.length);
 
   const evidence = new Map();
   const prospects = new Map(letters.map((m) => [m.prospectId, m.prospect]));
@@ -86,10 +143,13 @@ const DAY_NAME = {
       const prospect = prospects.get(id);
       if (!reading || !prospect) return null;
       const jobs = reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean);
-      const { writeTo } = await L.whoTheLetterGoesTo(db, id, prospect);
-      return [id, { jobs, roleTitle: writeTo.contactRole || null }];
+      return [id, jobs];
     }));
-    for (const row of rows) if (row) evidence.set(...row);
+    for (const row of rows) if (row) {
+      for (const campaign of expectedCampaigns.filter((x) => x.prospect.id === row[0])) {
+        evidence.set(campaignKey(row[0], campaign.sentTo), { jobs: row[1], roleTitle: campaign.roleTitle });
+      }
+    }
   }
 
   // COUNTED PER MESSAGE, BECAUSE THE FOUR ARE NOT THE SAME THING. One total
@@ -102,12 +162,16 @@ const DAY_NAME = {
 
   let cleanAll = 0;
   console.log(`\n${dormantExtras} dormant duplicate campaign drafts excluded from the active-message counts.`);
+  console.log(`${incomplete.length} selected recipients at researched, reachable businesses are missing part of their four-message sequence.`);
+  if (SHOW && incomplete.length) {
+    for (const p of incomplete.slice(0, SHOW)) console.log(`   ${p.prospect.name} — ${p.label}: missing day ${p.missing.join(', ')}`);
+  }
   for (const day of [0, 4, 8, 14]) {
     const pile = byDay[day];
     const faults = {};
     let clean = 0;
     for (const m of pile) {
-      const actual = evidence.get(m.prospectId) || { jobs: [], roleTitle: null };
+      const actual = evidence.get(campaignKey(m.prospectId, recipientOf(m))) || { jobs: [], roleTitle: null };
       const v = J.judgeStored(m, actual);
       if (v.ok) { clean += 1; continue; }
       const key = String(v.why).slice(0, 72);
@@ -120,12 +184,13 @@ const DAY_NAME = {
       console.log(`   ${String(rows.length).padStart(4)}  ${why}`);
       if (SHOW) {
         for (const r of rows.slice(0, SHOW)) {
-          console.log(`         ${r.m.prospect.name}: ${String(r.p).replace(/\s+/g, ' ').slice(0, 220)}`);
+          console.log(`         ${r.m.prospect.name} [${r.m.prospectId}] <${recipientOf(r.m)}>: ${String(r.p).replace(/\s+/g, ' ').slice(0, 220)}`);
         }
       }
     }
   }
 
   console.log(`\n${cleanAll} of ${letters.length} letters, read in full, pass the rules that belong to them.`);
+  if (incomplete.length) process.exitCode = 2;
   await db.$disconnect();
 })().catch((e) => { console.error('failed:', e.message); process.exit(1); });

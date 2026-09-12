@@ -112,6 +112,8 @@ const IDS = String(arg('ids', '')).split(',').map((s) => s.trim()).filter(Boolea
 const LIMIT = Math.min(Number(arg('limit', CEILING)) || CEILING, CEILING);
 // --fresh=N: resume. Same flag, same meaning as understand-businesses.js.
 const FRESH = Number(arg('fresh', 0));
+const NO_REVIEW_FILE = process.argv.includes('--no-review-file');
+const MISSING_SEQUENCES = process.argv.includes('--missing-sequences');
 
 const REVIEW_PAGE = path.resolve(__dirname, '../../docs/hoursback/messages-to-review.md');
 
@@ -164,6 +166,7 @@ async function noticingRun(injected = {}) {
   const limit = Math.min(Number(injected.limit ?? LIMIT) || CEILING, CEILING);
   const fresh = injected.fresh ?? FRESH;
   const atOnce = injected.atOnce ?? AT_ONCE;
+  const missingSequences = injected.missingSequences ?? MISSING_SEQUENCES;
 
   // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
   // (Russ, 2026-09-05: "this should happen automatically"). Nothing is deleted;
@@ -208,8 +211,28 @@ async function noticingRun(injected = {}) {
         },
       };
       where.repliedAt = null;
-      where.emailBouncedAt = null;
-      where.OR = [{ email: { not: null } }, { emailManualValue: { not: null } }];
+      Object.assign(where, L.emailReachableWhere());
+      if (missingSequences) {
+        // Repair only companies that already have a first email but are
+        // missing at least one follow-up. Keeping this selection in the
+        // database query avoids fragile, hand-copied lists of record ids.
+        where.AND = [
+          {
+            messages: {
+              some: {
+                lane: 'EMAIL', sentAt: null,
+                openedWith: { not: 'after_the_call' },
+                NOT: { openedWith: { startsWith: 'touch_' } },
+              },
+            },
+          },
+          {
+            OR: [2, 3, 4].map((touch) => ({
+              messages: { none: { lane: 'EMAIL', openedWith: `touch_${touch}` } },
+            })),
+          },
+        ];
+      }
       if (since) {
         const t = new Date(since);
         if (Number.isNaN(t.getTime())) throw new Error(`--since=${since} is not a date`);
@@ -511,12 +534,12 @@ async function noticingRun(injected = {}) {
       }
     }
     out.push('');
-    fs.writeFileSync(reviewPage, out.join('\n'));
+    if (!NO_REVIEW_FILE) fs.writeFileSync(reviewPage, out.join('\n'));
 
     console.log('');
     console.log(`noticed: ${noticed.length}   kept the trade sentence: ${fallbacks.length}`);
     if (!look) console.log(`letters rewritten: ${rewritten}   left alone (sent or hand-edited): ${leftAlone}`);
-    console.log(`review page: ${reviewPage}`);
+    console.log(NO_REVIEW_FILE ? 'review page skipped for this repair run' : `review page: ${reviewPage}`);
 
     outcome = {
       ending: !stopState.stop ? 'finished' : readerOut ? 'reader_exhausted' : 'broken_start',

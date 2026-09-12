@@ -102,19 +102,21 @@ async function templateIsApproved(db, name = FIRST_CONTACT) {
 // that (2026-08-26). Order: the person he marked, then a named person with an
 // address, then the general inbox last.
 async function addressFor(db, prospectId, prospect, exclude = []) {
+  const excluded = [...exclude, ''];
   const chosen = await db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null, notIn: exclude }, bouncedAt: null, setAsideAt: null },
+    where: { prospectId, isPrimary: true, email: { contains: '@', notIn: excluded }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (chosen) return chosen.email;
   const named = await db.contact.findFirst({
-    where: { prospectId, name: { not: null }, email: { not: null, notIn: exclude }, bouncedAt: null, setAsideAt: null },
+    where: { prospectId, name: { not: null }, email: { contains: '@', notIn: excluded }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (named) return named.email;
   if (exclude.length) return null;   // everyone marked has already had one
   const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
-  return p && !p.emailBouncedAt ? p.email : null;
+  const businessInbox = p && !p.emailBouncedAt ? (p.emailManualValue || p.email) : null;
+  return String(businessInbox || '').trim() || null;
 }
 
 // A business can be reached through its shared inbox or through a person at
@@ -122,8 +124,9 @@ async function addressFor(db, prospectId, prospect, exclude = []) {
 function emailReachableWhere() {
   return {
     OR: [
-      { email: { not: null }, emailBouncedAt: null },
-      { contacts: { some: { email: { not: null }, bouncedAt: null, setAsideAt: null } } },
+      { email: { contains: '@' }, emailBouncedAt: null },
+      { emailManualValue: { contains: '@' }, emailBouncedAt: null },
+      { contacts: { some: { email: { contains: '@' }, bouncedAt: null, setAsideAt: null } } },
     ],
   };
 }
@@ -164,21 +167,22 @@ function isFirstContactMessage(message) {
     && opening !== 'after_the_call' && !opening.startsWith('touch_');
 }
 
-// A tailored rewrite replaces the older first draft; it does not become a
-// second first email. A hand edit still wins over an automated rewrite. The
-// sequence advances through additional marked contacts one at a time, so only
-// one current first email per business belongs in the review/send queue.
+// A tailored rewrite replaces the older first draft for the same recipient;
+// it does not become a duplicate. Different selected people at one business
+// each keep their own current first email and their own campaign.
 function canonicalFirstMessages(messages) {
-  const byBusiness = new Map();
+  const byCampaign = new Map();
   for (const message of messages || []) {
     if (!isFirstContactMessage(message)) continue;
-    const rows = byBusiness.get(message.prospectId) || [];
+    const recipient = String(message.sentTo || '').trim().toLowerCase();
+    const key = `${message.prospectId}|${recipient}`;
+    const rows = byCampaign.get(key) || [];
     rows.push(message);
-    byBusiness.set(message.prospectId, rows);
+    byCampaign.set(key, rows);
   }
 
   const keep = [];
-  for (const rows of byBusiness.values()) {
+  for (const rows of byCampaign.values()) {
     const rank = (m) => (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
       + (m.state === 'QUEUED' ? 2 : 0);
     keep.push(rows.reduce((best, message) => rank(message) > rank(best) ? message : best));
@@ -192,7 +196,50 @@ function canonicalFirstMessages(messages) {
 // they simply cannot masquerade as a second live message on another screen.
 function activeUnsentMessages(messages) {
   const activeFirstIds = new Set(canonicalFirstMessages(messages).map((m) => m.id));
-  return (messages || []).filter((m) => !isFirstContactMessage(m) || activeFirstIds.has(m.id));
+  const activeFollowUpIds = new Set();
+  const followUps = new Map();
+  for (const message of messages || []) {
+    if (message.lane !== 'EMAIL' || !/^touch_[234]$/.test(String(message.openedWith || ''))) continue;
+    const recipient = String(message.sentTo || '').trim().toLowerCase();
+    const key = `${message.prospectId}|${recipient}|${message.openedWith}`;
+    const rows = followUps.get(key) || [];
+    rows.push(message);
+    followUps.set(key, rows);
+  }
+  for (const rows of followUps.values()) {
+    const rank = (m) => (m.sentAt || m.deliveryState ? 16 : 0) + (m.editedAt ? 8 : 0)
+      + (m.state === 'QUEUED' ? 4 : 0);
+    const chosen = rows.reduce((best, message) => rank(message) > rank(best) ? message : best);
+    activeFollowUpIds.add(chosen.id);
+  }
+  return (messages || []).filter((m) => {
+    if (isFirstContactMessage(m)) return activeFirstIds.has(m.id);
+    if (m.lane === 'EMAIL' && /^touch_[234]$/.test(String(m.openedWith || ''))) return activeFollowUpIds.has(m.id);
+    return true;
+  });
+}
+
+// A cold campaign is one deliverable made of four messages. A first email is
+// not ready merely because its own row exists; the three follow-ups must also
+// be present and usable before any part of the campaign can leave the CRM.
+function campaignHasCompleteSequence(message) {
+  if (!message || message.lane !== 'EMAIL' || message.openedWith === 'after_the_call') return true;
+  const messages = message.prospect && message.prospect.messages || [];
+  const usable = messages.filter((m) => m.lane === 'EMAIL'
+    && ['DRAFT', 'QUEUED', 'SENT', 'REPLIED'].includes(m.state)
+    && m.deliveryState !== 'BLOCKED');
+  const normalize = (value) => String(value || '').trim().toLowerCase();
+  const recipient = normalize(message.sentTo);
+  const firsts = usable.filter(isFirstContactMessage);
+  // Old single-recipient drafts may leave sentTo blank until the first email
+  // is reviewed. A blank follow-up belongs to that recipient only while there
+  // is exactly one active first email; once several people are selected, each
+  // campaign must carry its own address so sequences cannot be mixed.
+  const blankIsUnambiguous = firsts.length === 1;
+  return [2, 3, 4].every((touch) => usable.some((candidate) =>
+    candidate.openedWith === `touch_${touch}`
+      && (normalize(candidate.sentTo) === recipient
+        || (blankIsUnambiguous && !normalize(candidate.sentTo)))));
 }
 
 // The person that address belongs to, for the greeting and the screen.
@@ -209,8 +256,16 @@ async function personFor(db, prospectId) {
     orderBy: { createdAt: 'asc' },
   });
   if (marked) return marked;
-  return db.contact.findFirst({
+  const namedAddress = await db.contact.findFirst({
     where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null, setAsideAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (namedAddress) return namedAddress;
+  // A selected person without a direct address may still be the intended
+  // reader at the business inbox. Keep their name and role for the greeting
+  // only after proving that no other person's direct address will receive it.
+  return db.contact.findFirst({
+    where: { prospectId, isPrimary: true, name: { not: null }, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -339,11 +394,20 @@ async function draftFor(db, prospectId, lane) {
     });
     const liveFirsts = candidates.filter((m) => isFirstContactMessage(m)
       && !m.sentAt && ['DRAFT', 'QUEUED'].includes(m.state));
-    existing = canonicalFirstMessages(liveFirsts)[0]
-      || candidates.find((m) => isFirstContactMessage(m) && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
+    const sameRecipient = (m) => String(m.sentTo || '').trim().toLowerCase() === String(recipient || '').trim().toLowerCase();
+    existing = canonicalFirstMessages(liveFirsts.filter(sameRecipient))[0]
+      // A legacy single-recipient draft may not have stored its address yet.
+      || canonicalFirstMessages(liveFirsts.filter((m) => !m.sentTo))[0]
+      // When the only selected recipient changes, reuse the unsent first row
+      // so the prior person's copy cannot remain live as a second campaign.
+      || canonicalFirstMessages(liveFirsts)[0]
+      || candidates.find((m) => isFirstContactMessage(m) && sameRecipient(m)
+        && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
+      || candidates.find((m) => isFirstContactMessage(m) && !m.sentTo
+        && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
       // Preserve a deliberately skipped or suppressed first email. A later
       // refresh must not quietly create it again.
-      || candidates.find((m) => isFirstContactMessage(m))
+      || candidates.find((m) => isFirstContactMessage(m) && sameRecipient(m))
       || null;
   } else {
     existing = await db.outreachMessage.findFirst({
@@ -507,7 +571,8 @@ async function markBounced(db, prospectId, address = null, now = new Date()) {
   if (address instanceof Date) { now = address; address = null; }
   const prospect = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   const failed = address ? String(address).toLowerCase() : null;
-  const businessFailed = !failed || (prospect.email && prospect.email.toLowerCase() === failed);
+  const businessAddress = prospect.emailManualValue || prospect.email;
+  const businessFailed = !failed || (businessAddress && businessAddress.toLowerCase() === failed);
   if (businessFailed) {
     await db.prospect.update({ where: { id: prospectId }, data: { emailBouncedAt: now } });
   }
@@ -666,36 +731,50 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
     }
   }
 
-  const due = touchDue(sent.length, sent[0] ? sent[0].sentAt : null, now);
-  if (due === null) return null;
-  if (due === 1) return allowFirstContact ? queueEmail(db, prospectId) : null;
+  const firsts = sent.filter(isFirstContactMessage);
+  if (!firsts.length) return allowFirstContact ? queueEmail(db, prospectId) : null;
 
-  const already = await db.outreachMessage.findFirst({ where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` } });
-  // Follow-ups may be written ahead of time so the whole sequence can be
-  // reviewed. On its due date, move that saved draft into the send queue.
-  // Returning it unchanged made the scheduler report progress without making
-  // the message eligible to send.
-  if (already) {
-    if (already.state === 'DRAFT' && !already.sentAt && !already.deliveryState) {
-      return db.outreachMessage.update({
-        where: { id: already.id },
-        data: {
-          state: 'QUEUED', queuedAt: now,
-          sentTo: already.sentTo || (sent[0] && sent[0].sentTo) || recipient,
-        },
-      });
+  // Each selected person advances through their own clock. Counting all sent
+  // rows at the business level made a second person's first email look like
+  // the first person's Day 4 follow-up, which could skip or reorder touches.
+  const normalize = (value) => String(value || '').trim().toLowerCase();
+  for (const first of firsts) {
+    const campaignAddress = first.sentTo || recipient;
+    const campaignSent = sent.filter((message) => message.id !== first.id
+      && !isFirstContactMessage(message)
+      && (normalize(message.sentTo) === normalize(campaignAddress)
+        || (firsts.length === 1 && !normalize(message.sentTo))));
+    const due = touchDue(1 + campaignSent.length, first.sentAt, now);
+    if (due === null || due === 1) continue;
+
+    const possible = await db.outreachMessage.findMany({
+      where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` },
+      orderBy: { createdAt: 'asc' },
+    });
+    const already = possible.find((message) => normalize(message.sentTo) === normalize(campaignAddress))
+      || (firsts.length === 1 ? possible.find((message) => !normalize(message.sentTo)) : null);
+    // A follow-up already queued or sent for this person is not new work. Keep
+    // looking so another selected recipient can advance in the same run.
+    if (already) {
+      if (already.state === 'DRAFT' && !already.sentAt && !already.deliveryState) {
+        return db.outreachMessage.update({
+          where: { id: already.id },
+          data: { state: 'QUEUED', queuedAt: now, sentTo: campaignAddress },
+        });
+      }
+      continue;
     }
-    return already;
+    const built = draftFollowUpTouch(p, first.openedWith, due);
+    if (!built) continue;
+    return db.outreachMessage.create({
+      data: {
+        prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now,
+        subject: built.subject, body: built.body, openedWith: built.openedWith,
+        sentTo: campaignAddress,
+      },
+    });
   }
-  const built = draftFollowUpTouch(p, sent[0] ? sent[0].openedWith : null, due);
-  if (!built) return null;
-  return db.outreachMessage.create({
-    data: {
-      prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now,
-      subject: built.subject, body: built.body, openedWith: built.openedWith,
-      sentTo: sent[0] && sent[0].sentTo ? sent[0].sentTo : recipient,
-    },
-  });
+  return null;
 }
 
 // Walk everyone reachable and queue whatever each is due. Bounded, like
@@ -714,13 +793,23 @@ async function queueDueTouches(db, options = {}) {
       },
       orderBy: { automationScore: 'desc' },
     });
-  const out = { first: 0, second: 0, third: 0, skipped: 0 };
+  const out = { first: 0, second: 0, third: 0, fourth: 0, skipped: 0 };
   for (const p of rows) {
-    const m = await queueNextTouch(db, p.id, now, { allowFirstContact });
-    if (!m) { out.skipped += 1; continue; }
-    if (m.openedWith === 'touch_2') out.second += 1;
-    else if (m.openedWith === 'touch_3') out.third += 1;
-    else out.first += 1;
+    let found = 0;
+    const seen = new Set();
+    // More than one selected person at a company may be due on the same day.
+    // Walk until no new campaign advances, with a hard bound for bad data.
+    for (let pass = 0; pass < 50; pass += 1) {
+      const m = await queueNextTouch(db, p.id, now, { allowFirstContact });
+      if (!m || seen.has(m.id)) break;
+      seen.add(m.id); found += 1;
+      if (m.openedWith === 'touch_2') out.second += 1;
+      else if (m.openedWith === 'touch_3') out.third += 1;
+      else if (m.openedWith === 'touch_4') out.fourth += 1;
+      else out.first += 1;
+      if (allowFirstContact) break;
+    }
+    if (!found) out.skipped += 1;
   }
   return out;
 }
@@ -748,7 +837,7 @@ async function sendQueuedEmails(db, options = {}) {
   const messageIds = Array.isArray(options.messageIds)
     ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
     : null;
-  const result = { attempted: 0, sent: 0, failed: 0, blocked: 0,
+  const result = { attempted: 0, sent: 0, failed: 0, blocked: 0, unresearched: 0, incomplete: 0,
     unconfirmed: 0, recovered: 0, stoppedBecause: null };
 
   if (!await templateIsApproved(db)) { result.stoppedBecause = 'the message has not been approved'; return result; }
@@ -764,12 +853,11 @@ async function sendQueuedEmails(db, options = {}) {
       { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
         deliveryLeaseExpiresAt: { lte: now } },
     ] },
-    include: { prospect: { include: { messages: {
-      where: {
-        lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] },
-        openedWith: { not: 'after_the_call' }, NOT: { openedWith: { startsWith: 'touch_' } },
-      },
-      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true },
+    include: { prospect: { include: {
+      readings: { where: { source: 'website', outcome: 'read' }, select: { id: true }, take: 1 },
+      messages: {
+      where: { lane: 'EMAIL', openedWith: { not: 'after_the_call' } },
+      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true },
     } } } },
     orderBy: { prospect: { automationScore: 'desc' } },
     take: ceiling < MAX_PER_RUN ? ceiling : undefined,
@@ -786,7 +874,25 @@ async function sendQueuedEmails(db, options = {}) {
     }
   }
   const allowedFirst = new Set(canonicalFirstMessages(siblingFirsts).map((m) => m.id));
-  const queued = queuedRows.filter((m) => !isFirstContactMessage(m) || allowedFirst.has(m.id));
+  const queued = queuedRows.filter((m) => {
+    if (isFirstContactMessage(m) && !allowedFirst.has(m.id)) return false;
+    // A company with a website does not enter delivery until the deep reader
+    // has stored actual words from that site. The quick scan performed when a
+    // card is saved is useful for contact details, but it is not the evidence
+    // used to write a company-specific campaign.
+    const hasWebsite = Boolean(m.prospect.websiteManualValue || m.prospect.website);
+    if (hasWebsite && !(m.prospect.readings || []).length) {
+      result.unresearched += 1;
+      return false;
+    }
+    // Every deeply researched campaign must prove all four slots exist before
+    // delivery can even be claimed.
+    if ((m.prospect.readings || []).length && !campaignHasCompleteSequence(m)) {
+      result.incomplete += 1;
+      return false;
+    }
+    return true;
+  });
 
   const { toHtmlEmail, signatureText } = require('./signature.js');
   const send = options.send || defaultSender(key);
@@ -827,7 +933,11 @@ async function sendQueuedEmails(db, options = {}) {
       }
     }
   }
-  if (!result.stoppedBecause) result.stoppedBecause = 'the queue ran out';
+  if (!result.stoppedBecause) result.stoppedBecause = result.unresearched
+    ? `${result.unresearched} ready campaign${result.unresearched === 1 ? ' is' : 's are'} waiting for the company website to be fully researched — nothing unresearched was sent`
+    : result.incomplete
+      ? `${result.incomplete} ready campaign${result.incomplete === 1 ? ' is' : 's are'} missing one or more follow-ups — nothing incomplete was sent`
+      : 'the queue ran out';
   return result;
 }
 
@@ -929,6 +1039,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

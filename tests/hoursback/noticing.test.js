@@ -269,6 +269,13 @@ test('one verified area can support a complete first-email opening and question'
   }).ok, true);
 });
 
+test('square footage is not mistaken for the Square payment product', () => {
+  const property = 'When each square foot sits empty while a leasing handoff waits, rent that could have been collected is lost.';
+  const paymentProduct = 'When payments through Square still need a separate manual handoff, delayed payment can leave an invoice waiting.';
+  assert.equal(N.passable(property).ok, true);
+  assert.match(N.passable(paymentProduct).why, /own software/);
+});
+
 // ---------------------------------------------------------------------------
 // 3. Two businesses in one trade cannot receive identical sentences.
 

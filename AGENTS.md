@@ -199,6 +199,54 @@ Work proceeds as:
 
 Do not implement behavior when the required architecture or domain decision remains unresolved. Once it is resolved and the work is within the standing authorization, continue without asking Russ to repeat permission.
 
+## Approved CRM Workflow and Interface Direction
+
+Russ approved this product direction on 2026-09-11. Treat it as the standing design target for future CRM interface work.
+
+Organize the CRM around the work Russ needs to complete, rather than around database tables or raw record fields. The main workflow is:
+
+1. website waiting
+2. research complete
+3. contacts need review
+4. messages need review
+5. ready to send
+6. sent and following up
+7. reply or sales opportunity
+
+Use these primary work areas:
+
+- Today: replies, delivery problems, due follow-ups, new first-email progress, and work blocking the next batch
+- Prepare: full website research, research exceptions, contact confirmation, message review, and readiness
+- Send: reviewed recipient-level campaigns ready for release
+- Replies & Sales: replies, calls, callbacks, pipeline stages, next actions, discovery, and opportunities
+- Businesses: the complete searchable business database
+- Reports: progress, outcomes, and money
+
+People, LinkedIn, missing-email work, and other specialized lists should remain available as filters or secondary views rather than competing primary destinations.
+
+The daily first-email number is a user-chosen target and progress measure, not a sending limit. Russ may prepare, select, and send any number of ready campaigns on a given day.
+
+Maintain one shared readiness decision across every screen. A recipient-level campaign is ready only when:
+
+- the website has completed full research, not only a quick contact scan
+- company-specific findings are supported by saved website evidence
+- the intended recipient and working email address are known
+- the recipient's role is used when available
+- all four messages exist in the correct order and pass the campaign content rules
+- no reply, bounce, do-not-contact, suppression, or archive condition blocks sending
+
+When a campaign is blocked, show the exact reason in plain language. Never allow one screen to describe a campaign as ready when another readiness path would reject it.
+
+The research process should continuously build a buffer of complete campaigns. The full reader should prioritize relevant service, About, Team, staff, and individual profile pages and preserve the supporting evidence. A limited contact scan may help locate contact details, but it must be labeled as a quick scan and must never qualify a business as fully researched.
+
+The Send workspace should show one compact row per intended recipient. Expanding a row should show why that person was selected, the company-specific evidence behind the message, and all four messages in delivery order. Recipient selection must be available from both the company record and the preparation/sending workflow, with both views changing the same underlying selection.
+
+The company page should lead with status, next action, selected recipients, research readiness, and campaign readiness. Show the recipient campaigns next, then company-specific research and sources. Keep sales-support material, pricing, raw editable fields, and history available in clearly named collapsed sections so routine work does not require navigating a long data record.
+
+Preserve all working behavior during the redesign, including multiple contacts per business, separately tailored recipient campaigns, manual edits, four-message scheduling, automatic stopping on replies or bounces, suppression, unlimited sending, delivery uncertainty handling, calls, callbacks, pipeline stages, pricing, LinkedIn work, research evidence, and change history.
+
+Implement the redesign in reviewable stages over the existing working services: shared readiness and navigation; Today and Prepare; Send; company page; remaining pages and full regression audit. Keep the existing screen available as a temporary fallback while each replacement path is verified. Do not combine the workflow redesign with an unnecessary framework migration.
+
 ## Historical Instructions
 
 Read uppercase CLAUDE.md when relevant because it contains historical evidence, prior safety rules, and known failure history.

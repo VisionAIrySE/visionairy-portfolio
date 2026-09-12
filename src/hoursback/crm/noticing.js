@@ -482,7 +482,11 @@ const NAMES_A_COST = new RegExp([
 // Software a business runs, quoted back at a stranger in a first email. It
 // reads as surveillance and it is already a standing rule for cold messages.
 // Nine letters in the ready pile named one (2026-09-07).
-const NAMES_THEIR_SOFTWARE = /\b(QuickBooks|Xero|Sage|FreshBooks|Salesforce|HubSpot|ServiceTitan|Jobber|Housecall|Mindbody|Shopify|Toast|Dentrix|Eaglesoft|Open ?Dental|Clio|MyCase|Yardi|AppFolio|Buildium|Procore|Mailchimp|Calendly|Acuity|Square)\b/i;
+const NAMES_THEIR_SOFTWARE = /\b(QuickBooks|Xero|Sage|FreshBooks|Salesforce|HubSpot|ServiceTitan|Jobber|Housecall|Mindbody|Shopify|Toast|Dentrix|Eaglesoft|Open ?Dental|Clio|MyCase|Yardi|AppFolio|Buildium|Procore|Mailchimp|Calendly|Acuity)\b/i;
+// "Square" is also an ordinary word on commercial-property sites (square
+// feet, town square). Treat it as software only when the sentence gives it
+// product context; otherwise legitimate company-specific wording is rejected.
+const NAMES_SQUARE_SOFTWARE = /\b(?:using|through|with|via) Square\b|\bSquare (?:Payments?|POS|Terminal|Register|Appointments?|system)\b/i;
 
 // A promise of time back does not belong in this sentence. The library's
 // hours figures order the areas internally, and the one thing the library
@@ -613,7 +617,7 @@ function passable(sentence, {
   // 3. IT NEVER NAMES THEIR OWN SOFTWARE BACK AT THEM. Reading a stranger's
   // tools off their site and quoting them in a first email reads as surveillance,
   // and it is already a standing rule for cold messages. Nine letters did it.
-  const theirs = s.match(NAMES_THEIR_SOFTWARE);
+  const theirs = s.match(NAMES_THEIR_SOFTWARE) || s.match(NAMES_SQUARE_SOFTWARE);
   if (theirs) {
     return { ok: false, why: `names their own software ("${theirs[0]}") in a cold message — nod to what they run without naming it` };
   }

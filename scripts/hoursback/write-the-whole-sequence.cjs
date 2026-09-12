@@ -40,6 +40,7 @@
 //
 //   node scripts/hoursback/write-the-whole-sequence.cjs --limit=5        (shows, saves nothing)
 //   node scripts/hoursback/write-the-whole-sequence.cjs --limit=5 --do-it
+//   node scripts/hoursback/write-the-whole-sequence.cjs --missing-only --do-it
 const { PrismaClient } = require('@prisma/client');
 const FC = require('../../src/hoursback/crm/firstContact.js');
 const C = require('../../src/hoursback/crm/campaign.js');
@@ -54,10 +55,13 @@ const arg = (n, d) => { const h = process.argv.find((a) => a.startsWith(`--${n}=
 const DO_IT = process.argv.includes('--do-it');
 const LIMIT = Number(arg('limit', 0)) || 0;
 const ONLY = arg('only', '');
+const ID = arg('id', '');
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
 const TOUCH = Number(arg('touch', 0));
 const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
 const RESUME = process.argv.includes('--resume');
+const MISSING_ONLY = process.argv.includes('--missing-only');
+const DEBUG = process.argv.includes('--details');
 
 // EACH MESSAGE TAKES A DIFFERENT ANGLE ON THE SAME BUSINESS.
 //
@@ -382,9 +386,21 @@ function acceptableOpening(passage) {
   for (let i = 0; i < readable.length; i += 200) {
     const part = await db.prospect.findMany({
       where: {
-        id: { in: readable.slice(i, i + 200) },
+        AND: [
+          { id: { in: readable.slice(i, i + 200) } },
+          ...(ID ? [{ id: ID }] : []),
+        ],
         doNotContact: false,
         ...(ONLY ? { name: { contains: ONLY, mode: 'insensitive' } } : {}),
+        ...(MISSING_ONLY ? {
+          messages: {
+            some: {
+              lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
+              openedWith: { not: 'after_the_call' },
+              NOT: { openedWith: { startsWith: 'touch_' } },
+            },
+          },
+        } : {}),
         ...(TOUCH === 1 ? {
           messages: {
             some: {
@@ -395,17 +411,45 @@ function acceptableOpening(passage) {
             },
           },
         } : {}),
-        OR: [{ email: { not: null } }, { emailManualValue: { not: null } }],
+        // A selected contact's address is just as reachable as the business
+        // inbox. Excluding it left researched companies with a named,
+        // deliverable recipient outside the sequence run entirely.
+        OR: [
+          { email: { not: null } },
+          { emailManualValue: { not: null } },
+          { contacts: { some: { email: { not: null }, setAsideAt: null, bouncedAt: null } } },
+        ],
       },
       select: {
         id: true, name: true, trade: true, contactName: true, ownerName: true, contactRole: true, email: true, emailManualValue: true, automationScore: true,
+        contacts: {
+          where: { setAsideAt: null },
+          select: { name: true, role: true, email: true, bouncedAt: true, isPrimary: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     targets.push(...part);
   }
   targets.sort((a, b) => (b.automationScore || 0) - (a.automationScore || 0));
   if (LIMIT) targets = targets.slice(0, LIMIT);
-  console.log(`${targets.length} businesses${DO_IT ? '' : '  (nothing will be saved)'}\n`);
+  // Every selected person is a separate campaign. Expanding here keeps the
+  // company research shared while giving each recipient their own role-aware
+  // first email and follow-ups.
+  targets = targets.flatMap((p) => {
+    const usable = p.contacts.filter((recipient) => recipient.email && !recipient.bouncedAt);
+    const selected = usable.filter((recipient) => recipient.isPrimary);
+    // Match addressFor: selected people first; if nobody was selected, use the
+    // first named person with an address before falling back to the company inbox.
+    const recipients = selected.length ? selected : usable.filter((recipient) => recipient.name).slice(0, 1);
+    return recipients.length
+      ? recipients.map((recipient) => ({ ...p, _recipient: recipient }))
+      : [{ ...p, _recipient: null }];
+  });
+  if (DEBUG) {
+    for (const p of targets) console.log(`DETAIL ${p.id} ${p.name}: ${p._recipient ? p._recipient.email : '(business inbox)'}`);
+  }
+  console.log(`${targets.length} recipient campaigns${DO_IT ? '' : '  (nothing will be saved)'}\n`);
 
   // One reader per business in flight, capped at three. Four cores is the real
   // limit on this machine and a fourth copy of the model makes every one of
@@ -413,9 +457,10 @@ function acceptableOpening(passage) {
   const writer = makeReaderPool({ size: Math.min(AT_ONCE, 3), model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
   let wrote = 0; let already = 0; let refused = 0; let skipped = 0;
   let stopReason = null;
+  const expectedCampaigns = [];
 
   async function one(p) {
-    const dayZeroRow = await db.outreachMessage.findFirst({
+    const firstRows = await db.outreachMessage.findMany({
       where: {
         prospectId: p.id, lane: 'EMAIL',
         openedWith: { not: 'after_the_call' },
@@ -423,9 +468,30 @@ function acceptableOpening(passage) {
       },
       orderBy: { createdAt: 'asc' },
     });
-    if (!dayZeroRow) { skipped += 1; return; }
+    // Use the same authoritative first-email choice as the Email page. An
+    // older import can leave two first rows behind; choosing the oldest one
+    // made new follow-ups describe a letter the recipient would never get.
+    // The current business inbox is authoritative when no selected contact has
+    // an address. A saved campaign may point at an older inbox; choosing that
+    // row first silently keeps writing to the obsolete recipient.
+    const recipientAddress = String((p._recipient && p._recipient.email)
+      || p.emailManualValue || p.email || '').trim();
+    if (DEBUG) console.log(`  recipient: ${recipientAddress || '(none)'}`);
+    let dayZeroRow = L.canonicalFirstMessages(recipientAddress
+      ? firstRows.filter((message) => String(message.sentTo || '').trim().toLowerCase() === recipientAddress.toLowerCase())
+      : firstRows)[0] || null;
+    if (!dayZeroRow && recipientAddress) {
+      dayZeroRow = L.canonicalFirstMessages(firstRows.filter((message) => !message.sentTo))[0] || null;
+    }
+    if (DEBUG) console.log(`  first chosen: ${dayZeroRow ? `${dayZeroRow.sentTo || '(blank)'} / ${dayZeroRow.openedWith}` : '(none)'}`);
+    expectedCampaigns.push({
+      prospectId: p.id, name: p.name,
+      sentTo: recipientAddress || (dayZeroRow && dayZeroRow.sentTo) || null,
+    });
 
-    const { writeTo } = await L.whoTheLetterGoesTo(db, p.id, p);
+    const writeTo = p._recipient
+      ? { ...p, contactName: p._recipient.name || null, contactRole: p._recipient.role || null, ownerName: null }
+      : (await L.whoTheLetterGoesTo(db, p.id, p)).writeTo;
     const roleTitle = writeTo.contactRole || null;
 
     const reading = await db.reading.findFirst({
@@ -440,8 +506,11 @@ function acceptableOpening(passage) {
       .map((f) => { try { return JSON.parse(f.value).job; } catch { return null; } })
       .filter((j) => j && !jobs.includes(j));
 
-    const greeting = greetingFrom(dayZeroRow.body, p);
-    const tailoredFirstAlreadyPassed = RESUME
+    const newGreeting = FC.greetingFor(writeTo);
+    const greeting = dayZeroRow
+      ? greetingFrom(dayZeroRow.body, writeTo)
+      : (newGreeting ? `Hi ${newGreeting},` : 'Hello,');
+    const tailoredFirstAlreadyPassed = dayZeroRow && RESUME
       && dayZeroRow.openedWith === 'tailored_first'
       && J.judgeStored(dayZeroRow, { jobs, roleTitle }).ok;
 
@@ -451,8 +520,10 @@ function acceptableOpening(passage) {
     // follow-up prompts. Sent messages always remain untouchable. Hand-edited
     // drafts are replaced only for a run that explicitly carries the one-time
     // --overwrite-edits instruction Russ approved for this inaugural rewrite.
-    if ((!TOUCH || TOUCH === 1) && !tailoredFirstAlreadyPassed && !dayZeroRow.sentAt
-      && (!dayZeroRow.editedAt || OVERWRITE_EDITS) && !dayZeroRow.deliveryState) {
+    const needsFirst = !dayZeroRow || (!MISSING_ONLY && (!TOUCH || TOUCH === 1)
+      && !tailoredFirstAlreadyPassed && !dayZeroRow.sentAt
+      && (!dayZeroRow.editedAt || OVERWRITE_EDITS) && !dayZeroRow.deliveryState);
+    if (needsFirst) {
       let first = null; let firstSubject = null; let whyFirst = null;
       for (let go = 0; go < 3 && !first; go += 1) {
         const answer = await writer.ask(askForFirst({
@@ -482,27 +553,48 @@ function acceptableOpening(passage) {
         return;
       }
       console.log(`  ✓ ${p.name} day 0`);
-      if (!DO_IT) console.log(`      Subject: ${firstSubject}\n\n${first.split('\n').map((l) => `      ${l}`).join('\n')}\n`);
-      else {
-        await db.outreachMessage.update({
-          where: { id: dayZeroRow.id },
-          data: { subject: firstSubject, body: first, openedWith: 'tailored_first', editedAt: null },
-        });
-        dayZeroRow.subject = firstSubject;
-        dayZeroRow.body = first;
-        dayZeroRow.openedWith = 'tailored_first';
+      if (!DO_IT) {
+        console.log(`      Subject: ${firstSubject}\n\n${first.split('\n').map((l) => `      ${l}`).join('\n')}\n`);
+        dayZeroRow = { prospectId: p.id, lane: 'EMAIL', state: 'DRAFT', subject: firstSubject,
+          body: first, openedWith: 'tailored_first', sentTo: recipientAddress || null };
+      } else {
+        if (dayZeroRow) {
+          await db.outreachMessage.update({
+            where: { id: dayZeroRow.id },
+            data: { subject: firstSubject, body: first, openedWith: 'tailored_first', editedAt: null,
+              ...(recipientAddress ? { sentTo: recipientAddress } : {}) },
+          });
+          Object.assign(dayZeroRow, { subject: firstSubject, body: first, openedWith: 'tailored_first' });
+        } else {
+          dayZeroRow = await db.outreachMessage.create({
+            data: {
+              prospectId: p.id, lane: 'EMAIL', state: 'DRAFT', subject: firstSubject,
+              body: first, openedWith: 'tailored_first', sentTo: recipientAddress || null,
+            },
+          });
+        }
         wrote += 1;
       }
-    } else if (!TOUCH || TOUCH === 1) {
+    } else if (dayZeroRow && !MISSING_ONLY && (!TOUCH || TOUCH === 1)) {
       already += 1;
     }
+
+    if (!dayZeroRow) { skipped += 1; return; }
 
     // Give every follow-up the first email that will actually precede it.
     const zero = J.judgeLetter(dayZeroRow.body, { day: 0, jobs, roleTitle });
     const dayZero = (zero.passage || '').replace(/\s+/g, ' ').trim();
 
     for (const touch of [2, 3, 4].filter((n) => !TOUCH || TOUCH === n)) {
-      const have = await db.outreachMessage.findFirst({ where: { prospectId: p.id, lane: 'EMAIL', openedWith: `touch_${touch}` } });
+      const campaignAddress = recipientAddress || dayZeroRow.sentTo || null;
+      const haveRows = await db.outreachMessage.findMany({
+        where: { prospectId: p.id, lane: 'EMAIL', openedWith: `touch_${touch}`, sentTo: campaignAddress },
+        orderBy: { createdAt: 'asc' },
+      });
+      const have = haveRows[0] || null;
+      // Completeness repair means exactly that: fill empty campaign slots and
+      // leave every existing message byte-for-byte alone.
+      if (MISSING_ONLY && have) { already += 1; continue; }
       if (have && have.sentAt) { already += 1; continue; }
       if (have && have.deliveryState) { already += 1; continue; }
       if (have && have.editedAt && !OVERWRITE_EDITS) { already += 1; continue; }
@@ -534,7 +626,16 @@ function acceptableOpening(passage) {
       console.log(`  ✓ ${p.name} day ${THE_ANGLES[touch].day}`);
       if (!DO_IT) { console.log(`${full.split('\n').map((l) => `      ${l}`).join('\n')}\n`); continue; }
       if (have) {
-        await db.outreachMessage.update({ where: { id: have.id }, data: { subject: THE_ANGLES[touch].subject, body: full, editedAt: null } });
+        // Historical imports can leave several unsent copies of one campaign
+        // slot. Keep them byte-for-byte consistent so neither the page nor an
+        // audit can surface stale wording depending on database row order.
+        await db.outreachMessage.updateMany({
+          where: { id: { in: haveRows.filter((row) => !row.sentAt && !row.deliveryState).map((row) => row.id) } },
+          data: {
+            subject: THE_ANGLES[touch].subject, body: full, editedAt: null,
+            sentTo: campaignAddress,
+          },
+        });
       } else {
         await db.outreachMessage.create({
           data: {
@@ -544,6 +645,7 @@ function acceptableOpening(passage) {
             subject: THE_ANGLES[touch].subject,
             body: full,
             openedWith: `touch_${touch}`,
+            sentTo: campaignAddress,
           },
         });
       }
@@ -559,9 +661,44 @@ function acceptableOpening(passage) {
     }
   }));
 
+  // A partial run must never report success. Read back every target and prove
+  // that all four messages now exist before the process exits cleanly.
+  const targetIds = targets.map((p) => p.id);
+  const savedMessages = DO_IT && targetIds.length ? await db.outreachMessage.findMany({
+    where: {
+      prospectId: { in: targetIds }, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED', 'SENT', 'REPLIED'] },
+    },
+    select: { prospectId: true, openedWith: true, sentTo: true },
+  }) : [];
+  const campaignKey = (prospectId, sentTo) => `${prospectId}|${String(sentTo || '').trim().toLowerCase()}`;
+  const campaignsPerBusiness = new Map();
+  for (const campaign of expectedCampaigns) {
+    const list = campaignsPerBusiness.get(campaign.prospectId) || [];
+    list.push(campaign);
+    campaignsPerBusiness.set(campaign.prospectId, list);
+  }
+  const slotsByCampaign = new Map();
+  for (const message of savedMessages) {
+    const expected = campaignsPerBusiness.get(message.prospectId) || [];
+    const resolvedAddress = message.sentTo || (expected.length === 1 ? expected[0].sentTo : null);
+    const key = campaignKey(message.prospectId, resolvedAddress);
+    const have = slotsByCampaign.get(key) || new Set();
+    have.add(L.isFirstContactMessage({ ...message, lane: 'EMAIL' }) ? 'first' : message.openedWith);
+    slotsByCampaign.set(key, have);
+  }
+  const incomplete = DO_IT ? expectedCampaigns.filter((campaign) => {
+    const have = slotsByCampaign.get(campaignKey(campaign.prospectId, campaign.sentTo)) || new Set();
+    return !have.has('first') || [2, 3, 4].some((touch) => !have.has(`touch_${touch}`));
+  }) : [];
+
   console.log(`\nwritten: ${wrote}   protected: ${already}   refused: ${refused}   skipped: ${skipped}`);
   if (stopReason) console.log(`Stopped early: ${stopReason}`);
   if (!DO_IT) console.log('Nothing was saved. Add --do-it.');
+  if (incomplete.length) {
+    console.error(`INCOMPLETE: ${incomplete.length} businesses still do not have all three follow-ups.`);
+    console.error(incomplete.slice(0, 20).map((p) => `  - ${p.name}${p.sentTo ? ` — ${p.sentTo}` : ''}`).join('\n'));
+    process.exitCode = 2;
+  }
   try { writer.close(); } catch { /* gone */ }
   await db.$disconnect();
 })().catch((e) => { console.error('failed:', e.message); process.exit(1); });

@@ -257,6 +257,20 @@ async function writeMessages(db, prospect) {
   const recipient = await L.addressFor(db, prospect.id, prospect);
   const stop = cannotBeWrittenTo(prospect, Boolean(recipient));
   if (stop) return { written: [], stop };
+  // Saving a card performs a quick contact-details scan. That scan is not the
+  // whole-site research used to choose the company's own work and must never
+  // create a generic campaign that looks finished. The deep reader proves its
+  // work by storing readable pages in the evidence store.
+  if (resolveField(prospect, 'website')) {
+    const researched = await db.reading.findFirst({
+      where: {
+        prospectId: prospect.id, source: 'website', outcome: 'read',
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      },
+      select: { id: true },
+    });
+    if (!researched) return { written: [], stop: 'full website research is still waiting' };
+  }
   const written = [];
   for (const lane of ['EMAIL', 'LINKEDIN']) {
     try {

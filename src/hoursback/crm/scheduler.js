@@ -17,7 +17,7 @@ async function dailySendRun(db, options = {}) {
   if (!customerEmailEnabled) {
     const reason = 'customer email automation is disabled';
     return {
-      queued: { first: 0, second: 0, third: 0 },
+      queued: { first: 0, second: 0, third: 0, fourth: 0 },
       delivery: {
         attempted: 0, sent: 0, failed: 0, blocked: 0,
         unconfirmed: 0, recovered: 0, stoppedBecause: reason,
@@ -36,7 +36,7 @@ async function dailySendRun(db, options = {}) {
   // A named recovery run must touch only the messages it was given. It does
   // not add newly due customer messages to the queue while recovering them.
   const queued = messageIds
-    ? { first: 0, second: 0, third: 0 }
+    ? { first: 0, second: 0, third: 0, fourth: 0 }
     : await lanes.queueDueTouches(db, { now, allowFirstContact: false });
   const apiKey = options.apiKey || process.env.RESEND_API_KEY;
   const from = options.from || process.env.HOURSBACK_EMAIL_FROM || 'Russ Wright <russ@visionairy.biz>';
@@ -54,7 +54,7 @@ async function dailySendRun(db, options = {}) {
   else if (!apiKey) report.reason = 'no sending key is set';
   else {
     const sendReport = options.reportSend || lanes.defaultSender(apiKey);
-    const queuedTotal = ['first', 'second', 'third'].reduce((n, key) => n + Number(queued[key] || 0), 0);
+    const queuedTotal = ['first', 'second', 'third', 'fourth'].reduce((n, key) => n + Number(queued[key] || 0), 0);
     const lines = [
       `Sent: ${delivery.sent || 0}`,
       `Newly due: ${queuedTotal}`,

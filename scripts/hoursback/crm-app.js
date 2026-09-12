@@ -339,9 +339,15 @@ function sequenceTabs(prospect, storedFirst, options = {}) {
   // them. They are written from the business's own recorded work now and
   // stored, so this reads them. Where one has not been written yet, it says so
   // rather than showing a made-up one as if it were real.
-  const stored = new Map((prospect.messages || [])
+  const stored = new Map();
+  for (const m of (prospect.messages || [])
     .filter((m) => m.lane === 'EMAIL' && /^touch_[234]$/.test(m.openedWith || ''))
-    .map((m) => [Number(String(m.openedWith).split('_')[1]), m]));
+    .filter((m) => options.sentTo === undefined
+      || String(m.sentTo || '').trim().toLowerCase() === String(options.sentTo || '').trim().toLowerCase())
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))) {
+    const touch = Number(String(m.openedWith).split('_')[1]);
+    if (!stored.has(touch)) stored.set(touch, m);
+  }
   for (const touch of [2, 3, 4]) {
     const have = stored.get(touch);
     if (have) written.push({ day: days[touch - 1], subject: have.subject, body: have.body, real: true });
@@ -402,6 +408,38 @@ function emailStep(message) {
   if (opening === 'touch_4') return { order: 4, label: 'Final follow-up', day: 'Day 14' };
   if (opening === 'after_the_call') return { order: 5, label: 'After-call email', day: 'After the call' };
   return { order: 1, label: 'First email', day: 'Day 0' };
+}
+
+function intendedEmailRecipients(prospect) {
+  const contacts = (prospect.contacts || []).filter((c) => c.email && !c.bouncedAt);
+  const marked = contacts.filter((c) => c.isPrimary);
+  const recipients = (marked.length ? marked : contacts.filter((c) => c.name).slice(0, 1))
+    .map((c) => String(c.email).trim().toLowerCase());
+  if (!recipients.length) {
+    const inbox = prospect.emailManualValue || prospect.email;
+    if (inbox) recipients.push(String(inbox).trim().toLowerCase());
+  }
+  return recipients;
+}
+
+function currentCampaignMessages(prospect, messages) {
+  const recipients = intendedEmailRecipients(prospect);
+  const chosen = new Map();
+  const other = [];
+  for (const message of L.activeUnsentMessages(messages)) {
+    const coldEmail = message.lane === 'EMAIL'
+      && (L.isFirstContactMessage(message) || /^touch_[234]$/.test(String(message.openedWith || '')));
+    if (!coldEmail) { other.push(message); continue; }
+    const actual = String(message.sentTo || '').trim().toLowerCase();
+    const resolved = actual || (recipients.length === 1 ? recipients[0] : '');
+    if (!resolved || !recipients.includes(resolved)) continue;
+    const step = L.isFirstContactMessage(message) ? 'first' : message.openedWith;
+    const key = `${resolved}|${step}`;
+    const previous = chosen.get(key);
+    const rank = (m) => (m.editedAt ? 4 : 0) + (m.sentTo ? 2 : 0) + (m.state === 'QUEUED' ? 1 : 0);
+    if (!previous || rank(message) > rank(previous)) chosen.set(key, message);
+  }
+  return [...chosen.values(), ...other];
 }
 
 function emailRecipient(message) {
@@ -776,7 +814,15 @@ async function moneyScreen() {
 // presence. A business that already books online and has a customer login is
 // not a bad prospect, it is a differently shaped one.
 async function scoreScreen(id) {
-  const p = await db.prospect.findUnique({ where: { id } });
+  const p = await db.prospect.findUnique({ where: { id }, include: {
+    readings: {
+      where: {
+        source: 'website', outcome: 'read',
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      },
+      select: { id: true }, take: 1,
+    },
+  } });
   if (!p) return page('<p>Not found. <a href="/">Back</a></p>');
   const { SIGNAL_WEIGHTS, SIGNAL_LABELS, loadWeights } = require('../../src/hoursback/scoring.js');
   const { tradeOf } = require('../../src/hoursback/crm/queues.js');
@@ -830,7 +876,7 @@ async function scoreScreen(id) {
   <div class="card">
     <p><b>Strengths to lead with:</b> ${strong.length ? esc(strong.join(', ')) : 'nothing strong found, so lead on the trade rather than the tell'}</p>
     <p><b>Where they are already sorted:</b> ${missing.length ? esc(missing.join(', ')) : 'nothing — everything we look for is missing at their end'}</p>
-    <p class="mini">${p.siteStatus === 'NO_WEBSITE' ? 'No website at all, so nothing else could be read. Everything else here is inference from the trade.' : p.siteStatus === 'UNREACHABLE' ? 'Their website would not load, so the score is thin through no fault of theirs. Worth a look by hand.' : `Read from ${p.siteReadAt ? new Date(p.siteReadAt).toLocaleDateString() : 'their site'}.`}</p>
+    <p class="mini">${p.siteStatus === 'NO_WEBSITE' ? 'No website at all, so nothing else could be read. Everything else here is inference from the trade.' : p.siteStatus === 'UNREACHABLE' ? 'Their website would not load, so the score is thin through no fault of theirs. Worth a look by hand.' : p.readings.length ? `Fully researched from their site${p.siteReadAt ? ` on ${new Date(p.siteReadAt).toLocaleDateString()}` : ''}.` : p.siteStatus === 'READ' ? 'Contact details scanned; full website research is still waiting.' : 'Their website has not been read yet.'}</p>
   </div>
 
   <h2>How the scoring works</h2>
@@ -1080,8 +1126,15 @@ async function emailScreen(params) {
         },
         messages: {
           where: { lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] } },
-          select: { id: true, lane: true, state: true, subject: true, body: true, openedWith: true, sentTo: true, editedAt: true },
+          select: { id: true, lane: true, state: true, subject: true, body: true, openedWith: true, sentTo: true, editedAt: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
+        },
+        readings: {
+          where: {
+            source: 'website', outcome: 'read',
+            pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+          },
+          select: { id: true }, take: 1,
         },
       } } },
       // BEST FIRST, AND A BUSINESS WITH NO SCORE IS NOT BEST.
@@ -1114,7 +1167,24 @@ async function emailScreen(params) {
         lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
         NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
       },
-      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true },
+      include: { prospect: { include: {
+        contacts: {
+          where: { setAsideAt: null },
+          select: { name: true, email: true, isPrimary: true, bouncedAt: true },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        },
+        messages: {
+          where: { lane: 'EMAIL' },
+          select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, deliveryState: true },
+        },
+        readings: {
+          where: {
+            source: 'website', outcome: 'read',
+            pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+          },
+          select: { id: true }, take: 1,
+        },
+      } } },
     }),
     db.outreachMessage.findMany({
       where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' }, include: { prospect: true },
@@ -1122,11 +1192,24 @@ async function emailScreen(params) {
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
   ]);
-  const matchingFirstRows = L.canonicalFirstMessages(readyRows);
+  const currentRecipientFirsts = (rows) => {
+    const grouped = new Map();
+    for (const message of rows) {
+      const group = grouped.get(message.prospectId) || { prospect: message.prospect, messages: [] };
+      group.messages.push(message);
+      grouped.set(message.prospectId, group);
+    }
+    return [...grouped.values()].flatMap(({ prospect, messages }) =>
+      currentCampaignMessages(prospect, messages).filter(L.isFirstContactMessage));
+  };
+  const matchingFirstRows = currentRecipientFirsts(readyRows);
   const ready = matchingFirstRows.slice(0, 25);
-  const allFirst = L.canonicalFirstMessages(allFirstRows);
+  const allFirst = currentRecipientFirsts(allFirstRows);
   const waitingAllTold = allFirst.length;
-  const queuedAllTold = allFirst.filter((m) => m.state === 'QUEUED').length;
+  const hasDeepResearch = (m) => Boolean(m.prospect.readings && m.prospect.readings.length);
+  const unresearchedAllTold = allFirst.filter((m) => !hasDeepResearch(m)).length;
+  const incompleteAllTold = allFirst.filter((m) => hasDeepResearch(m) && !L.campaignHasCompleteSequence(m)).length;
+  const queuedAllTold = allFirst.filter((m) => m.state === 'QUEUED' && hasDeepResearch(m) && L.campaignHasCompleteSequence(m)).length;
 
   // Refresh the bounded page of first messages before Russ reads it. This is
   // what makes a changed selected role or approved campaign wording appear in
@@ -1134,7 +1217,10 @@ async function emailScreen(params) {
   // messages remain protected by draftFor.
   await Promise.all(ready.map(async (shown) => {
     const fresh = await L.draftFor(db, shown.prospectId, 'EMAIL');
-    if (fresh) Object.assign(shown, fresh, { prospect: shown.prospect });
+    // draftFor refreshes the first selected recipient. A company may have
+    // several separately tailored campaigns, so never replace another
+    // recipient's row with that returned message.
+    if (fresh && fresh.id === shown.id) Object.assign(shown, fresh, { prospect: shown.prospect });
   }));
 
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
@@ -1207,6 +1293,8 @@ async function emailScreen(params) {
   const one = (m) => {
     const recipient = emailRecipient(m);
     const step = emailStep(m);
+    const researched = Boolean(m.prospect.readings && m.prospect.readings.length);
+    const complete = researched && L.campaignHasCompleteSequence(m);
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
@@ -1218,11 +1306,11 @@ async function emailScreen(params) {
     <summary class="email-summary" style="cursor:pointer;padding:11px 12px;list-style:none">
       <label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
         <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
-          style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : ''}></label>
+          style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : !complete ? 'disabled' : ''}></label>
       <div><b>${esc(resolveField(m.prospect, 'name'))}</b><div class="mini">${esc(recipient.name)}${recipient.role ? ` · ${esc(recipient.role)}` : ''}</div></div>
       <div class="subject"><b>${esc(m.subject || 'No subject')}</b><div class="mini">${esc(step.label)} · ${esc(step.day)}</div></div>
       ${scoreBadge(m.prospect.automationScore, m.prospectId)}
-      <span class="state muted" style="font-size:12px">${m.state === 'QUEUED' ? 'Ready' : 'Draft'}</span>
+      <span class="state muted" style="font-size:12px">${!researched ? 'Research waiting — cannot send' : !complete ? 'Incomplete — cannot send' : m.state === 'QUEUED' ? 'Ready' : 'Draft'}</span>
     </summary>
 
     <div style="padding:0 12px 12px">
@@ -1251,7 +1339,7 @@ async function emailScreen(params) {
       </form>
       <h3 style="margin:20px 0 4px">What follows if they do not reply</h3>
       <p class="mini" style="margin-top:0">The remaining messages stay in order and stop as soon as this person replies, bounces, or asks not to be contacted.</p>
-      ${sequenceTabs(m.prospect, m, { includeFirst: false })}
+      ${sequenceTabs(m.prospect, m, { includeFirst: false, sentTo: m.sentTo || null })}
       <div class="email-actions">
         <a class="btn" href="/business/${m.prospectId}">Open full company record</a>
         <form method="POST" action="/email/skip/${m.id}"
@@ -1318,6 +1406,8 @@ async function emailScreen(params) {
   <h2>Written and waiting (${onlyTrade || floor || review
     ? `${matching} match${matching === 1 ? 'es' : ''}, of ${waitingTotal} in all`
     : waitingTotal})</h2>
+  ${unresearchedAllTold ? `<div class="card warn"><b>${unresearchedAllTold} campaign${unresearchedAllTold === 1 ? ' is' : 's are'} waiting for full website research and cannot be sent.</b> A quick contact-details scan does not count as completed research.</div>` : ''}
+  ${incompleteAllTold ? `<div class="card warn"><b>${incompleteAllTold} researched campaign${incompleteAllTold === 1 ? ' is' : 's are'} incomplete and cannot be sent.</b> Their missing messages must be prepared before they can be marked ready.</div>` : !unresearchedAllTold ? '<p class="mini"><b>Every campaign shown is fully researched and has all four messages prepared.</b></p>' : ''}
   ${ready.length < matching ? `<p class="mini">Showing the first ${ready.length}. Work through these and the next come up.</p>` : ''}
   <form method="GET" action="/email" class="row" style="margin:8px 0 14px">
     <select name="review" style="width:auto">
@@ -1540,6 +1630,13 @@ async function businessCard(id, saved) {
     callLogs: { orderBy: { loggedAt: 'desc' }, take: 8 },
     fieldEdits: { orderBy: { correctedAt: 'desc' }, take: 8 },
     contacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
+    readings: {
+      where: {
+        source: 'website', outcome: 'read',
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      },
+      select: { id: true }, take: 1,
+    },
     // Their actual messages, editable here. Russ clicked through from the
     // email screen to a business and found no way to change that one person's
     // message: "I thought everything was supposed to be editable?" It was, but
@@ -1547,7 +1644,7 @@ async function businessCard(id, saved) {
     messages: { where: { sentAt: null }, orderBy: [{ lane: 'asc' }] },
   } });
   if (!p) return page('<p>Not found. <a href="/">Back</a></p>');
-  p.messages = L.activeUnsentMessages(p.messages).sort((a, b) => {
+  p.messages = currentCampaignMessages(p, p.messages).sort((a, b) => {
     if (a.lane !== b.lane) return a.lane === 'EMAIL' ? -1 : 1;
     return emailStep(a).order === emailStep(b).order
       ? String(a.id).localeCompare(String(b.id))
@@ -1619,11 +1716,12 @@ async function businessCard(id, saved) {
     : `<span class="muted">${esc(EMAIL_STATUS_LABELS[p.emailStatus] || 'not looked for yet')}</span>`;
 
   const site = resolveField(p, 'website');
-  // Their own words only go into the message if they read as a clause that
-  // finishes "You ___". Where they do not, say so here rather than silently
-  // dropping them — Russ typed a paragraph in and had no way to know it was
-  // being ignored (2026-08-27).
-  const workProblem = require('../../src/hoursback/crm/tradeOpening.js').whyWorkClauseIsUnusable(p.theirWork);
+  const fullyResearched = Boolean(p.readings && p.readings.length);
+  const siteProgress = fullyResearched
+    ? `fully researched${p.siteReadAt ? `, ${new Date(p.siteReadAt).toLocaleDateString()}` : ''}`
+    : p.siteStatus === 'READ'
+      ? 'contact details scanned; full research waiting'
+      : (SITE_STATUS_LABELS[p.siteStatus] || 'not read yet');
   return page(`
   ${saved ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">${esc(saved === '1' ? 'Saved.' : saved)}</div>` : ''}
   ${BUSY.has(p.id) ? `<div class="card" style="background:#fef9c3;border-color:#ca8a04">Reading their website now — this page will update itself in a moment.</div>
@@ -1632,7 +1730,7 @@ async function businessCard(id, saved) {
   <p><a class="phone" href="tel:${digits(resolveField(p, 'phone'))}">${esc(resolveField(p, 'phone') || 'no phone')}</a><br>
     <span class="muted">${esc((resolveField(p, 'address') || '').replace(/, USA$/, ''))}</span><br>
     ${site ? `<a href="${esc(site)}" target="_blank">${esc(site)}</a>` : '<span class="muted">no website</span>'}
-    <span class="muted"> · ${esc(SITE_STATUS_LABELS[p.siteStatus] || 'not read yet')}${p.siteReadAt ? `, ${new Date(p.siteReadAt).toLocaleDateString()}` : ''}</span></p>
+    <span class="muted"> · ${esc(siteProgress)}</span></p>
   <p><a class="btn primary" href="/live/${p.id}">${p.stageOneAt ? 'The free call' : 'Start the free call'}</a>
      <a class="btn" href="/questions/${encodeURIComponent(p.trade || tradeOfName(p) || 'other')}?for=${p.id}">The 15 minutes for ${esc(p.trade || tradeOfName(p) || 'this trade')}</a>
      <a class="btn" href="/stage1/${p.id}">Write-up and transcript</a>
@@ -1722,16 +1820,14 @@ async function businessCard(id, saved) {
         ${p.trade ? '' : '<div class="was">guessed from their name — correct it if it is wrong</div>'}</div>
       <div><label>Owner's name</label><input name="ownerName" value="${esc(p.ownerName)}"></div>
       <div><label>Who you spoke to</label><input name="contactName" value="${esc(p.contactName)}"></div>
-      <!-- THE LABEL WAS A LIE (Russ, 2026-09-08). It said "in the email", and
-           this text stopped going into the email when every letter started
-           naming that business's own two jobs. It is NOT dead, though: it is
-           handed to the reader that works out which repetitive jobs to name,
-           so a wrong description here still produces a wrong letter. Renamed
-           to what it actually does rather than deleted. -->
-      <div style="grid-column:1/-1"><label>What they do (shapes which work gets named)</label>
-        <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. design and build custom homes out of Redmond">
-        ${workProblem ? `<div class="was" style="color:#b91c1c"><b>Not being used:</b> ${esc(workProblem)}</div>` : ''}
-        <div class="was">Not printed in the letter. It is what the reader is told this business does, so it decides which repetitive jobs get named. Wrong here means a wrong letter.</div></div>
+      <!-- This value has two consumers with different grammar. The research
+           reader accepts an ordinary company description; only the older
+           backup opening tries to append it to "You ___." Calling the whole
+           value "not being used" was therefore false for most records and
+           made a useful profile field look broken. -->
+      <div style="grid-column:1/-1"><label>Plain description of this business</label>
+        <input name="theirWork" value="${esc(p.theirWork)}" placeholder="e.g. Custom home builder serving Central Oregon">
+        <div class="was">This helps the research process identify the right work to discuss. The email itself uses the specific work verified on the company's website, so this description does not need to begin with a lowercase verb.</div></div>
       <div><label>Their role</label><input name="contactRole" value="${esc(p.contactRole)}"></div>
       <div><label>Are they the decision maker?</label><select name="isDecisionMaker">
         <option value="">unknown</option>
@@ -1836,7 +1932,15 @@ async function businessCard(id, saved) {
        message — so his Day 0 tab was headed "One question" and was then marked
        as failing for asking one. It was the right message under the wrong
        label, judged as the wrong day. -->
-  ${sequenceTabs(p, (p.messages || []).find((m) => L.isFirstContactMessage(m)))}
+  ${(() => {
+    const firsts = L.canonicalFirstMessages((p.messages || []).filter((m) => L.isFirstContactMessage(m)));
+    if (!firsts.length) return sequenceTabs(p, null);
+    return firsts.map((first) => {
+      const recipient = emailRecipient({ ...first, prospect: p });
+      return `${firsts.length > 1 ? `<h3 style="margin-top:18px">For ${esc(recipient.name)} · ${esc(recipient.address)}</h3>` : ''}
+        ${sequenceTabs(p, first, { sentTo: first.sentTo || null })}`;
+    }).join('');
+  })()}
 
   <h2>Their messages (${p.messages.length})</h2>
   ${p.messages.length ? p.messages.map((m) => `<div class="card">
@@ -1848,7 +1952,7 @@ async function businessCard(id, saved) {
   </div>`).join('') : '<p class="muted">Nothing written for them yet.</p>'}
 
   <p><button type="submit" form="contactMessageChanges" class="primary">Save contact and message changes</button>
-    <span class="muted"> — this saves what you changed. Ticking a person who has an email address also marks only the first message ready; it never sends. To use the business inbox, return to Email and tick the business there.</span></p>
+    <span class="muted"> — this saves what you changed. Each ticked person with a complete four-message campaign is marked ready; nothing is sent. Anyone whose messages are incomplete stays safely in draft and the saved notice tells you.</span></p>
   </form>
 
   <form method="POST" action="/contact/add/${p.id}" class="row" style="margin-top:10px">
@@ -2584,7 +2688,7 @@ const server = http.createServer(async (req, res) => {
           await L.saveContactSelections(db, contacts.map((person) => person.id), selected);
           const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
           const said = refreshed
-            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. The first email now matches ${refreshed.sentTo || 'the selected contact'}. Review it before marking it ready.`
+            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. The current first email now matches ${refreshed.sentTo || 'the first selected contact'}. Each additional person will appear as a separate campaign after all four of their messages are prepared.`
             : 'The recipient choices were saved, but there is no sendable first email for this company.';
           return returnToMessage(said);
         }
@@ -2596,20 +2700,37 @@ const server = http.createServer(async (req, res) => {
         // key all still stand between this and anybody's inbox.
         if (what === 'queue') {
           const picked = [].concat(form.pick || []).filter(Boolean);
-          if (picked.length) {
+          const candidates = picked.length ? await db.outreachMessage.findMany({
+            where: { id: { in: picked }, state: 'DRAFT', sentAt: null },
+            include: { prospect: { include: {
+              messages: { where: { lane: 'EMAIL' } },
+              readings: {
+                where: {
+                  source: 'website', outcome: 'read',
+                  pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+                },
+                select: { id: true }, take: 1,
+              },
+            } } },
+          }) : [];
+          const completeIds = candidates.filter((m) => m.prospect.readings.length && L.campaignHasCompleteSequence(m)).map((m) => m.id);
+          const incomplete = candidates.length - completeIds.length;
+          if (completeIds.length) {
             await db.outreachMessage.updateMany({
-              where: { id: { in: picked }, state: 'DRAFT', sentAt: null },
+              where: { id: { in: completeIds }, state: 'DRAFT', sentAt: null },
               data: { state: 'QUEUED', queuedAt: new Date() },
             });
           }
-          res.writeHead(303, { Location: `/email?sent=${picked.length}&why=${encodeURIComponent('marked ready. Nothing has been sent.')}` });
+          const said = `${completeIds.length} marked ready. Nothing has been sent.`
+            + (incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' was' : 's were'} blocked because follow-ups are missing.` : '');
+          res.writeHead(303, { Location: `/email?sent=${completeIds.length}&why=${encodeURIComponent(said)}` });
           return res.end();
         }
         // Asked for, never automatic. This is the job that used to run itself
         // every time the page was opened and made everything else wait.
         if (what === 'followups') {
           const r = await L.queueDueTouches(db, { limit: 60 });
-          const said = `Lined up ${r.first} first messages, ${r.second} second, ${r.third} third.`;
+          const said = `Lined up ${r.first} first messages, ${r.second} Day 4, ${r.third} Day 8, and ${r.fourth} Day 14 follow-ups.`;
           res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent(said)}` });
           return res.end();
         }
@@ -2707,7 +2828,7 @@ const server = http.createServer(async (req, res) => {
           }
           const submittedPersonIds = [...changedPerson.keys()];
 
-          let people = 0; let notes = 0; let lined = 0; let removed = 0; let selectedPeople = 0;
+          let people = 0; let notes = 0; let lined = 0; let incompleteCampaigns = 0; let removed = 0; let selectedPeople = 0;
           const clashes = [];
 
           // Taking somebody off the list. Done FIRST, so a person being removed
@@ -2807,17 +2928,28 @@ const server = http.createServer(async (req, res) => {
                 },
                 orderBy: { createdAt: 'asc' },
               });
-              const first = L.canonicalFirstMessages(candidates)[0];
-              if (!first || first.state !== 'DRAFT') continue;
-              const recipient = contacts.find((c) => c.email === first.sentTo) || contacts[0];
-              await db.outreachMessage.update({
-                // One authoritative day-zero message is approved here. The
-                // other selected people remain marked and get their own first
-                // message through the normal sequence writer.
-                where: { id: first.id },
-                data: { state: 'QUEUED', queuedAt: new Date(), sentTo: recipient.email },
+              const campaignMessages = await db.outreachMessage.findMany({
+                where: { prospectId, lane: 'EMAIL' },
+                select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, deliveryState: true },
               });
-              lined += 1;
+              const firsts = L.canonicalFirstMessages(candidates);
+              for (const [index, recipient] of contacts.entries()) {
+                const address = String(recipient.email || '').trim().toLowerCase();
+                const first = firsts.find((message) => String(message.sentTo || '').trim().toLowerCase() === address)
+                  || (index === 0 ? firsts.find((message) => !message.sentTo) : null);
+                if (!first) { incompleteCampaigns += 1; continue; }
+                if (first.state === 'QUEUED') continue;
+                if (first.state !== 'DRAFT'
+                  || !L.campaignHasCompleteSequence({ ...first, sentTo: recipient.email, prospect: { messages: campaignMessages } })) {
+                  incompleteCampaigns += 1;
+                  continue;
+                }
+                await db.outreachMessage.update({
+                  where: { id: first.id },
+                  data: { state: 'QUEUED', queuedAt: new Date(), sentTo: recipient.email },
+                });
+                lined += 1;
+              }
             }
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
@@ -2836,6 +2968,7 @@ const server = http.createServer(async (req, res) => {
           }
 
           const said = `Saved. ${selectedPeople} ${selectedPeople === 1 ? 'contact selected' : 'contacts selected'}, ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
+            + (incompleteCampaigns ? ` ${incompleteCampaigns} incomplete campaign${incompleteCampaigns === 1 ? ' was' : 's were'} saved but not marked ready; its missing messages must be prepared first.` : '')
             + noteSaid
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.

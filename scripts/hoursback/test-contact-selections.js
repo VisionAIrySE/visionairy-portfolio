@@ -1,5 +1,7 @@
 const assert = require('node:assert/strict');
-const { saveContactSelections, canonicalFirstMessages, activeUnsentMessages } = require('../../src/hoursback/crm/lanes.js');
+const L = require('../../src/hoursback/crm/lanes.js');
+const { BODY } = require('../../src/hoursback/crm/firstContact.js');
+const { saveContactSelections, canonicalFirstMessages, activeUnsentMessages, addressFor, personFor } = L;
 
 async function main() {
   const rows = new Map([
@@ -35,10 +37,61 @@ async function main() {
     { id: 'sam', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'tailored_first', sentTo: 'sam@example.test' },
     { id: 'follow-up', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
   ];
-  assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old']);
-  assert.deepEqual(activeUnsentMessages(messages).map((m) => m.id), ['old', 'follow-up']);
+  assert.deepEqual(canonicalFirstMessages(messages).map((m) => m.id), ['old', 'sam']);
+  assert.deepEqual(activeUnsentMessages(messages).map((m) => m.id), ['old', 'sam', 'follow-up']);
 
-  console.log('PASS: selections persist and every screen keeps one authoritative first email at a time');
+  const duplicateFollowUps = activeUnsentMessages([
+    { id: 'kept', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
+    { id: 'duplicate', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'sara@example.test' },
+  ]);
+  assert.deepEqual(duplicateFollowUps.map((m) => m.id), ['kept']);
+
+  const manualAddress = await addressFor({ contact: { findFirst: async () => null } }, 'business-1', {
+    email: 'old@example.test', emailManualValue: 'corrected@example.test', emailBouncedAt: null,
+  });
+  assert.equal(manualAddress, 'corrected@example.test');
+
+  const blankAddress = await addressFor({ contact: { findFirst: async () => null } }, 'business-1', {
+    email: '', emailManualValue: '   ', emailBouncedAt: null,
+  });
+  assert.equal(blankAddress, null);
+
+  let personLookup = 0;
+  const selectedAtInbox = { name: 'Robin Owner', role: 'Owner', email: null, isPrimary: true };
+  const inboxPerson = await personFor({ contact: { findFirst: async () => {
+    personLookup += 1;
+    return personLookup === 3 ? selectedAtInbox : null;
+  } } }, 'business-1');
+  assert.equal(inboxPerson, selectedAtInbox);
+
+  const sentAt = new Date('2026-09-01T12:00:00Z');
+  const sentFirsts = [
+    { id: 'alice-first', prospectId: 'business-1', lane: 'EMAIL', state: 'SENT', openedWith: 'tailored_first', sentTo: 'alice@example.test', sentAt },
+    { id: 'bob-first', prospectId: 'business-1', lane: 'EMAIL', state: 'SENT', openedWith: 'tailored_first', sentTo: 'bob@example.test', sentAt },
+  ];
+  const dueDrafts = [
+    { id: 'alice-day4', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'alice@example.test', sentAt: null, deliveryState: null },
+    { id: 'bob-day4', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'bob@example.test', sentAt: null, deliveryState: null },
+  ];
+  const scheduleDb = {
+    messageTemplate: { findUnique: async () => ({ approvedAt: new Date(), body: BODY, approvedWording: L.wordingFingerprint() }) },
+    prospect: { findUniqueOrThrow: async () => ({ id: 'business-1', email: 'office@example.test', doNotContact: false, repliedAt: null }) },
+    contact: { findFirst: async () => null },
+    outreachMessage: {
+      findMany: async ({ where }) => where.state ? sentFirsts : dueDrafts.filter((m) => m.openedWith === where.openedWith),
+      update: async ({ where, data }) => {
+        const row = dueDrafts.find((m) => m.id === where.id);
+        Object.assign(row, data);
+        return { ...row };
+      },
+    },
+  };
+  const now = new Date('2026-09-06T12:00:00Z');
+  assert.equal((await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false })).id, 'alice-day4');
+  assert.equal((await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false })).id, 'bob-day4');
+  assert.equal(await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false }), null);
+
+  console.log('PASS: selections persist and every recipient keeps one authoritative first email');
 }
 
 main().catch((error) => {
