@@ -43,12 +43,14 @@
 //   node scripts/hoursback/write-the-whole-sequence.cjs --missing-only --do-it
 //   node scripts/hoursback/write-the-whole-sequence.cjs --all-contacts --missing-only --do-it
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
 const FC = require('../../src/hoursback/crm/firstContact.js');
 const C = require('../../src/hoursback/crm/campaign.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const L = require('../../src/hoursback/crm/lanes.js');
 const { pick } = require('../../src/hoursback/crm/variants.js');
 const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
+const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
 const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
 
 const db = new PrismaClient();
@@ -64,6 +66,15 @@ const RESUME = process.argv.includes('--resume');
 const MISSING_ONLY = process.argv.includes('--missing-only');
 const ALL_CONTACTS = process.argv.includes('--all-contacts');
 const DEBUG = process.argv.includes('--details');
+const OPENROUTER_MODEL = arg('openrouter-model', '');
+const OPENROUTER_CEILING = Number(arg('openrouter-ceiling', 2));
+const projectOpenRouterKey = (() => {
+  try {
+    const line = fs.readFileSync('.env', 'utf8').split(/\r?\n/)
+      .find((entry) => entry.startsWith('OPENROUTER_API_KEY='));
+    return line ? line.slice(line.indexOf('=') + 1).replace(/^"|"$/g, '') : null;
+  } catch { return null; }
+})();
 
 // EACH MESSAGE TAKES A DIFFERENT ANGLE ON THE SAME BUSINESS.
 //
@@ -454,7 +465,15 @@ if (require.main === module) (async () => {
   // One reader per business in flight, capped at three. Four cores is the real
   // limit on this machine and a fourth copy of the model makes every one of
   // them slower, not faster.
-  const writer = makeReaderPool({ size: Math.min(AT_ONCE, 3), model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
+  const writer = OPENROUTER_MODEL
+    ? makeOpenRouterPool({
+      model: OPENROUTER_MODEL,
+      // Prefer the repository's ignored settings over a stale Windows-level
+      // value. The latter once kept sending a revoked key after Russ replaced it.
+      apiKey: projectOpenRouterKey || process.env.OPENROUTER_API_KEY,
+      ceilingUsd: OPENROUTER_CEILING,
+    })
+    : makeReaderPool({ size: Math.min(AT_ONCE, 3), model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
   let wrote = 0; let already = 0; let refused = 0; let skipped = 0;
   let stopReason = null;
   const expectedCampaigns = [];
@@ -692,6 +711,7 @@ if (require.main === module) (async () => {
   }) : [];
 
   console.log(`\nwritten: ${wrote}   protected: ${already}   refused: ${refused}   skipped: ${skipped}`);
+  if (OPENROUTER_MODEL) console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${OPENROUTER_CEILING.toFixed(2)} run ceiling`);
   if (stopReason) console.log(`Stopped early: ${stopReason}`);
   if (!DO_IT) console.log('Nothing was saved. Add --do-it.');
   if (incomplete.length) {
