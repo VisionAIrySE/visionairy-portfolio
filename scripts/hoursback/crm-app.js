@@ -1226,17 +1226,9 @@ async function emailScreen(params) {
   const incompleteAllTold = allFirst.filter((m) => hasDeepResearch(m) && !L.campaignHasCompleteSequence(m)).length;
   const queuedAllTold = allFirst.filter((m) => m.state === 'QUEUED' && hasDeepResearch(m) && L.campaignHasCompleteSequence(m)).length;
 
-  // Refresh the bounded page of first messages before Russ reads it. This is
-  // what makes a changed selected role or approved campaign wording appear in
-  // the actual draft on screen. It never queues or sends; hand-edited and sent
-  // messages remain protected by draftFor.
-  await Promise.all(ready.map(async (shown) => {
-    const fresh = await L.draftFor(db, shown.prospectId, 'EMAIL');
-    // draftFor refreshes the first selected recipient. A company may have
-    // several separately tailored campaigns, so never replace another
-    // recipient's row with that returned message.
-    if (fresh && fresh.id === shown.id) Object.assign(shown, fresh, { prospect: shown.prospect });
-  }));
+  // Opening this screen is read-only. Recipient saves and the preparation
+  // workflow refresh the affected drafts directly. Rebuilding every visible
+  // draft here made a simple save wait on dozens of unrelated companies.
 
   // THE ORDER HOLDS STILL WHILE YOU WORK (Russ, 2026-08-31: "hold the order
   // steady until a refresh, otherwise I never get through them").
@@ -1375,9 +1367,12 @@ async function emailScreen(params) {
     const shownAddresses = new Set(messages.map((message) => String(emailRecipient(message).address || '').trim().toLowerCase()));
     const selectedContacts = availableContacts.filter((person) => person.isPrimary
       || shownAddresses.has(String(person.email || '').trim().toLowerCase()));
-    const readyCount = messages.filter((message) => message.state === 'QUEUED').length;
-    const completeCount = messages.filter((message) => Boolean(message.prospect.readings && message.prospect.readings.length)
-      && L.campaignHasCompleteSequence(message)).length;
+    const selectedCount = intendedEmailRecipients(prospect).length;
+    const isComplete = (message) => Boolean(message.prospect.readings && message.prospect.readings.length)
+      && L.campaignHasCompleteSequence(message);
+    const completeCount = messages.filter(isComplete).length;
+    const readyCount = messages.filter((message) => message.state === 'QUEUED' && isComplete(message)).length;
+    const campaignsWaiting = Math.max(0, selectedCount - completeCount);
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
@@ -1387,9 +1382,9 @@ async function emailScreen(params) {
       ontoggle="if(!this.open&amp;&amp;this.dataset.recipientChoicesChanged==='true'){this.dataset.recipientChoicesChanged='false';this.querySelector('form.recipient-choices').requestSubmit()}"
       ${messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
       <summary class="company-summary">
-        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${messages.length} selected recipient${messages.length === 1 ? '' : 's'} · ${readyCount} ready</div></div>
+        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readyCount} ready to send</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
-        <span class="state muted" style="font-size:12px">${completeCount === messages.length ? 'Campaigns complete' : `${messages.length - completeCount} blocked`}</span>
+        <span class="state muted" style="font-size:12px">${campaignsWaiting ? `${completeCount} of ${selectedCount} campaigns complete` : 'All campaigns complete'}</span>
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Who should receive a campaign?</h3>

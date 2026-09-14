@@ -26,6 +26,10 @@ assert.match(app, /Selected contacts and their email sequences/,
   'opening a company must show its selected contacts before their email sequences');
 assert.match(app, /one\(message, \{ nested: true \}\)/,
   'opening a selected contact must show that person\'s campaign as a nested accordion');
+assert.match(app, /selectedCount = intendedEmailRecipients\(prospect\)\.length/,
+  'the company heading must count selected recipients rather than already-written campaigns');
+assert.match(app, /message\.state === 'QUEUED' && isComplete\(message\)/,
+  'the ready count must include only queued campaigns whose full sequence is complete');
 assert.match(app, /recipientChoicesChanged==='true'/,
   'closing a company must save changed recipient choices automatically');
 assert.match(app, /Save selected contacts now/,
@@ -35,8 +39,8 @@ assert.match(app, /Choose at least one contact with a working email\. Nothing wa
 assert.match(app, /What follows if they do not reply/);
 assert.match(app, /Incomplete — cannot send/);
 assert.match(app, /incomplete campaign/);
-assert.match(app, /fresh\.id === shown\.id/,
-  'refreshing one recipient must not replace another recipient\'s row on the Email page');
+assert.doesNotMatch(app, /Promise\.all\(ready\.map/,
+  'opening the Email page must not rebuild every visible draft and delay a simple save');
 assert.match(app, /includeFirst: false, sentTo: m\.sentTo \|\| null/,
   'each Email row must show follow-ups for that same recipient');
 assert.match(app, /currentCampaignMessages\(prospect, messages\)/,
