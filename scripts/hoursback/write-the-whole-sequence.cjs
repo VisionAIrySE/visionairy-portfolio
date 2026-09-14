@@ -66,6 +66,25 @@ const RESUME = process.argv.includes('--resume');
 const MISSING_ONLY = process.argv.includes('--missing-only');
 const ALL_CONTACTS = process.argv.includes('--all-contacts');
 const DEBUG = process.argv.includes('--details');
+
+function expandRecipientCampaigns(p, allContacts = ALL_CONTACTS) {
+  const usable = p.contacts.filter((recipient) => recipient.email && !recipient.bouncedAt);
+  const selected = usable.filter((recipient) => recipient.isPrimary);
+  // Match the Email workspace exactly. With no selected or named contact, the
+  // workspace addresses the company inbox. Preserve that campaign even when
+  // an unnamed, unselected contact happens to carry a different address.
+  const normalRecipients = selected.length
+    ? selected
+    : usable.filter((recipient) => recipient.name).slice(0, 1);
+  const recipients = allContacts ? usable : normalRecipients;
+  const expanded = recipients.map((recipient) => ({ ...p, _recipient: recipient }));
+  if (allContacts && !normalRecipients.length) {
+    const inbox = String(p.emailManualValue || p.email || '').trim().toLowerCase();
+    const alreadyIncluded = usable.some((recipient) => String(recipient.email || '').trim().toLowerCase() === inbox);
+    if (inbox && !alreadyIncluded) expanded.push({ ...p, _recipient: null });
+  }
+  return expanded.length ? expanded : [{ ...p, _recipient: null }];
+}
 const OPENROUTER_MODEL = arg('openrouter-model', '');
 const OPENROUTER_CEILING = Number(arg('openrouter-ceiling', 2));
 const projectOpenRouterKey = (() => {
@@ -452,18 +471,7 @@ if (require.main === module) (async () => {
   // recipients. The all-contacts preparation run writes ahead for every
   // deliverable person at a fully researched company; selection still alone
   // controls what appears in the active sending workflow.
-  targets = targets.flatMap((p) => {
-    const usable = p.contacts.filter((recipient) => recipient.email && !recipient.bouncedAt);
-    const selected = usable.filter((recipient) => recipient.isPrimary);
-    // Match addressFor: selected people first; if nobody was selected, use the
-    // first named person with an address before falling back to the company inbox.
-    const recipients = ALL_CONTACTS
-      ? usable
-      : (selected.length ? selected : usable.filter((recipient) => recipient.name).slice(0, 1));
-    return recipients.length
-      ? recipients.map((recipient) => ({ ...p, _recipient: recipient }))
-      : [{ ...p, _recipient: null }];
-  });
+  targets = targets.flatMap((p) => expandRecipientCampaigns(p));
   if (DEBUG) {
     for (const p of targets) console.log(`DETAIL ${p.id} ${p.name}: ${p._recipient ? p._recipient.email : '(business inbox)'}`);
   }
@@ -766,4 +774,5 @@ module.exports = {
   acceptableQuestion,
   acceptableOpening,
   addressedSubject,
+  expandRecipientCampaigns,
 };

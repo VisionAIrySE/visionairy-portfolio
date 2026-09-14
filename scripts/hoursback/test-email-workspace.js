@@ -11,6 +11,7 @@ const scheduler = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/c
 const refresh = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/refresh.js'), 'utf8');
 const lanesSource = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/crm/lanes.js'), 'utf8');
 const C = require('../../src/hoursback/crm/campaign.js');
+const W = require('./write-the-whole-sequence.cjs');
 const { addContext, hasContext } = require('./add-followup-context.cjs');
 const { addLocalContext, hasLocalContext } = require('./add-local-context.cjs');
 
@@ -89,8 +90,15 @@ assert.match(writer, /recipients\.map\(\(recipient\)/,
   'every selected contact must receive a separate role-aware campaign');
 assert.match(writer, /const ALL_CONTACTS = process\.argv\.includes\('--all-contacts'\)/,
   'the preparation run must support writing ahead for every deliverable contact');
-assert.match(writer, /ALL_CONTACTS\s*\? usable/,
+assert.match(writer, /const recipients = allContacts \? usable : normalRecipients/,
   'the all-contacts run must expand every deliverable person into a separate campaign');
+const inboxFallback = W.expandRecipientCampaigns({
+  email: 'office@example.com', emailManualValue: null,
+  contacts: [{ name: null, email: 'unlabelled@example.com', bouncedAt: null, isPrimary: false }],
+}, true);
+assert.deepEqual(inboxFallback.map((row) => row._recipient && row._recipient.email || null),
+  ['unlabelled@example.com', null],
+  'all-contact preparation must also include the company inbox used by the Email workspace fallback');
 assert.doesNotMatch(writer, /\.\.\.\(MISSING_ONLY \? \{\s*messages:/,
   'missing-only repair must include a business whose entire campaign is missing');
 assert.match(writer, /INCOMPLETE:/,
