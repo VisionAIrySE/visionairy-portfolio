@@ -41,6 +41,20 @@ assert.match(app, /recipientChoicesChanged==='true'/,
   'closing a company must save changed recipient choices automatically');
 assert.match(app, /Save recipient choices/,
   'recipient choices must also have a clear save action above the contact list');
+assert.match(app, /selectAll\.checked=all\.every/,
+  'clearing an individual Email-page recipient must clear its select-all checkbox');
+assert.match(app, /querySelector\('#selectAllContacts'\)\.checked=all\.every/,
+  'clearing an individual company-page recipient must clear its select-all checkbox');
+assert.doesNotMatch(app, /contact\.deleteMany\(\{ where: \{ id: \{ in: goners/,
+  'archiving a contact must preserve the record rather than delete it');
+assert.match(app, /setAsideReason: 'archived by Russ in the CRM'/,
+  'archived contacts must be retained with a plain explanation');
+assert.match(app, /Archived contacts \(\$\{archivedContacts\.length\}\)/,
+  'the company account must keep archived contacts available for later restoration');
+assert.match(app, /Save contact choices/,
+  'the company account must put a save action beside the contact controls');
+assert.match(app, /if\(this\.checked\).*querySelector\('input\[name=remove\]'/,
+  'Send and Archive must be mutually exclusive for each contact');
 assert.match(app, /what === 'recipients'/);
 assert.doesNotMatch(app, /Choose at least one contact with a working email\. Nothing was changed\./,
   'saving no checked contacts must not silently restore the default recipient');

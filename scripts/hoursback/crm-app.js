@@ -1333,12 +1333,13 @@ async function emailScreen(params) {
       ${nested ? '' : availableContacts.length ? `<form method="POST" action="/email/recipients/${m.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices">
         <h3 style="margin:16px 0 4px">Who should receive this campaign?</h3>
         <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Saving updates the recipient shown above and refreshes the first email for that person. It does not send anything.</p>
-        ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;vertical-align:middle"
+        ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
           ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
           onclick="this.form.querySelectorAll('input[name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this))">
           <b>Select all ${availableContacts.length} contacts</b></label>` : ''}
         <div class="contact-choices">${availableContacts.map((person) => `<label style="display:block;margin:7px 0">
-          <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}>
+          <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}
+            onchange="const all=[...this.form.querySelectorAll('input[name=recipient]')];const selectAll=this.form.querySelector('.select-all-contacts');if(selectAll)selectAll.checked=all.every(function(box){return box.checked})">
           <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)}</span>
         </label>`).join('')}</div>
         <button>Save recipient choices and refresh first email</button>
@@ -1398,7 +1399,7 @@ async function emailScreen(params) {
         ${availableContacts.length ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
           <p class="mini" style="margin-top:0">One checkmark controls each person. Checked means their complete campaign is included and ready for your next Send action. Open any person to spot-check all four messages. Changes save automatically when you close this company.</p>
           <button form="${formId}" style="margin:3px 0 8px">Save recipient choices</button>
-          ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;vertical-align:middle"
+          ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
             ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
             onclick="document.querySelectorAll('input[form=${formId}][name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this));this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
             <b>Select all ${availableContacts.length} contacts</b></label>` : ''}
@@ -1410,7 +1411,7 @@ async function emailScreen(params) {
             return `<div class="recipient" style="margin:8px 0">
               <label style="display:block;margin:0 0 6px">
                 <input form="${formId}" type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${checked ? 'checked' : ''}
-                  onchange="this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
+                  onchange="const group=this.closest('details.company-campaign');group.dataset.recipientChoicesChanged='true';const all=[...group.querySelectorAll('input[form=${formId}][name=recipient]')];const selectAll=group.querySelector('.select-all-contacts');if(selectAll)selectAll.checked=all.every(function(box){return box.checked})">
                 <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)} · ${esc(status)}</span>
               </label>
               ${campaign ? one(campaign, { nested: true, showApproval: false }) : ''}
@@ -1566,6 +1567,7 @@ async function peopleScreen(params, saved) {
   const PER = 40;
 
   const where = {
+    setAsideAt: null,
     prospect: { doNotContact: false },
     ...(only ? { prospectId: only } : {}),
     ...(q ? { OR: [
@@ -1606,8 +1608,10 @@ async function peopleScreen(params, saved) {
     const activeMessages = L.activeUnsentMessages(c.prospect.messages);
     const msg = activeMessages.find(L.isFirstContactMessage) || activeMessages[0];
     return `<tr style="border-bottom:1px solid #f0eee5">
-      <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
-      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"> go</label></td>
+      <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}
+        onchange="if(this.checked){const archive=this.closest('tr').querySelector('input[name=remove]');if(archive)archive.checked=false}const all=[...this.form.querySelectorAll('input[name=send]')];const selectAll=this.form.querySelector('#selectAllContacts');if(selectAll)selectAll.checked=all.every(function(box){return box.checked})"></td>
+      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"
+        onchange="if(this.checked){this.closest('tr').querySelector('input[name=send]').checked=false;const selectAll=this.form.querySelector('#selectAllContacts');if(selectAll)selectAll.checked=false}"> archive</label></td>
       <td>${cell(c.id, 'name', c.name, 'nobody named')}</td>
       <td>${cell(c.id, 'role', c.role, 'what they do')}</td>
       <td>${cell(c.id, 'email', c.email, 'no address')}</td>
@@ -1653,7 +1657,7 @@ async function peopleScreen(params, saved) {
   </form>
   <form method="POST" action="/people/save?page=${page_}${only ? `&business=${only}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}">
   <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
-    <tr style="text-align:left"><th>Writes to</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
+    <tr style="text-align:left"><th>Writes to</th><th>Archive</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th><th>Business</th><th>Their message</th></tr>
     ${people.map(row).join('') || '<tr><td colspan="9" class="muted">Nobody here.</td></tr>'}
   </table></div>
   <p style="margin-top:14px"><button class="primary">Save everything on this page</button>
@@ -1772,6 +1776,8 @@ async function businessCard(id, saved) {
     : p.siteStatus === 'READ'
       ? 'contact details scanned; full research waiting'
       : (SITE_STATUS_LABELS[p.siteStatus] || 'not read yet');
+  const activeContacts = p.contacts.filter((contact) => !contact.setAsideAt);
+  const archivedContacts = p.contacts.filter((contact) => contact.setAsideAt);
   return page(`
   ${saved ? `<div class="card" style="background:#dcfce7;border-color:#16a34a">${esc(saved === '1' ? 'Saved.' : saved)}</div>` : ''}
   ${BUSY.has(p.id) ? `<div class="card" style="background:#fef9c3;border-color:#ca8a04">Reading their website now — this page will update itself in a moment.</div>
@@ -1924,20 +1930,22 @@ async function businessCard(id, saved) {
       </details>`).join('')}`;
   })()}
 
-  <h2>Who works there (${p.contacts.length})</h2>
-  <p class="muted">Every box below is editable. Change anything, tick who the message goes to, and press save once at the
-    bottom. What you type is kept as yours — no later reading of their website overwrites it.</p>
+  <h2>Who works there (${activeContacts.length})</h2>
+  <p class="muted">Every box below is editable. Choose either Send or Archive for a person, then press save once at the bottom. Archive keeps the contact on this account and stops using them for outreach. What you type is kept as yours — no later reading of their website overwrites it.</p>
   <form id="contactMessageChanges" method="POST" action="/people/save?back=${p.id}">
-  ${p.contacts.length ? `<p class="row" style="margin:6px 0 12px">
-    <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle" ${p.contacts.every((c) => c.isPrimary) ? 'checked' : ''}
-      onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this))">
-      <b>Select all ${p.contacts.length} contacts</b></label>
+  ${activeContacts.length ? `<p class="row" style="margin:6px 0 12px">
+    <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle" ${activeContacts.every((c) => c.isPrimary) ? 'checked' : ''}
+      onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this));if(this.checked)this.form.querySelectorAll('input[name=remove]').forEach(function(box){box.checked=false})">
+      <b>Select all ${activeContacts.length} contacts</b></label>
+    <button type="submit" class="primary" style="width:auto">Save contact choices</button>
   </p>
   <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px">
-    <tr style="text-align:left"><th>Send</th><th>Remove</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th></tr>
-    ${p.contacts.map((c) => `<tr style="border-bottom:1px solid #f0eee5${c.bouncedAt ? ';opacity:.5' : ''}">
-      <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}></td>
-      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"> go</label></td>
+    <tr style="text-align:left"><th>Send</th><th>Archive</th><th>Name</th><th>Role</th><th>Email</th><th>Direct line</th><th>LinkedIn</th></tr>
+    ${activeContacts.map((c) => `<tr style="border-bottom:1px solid #f0eee5${c.bouncedAt ? ';opacity:.5' : ''}">
+      <td style="text-align:center"><input type="checkbox" name="send" value="${c.id}" style="width:auto" ${c.isPrimary ? 'checked' : ''}
+        onchange="if(this.checked)this.closest('tr').querySelector('input[name=remove]').checked=false;const all=[...this.form.querySelectorAll('input[name=send]')];this.form.querySelector('#selectAllContacts').checked=all.every(function(box){return box.checked})"></td>
+      <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"
+        onchange="if(this.checked){this.closest('tr').querySelector('input[name=send]').checked=false;this.form.querySelector('#selectAllContacts').checked=false}"> archive</label></td>
       <td><input name="p.${c.id}.name" value="${esc(c.name || '')}" placeholder="nobody named" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.role" value="${esc(c.role || '')}" placeholder="what they do" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.email" value="${esc(c.email || '')}" placeholder="no address" style="padding:5px 7px;font-size:14px">${c.bouncedAt ? '<div class="mini">bounced</div>' : ''}</td>
@@ -1950,7 +1958,12 @@ async function businessCard(id, saved) {
           style="width:auto;padding:3px 8px;font-size:12px;margin-top:3px"
           >Write ${esc(c.name.split(' ')[0])}'s note</button></div>` : ''}</td>
     </tr>`).join('')}
-  </table></div>` : '<p class="muted">Nobody found on their site yet.</p>'}
+  </table></div>` : '<p class="muted">Nobody active is on this account.</p>'}
+  ${archivedContacts.length ? `<details class="card secondary-tools"><summary><b>Archived contacts (${archivedContacts.length})</b></summary>
+    <p class="mini">These records are preserved but are not used for outreach.</p>
+    ${archivedContacts.map((c) => `<div class="row" style="margin:8px 0"><span><b>${esc(c.name || 'Name not confirmed')}</b>${c.role ? ` · ${esc(c.role)}` : ''}${c.email ? ` · ${esc(c.email)}` : ''}<br><span class="mini">${esc(c.setAsideReason || 'archived')}</span></span>
+      ${c.mergedIntoId ? '<span class="mini">duplicate kept for history</span>' : `<label class="mini" style="display:inline;width:auto"><input type="checkbox" name="restore" value="${c.id}" style="width:auto"> restore</label>`}</div>`).join('')}
+  </details>` : ''}
 
   <h2>Why call them</h2>${tells}
 
@@ -2880,19 +2893,39 @@ const server = http.createServer(async (req, res) => {
           }
           const submittedPersonIds = [...changedPerson.keys()];
 
-          let people = 0; let notes = 0; let lined = 0; let incompleteCampaigns = 0; let removed = 0; let selectedPeople = 0;
+          let people = 0; let notes = 0; let lined = 0; let incompleteCampaigns = 0; let archived = 0; let restored = 0; let selectedPeople = 0;
           const clashes = [];
+          const affectedProspectIds = new Set();
 
-          // Taking somebody off the list. Done FIRST, so a person being removed
-          // never blocks somebody else being given their address. Russ:
-          // "I also need to be able to delete contacts" (2026-08-28).
+          // Archiving is reversible. The old "go" checkbox permanently deleted
+          // the contact even though the Contact model explicitly preserves
+          // removed and duplicate people with setAsideAt.
           const goners = [].concat(form.remove || []).filter(Boolean);
           if (goners.length) {
             try {
-              const r = await db.contact.deleteMany({ where: { id: { in: goners } } });
-              removed = r.count;
+              const rows = await db.contact.findMany({ where: { id: { in: goners } }, select: { prospectId: true } });
+              rows.forEach((person) => affectedProspectIds.add(person.prospectId));
+              const r = await db.contact.updateMany({
+                where: { id: { in: goners }, setAsideAt: null },
+                data: { setAsideAt: new Date(), setAsideReason: 'archived by Russ in the CRM', isPrimary: false },
+              });
+              archived = r.count;
               for (const id of goners) { changedPerson.delete(id); }
-            } catch (e) { clashes.push('somebody could not be removed'); }
+            } catch (e) { clashes.push('somebody could not be archived'); }
+          }
+          const returning = [].concat(form.restore || []).filter(Boolean);
+          if (returning.length) {
+            try {
+              const rows = await db.contact.findMany({
+                where: { id: { in: returning }, mergedIntoId: null }, select: { prospectId: true },
+              });
+              rows.forEach((person) => affectedProspectIds.add(person.prospectId));
+              const r = await db.contact.updateMany({
+                where: { id: { in: returning }, mergedIntoId: null },
+                data: { setAsideAt: null, setAsideReason: null },
+              });
+              restored = r.count;
+            } catch (e) { clashes.push('somebody could not be restored'); }
           }
           for (const [id, fields] of changedPerson) {
             const before = await db.contact.findUnique({ where: { id } });
@@ -2961,7 +2994,8 @@ const server = http.createServer(async (req, res) => {
           const affected = activeSubmittedPersonIds.length ? await db.contact.findMany({
             where: { id: { in: activeSubmittedPersonIds } }, select: { prospectId: true },
           }) : [];
-          for (const prospectId of [...new Set(affected.map((person) => person.prospectId))]) {
+          affected.forEach((person) => affectedProspectIds.add(person.prospectId));
+          for (const prospectId of affectedProspectIds) {
             const hasSelectedRecipient = await db.contact.count({
               where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
             });
@@ -2991,7 +3025,7 @@ const server = http.createServer(async (req, res) => {
             } catch { noteSaid = ' The LinkedIn note could not be written.'; }
           }
 
-          const said = `Saved. ${selectedPeople} ${selectedPeople === 1 ? 'contact selected' : 'contacts selected'}, ${people} ${people === 1 ? 'person' : 'people'} changed, ${removed} removed, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
+          const said = `Saved. ${selectedPeople} ${selectedPeople === 1 ? 'contact selected' : 'contacts selected'}, ${people} ${people === 1 ? 'person' : 'people'} changed, ${archived} archived, ${restored} restored, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
             + (incompleteCampaigns ? ` ${incompleteCampaigns} incomplete campaign${incompleteCampaigns === 1 ? ' was' : 's were'} saved but not marked ready; its missing messages must be prepared first.` : '')
             + noteSaid
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
