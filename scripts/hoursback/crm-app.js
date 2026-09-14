@@ -1302,6 +1302,7 @@ async function emailScreen(params) {
   // open twenty letters.
   const one = (m, options = {}) => {
     const nested = Boolean(options.nested);
+    const showApproval = options.showApproval !== false;
     const recipient = emailRecipient(m);
     const step = emailStep(m);
     const researched = Boolean(m.prospect.readings && m.prospect.readings.length);
@@ -1315,9 +1316,9 @@ async function emailScreen(params) {
       || String(person.email).trim().toLowerCase() === String(recipient.address).trim().toLowerCase());
     return `<details class="card${nested ? ' contact-campaign' : ''}" id="email-${m.id}" style="padding:0" data-business="${m.prospectId}"${params.get('changed') === m.id ? ' open' : ''}>
     <summary class="email-summary" style="cursor:pointer;padding:11px 12px;list-style:none">
-      <label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
+      ${showApproval ? `<label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
         <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
-          style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : !complete ? 'disabled' : ''}></label>
+          style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : !complete ? 'disabled' : ''}></label>` : '<span></span>'}
       <div>${nested ? '' : `<b>${esc(resolveField(m.prospect, 'name'))}</b>`}<div${nested ? '' : ' class="mini"'}><b>${esc(recipient.name)}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ''}</div></div>
       <div class="subject"><b>${esc(m.subject || 'No subject')}</b><div class="mini">${esc(step.label)} · ${esc(step.day)}</div></div>
       ${scoreBadge(m.prospect.automationScore, m.prospectId)}
@@ -1367,46 +1368,55 @@ async function emailScreen(params) {
     const messages = company.messages;
     const prospect = company.prospect;
     const availableContacts = (prospect.contacts || []).filter((person) => person.email && !person.bouncedAt);
-    const shownAddresses = new Set(messages.map((message) => String(emailRecipient(message).address || '').trim().toLowerCase()));
-    const selectedContacts = availableContacts.filter((person) => person.isPrimary
-      || shownAddresses.has(String(person.email || '').trim().toLowerCase()));
+    const selectedContacts = availableContacts.filter((person) => person.isPrimary);
     const selectedCount = intendedEmailRecipients(prospect).length;
     const isComplete = (message) => Boolean(message.prospect.readings && message.prospect.readings.length)
       && L.campaignHasCompleteSequence(message);
     const completeCount = messages.filter(isComplete).length;
-    const readyCount = messages.filter((message) => message.state === 'QUEUED' && isComplete(message)).length;
+    const readyCount = messages.filter(isComplete).length;
     const campaignsWaiting = Math.max(0, selectedCount - completeCount);
+    const readinessLabel = readyCount === selectedCount ? 'Ready to send' : `${readyCount} ready to send`;
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
     }
     const first = messages[0];
+    const formId = `recipient-form-${company.id}`;
+    const campaignByAddress = new Map(messages.map((message) => [
+      String(emailRecipient(message).address || '').trim().toLowerCase(), message,
+    ]));
     return `<details class="card company-campaign" data-business="${company.id}"
       ontoggle="if(!this.open&amp;&amp;this.dataset.recipientChoicesChanged==='true'){this.dataset.recipientChoicesChanged='false';this.querySelector('form.recipient-choices').requestSubmit()}"
       ${messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
       <summary class="company-summary">
-        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readyCount} ready to send</div></div>
+        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
         <span class="state muted" style="font-size:12px">${campaignsWaiting ? `${completeCount} of ${selectedCount} campaigns complete` : 'All campaigns complete'}</span>
       </summary>
       <div class="company-campaign-body">
-        <h3 style="margin:4px 0">Who should receive a campaign?</h3>
-        ${availableContacts.length ? `<form method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"
-          onchange="this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
-          <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Each selected person gets a separately tailored four-message campaign. Changes save automatically when you close this company.</p>
-          <button style="margin:3px 0 8px">Save selected contacts now</button>
+        <h3 style="margin:4px 0">Recipients and their email sequences</h3>
+        ${availableContacts.length ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
+          <p class="mini" style="margin-top:0">One checkmark controls each person. Checked means their complete campaign is included and ready for your next Send action. Open any person to spot-check all four messages. Changes save automatically when you close this company.</p>
+          <button form="${formId}" style="margin:3px 0 8px">Save recipient choices</button>
           ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;vertical-align:middle"
             ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
-            onclick="this.form.querySelectorAll('input[name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this))">
+            onclick="document.querySelectorAll('input[form=${formId}][name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this));this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
             <b>Select all ${availableContacts.length} contacts</b></label>` : ''}
-          <div class="contact-choices">${availableContacts.map((person) => `<label style="display:block;margin:7px 0">
-            <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}>
-            <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)}</span>
-          </label>`).join('')}</div>
-          <button>Save selected contacts now</button>
-        </form>` : '<p class="mini">No individual contact with an email is on file. This company uses its general inbox.</p>'}
-        <h3 style="margin:18px 0 6px">Selected contacts and their email sequences</h3>
-        ${messages.map((message) => one(message, { nested: true })).join('')}
+          <div class="contact-choices">${availableContacts.map((person) => {
+            const address = String(person.email || '').trim().toLowerCase();
+            const campaign = campaignByAddress.get(address);
+            const checked = selectedContacts.some((chosen) => chosen.id === person.id);
+            const status = !checked ? 'Not included' : !campaign ? 'Campaign missing' : isComplete(campaign) ? 'Ready to send' : 'Incomplete — cannot send';
+            return `<div class="recipient" style="margin:8px 0">
+              <label style="display:block;margin:0 0 6px">
+                <input form="${formId}" type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${checked ? 'checked' : ''}
+                  onchange="this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
+                <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)} · ${esc(status)}</span>
+              </label>
+              ${campaign ? one(campaign, { nested: true, showApproval: false }) : ''}
+            </div>`;
+          }).join('')}</div>
+          <button form="${formId}">Save recipient choices</button>` : '<p class="mini">No individual contact with an email is on file. This company uses its general inbox.</p>'}
       </div>
     </details>`;
   };
@@ -1418,7 +1428,7 @@ async function emailScreen(params) {
   const sendUnconfirmed = Number(params.get('unconfirmed') || 0);
   const sendRecovered = Number(params.get('recovered') || 0);
   return page(`<h1>Email workspace</h1>
-  <p class="muted">Review who each message is for, select the messages you approve, mark them ready, then send the ready group when you choose.</p>
+  <p class="muted">Choose who should receive a campaign, spot-check as many messages as you want, then send the ready group when you choose.</p>
   ${notice ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(notice)}</b></div>` : ''}
   ${justSent !== null ? `<div class="card" style="background:${sendUnconfirmed ? '#fef3c7;border-color:#d97706' : '#dcfce7;border-color:#16a34a'}"><b>${esc(justSent)} sent.</b>
     ${sendFailed ? `${sendFailed} refused and left queued. ` : ''}${sendBlocked ? `${sendBlocked} blocked before delivery. ` : ''}${sendRecovered ? `${sendRecovered} safely recovered. ` : ''}
@@ -1426,24 +1436,22 @@ async function emailScreen(params) {
   ${unconfirmed.length ? `<div class="card warn"><b>${unconfirmedTotal} email outcome${unconfirmedTotal === 1 ? ' needs' : 's need'} review.</b> The CRM will not retry ${unconfirmedTotal === 1 ? 'it' : 'them'} automatically because the provider may already have accepted ${unconfirmedTotal === 1 ? 'it' : 'them'}.
     <ul>${unconfirmed.map((m) => `<li><a href="/business/${m.prospectId}">${esc(resolveField(m.prospect, 'name'))}</a> — ${esc(m.deliveryTo || m.sentTo || 'recipient unknown')}${m.deliveryError ? ` — ${esc(m.deliveryError)}` : ''}</li>`).join('')}</ul></div>` : ''}
   <div class="score">
-    <div><b>${queuedAllTold}</b>ready to send<br><span class="muted">ticked and waiting on you</span></div>
+    <div><b>${queuedAllTold}</b>ready to send<br><span class="muted">first emails waiting for your final send</span></div>
     <div><b>${waitingAllTold - queuedAllTold}</b>drafts to review</div>
     <div><b>${sent}</b>sent so far</div>
   </div>
   <p class="mini">${reachable} companies can be reached by email. ${left >= Number.MAX_SAFE_INTEGER ? 'There is no daily sending limit.' : `${left} messages remain available today.`}</p>
   ${wording}
   <div class="workspace">
-    <div class="step"><b>1. Review</b><span>Open a company below. Confirm the recipient and read the message.</span></div>
-    <div class="step"><b>2. Select</b><span>Tick the messages you approve, then mark the selected group ready.</span></div>
-    <div class="step"><b>3. Send</b><span>Send the ready group when you choose. Nothing sends merely because it was selected.</span></div>
+    <div class="step"><b>1. Choose and review</b><span>Open a company, check its recipients, and spot-check any message chains you want to read.</span></div>
+    <div class="step"><b>2. Send</b><span>Send the ready group when you choose. Saving recipient choices never sends email.</span></div>
   </div>
   <div class="row" style="justify-content:flex-start;margin:10px 0 18px">
-    <button form="pickForm" ${approved ? '' : 'disabled'}>Mark selected messages ready</button>
-    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 && queuedAllTold > 0 ? 'class="primary"' : 'disabled'}>Send ${queuedAllTold} ready message${queuedAllTold === 1 ? '' : 's'} now</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 && queuedAllTold > 0 ? 'class="primary"' : 'disabled'}>Send ${queuedAllTold} ready email${queuedAllTold === 1 ? '' : 's'} now</button></form>
   </div>
   ${batch.length ? `<h2>After-call follow-ups waiting (${batch.length})</h2>
     <p class="muted">Written from what you promised on the call. None of them go anywhere until you release them.</p>
-    ${batch.slice(0, 5).map(one).join('')}
+    ${batch.slice(0, 5).map((message) => one(message, { showApproval: false })).join('')}
     <form method="POST" action="/email/batch"><button class="primary">Release all ${batch.length}</button></form>` : ''}
   <details class="card secondary-tools" style="background:${process.env.RESEND_WEBHOOK_SECRET ? '#f7f9ef' : '#fef3c7;border-color:#d97706'}">
     <summary><b>Delivery and reply tracking: ${process.env.RESEND_WEBHOOK_SECRET ? 'working' : 'needs attention'}</b></summary>
@@ -1490,27 +1498,10 @@ async function emailScreen(params) {
   ${review === 'readthrough' ? `<p class="mini">${matching} of ${waitingTotal} have had their whole website read and their words kept — every one of these is written from what the business actually says about itself.</p>` : ''}
   ${review === 'trade' ? '<p class="mini">These still open on the sentence written for their whole trade. Nothing is wrong with them — their website simply had not been read closely enough yet to say something only about them.</p>' : ''}
   <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
-  <!-- Tick the ones to go out, then one button at the bottom. A button under
-       every single message meant 645 separate clicks and no way to see what
-       you had chosen (Russ, 2026-08-28: "rather than have a button for each
-       name, why not have a check box next to them that activates sending once
-       the screen is saved?"). The checkboxes sit inside each card but belong
-       to this one form, which is what keeps the wording editor working. -->
-  <form id="pickForm" method="POST" action="/email/queue"></form>
-  <!-- TICK THEM ALL (Russ, 2026-09-04: "is there a Select All button?"). Ticks
-       only the ones on this page, and only the ones that can still be ticked —
-       anything already marked ready is shown greyed and is left alone. It marks
-       nothing by itself: the button below is still the one that acts. -->
-  <p class="row" style="margin:6px 0 0">
-    <label style="display:inline;width:auto"><input type="checkbox" id="tickAll" style="width:auto;vertical-align:middle"
-      onclick="document.querySelectorAll('input[name=pick]:not([disabled])').forEach(function(b){b.checked=this.checked}.bind(this))">
-      tick all ${ready.length} recipient campaigns in these ${visibleCompanies.length} compan${visibleCompanies.length === 1 ? 'y' : 'ies'}</label>
-  </p>
   <p class="muted">Open a company to see its selected contacts and their roles. Open a contact to review that person&rsquo;s complete email sequence: Day 0, Day 4, Day 8, and Day 14.</p>
   ${visibleCompanies.map(companyAccordion).join('') || '<p class="muted">Nothing written yet.</p>'}
   <div class="row" style="justify-content:flex-start;margin:18px 0">
-    <button form="pickForm" ${approved ? '' : 'disabled'}>Mark selected messages ready</button>
-    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 && queuedAllTold > 0 ? 'class="primary"' : 'disabled'}>Send ${queuedAllTold} ready message${queuedAllTold === 1 ? '' : 's'} now</button></form>
+    <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 && queuedAllTold > 0 ? 'class="primary"' : 'disabled'}>Send ${queuedAllTold} ready email${queuedAllTold === 1 ? '' : 's'} now</button></form>
   </div>
   <details class="card secondary-tools"><summary><b>Prepare messages and testing tools</b></summary>
     <p class="mini">Use these when starting a new batch or checking the email connection. They are not part of the normal review-and-send routine.</p>
@@ -2747,8 +2738,9 @@ const server = http.createServer(async (req, res) => {
             return returnToMessage('Company excluded from email sending. Select a contact later to restore its campaigns.');
           }
           const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
+          const readiness = await L.syncSelectedEmailCampaigns(db, message.prospectId);
           const said = refreshed
-            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. The current first email now matches ${refreshed.sentTo || 'the first selected contact'}. Each additional person will appear as a separate campaign after all four of their messages are prepared.`
+            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} complete first email${readiness.ready === 1 ? ' is' : 's are'} ready for your next Send action.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}`
             : 'The recipient choices were saved, but there is no sendable first email for this company.';
           return returnToMessage(said);
         }
@@ -2956,9 +2948,9 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { clashes.push('one message could not be saved'); }
           }
 
-          // The ticks: who the message is addressed to at each business, and
-          // their message lined up. Lining up is not sending — the daily cap,
-          // the approved wording and the key all still stand in the way.
+          // The recipient tick is the only approval decision. A selected
+          // person's complete campaign is made ready; opening the sequence is
+          // optional review and does not require a second checkbox.
           const ticked = [].concat(form.send || []).filter(Boolean);
           try {
           const activeSubmittedPersonIds = submittedPersonIds.filter((id) => !goners.includes(id));
@@ -2966,51 +2958,23 @@ const server = http.createServer(async (req, res) => {
           const selectedSubmittedIds = ticked.filter((id) => submittedSet.has(id));
           const selection = await L.saveContactSelections(db, activeSubmittedPersonIds, selectedSubmittedIds);
           selectedPeople = selection.selected;
-          if (selectedSubmittedIds.length) {
-            const chosen = await db.contact.findMany({ where: { id: { in: selectedSubmittedIds } }, select: { id: true, prospectId: true, email: true } });
-            const byBusiness = new Map();
-            for (const contact of chosen.filter((c) => c.email)) {
-              const contacts = byBusiness.get(contact.prospectId) || [];
-              contacts.push(contact);
-              byBusiness.set(contact.prospectId, contacts);
+          const affected = activeSubmittedPersonIds.length ? await db.contact.findMany({
+            where: { id: { in: activeSubmittedPersonIds } }, select: { prospectId: true },
+          }) : [];
+          for (const prospectId of [...new Set(affected.map((person) => person.prospectId))]) {
+            const hasSelectedRecipient = await db.contact.count({
+              where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
+            });
+            if (!hasSelectedRecipient) {
+              await L.excludeEmailCampaigns(db, prospectId);
+              continue;
             }
-            for (const [prospectId, contacts] of byBusiness) {
-              // The selection has just been saved, so rebuild the current
-              // first email for the selected person's name, role, company and
-              // industry before marking it ready. Without this step the old
-              // recipient's wording could be sent to the newly selected one.
-              await L.draftFor(db, prospectId, 'EMAIL');
-              const candidates = await db.outreachMessage.findMany({
-                where: {
-                  prospectId, lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
-                  openedWith: { not: 'after_the_call' },
-                  NOT: { openedWith: { startsWith: 'touch_' } },
-                },
-                orderBy: { createdAt: 'asc' },
-              });
-              const campaignMessages = await db.outreachMessage.findMany({
-                where: { prospectId, lane: 'EMAIL' },
-                select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, deliveryState: true },
-              });
-              const firsts = L.canonicalFirstMessages(candidates);
-              for (const [index, recipient] of contacts.entries()) {
-                const address = String(recipient.email || '').trim().toLowerCase();
-                const first = firsts.find((message) => String(message.sentTo || '').trim().toLowerCase() === address)
-                  || (index === 0 ? firsts.find((message) => !message.sentTo) : null);
-                if (!first) { incompleteCampaigns += 1; continue; }
-                if (first.state === 'QUEUED') continue;
-                if (first.state !== 'DRAFT'
-                  || !L.campaignHasCompleteSequence({ ...first, sentTo: recipient.email, prospect: { messages: campaignMessages } })) {
-                  incompleteCampaigns += 1;
-                  continue;
-                }
-                await db.outreachMessage.update({
-                  where: { id: first.id },
-                  data: { state: 'QUEUED', queuedAt: new Date(), sentTo: recipient.email },
-                });
-                lined += 1;
-              }
-            }
+            // Rebuild Day 0 for the saved recipient before readiness is synced,
+            // so a changed selection cannot inherit another person's wording.
+            await L.draftFor(db, prospectId, 'EMAIL');
+            const readiness = await L.syncSelectedEmailCampaigns(db, prospectId);
+            lined += readiness.ready;
+            incompleteCampaigns += readiness.incomplete;
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
 
@@ -3175,4 +3139,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 const PORT = Number(process.env.PORT || 4747);
-server.listen(PORT, '0.0.0.0', () => console.log(`Hours Back CRM on port ${PORT}${PASSWORD ? ' (password-locked)' : ' (local, no password)'}`));
+server.listen(PORT, process.env.HOST || '0.0.0.0', () => console.log(`Hours Back CRM on port ${PORT}${PASSWORD ? ' (password-locked)' : ' (local, no password)'}`));

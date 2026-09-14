@@ -16,25 +16,30 @@ const { addContext, hasContext } = require('./add-followup-context.cjs');
 const { addLocalContext, hasLocalContext } = require('./add-local-context.cjs');
 
 assert.match(app, /<h1>Email workspace<\/h1>/);
-assert.match(app, /1\. Review/);
-assert.match(app, /2\. Select/);
-assert.match(app, /3\. Send/);
+assert.match(app, /1\. Choose and review/);
+assert.match(app, /2\. Send/);
+assert.doesNotMatch(app, /Approve checked first emails/,
+  'selected recipients must not require a second approval checklist');
+assert.match(app, /recipient.*readinessLabel/,
+  'the company summary must show the recipient count and one clear readiness result');
 assert.match(app, /Recipient:/);
 assert.match(app, /Who should receive this campaign\?/);
 assert.match(app, /Save recipient choices and refresh first email/);
 assert.match(app, /visibleCompanies\.map\(companyAccordion\)/,
   'the Email page must group recipient campaigns under their company');
-assert.match(app, /Selected contacts and their email sequences/,
-  'opening a company must show its selected contacts before their email sequences');
-assert.match(app, /one\(message, \{ nested: true \}\)/,
-  'opening a selected contact must show that person\'s campaign as a nested accordion');
+assert.match(app, /Recipients and their email sequences/,
+  'opening a company must combine recipient selection with campaign review');
+assert.match(app, /one\(campaign, \{ nested: true, showApproval: false \}\)/,
+  'each recipient must have one checkbox beside their expandable campaign');
 assert.match(app, /selectedCount = intendedEmailRecipients\(prospect\)\.length/,
   'the company heading must count selected recipients rather than already-written campaigns');
-assert.match(app, /message\.state === 'QUEUED' && isComplete\(message\)/,
-  'the ready count must include only queued campaigns whose full sequence is complete');
+assert.match(app, /const readyCount = messages\.filter\(isComplete\)\.length/,
+  'the ready count must reflect selected campaigns that pass the automatic checks');
+assert.match(app, /L\.syncSelectedEmailCampaigns\(db, message\.prospectId\)/,
+  'saving recipient choices must make complete campaigns ready without a second approval step');
 assert.match(app, /recipientChoicesChanged==='true'/,
   'closing a company must save changed recipient choices automatically');
-assert.match(app, /Save selected contacts now/,
+assert.match(app, /Save recipient choices/,
   'recipient choices must also have a clear save action above the contact list');
 assert.match(app, /what === 'recipients'/);
 assert.doesNotMatch(app, /Choose at least one contact with a working email\. Nothing was changed\./,

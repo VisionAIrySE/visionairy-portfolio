@@ -196,6 +196,67 @@ async function excludeEmailCampaigns(db, prospectId) {
   });
 }
 
+// The recipient checkbox is the one decision Russ makes. Once a selected
+// person's complete, researched campaign exists, its first email is ready for
+// the next explicit Send action. A deselected person's unsent first email goes
+// back to draft, so there is no second set of approval checkboxes to reconcile.
+async function syncSelectedEmailCampaigns(db, prospectId) {
+  const prospect = await db.prospect.findUnique({
+    where: { id: prospectId },
+    select: {
+      doNotContact: true, repliedAt: true,
+      contacts: {
+        where: { isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
+        select: { email: true },
+      },
+      readings: {
+        where: {
+          source: 'website', outcome: 'read',
+          pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+        },
+        select: { id: true }, take: 1,
+      },
+      messages: {
+        where: { lane: 'EMAIL' },
+        select: {
+          id: true, prospectId: true, lane: true, state: true, openedWith: true,
+          sentTo: true, sentAt: true, queuedAt: true, deliveryState: true,
+        },
+      },
+    },
+  });
+  if (!prospect || prospect.doNotContact || prospect.repliedAt) return { ready: 0, incomplete: 0 };
+  const normalize = (value) => String(value || '').trim().toLowerCase();
+  const selected = new Set(prospect.contacts.map((contact) => normalize(contact.email)).filter(Boolean));
+  const firsts = canonicalFirstMessages(prospect.messages.filter((message) =>
+    !message.sentAt && !message.deliveryState && ['DRAFT', 'QUEUED'].includes(message.state)));
+  let ready = 0; let incomplete = 0;
+  for (const first of firsts) {
+    const recorded = normalize(first.sentTo);
+    const address = recorded || (selected.size === 1 ? [...selected][0] : '');
+    const chosen = address && selected.has(address);
+    const complete = chosen && prospect.readings.length
+      && campaignHasCompleteSequence({ ...first, sentTo: address, prospect });
+    if (complete) {
+      if (first.state !== 'QUEUED' || first.sentTo !== address) {
+        await db.outreachMessage.update({
+          where: { id: first.id },
+          data: { state: 'QUEUED', queuedAt: first.queuedAt || new Date(), sentTo: address },
+        });
+      }
+      ready += 1;
+    } else {
+      if (chosen) incomplete += 1;
+      if (first.state === 'QUEUED') {
+        await db.outreachMessage.update({
+          where: { id: first.id }, data: { state: 'DRAFT', queuedAt: null },
+        });
+      }
+    }
+  }
+  return { ready, incomplete };
+}
+
 function isFirstContactMessage(message) {
   const opening = String(message && message.openedWith || '');
   return message && message.lane === 'EMAIL'
@@ -1074,6 +1135,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };
