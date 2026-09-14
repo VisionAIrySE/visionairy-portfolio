@@ -99,6 +99,10 @@ const inboxFallback = W.expandRecipientCampaigns({
 assert.deepEqual(inboxFallback.map((row) => row._recipient && row._recipient.email || null),
   ['unlabelled@example.com', null],
   'all-contact preparation must also include the company inbox used by the Email workspace fallback');
+assert.match(writer, /openedWith: `touch_\$\{touch\}`, sentTo: null/,
+  'a single-recipient repair must reuse legacy recipientless follow-ups');
+assert.match(writer, /for \(const row of haveRows\) row\.sentTo = campaignAddress/,
+  'a claimed legacy follow-up must remain correctly addressed for the rest of the repair');
 assert.doesNotMatch(writer, /\.\.\.\(MISSING_ONLY \? \{\s*messages:/,
   'missing-only repair must include a business whose entire campaign is missing');
 assert.match(writer, /INCOMPLETE:/,

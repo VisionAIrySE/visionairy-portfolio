@@ -647,11 +647,25 @@ if (require.main === module) (async () => {
 
     for (const touch of [2, 3, 4].filter((n) => !TOUCH || TOUCH === n)) {
       const campaignAddress = recipientAddress || dayZeroRow.sentTo || null;
-      const haveRows = await db.outreachMessage.findMany({
+      let haveRows = await db.outreachMessage.findMany({
         where: { prospectId: p.id, lane: 'EMAIL', openedWith: `touch_${touch}`, sentTo: campaignAddress },
         orderBy: { createdAt: 'asc' },
       });
+      if (!haveRows.length && campaignAddress && mayClaimRecipientlessFirst) {
+        haveRows = await db.outreachMessage.findMany({
+          where: { prospectId: p.id, lane: 'EMAIL', openedWith: `touch_${touch}`, sentTo: null },
+          orderBy: { createdAt: 'asc' },
+        });
+      }
       const have = haveRows[0] || null;
+      if (DO_IT && have && !have.sentTo && campaignAddress
+        && !have.sentAt && !have.deliveryState) {
+        await db.outreachMessage.updateMany({
+          where: { id: { in: haveRows.map((row) => row.id) } },
+          data: { sentTo: campaignAddress },
+        });
+        for (const row of haveRows) row.sentTo = campaignAddress;
+      }
       // Completeness repair means exactly that: fill empty campaign slots and
       // leave every existing message byte-for-byte alone.
       if (MISSING_ONLY && have) { already += 1; continue; }
