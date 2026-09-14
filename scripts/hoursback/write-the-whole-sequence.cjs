@@ -366,7 +366,7 @@ function acceptableOpening(passage) {
     && !/\b(?:I(?:'d| would)|we(?:'d| would))\s+(?:examine|review|assess|fix)\b/i.test(p);
 }
 
-(async () => {
+if (require.main === module) (async () => {
   let giveBack;
   try { giveBack = claimTheMachine('models', { label: 'writing the sequence' }); } catch (e) { console.error(`\n${e.message}\n`); process.exit(73); }
   const letGo = () => { try { giveBack(); } catch { /* gone */ } };
@@ -702,3 +702,15 @@ function acceptableOpening(passage) {
   try { writer.close(); } catch { /* gone */ }
   await db.$disconnect();
 })().catch((e) => { console.error('failed:', e.message); process.exit(1); });
+
+module.exports = {
+  THE_ANGLES,
+  askForFirst,
+  askFor,
+  buildFirstLetter,
+  buildLetter,
+  acceptableSubject,
+  acceptableQuestion,
+  acceptableOpening,
+  addressedSubject,
+};
