@@ -581,7 +581,14 @@ function passable(sentence, {
   // Never address someone by their job title, never a clause about the role.
   if (roleTitle) {
     const title = String(roleTitle).trim().replace(/\s+/g, ' ');
-    if (title && normalise(title).length > 3 && normalise(s).includes(normalise(title))) {
+    const titlePattern = normalise(title).split(' ').filter(Boolean)
+      .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^a-z0-9]+');
+    // Match the recorded title as whole words. A veterinarian's email may
+    // truthfully describe scheduling across "veterinarians" without
+    // addressing the reader as "Veterinarian"; the former is industry work,
+    // while the latter is the title language this rule is meant to stop.
+    if (titlePattern && normalise(title).length > 3
+      && new RegExp(`\\b${titlePattern}\\b`, 'i').test(s)) {
       return { ok: false, why: "names the reader's job title" };
     }
   }

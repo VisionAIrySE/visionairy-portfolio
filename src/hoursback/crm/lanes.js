@@ -158,7 +158,42 @@ async function saveContactSelections(db, visibleContactIds, selectedContactIds) 
       ? [db.contact.updateMany({ where: { id: { in: selected } }, data: { isPrimary: true } })]
       : []),
   ]);
+
+  // Selecting somebody again reverses only the temporary exclusion created
+  // by the Email workspace. Bounce, reply, spam and do-not-contact blocks use
+  // different reasons and remain untouched.
+  if (selected.length) {
+    const selectedRows = await db.contact.findMany({
+      where: { id: { in: selected } }, select: { prospectId: true },
+    });
+    const prospectIds = [...new Set(selectedRows.map((row) => row.prospectId))];
+    if (prospectIds.length) {
+      await db.outreachMessage.updateMany({
+        where: {
+          prospectId: { in: prospectIds }, lane: 'EMAIL', sentAt: null,
+          state: 'SUPPRESSED', suppressedReason: 'no recipients selected',
+        },
+        data: { state: 'DRAFT', suppressedReason: null, queuedAt: null },
+      });
+    }
+  }
   return { visible: visible.length, selected: selected.length };
+}
+
+// Saving a company with every recipient unticked is an intentional pause for
+// that company. It is reversible by selecting a contact again and is distinct
+// from a permanent do-not-contact instruction.
+async function excludeEmailCampaigns(db, prospectId) {
+  return db.outreachMessage.updateMany({
+    where: {
+      prospectId, lane: 'EMAIL', sentAt: null,
+      state: { in: ['DRAFT', 'QUEUED'] },
+      openedWith: { not: 'after_the_call' },
+    },
+    data: {
+      state: 'SUPPRESSED', suppressedReason: 'no recipients selected', queuedAt: null,
+    },
+  });
 }
 
 function isFirstContactMessage(message) {
@@ -1039,6 +1074,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

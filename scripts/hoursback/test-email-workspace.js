@@ -9,6 +9,7 @@ const noticingWriter = fs.readFileSync(path.resolve(__dirname, 'write-noticings.
 const readinessAudit = fs.readFileSync(path.resolve(__dirname, 'audit-email-readiness.cjs'), 'utf8');
 const scheduler = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/crm/scheduler.js'), 'utf8');
 const refresh = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/refresh.js'), 'utf8');
+const lanesSource = fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/crm/lanes.js'), 'utf8');
 const C = require('../../src/hoursback/crm/campaign.js');
 const { addContext, hasContext } = require('./add-followup-context.cjs');
 const { addLocalContext, hasLocalContext } = require('./add-local-context.cjs');
@@ -35,7 +36,14 @@ assert.match(app, /recipientChoicesChanged==='true'/,
 assert.match(app, /Save selected contacts now/,
   'recipient choices must also have a clear save action above the contact list');
 assert.match(app, /what === 'recipients'/);
-assert.match(app, /Choose at least one contact with a working email\. Nothing was changed\./);
+assert.doesNotMatch(app, /Choose at least one contact with a working email\. Nothing was changed\./,
+  'saving no checked contacts must not silently restore the default recipient');
+assert.match(app, /Company excluded from email sending/,
+  'saving no checked contacts must confirm that the company was removed from sending');
+assert.match(lanesSource, /suppressedReason: 'no recipients selected'/,
+  'an empty recipient selection must persist as a reversible campaign exclusion');
+assert.match(lanesSource, /state: 'DRAFT', suppressedReason: null/,
+  'selecting a contact later must restore only campaigns paused by an empty selection');
 assert.match(app, /What follows if they do not reply/);
 assert.match(app, /Incomplete — cannot send/);
 assert.match(app, /incomplete campaign/);
@@ -111,7 +119,7 @@ assert.match(app, /contact details scanned; full research waiting/,
   'the company page must distinguish a quick scan from full website research');
 assert.match(scheduler, /'first', 'second', 'third', 'fourth'/,
   'the scheduled run report must include the Day 14 follow-up');
-assert.match(fs.readFileSync(path.resolve(__dirname, '../../src/hoursback/crm/lanes.js'), 'utf8'), /nothing unresearched was sent/,
+assert.match(lanesSource, /nothing unresearched was sent/,
   'delivery must refuse a website-based campaign until the deep research is on file');
 assert.equal(C.FOLLOWUP_CONTEXT.length, 4);
 

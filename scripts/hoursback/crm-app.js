@@ -1109,18 +1109,20 @@ async function emailScreen(params) {
 
   const [left, readyRows, sent, batch, allFirstRows, unconfirmed, unconfirmedTotal] = await Promise.all([
     L.emailsLeftToday(db, weeks),
-    db.outreachMessage.findMany({
+    db.prospect.findMany({
       // THE FIRST MESSAGE ONLY. The follow-ups are written and stored now
       // rather than invented when a page opens, so without this the list would
       // hold four rows per business and he would be ticking day-eight messages
       // to send today (2026-09-08).
       where: {
-        lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] },
-        openedWith: { not: 'after_the_call' },
-        NOT: { openedWith: { startsWith: 'touch_' } },
-        prospect: prospectWhere,
+        ...prospectWhere,
+        messages: { some: {
+          lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] },
+          openedWith: { not: 'after_the_call' },
+          NOT: { openedWith: { startsWith: 'touch_' } },
+        } },
       },
-      include: { prospect: { include: {
+      include: {
         contacts: {
           where: { setAsideAt: null },
           select: { id: true, name: true, role: true, email: true, isPrimary: true, bouncedAt: true },
@@ -1128,7 +1130,7 @@ async function emailScreen(params) {
         },
         messages: {
           where: { lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] } },
-          select: { id: true, lane: true, state: true, subject: true, body: true, openedWith: true, sentTo: true, editedAt: true, createdAt: true },
+          select: { id: true, prospectId: true, lane: true, state: true, subject: true, body: true, openedWith: true, sentTo: true, editedAt: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
         },
         readings: {
@@ -1138,7 +1140,7 @@ async function emailScreen(params) {
           },
           select: { id: true }, take: 1,
         },
-      } } },
+      },
       // BEST FIRST, AND A BUSINESS WITH NO SCORE IS NOT BEST.
       //
       // Four businesses whose score had never been worked out were sorting
@@ -1155,7 +1157,7 @@ async function emailScreen(params) {
       //
       // A business with no score still sorts last: four unscored ones once sat
       // above every 100 and the whole screen read as random.
-      orderBy: [{ prospect: { automationScore: { sort: 'desc', nulls: 'last' } } }],
+      orderBy: [{ automationScore: { sort: 'desc', nulls: 'last' } }],
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', state: 'SENT' } }),
     L.pendingBatch(db),
@@ -1164,12 +1166,15 @@ async function emailScreen(params) {
     // The list is shown 25 at a time, and "written and waiting" was counting
     // the rows on this page — so it read 25 whether he had 25 letters or 336.
     // Russ asked why it said 25 when the queue held 336. It was never a total.
-    db.outreachMessage.findMany({
+    db.prospect.findMany({
       where: {
-        lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
-        NOT: { openedWith: { startsWith: 'touch_' } }, prospect: { doNotContact: false },
+        doNotContact: false,
+        messages: { some: {
+          lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
+          NOT: { openedWith: { startsWith: 'touch_' } },
+        } },
       },
-      include: { prospect: { include: {
+      include: {
         contacts: {
           where: { setAsideAt: null },
           select: { name: true, email: true, isPrimary: true, bouncedAt: true },
@@ -1186,7 +1191,7 @@ async function emailScreen(params) {
           },
           select: { id: true }, take: 1,
         },
-      } } },
+      },
     }),
     db.outreachMessage.findMany({
       where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' }, include: { prospect: true },
@@ -1194,16 +1199,14 @@ async function emailScreen(params) {
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
   ]);
-  const currentRecipientFirsts = (rows) => {
-    const grouped = new Map();
-    for (const message of rows) {
-      const group = grouped.get(message.prospectId) || { prospect: message.prospect, messages: [] };
-      group.messages.push(message);
-      grouped.set(message.prospectId, group);
-    }
-    return [...grouped.values()].flatMap(({ prospect, messages }) =>
-      currentCampaignMessages(prospect, messages).filter(L.isFirstContactMessage));
-  };
+  // Fetch each company and its messages once. Fetching one first-message row
+  // per recipient and including the company's complete message list on every
+  // row multiplied large companies into tens of thousands of duplicate
+  // objects and could exceed Render's 512 MB service limit.
+  const currentRecipientFirsts = (prospects) => prospects.flatMap((prospect) =>
+    currentCampaignMessages(prospect, prospect.messages)
+      .filter(L.isFirstContactMessage)
+      .map((message) => ({ ...message, prospect })));
   const matchingFirstRows = currentRecipientFirsts(readyRows);
   const groupedCompanies = [];
   const companyById = new Map();
@@ -2738,10 +2741,11 @@ const server = http.createServer(async (req, res) => {
           });
           const allowed = new Set(contacts.filter((person) => person.email && !person.bouncedAt).map((person) => person.id));
           const selected = [...new Set([].concat(form.recipient || []).filter((contactId) => allowed.has(contactId)))];
-          if (!selected.length) {
-            return returnToMessage('Choose at least one contact with a working email. Nothing was changed.');
-          }
           await L.saveContactSelections(db, contacts.map((person) => person.id), selected);
+          if (!selected.length) {
+            await L.excludeEmailCampaigns(db, message.prospectId);
+            return returnToMessage('Company excluded from email sending. Select a contact later to restore its campaigns.');
+          }
           const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
           const said = refreshed
             ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. The current first email now matches ${refreshed.sentTo || 'the first selected contact'}. Each additional person will appear as a separate campaign after all four of their messages are prepared.`

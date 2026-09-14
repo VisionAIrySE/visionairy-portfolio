@@ -194,6 +194,7 @@ function askForFirst({ name, trade, roleTitle, jobs, otherJobs, why }) {
     'or add a sign-off. Those parts are added after your opening.',
     '',
     'Plain and spoken. No dashes, hype, jargon, flattery, or unsupported claims.',
+    ...(roleTitle ? [`Do not use the job-title words "${roleTitle}" anywhere in the subject, body, or question. Show relevance through the work and its consequences instead.`] : []),
     'Write as an expert direct-response sales writer. The reader should quickly',
     'recognize the work, see why it may matter economically, and want to answer',
     `the simple ${twoAreas ? 'either-or' : 'yes-or-no'} question that follows later in the email.`,
@@ -272,6 +273,11 @@ function askFor({
       'one short diagnostic question.',
       '',
     ] : []),
+    ...(touch === 4 ? [
+      'Hard limit: the JSON body must be 240 characters or fewer. Use one or',
+      'two short sentences. Include no question and no offer.',
+      '',
+    ] : []),
     'Before answering, remove these forbidden words if they appear: most,',
     'mostly, usually, typically, generally, always, everyone, transformation.',
     '',
@@ -284,6 +290,7 @@ function askFor({
     '',
     'Never name software they run. Never address them by their job title. Never',
     'promise hours saved. Never invent a figure about their business.',
+    ...(roleTitle ? [`Do not use the exact job-title words "${roleTitle}" anywhere in the passage.`] : []),
     '',
     'Plain and spoken, one working person to another. No dashes, no exclamation',
     'marks. No marketing words.',
@@ -495,14 +502,37 @@ if (require.main === module) (async () => {
     // row first silently keeps writing to the obsolete recipient.
     const recipientAddress = String((p._recipient && p._recipient.email)
       || p.emailManualValue || p.email || '').trim();
+    const usableRecipients = p.contacts.filter((recipient) => recipient.email && !recipient.bouncedAt);
+    const selectedRecipients = usableRecipients.filter((recipient) => recipient.isPrimary);
+    // A recipientless legacy first message can seed only one campaign. During
+    // an all-contact run, letting every person claim it creates follow-ups for
+    // several addresses while leaving all of them without their own day-zero
+    // message. Give it to the sole reachable person, or to the sole selected
+    // person; everyone else receives a new, role-tailored first message.
+    const mayClaimRecipientlessFirst = !ALL_CONTACTS
+      || usableRecipients.length === 1
+      || Boolean(p._recipient && p._recipient.isPrimary && selectedRecipients.length === 1);
     if (DEBUG) console.log(`  recipient: ${recipientAddress || '(none)'}`);
     let dayZeroRow = L.canonicalFirstMessages(recipientAddress
       ? firstRows.filter((message) => String(message.sentTo || '').trim().toLowerCase() === recipientAddress.toLowerCase())
       : firstRows)[0] || null;
-    if (!dayZeroRow && recipientAddress) {
+    if (!dayZeroRow && recipientAddress && mayClaimRecipientlessFirst) {
       dayZeroRow = L.canonicalFirstMessages(firstRows.filter((message) => !message.sentTo))[0] || null;
     }
     if (DEBUG) console.log(`  first chosen: ${dayZeroRow ? `${dayZeroRow.sentTo || '(blank)'} / ${dayZeroRow.openedWith}` : '(none)'}`);
+    if (dayZeroRow && dayZeroRow.state === 'SUPPRESSED') {
+      console.log(`  · ${p.name}: campaign is suppressed — skipped`);
+      skipped += 1;
+      return;
+    }
+    if (DO_IT && dayZeroRow && !dayZeroRow.sentTo && recipientAddress
+      && !dayZeroRow.sentAt && !dayZeroRow.deliveryState) {
+      await db.outreachMessage.update({
+        where: { id: dayZeroRow.id },
+        data: { sentTo: recipientAddress },
+      });
+      dayZeroRow.sentTo = recipientAddress;
+    }
     expectedCampaigns.push({
       prospectId: p.id, name: p.name,
       sentTo: recipientAddress || (dayZeroRow && dayZeroRow.sentTo) || null,
@@ -564,7 +594,10 @@ if (require.main === module) (async () => {
         }
         const candidate = buildFirstLetter({ greeting, passage, question, seed: p.name });
         const v = J.judgeLetter(candidate, { day: 0, jobs, roleTitle });
-        if (v.ok) { first = candidate; firstSubject = addressedSubject(subject, greeting); } else whyFirst = v.why;
+        if (v.ok) { first = candidate; firstSubject = addressedSubject(subject, greeting); } else {
+          whyFirst = v.why;
+          if (DEBUG) console.log(`  rejected day 0 passage: ${passage}`);
+        }
       }
       if (!first) {
         console.log(`  ✗ ${p.name} day 0: ${String(whyFirst).slice(0, 80)}`);
