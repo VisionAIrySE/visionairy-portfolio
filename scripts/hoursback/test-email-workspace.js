@@ -79,6 +79,12 @@ assert.match(writer, /L\.canonicalFirstMessages\(recipientAddress/,
   'follow-ups must be based on the current first email for that exact recipient');
 assert.match(writer, /recipients\.map\(\(recipient\)/,
   'every selected contact must receive a separate role-aware campaign');
+assert.match(writer, /const ALL_CONTACTS = process\.argv\.includes\('--all-contacts'\)/,
+  'the preparation run must support writing ahead for every deliverable contact');
+assert.match(writer, /ALL_CONTACTS\s*\? usable/,
+  'the all-contacts run must expand every deliverable person into a separate campaign');
+assert.doesNotMatch(writer, /\.\.\.\(MISSING_ONLY \? \{\s*messages:/,
+  'missing-only repair must include a business whose entire campaign is missing');
 assert.match(writer, /INCOMPLETE:/,
   'a partial sequence-writing run must report failure instead of appearing complete');
 assert.match(writer, /if \(MISSING_ONLY && have\) \{ already \+= 1; continue; \}/,

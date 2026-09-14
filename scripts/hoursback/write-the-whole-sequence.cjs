@@ -41,6 +41,7 @@
 //   node scripts/hoursback/write-the-whole-sequence.cjs --limit=5        (shows, saves nothing)
 //   node scripts/hoursback/write-the-whole-sequence.cjs --limit=5 --do-it
 //   node scripts/hoursback/write-the-whole-sequence.cjs --missing-only --do-it
+//   node scripts/hoursback/write-the-whole-sequence.cjs --all-contacts --missing-only --do-it
 const { PrismaClient } = require('@prisma/client');
 const FC = require('../../src/hoursback/crm/firstContact.js');
 const C = require('../../src/hoursback/crm/campaign.js');
@@ -61,6 +62,7 @@ const TOUCH = Number(arg('touch', 0));
 const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
 const RESUME = process.argv.includes('--resume');
 const MISSING_ONLY = process.argv.includes('--missing-only');
+const ALL_CONTACTS = process.argv.includes('--all-contacts');
 const DEBUG = process.argv.includes('--details');
 
 // EACH MESSAGE TAKES A DIFFERENT ANGLE ON THE SAME BUSINESS.
@@ -392,15 +394,10 @@ function acceptableOpening(passage) {
         ],
         doNotContact: false,
         ...(ONLY ? { name: { contains: ONLY, mode: 'insensitive' } } : {}),
-        ...(MISSING_ONLY ? {
-          messages: {
-            some: {
-              lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
-              openedWith: { not: 'after_the_call' },
-              NOT: { openedWith: { startsWith: 'touch_' } },
-            },
-          },
-        } : {}),
+        // "Missing only" describes the message slots to fill, not which
+        // businesses may enter the run. Restricting it to businesses that
+        // already had a first email made a completely missing campaign
+        // impossible to repair.
         ...(TOUCH === 1 ? {
           messages: {
             some: {
@@ -433,15 +430,18 @@ function acceptableOpening(passage) {
   }
   targets.sort((a, b) => (b.automationScore || 0) - (a.automationScore || 0));
   if (LIMIT) targets = targets.slice(0, LIMIT);
-  // Every selected person is a separate campaign. Expanding here keeps the
-  // company research shared while giving each recipient their own role-aware
-  // first email and follow-ups.
+  // Every chosen person is a separate campaign. Normal runs prepare selected
+  // recipients. The all-contacts preparation run writes ahead for every
+  // deliverable person at a fully researched company; selection still alone
+  // controls what appears in the active sending workflow.
   targets = targets.flatMap((p) => {
     const usable = p.contacts.filter((recipient) => recipient.email && !recipient.bouncedAt);
     const selected = usable.filter((recipient) => recipient.isPrimary);
     // Match addressFor: selected people first; if nobody was selected, use the
     // first named person with an address before falling back to the company inbox.
-    const recipients = selected.length ? selected : usable.filter((recipient) => recipient.name).slice(0, 1);
+    const recipients = ALL_CONTACTS
+      ? usable
+      : (selected.length ? selected : usable.filter((recipient) => recipient.name).slice(0, 1));
     return recipients.length
       ? recipients.map((recipient) => ({ ...p, _recipient: recipient }))
       : [{ ...p, _recipient: null }];
