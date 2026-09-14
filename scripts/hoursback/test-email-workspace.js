@@ -26,6 +26,10 @@ assert.match(app, /Selected contacts and their email sequences/,
   'opening a company must show its selected contacts before their email sequences');
 assert.match(app, /one\(message, \{ nested: true \}\)/,
   'opening a selected contact must show that person\'s campaign as a nested accordion');
+assert.match(app, /recipientChoicesChanged==='true'/,
+  'closing a company must save changed recipient choices automatically');
+assert.match(app, /Save selected contacts now/,
+  'recipient choices must also have a clear save action above the contact list');
 assert.match(app, /what === 'recipients'/);
 assert.match(app, /Choose at least one contact with a working email\. Nothing was changed\./);
 assert.match(app, /What follows if they do not reply/);

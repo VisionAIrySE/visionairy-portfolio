@@ -1383,7 +1383,9 @@ async function emailScreen(params) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
     }
     const first = messages[0];
-    return `<details class="card company-campaign" data-business="${company.id}"${messages.some((m) => params.get('changed') === m.id) ? ' open' : ''}>
+    return `<details class="card company-campaign" data-business="${company.id}"
+      ontoggle="if(!this.open&amp;&amp;this.dataset.recipientChoicesChanged==='true'){this.dataset.recipientChoicesChanged='false';this.querySelector('form.recipient-choices').requestSubmit()}"
+      ${messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
       <summary class="company-summary">
         <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${messages.length} selected recipient${messages.length === 1 ? '' : 's'} · ${readyCount} ready</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
@@ -1391,8 +1393,10 @@ async function emailScreen(params) {
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Who should receive a campaign?</h3>
-        ${availableContacts.length ? `<form method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices">
-          <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Each selected person gets a separately tailored four-message campaign.</p>
+        ${availableContacts.length ? `<form method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"
+          onchange="this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
+          <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Each selected person gets a separately tailored four-message campaign. Changes save automatically when you close this company.</p>
+          <button style="margin:3px 0 8px">Save selected contacts now</button>
           ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;vertical-align:middle"
             ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
             onclick="this.form.querySelectorAll('input[name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this))">
@@ -1401,7 +1405,7 @@ async function emailScreen(params) {
             <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}>
             <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)}</span>
           </label>`).join('')}</div>
-          <button>Save recipient choices</button>
+          <button>Save selected contacts now</button>
         </form>` : '<p class="mini">No individual contact with an email is on file. This company uses its general inbox.</p>'}
         <h3 style="margin:18px 0 6px">Selected contacts and their email sequences</h3>
         ${messages.map((message) => one(message, { nested: true })).join('')}
