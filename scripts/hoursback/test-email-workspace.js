@@ -20,6 +20,12 @@ assert.match(app, /3\. Send/);
 assert.match(app, /Recipient:/);
 assert.match(app, /Who should receive this campaign\?/);
 assert.match(app, /Save recipient choices and refresh first email/);
+assert.match(app, /visibleCompanies\.map\(companyAccordion\)/,
+  'the Email page must group recipient campaigns under their company');
+assert.match(app, /Selected contacts and their email sequences/,
+  'opening a company must show its selected contacts before their email sequences');
+assert.match(app, /one\(message, \{ nested: true \}\)/,
+  'opening a selected contact must show that person\'s campaign as a nested accordion');
 assert.match(app, /what === 'recipients'/);
 assert.match(app, /Choose at least one contact with a working email\. Nothing was changed\./);
 assert.match(app, /What follows if they do not reply/);
