@@ -1228,6 +1228,13 @@ async function emailScreen(params) {
   const unresearchedAllTold = allFirst.filter((m) => !hasDeepResearch(m)).length;
   const incompleteAllTold = allFirst.filter((m) => hasDeepResearch(m) && !L.campaignHasCompleteSequence(m)).length;
   const queuedAllTold = allFirst.filter((m) => m.state === 'QUEUED' && hasDeepResearch(m) && L.campaignHasCompleteSequence(m)).length;
+  const selectedCompleteDrafts = allFirst.filter((m) => {
+    if (m.state !== 'DRAFT' || !hasDeepResearch(m) || !L.campaignHasCompleteSequence(m)) return false;
+    const address = String(m.sentTo || '').trim().toLowerCase();
+    return (m.prospect.contacts || []).some((person) => person.isPrimary
+      && person.email && !person.bouncedAt
+      && String(person.email).trim().toLowerCase() === address);
+  }).length;
 
   // Opening this screen is read-only. Recipient saves and the preparation
   // workflow refresh the affected drafts directly. Rebuilding every visible
@@ -1405,7 +1412,7 @@ async function emailScreen(params) {
       <summary class="company-summary">
         <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
-        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} campaigns complete` : 'All selected campaigns complete'}</span>
+        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} have four messages` : 'Four messages exist for each selected recipient'}</span>
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Recipients and their email sequences</h3>
@@ -1423,7 +1430,7 @@ async function emailScreen(params) {
             const status = !checked ? 'Not included' : !campaign ? 'Campaign missing'
               : !isComplete(campaign) ? 'Incomplete — cannot send'
                 : campaign.state === 'QUEUED' ? 'Lined up to send'
-                  : 'Complete draft — save recipient choices to line it up';
+                  : 'Four messages exist — save choices to check readiness';
             return `<div class="recipient" style="margin:8px 0">
               <label style="display:block;margin:0 0 6px">
                 <input form="${formId}" type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${checked ? 'checked' : ''}
@@ -1457,6 +1464,7 @@ async function emailScreen(params) {
     <div><b>${waitingAllTold - queuedAllTold}</b>drafts to review</div>
     <div><b>${sent}</b>sent so far</div>
   </div>
+  ${selectedCompleteDrafts ? `<div class="card warn"><b>${selectedCompleteDrafts} selected first email${selectedCompleteDrafts === 1 ? ' is' : 's are'} still drafts.</b> All four messages are present, but the scheduled run will skip these until they pass the writing check and are lined up. Saving a company's recipient choices rechecks that company's campaigns.</div>` : ''}
   <p class="mini">${reachable} companies can be reached by email. ${left >= Number.MAX_SAFE_INTEGER ? 'There is no daily sending limit.' : `${left} messages remain available today.`}</p>
   ${wording}
   <div class="workspace">
@@ -2735,6 +2743,9 @@ const server = http.createServer(async (req, res) => {
           }
           // Stamped so no later rewrite of the wording overwrites his words.
           await db.outreachMessage.update({ where: { id: arg }, data: { body, subject, editedAt: new Date() } });
+          if (m.lane === 'EMAIL' && m.openedWith !== 'after_the_call') {
+            await L.syncSelectedEmailCampaigns(db, m.prospectId);
+          }
         }
         // Change the audience without leaving the Email workspace. This uses
         // the same contact choices as the People and business screens, then
@@ -2769,7 +2780,7 @@ const server = http.createServer(async (req, res) => {
           const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
           const readiness = await L.syncSelectedEmailCampaigns(db, message.prospectId);
           const said = refreshed
-            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} complete first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}`
+            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${readiness.contentBlocked ? ` ${readiness.contentBlocked} campaign${readiness.contentBlocked === 1 ? ' is' : 's are'} held by the writing check. ${readiness.contentProblems.slice(0, 2).map((problem) => `${problem.recipient}, ${problem.message}: ${problem.why}`).join('; ')}` : ''}`
             : 'The recipient choices were saved, but there is no sendable first email for this company.';
           return returnToMessage(said);
         }
@@ -2909,7 +2920,7 @@ const server = http.createServer(async (req, res) => {
           }
           const submittedPersonIds = [...changedPerson.keys()];
 
-          let people = 0; let notes = 0; let lined = 0; let incompleteCampaigns = 0; let archived = 0; let restored = 0; let selectedPeople = 0;
+          let people = 0; let notes = 0; let lined = 0; let incompleteCampaigns = 0; let contentBlockedCampaigns = 0; let contentProblems = []; let archived = 0; let restored = 0; let selectedPeople = 0;
           const clashes = [];
           const affectedProspectIds = new Set();
 
@@ -3025,6 +3036,8 @@ const server = http.createServer(async (req, res) => {
             const readiness = await L.syncSelectedEmailCampaigns(db, prospectId);
             lined += readiness.ready;
             incompleteCampaigns += readiness.incomplete;
+            contentBlockedCampaigns += readiness.contentBlocked;
+            contentProblems.push(...readiness.contentProblems);
           }
           } catch (e) { clashes.push('who the message goes to could not be set'); }
 
@@ -3043,6 +3056,7 @@ const server = http.createServer(async (req, res) => {
 
           const said = `Saved. ${selectedPeople} ${selectedPeople === 1 ? 'contact selected' : 'contacts selected'}, ${people} ${people === 1 ? 'person' : 'people'} changed, ${archived} archived, ${restored} restored, ${notes} ${notes === 1 ? 'message' : 'messages'} rewritten, ${lined} marked ready to send.`
             + (incompleteCampaigns ? ` ${incompleteCampaigns} incomplete campaign${incompleteCampaigns === 1 ? ' was' : 's were'} saved but not marked ready; its missing messages must be prepared first.` : '')
+            + (contentBlockedCampaigns ? ` ${contentBlockedCampaigns} campaign${contentBlockedCampaigns === 1 ? ' was' : 's were'} saved but held by the writing check. ${contentProblems.slice(0, 2).map((problem) => `${problem.recipient}, ${problem.message}: ${problem.why}`).join('; ')}` : '')
             + noteSaid
             + (clashes.length ? ` NOT saved: ${clashes.join('; ')}. Two people at one business cannot share an address — give one of them their own, or leave it blank.` : '');
           // Saved from a business's own page? Go back to that business.

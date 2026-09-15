@@ -11,6 +11,7 @@ async function main() {
   ]);
   const db = {
     contact: {
+      findMany: async ({ where }) => where.id.in.map(() => ({ prospectId: 'business-1' })),
       updateMany({ where, data }) {
         for (const id of where.id.in) {
           if (rows.has(id)) rows.get(id).isPrimary = data.isPrimary;
@@ -18,6 +19,7 @@ async function main() {
         return Promise.resolve({ count: where.id.in.length });
       },
     },
+    outreachMessage: { updateMany: async () => ({ count: 0 }) },
     $transaction(work) { return Promise.all(work); },
   };
 

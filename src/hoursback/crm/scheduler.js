@@ -33,6 +33,14 @@ async function dailySendRun(db, options = {}) {
   const messageIds = Array.isArray(options.messageIds)
     ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
     : null;
+  let selectedDrafts = null;
+  if (!messageIds && typeof lanes.selectedDraftGap === 'function') {
+    try { selectedDrafts = await lanes.selectedDraftGap(db); }
+    catch (error) {
+      selectedDrafts = { complete: null, incomplete: null, businesses: null,
+        error: String(error && error.message || error).slice(0, 300) };
+    }
+  }
   // A named recovery run must touch only the messages it was given. It does
   // not add newly due customer messages to the queue while recovering them.
   const queued = messageIds
@@ -58,6 +66,11 @@ async function dailySendRun(db, options = {}) {
     const lines = [
       `Sent: ${delivery.sent || 0}`,
       `Newly due: ${queuedTotal}`,
+      ...(selectedDrafts
+        ? [selectedDrafts.error
+          ? `Selected draft check failed: ${selectedDrafts.error}`
+          : `Selected first emails skipped because they are still drafts: ${selectedDrafts.complete} with four messages across ${selectedDrafts.businesses} businesses; ${selectedDrafts.contentReady} pass writing checks, ${selectedDrafts.contentFailed} need revision`]
+        : []),
       `Failed: ${delivery.failed || 0}`,
       `Blocked before delivery: ${delivery.blocked || 0}`,
       `Needs checking: ${delivery.unconfirmed || 0}`,
@@ -77,7 +90,7 @@ async function dailySendRun(db, options = {}) {
       report.reason = String(error && error.message || error).slice(0, 500);
     }
   }
-  return { replies, queued, delivery, report };
+  return { replies, queued, delivery, report, selectedDrafts };
 }
 
 module.exports = { dailySendRun };

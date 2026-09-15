@@ -198,16 +198,47 @@ async function excludeEmailCampaigns(db, prospectId) {
 
 // The recipient checkbox is the one decision Russ makes. Once a selected
 // person's complete, researched campaign exists, its first email is ready for
-// the next explicit Send action. A deselected person's unsent first email goes
+// the scheduled run or Send now. A deselected person's unsent first email goes
 // back to draft, so there is no second set of approval checkboxes to reconcile.
-async function syncSelectedEmailCampaigns(db, prospectId) {
+function contentCheckForRecipient(first, prospect, { jobs, roleTitle, judgeStored }) {
+  if (!jobs.length) {
+    return { ok: false, problem: {
+      message: 'campaign evidence',
+      why: 'the company-specific work behind the messages was not saved',
+    } };
+  }
+  const normalize = (value) => String(value || '').trim().toLowerCase();
+  const address = normalize(first.sentTo);
+  const firsts = canonicalFirstMessages(prospect.messages);
+  const active = activeUnsentMessages(prospect.messages);
+  const sameRecipient = (message) => normalize(message.sentTo) === address
+    || (firsts.length === 1 && !normalize(message.sentTo));
+  const chain = [first, ...[2, 3, 4].map((touch) =>
+    active.find((message) => message.openedWith === `touch_${touch}`
+      && sameRecipient(message)))];
+  const labels = ['first email', 'Day 4 follow-up', 'Day 8 follow-up', 'Day 14 follow-up'];
+  for (let i = 0; i < chain.length; i += 1) {
+    const message = chain[i];
+    const verdict = message
+      ? judgeStored(message, { jobs, roleTitle })
+      : { ok: false, why: 'a message is missing' };
+    if (!verdict.ok) {
+      return { ok: false, problem: {
+        message: labels[i], why: verdict.why || 'the writing check failed',
+      } };
+    }
+  }
+  return { ok: true, problem: null };
+}
+
+async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   const prospect = await db.prospect.findUnique({
     where: { id: prospectId },
     select: {
       doNotContact: true, repliedAt: true,
       contacts: {
         where: { isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
-        select: { email: true },
+        select: { email: true, name: true, role: true },
       },
       readings: {
         where: {
@@ -221,23 +252,40 @@ async function syncSelectedEmailCampaigns(db, prospectId) {
         select: {
           id: true, prospectId: true, lane: true, state: true, openedWith: true,
           sentTo: true, sentAt: true, queuedAt: true, deliveryState: true,
+          editedAt: true, body: true,
         },
       },
     },
   });
-  if (!prospect || prospect.doNotContact || prospect.repliedAt) return { ready: 0, incomplete: 0 };
+  if (!prospect || prospect.doNotContact || prospect.repliedAt) {
+    return { ready: 0, incomplete: 0, contentBlocked: 0, contentProblems: [] };
+  }
   const normalize = (value) => String(value || '').trim().toLowerCase();
-  const selected = new Set(prospect.contacts.map((contact) => normalize(contact.email)).filter(Boolean));
+  const selected = new Map(prospect.contacts.map((contact) =>
+    [normalize(contact.email), contact]).filter(([email]) => email));
   const firsts = canonicalFirstMessages(prospect.messages.filter((message) =>
     !message.sentAt && !message.deliveryState && ['DRAFT', 'QUEUED'].includes(message.state)));
-  let ready = 0; let incomplete = 0;
+  const reading = selected.size && prospect.readings.length
+    ? await db.reading.findFirst({
+      where: { prospectId, findings: { some: { field: 'noticingJob' } } },
+      orderBy: { startedAt: 'desc' },
+      select: { findings: { where: { field: 'noticingJob' }, select: { value: true } } },
+    }) : null;
+  const jobs = (reading && reading.findings || []).map((finding) => finding.value).filter(Boolean);
+  const judge = options.judgeStored || require('./judgeTheLetter.js').judgeStored;
+  let ready = 0; let incomplete = 0; let contentBlocked = 0;
+  const contentProblems = [];
   for (const first of firsts) {
     const recorded = normalize(first.sentTo);
-    const address = recorded || (selected.size === 1 ? [...selected][0] : '');
+    const address = recorded || (selected.size === 1 ? [...selected.keys()][0] : '');
     const chosen = address && selected.has(address);
     const complete = chosen && prospect.readings.length
       && campaignHasCompleteSequence({ ...first, sentTo: address, prospect });
-    if (complete) {
+    const contentCheck = complete ? contentCheckForRecipient(
+      { ...first, sentTo: address }, prospect,
+      { jobs, roleTitle: selected.get(address).role, judgeStored: judge },
+    ) : null;
+    if (contentCheck && contentCheck.ok) {
       if (first.state !== 'QUEUED' || first.sentTo !== address) {
         await db.outreachMessage.update({
           where: { id: first.id },
@@ -246,7 +294,16 @@ async function syncSelectedEmailCampaigns(db, prospectId) {
       }
       ready += 1;
     } else {
-      if (chosen) incomplete += 1;
+      if (chosen) {
+        if (complete) {
+          contentBlocked += 1;
+          contentProblems.push({
+            recipient: selected.get(address).name || address,
+            ...contentCheck.problem,
+          });
+        }
+        else incomplete += 1;
+      }
       if (first.state === 'QUEUED') {
         await db.outreachMessage.update({
           where: { id: first.id }, data: { state: 'DRAFT', queuedAt: null },
@@ -254,7 +311,92 @@ async function syncSelectedEmailCampaigns(db, prospectId) {
       }
     }
   }
-  return { ready, incomplete };
+  return { ready, incomplete, contentBlocked, contentProblems };
+}
+
+// Read-only check for a silent send gap: a checked contact has a complete
+// campaign, but its first message is still a draft. The scheduled job sends
+// queued first messages; it must report this gap without changing live data.
+async function selectedDraftGap(db, options = {}) {
+  const prospects = await db.prospect.findMany({
+    where: {
+      doNotContact: false, repliedAt: null,
+      contacts: { some: {
+        isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
+      } },
+      messages: { some: {
+        lane: 'EMAIL', state: 'DRAFT', sentAt: null,
+        openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } },
+      } },
+    },
+    select: {
+      id: true,
+      contacts: {
+        where: { isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
+        select: { email: true, role: true },
+      },
+      readings: {
+        where: {
+          source: 'website', outcome: 'read',
+          pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+        },
+        select: { id: true }, take: 1,
+      },
+      messages: {
+        where: { lane: 'EMAIL' },
+        select: {
+          id: true, prospectId: true, lane: true, state: true, openedWith: true,
+          sentTo: true, sentAt: true, deliveryState: true, editedAt: true, body: true,
+        },
+      },
+    },
+  });
+  const jobReadings = prospects.length ? await db.reading.findMany({
+    where: {
+      prospectId: { in: prospects.map((prospect) => prospect.id) },
+      findings: { some: { field: 'noticingJob' } },
+    },
+    orderBy: { startedAt: 'desc' },
+    select: {
+      prospectId: true,
+      findings: { where: { field: 'noticingJob' }, select: { value: true } },
+    },
+  }) : [];
+  const jobsByProspect = new Map();
+  for (const reading of jobReadings) {
+    if (!jobsByProspect.has(reading.prospectId)) {
+      jobsByProspect.set(reading.prospectId,
+        reading.findings.map((finding) => finding.value).filter(Boolean));
+    }
+  }
+  const judge = options.judgeStored || require('./judgeTheLetter.js').judgeStored;
+  let complete = 0; let incomplete = 0; let businesses = 0;
+  let contentReady = 0; let contentFailed = 0;
+  for (const prospect of prospects) {
+    const selected = new Map(prospect.contacts.map((person) =>
+      [String(person.email).trim().toLowerCase(), person.role]));
+    const firsts = canonicalFirstMessages(prospect.messages);
+    const jobs = jobsByProspect.get(prospect.id) || [];
+    let gapsHere = 0;
+    for (const first of firsts) {
+      if (first.state !== 'DRAFT' || first.sentAt || first.deliveryState
+        || !selected.has(String(first.sentTo || '').trim().toLowerCase())) continue;
+      if (prospect.readings.length
+        && campaignHasCompleteSequence({ ...first, prospect })) {
+        complete += 1; gapsHere += 1;
+        const address = String(first.sentTo).trim().toLowerCase();
+        const check = contentCheckForRecipient(first, prospect, {
+          jobs, roleTitle: selected.get(address), judgeStored: judge,
+        });
+        if (check.ok) {
+          contentReady += 1;
+        } else contentFailed += 1;
+      } else incomplete += 1;
+    }
+    if (gapsHere) businesses += 1;
+  }
+  return { complete, incomplete, businesses, contentReady, contentFailed };
 }
 
 function isFirstContactMessage(message) {
@@ -1135,6 +1277,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

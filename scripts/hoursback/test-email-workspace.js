@@ -138,8 +138,10 @@ assert.match(noticingWriter, /MISSING_SEQUENCES/,
   'a completeness repair must select missing sequences without a hand-copied id list');
 assert.match(noticingWriter, /Object\.assign\(where, L\.emailReachableWhere\(\)\)/,
   'noticing research must include businesses reached through a selected contact');
-assert.match(readinessAudit, /selected recipients have all four saved messages/,
-  'the permanent readiness audit must verify each selected person, not just each company');
+assert.match(readinessAudit, /intended recipients have all four saved messages/,
+  'the permanent readiness audit must verify each intended recipient, not just each company');
+assert.match(readinessAudit, /selected complete campaign is still a draft/,
+  'the permanent readiness audit must expose selected campaigns skipped by the scheduled send');
 assert.match(readinessAudit, /marked ready while its campaign is incomplete/,
   'the permanent readiness audit must expose unsafe queue state');
 assert.match(readinessAudit, /Preparation path for active companies/,

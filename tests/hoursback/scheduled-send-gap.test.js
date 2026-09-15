@@ -1,0 +1,38 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { dailySendRun } = require('../../src/hoursback/crm/scheduler.js');
+
+test('the morning report exposes selected, complete drafts without lining them up', async () => {
+  const calls = [];
+  let reportText = '';
+  const lanes = {
+    MAX_PER_RUN: 200,
+    selectedDraftGap: async () => {
+      calls.push('read-only-gap-check');
+      return {
+        complete: 38, incomplete: 2, businesses: 2,
+        contentReady: 37, contentFailed: 1,
+      };
+    },
+    queueDueTouches: async (_db, options) => {
+      calls.push(`queue-due-${options.allowFirstContact}`);
+      return { first: 0, second: 0, third: 0, fourth: 0 };
+    },
+    sendQueuedEmails: async () => {
+      calls.push('send-existing-queue');
+      return { sent: 0 };
+    },
+  };
+  const result = await dailySendRun({}, {
+    lanes, customerEmailEnabled: true, apiKey: 'dummy-key',
+    replyMonitor: { assertOutboundProtected: () => ({ configured: true }) },
+    reportTo: 'report@example.test',
+    reportSend: async (payload) => { reportText = payload.text; return { id: 'report-1' }; },
+  });
+  assert.deepEqual(calls, [
+    'read-only-gap-check', 'queue-due-false', 'send-existing-queue',
+  ]);
+  assert.match(reportText, /38 with four messages across 2 businesses; 37 pass writing checks, 1 need revision/);
+  assert.deepEqual(result.selectedDrafts,
+    { complete: 38, incomplete: 2, businesses: 2, contentReady: 37, contentFailed: 1 });
+});

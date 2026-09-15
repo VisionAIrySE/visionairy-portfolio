@@ -120,17 +120,17 @@ const isFirst = (message) => L.isFirstContactMessage(message);
     const usable = company.messages.filter(isUsable);
     const usableContacts = company.contacts.filter((contact) => contact.email && !contact.bouncedAt);
     const markedContacts = usableContacts.filter((contact) => contact.isPrimary);
-    const addressedContacts = markedContacts.length
-      ? markedContacts
-      : usableContacts.filter((contact) => contact.name).slice(0, 1);
-    const selected = addressedContacts.map((contact) => ({
+    const selected = markedContacts.map((contact) => ({
       email: emailKey(contact.email),
       label: `${contact.name || contact.email}${contact.role ? ` (${contact.role})` : ''}`,
     }));
     const currentFirsts = usable.filter(isFirst);
     const fallback = emailKey(company.emailManualValue || company.email || (currentFirsts[0] && currentFirsts[0].sentTo));
     const namedForInbox = company.contacts.find((contact) => contact.name);
-    const expected = selected.length ? selected : fallback ? [{
+    // A named contact is not approved just because nobody was checked.
+    // A shared business inbox remains the fallback only when there are no
+    // usable individual contact addresses to choose from.
+    const expected = selected.length ? selected : !usableContacts.length && fallback ? [{
       email: fallback,
       label: namedForInbox
         ? `${namedForInbox.name}${namedForInbox.role ? ` (${namedForInbox.role})` : ''} at ${fallback}`
@@ -138,7 +138,9 @@ const isFirst = (message) => L.isFirstContactMessage(message);
     }] : [];
 
     if (!expected.length) {
-      add(company, 'no recipient', 'no usable recipient could be resolved');
+      add(company, 'no recipient selected', usableContacts.length
+        ? 'contacts have email addresses, but none is selected for sending'
+        : 'no usable recipient could be resolved');
       if (DETAILS) console.log(`DETAIL ${company.id} ${company.name} has no recipient: ${JSON.stringify({
         email: company.email, manual: company.emailManualValue,
         contacts: company.contacts.map((contact) => ({ email: contact.email, bounced: Boolean(contact.bouncedAt) })),
@@ -178,6 +180,13 @@ const isFirst = (message) => L.isFirstContactMessage(message);
         continue;
       }
       completeRecipients += 1;
+      if (selected.some((person) => person.email === recipient.email)) {
+        const current = L.canonicalFirstMessages(firsts)[0];
+        if (current && current.state === 'DRAFT') {
+          add(company, recipient.label,
+            'selected complete campaign is still a draft and will be skipped by the scheduled send');
+        }
+      }
       if (DETAILS) console.log(`COMPLETE ${company.id} ${company.name} — ${recipient.email}: first, Day 4, Day 8, Day 14`);
     }
 
@@ -198,7 +207,7 @@ const isFirst = (message) => L.isFirstContactMessage(message);
   console.log(`  ${companyResearched} have company-specific work selected`);
   console.log(`  ${withFirst} have an unsent first email`);
   console.log(`${companies.length} researched, reachable companies have an unsent first email.`);
-  console.log(`${completeRecipients} of ${recipients} selected recipients have all four saved messages.`);
+  console.log(`${completeRecipients} of ${recipients} intended recipients have all four saved messages.`);
   console.log(`${problems.length} readiness problems found.`);
   if (SHOW && problems.length) {
     for (const problem of problems.slice(0, SHOW)) {
