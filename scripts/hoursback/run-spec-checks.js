@@ -4925,7 +4925,9 @@ def('a_first_name_is_a_person_and_a_company_is_not', () => {
     'Yod Branch', 'Ed Firkus', 'Michael Redmond', 'J.J. Jones',
     'Darius Balumuka, MD', 'Eugene de Souza'];
   const notPeople = ['Outwest Insurance', 'Dental Assistant', 'Advanced Medical',
-    'Construction Manager', 'Skip to content', 'Meet Our Team', 'Contact Us'];
+    'Construction Manager', 'Skip to content', 'Meet Our Team', 'Contact Us',
+    'Client Portal', 'Data Centers', 'Lake Oswego', 'Insurances Accepted',
+    'Finance Admin'];
   const missed = people.filter((n) => !looksLikeAHuman(n, true));
   const letIn = notPeople.filter((n) => looksLikeAHuman(n, true));
   // And a bare first name with nothing attached is a heading, not a person.
@@ -4970,7 +4972,29 @@ def('website_contact_finder_keeps_staff_and_refuses_service_or_place_labels', ()
     { url: 'https://example.test/locations/', html:
       '<h2>Locations</h2><h4>Central Oregon</h4><h4>Bend Oregon</h4><h4>Redmond Oregon</h4>' },
     { url: 'https://example.test/about/', html:
-      '<h2>Our Team</h2><h3>Jane Smith</h3><p>Office Manager</p><h3>Alex Carter</h3><p>Operations Manager</p><h3>Sam Rivera</h3><p>Technician</p>' },
+      '<header><nav><a>Client Portal</a><a>Tax News</a><a>Data Centers</a></nav></header>'
+      + '<h2>Our Team</h2><h3>Jane Smith</h3><p>Office Manager</p><h3>Alex Carter</h3><p>Operations Manager</p><h3>Sam Rivera</h3><p>Technician</p>' },
+    { url: 'https://example.test/our-story/', html:
+      '<p>Our offices in Bend and Lake Oswego. Project Manager.</p>' },
+    { url: 'https://example.test/team/labels/', html:
+      '<h2>Our Team</h2><h3>Real Estate</h3><p>Owner</p><h3>Market Update</h3><h3>Coming Soon</h3>' },
+    { url: 'https://example.test/team/people/', html:
+      '<h2>Our Team</h2><h3>Wendy Hays</h3><p>Accountant</p><h3>Hannah Erickson</h3><p>Accountant</p><h3>Maile Anslinger</h3><p>Physician</p>' },
+    { url: 'https://example.test/agents/5-kila-black', html:
+      '<header><a href="mailto:info@example.test">Contact</a></header><h1>Kila Black</h1><p>Broker</p><a href="tel:5415550100">Office</a>' },
+    { url: 'https://example.test/agents/market-update', html:
+      '<h1>Market Update</h1><p>Broker</p>' },
+    { url: 'https://example.test/agents/6-juana-beede', html:
+      '<h1>Juana Beede</h1><p>Broker</p><a href="mailto:alex@example.test">Office assistant</a>' },
+    { url: 'https://lapinerealty.test/team/', html:
+      '<h2>Our Team</h2><h3>Lisa Tavares Lapinerealty</h3><p>Broker</p>'
+      + '<h3>Guy Tavares</h3><p>Broker</p><h3>Terri Buxton</h3><p>Broker</p>' },
+    { url: 'https://example.test/team', html:
+      '<li class="item" data-search-string="Hilary Saunders"><a href="/agents/hilary-saunders"><figure><img class="portrait"></figure></a></li>'
+      + '<li class="item" data-search-string="Vann Friesen"><a href="/agents/vance-friesen"><figure><img class="portrait"></figure></a></li>'
+      + '<h3>Maile Anslinger, MD</h3>'
+      + '&quot;title&quot;: &quot;Kelsey DeCelles&quot;, &quot;description&quot;: &quot;Worship Admin&lt;/p&gt;&quot;, &quot;button&quot;: {}',
+    },
   ];
   const people = sweep.peopleFromSite(pages).map((p) => p.name);
   const rolePairs = e.peopleFromPages([{ url: 'https://example.test/about/', html:
@@ -4979,10 +5003,19 @@ def('website_contact_finder_keeps_staff_and_refuses_service_or_place_labels', ()
   const fromModel = reader.keepOnlyWhatWasRead({ people: [
     { name: 'Heating System Repair', role: 'Technician' },
     { name: 'Bend Oregon', role: 'Technician' },
+    { name: 'Client Portal', role: 'Manager' },
+    { name: 'Lake Oswego', role: 'Project Manager' },
     { name: 'Jane Smith', role: 'Office Manager' },
     { name: 'Linda', role: 'Scheduler' },
   ] }, document, 'Example Heating').people.map((p) => p.name);
-  const ok = people.length === 3 && ['Jane Smith', 'Alex Carter', 'Sam Rivera'].every((n) => people.includes(n))
+  const kila = sweep.peopleFromSite([pages[6]]).find((p) => p.name === 'Kila Black');
+  const juana = sweep.peopleFromSite([pages[8]]).find((p) => p.name === 'Juana Beede');
+  const ok = people.length === 13 && ['Jane Smith', 'Alex Carter', 'Sam Rivera',
+    'Wendy Hays', 'Hannah Erickson', 'Maile Anslinger', 'Kila Black',
+    'Hilary Saunders', 'Vann Friesen', 'Kelsey DeCelles', 'Guy Tavares', 'Terri Buxton', 'Juana Beede'].every((n) => people.includes(n))
+    && !people.includes('Lisa Tavares Lapinerealty')
+    && kila && !kila.email && !kila.phone
+    && juana && !juana.email
     && rolePairs.length === 1 && rolePairs[0] === 'Jane Smith'
     && fromModel.length === 2 && fromModel.includes('Jane Smith') && fromModel.includes('Linda');
   return { ok, detail: JSON.stringify({ people, rolePairs, fromModel }) };

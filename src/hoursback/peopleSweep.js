@@ -16,7 +16,7 @@
 // Free, always. Their own websites, no key, no paid service, nothing to meter.
 
 const { textOf } = require('./enrich.js');
-const { plausiblePersonName } = require('./crm/names.js');
+const { plausiblePersonName, FIRST_NAMES } = require('./crm/names.js');
 // The same stripper the reader answers about. Every page the crawl returns
 // carries its readable text, because a page fetched and not kept is the
 // failure this repository exists to end (docs/hoursback/evidence-store.md).
@@ -295,11 +295,14 @@ const ORDINARY_WORD = new RegExp(`^(?:${[
   'apply','submit','browse','find','jobs','job','careers','career','resources','resource','blog',
   'news','events','event','pay','bill','billing','español','espanol','francais','more','less',
   'next','previous','back','close','open','view','menu','home','faq','faqs','help','support',
+  'data','cooling','insurance','insurances','accepted','patient','forms','form','admin',
+  'prescription','refills','listings','liquid','computer','handlers','life','groups',
 ].join('|')})$`, 'i');
 
 function looksLikeAPerson(clean) {
   const name = String(clean || '').trim();
   if (NOT_A_NAME.test(name)) return false;
+  if (name.split(/\s+/).some((word) => ORDINARY_WORD.test(word))) return false;
   // Capitalized service and location labels pass a simple word-shape test.
   // The same name check used before an email greeting rejects those labels.
   return plausiblePersonName(name.replace(/^(Dr|Mr|Mrs|Ms|Prof)\.?(?=\s)\s+/i, ''));
@@ -346,8 +349,14 @@ function profileNear(html, name, profiles, taken = new Set()) {
 }
 
 function peopleOnPage(page, taken = new Set()) {
-  const text = textOf(page.html);
-  const profiles = linkedInProfilesOn(page.html);
+  const html = staffContentHtml(page.html);
+  const text = textOf(html);
+  const profiles = linkedInProfilesOn(html);
+  const staffPage = isStaffRosterPage(page);
+  const roleMatches = [...text.matchAll(NAME_THEN_ROLE)].map((m) => ({ name: m[1], role: m[2], at: m.index || 0 }))
+    .concat([...text.matchAll(ROLE_THEN_NAME)].map((m) => ({ name: m[2], role: m[1], at: m.index || 0 })));
+  const knownPeopleNearby = roleMatches.filter((m) =>
+    FIRST_NAMES.has(String(m.name).split(/\s+/)[0].toLowerCase())).length;
   const out = new Map();
   const add = (name, role, at) => {
     const clean = String(name).replace(/\s+/g, ' ').trim();
@@ -355,6 +364,18 @@ function peopleOnPage(page, taken = new Set()) {
     const key = clean.toLowerCase();
     const near = text.slice(Math.max(0, at - 160), at + 260);
     const email = (near.match(EMAIL_RE) || []).find((e) => !/\.(png|jpe?g|gif|webp)$/i.test(e)) || null;
+    // A narrative About or service page can put a place name next to a job
+    // title. Without a staff heading, require a familiar given name or an
+    // address whose mailbox agrees with the candidate's surname.
+    const first = clean.split(/\s+/)[0].toLowerCase();
+    const surname = clean.split(/\s+/).at(-1).toLowerCase().replace(/[^a-z]/g, '');
+    const mailbox = String(email || '').split('@')[0].toLowerCase().replace(/[^a-z]/g, '');
+    const addressSupportsName = surname.length > 2 && mailbox.includes(surname);
+    // A job word can sit beside a menu label. An unfamiliar first name needs
+    // more evidence than the job word alone: an agreeing address, or a staff
+    // roster that also identifies at least two familiar given names.
+    if (!FIRST_NAMES.has(first) && !addressSupportsName
+        && !(staffPage && knownPeopleNearby >= 2)) return;
     PHONE_RE.lastIndex = 0;
     const pm = PHONE_RE.exec(near);
     const phone = pm ? tidyPhone(pm) : null;
@@ -364,12 +385,11 @@ function peopleOnPage(page, taken = new Set()) {
       role: (prior && prior.role) || String(role).replace(/\s+/g, ' ').toLowerCase(),
       email: (prior && prior.email) || email,
       phone: (prior && prior.phone) || phone,
-      linkedIn: (prior && prior.linkedIn) || profileNear(page.html, clean, profiles, taken),
+      linkedIn: (prior && prior.linkedIn) || profileNear(html, clean, profiles, taken),
       foundOn: page.url,
     });
   };
-  for (const m of text.matchAll(NAME_THEN_ROLE)) add(m[1], m[2], m.index || 0);
-  for (const m of text.matchAll(ROLE_THEN_NAME)) add(m[2], m[1], m.index || 0);
+  for (const m of roleMatches) add(m.name, m.role, m.at);
   return [...out.values()];
 }
 
@@ -405,10 +425,19 @@ function isStaffRosterPage(page) {
   return false;
 }
 
+// Team pages include the site's menu before the staff cards. Reading that
+// menu as one sentence produced "Client Portal" and "Data Centers" as staff.
+function staffContentHtml(html) {
+  return String(html || '')
+    .replace(/<(header|nav|footer)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<ul\b[^>]*(?:id|class)=["'][^"']*(?:menu|navigation|nav-list)[^"']*["'][^>]*>[\s\S]*?<\/ul>/gi, ' ');
+}
+
 function rosterRun(page, taken = new Set()) {
   if (!isStaffRosterPage(page)) return [];
-  const text = textOf(page.html);
-  const profiles = linkedInProfilesOn(page.html);
+  const html = staffContentHtml(page.html);
+  const text = textOf(html);
+  const profiles = linkedInProfilesOn(html);
   // Split on the sentence marks the text reader inserts at block ends.
   const parts = text.split(/\s*[.|\u2022]\s+/);
   const runs = [];
@@ -438,7 +467,7 @@ function rosterRun(page, taken = new Set()) {
         role = roleFromLine(parts[i + 2]);
         if (role) skip = 2;
       }
-      run.push({ name: candidate, role });
+      run.push({ name: candidate, role, credential: !!String(parts[i]).match(CREDENTIALS) });
       // A title between two names does NOT end the run. Requiring names
       // back-to-back meant a grid that prints a job title under every
       // photograph — which is most of them — produced nothing at all: no
@@ -452,14 +481,54 @@ function rosterRun(page, taken = new Set()) {
   }
   if (run.length >= 3) runs.push(run);
   const best = runs.sort((a, b) => b.length - a.length)[0] || [];
-  return best.map((p) => ({
+  const familiarNames = best.filter((p) =>
+    FIRST_NAMES.has(p.name.split(/\s+/)[0].toLowerCase())).length;
+  // Three capitalized labels are not evidence of a staff list. Keep a roster
+  // only when at least two entries have recognizable given names. Within that
+  // roster, an unfamiliar given name also needs a title or matching profile.
+  if (familiarNames < 2) return [];
+  return best.filter((p) => FIRST_NAMES.has(p.name.split(/\s+/)[0].toLowerCase()) || p.role || p.credential)
+    .map((p) => ({
     name: p.name,
     role: p.role,
     email: null,
     phone: null,
-    linkedIn: profileNear(page.html, p.name, profiles, taken),
+    linkedIn: profileNear(html, p.name, profiles, taken),
     foundOn: page.url,
   }));
+}
+
+// A person card is stronger evidence than a familiar first name. These are
+// deliberately narrow structures: an agent link with a portrait, a staff
+// heading with a professional credential, or a team card with a job title.
+// Ordinary page headings and navigation links never meet these conditions.
+function structuredPeopleOnPage(page) {
+  if (!isStaffRosterPage(page)) return [];
+  const html = staffContentHtml(page.html);
+  const out = new Map();
+  const add = (raw, role) => {
+    const name = stripCredentials(String(raw).replace(/\s+/g, ' ').trim());
+    if (!looksLikeAPerson(name)) return;
+    out.set(name.toLowerCase(), { name, role: role || null, email: null,
+      phone: null, linkedIn: null, foundOn: page.url });
+  };
+  for (const m of html.matchAll(/<li\b[^>]*data-search-string=["']([^"']{4,80})["'][^>]*>((?:(?!<li\b)[\s\S]){0,700})/gi)) {
+    if (/<a\b[^>]*href=["'][^"']*\/(?:agents?|staff|team|people)\//i.test(m[2])
+        && /<(?:figure|img)\b|class=["'][^"']*portrait/i.test(m[2])) add(m[1], null);
+  }
+  for (const m of html.matchAll(/<h[1-4]\b[^>]*>([\s\S]{0,450}?)<\/h[1-4]>/gi)) {
+    const words = textOf(m[1]).replace(/\s+/g, ' ').trim();
+    if (words.match(CREDENTIALS)) add(words, null);
+  }
+  for (const m of html.matchAll(/&quot;title&quot;:\s*&quot;([^&]{4,80})&quot;((?:(?!&quot;title&quot;)[\s\S]){0,800})/gi)) {
+    const described = String(m[2]).match(/&quot;description&quot;:\s*&quot;([\s\S]{0,600}?)&quot;button&quot;/i);
+    if (!described) continue;
+    const description = described[1].replace(/&lt;[^&]*&gt;/gi, ' ').replace(/\\["']/g, ' ');
+    if (/\b(?:admin|administrator|director|pastor|broker|attorney|doctor|physician|owner|manager|coordinator|accountant|agent|technician)\b/i.test(description)) {
+      add(m[1], description.replace(/<[^>]*>/g, ' ').slice(0, 80).trim());
+    }
+  }
+  return [...out.values()];
 }
 
 // Everyone across every page opened, deduplicated by name.
@@ -479,7 +548,11 @@ function personOnTheirOwnPage(page) {
   const tels = [...html.matchAll(/tel:([+0-9().\s-]{7,})/gi)].map((m) => m[1].replace(/[^\d+]/g, ''));
   // More than one address means it is a list again, not one person's page.
   const own = [...new Set(mailtos)].filter((a) => !/^(info|contact|office|hello|admin|sales|support|reception|frontdesk)@/i.test(a));
-  if (own.length !== 1) return [];
+  const path = (() => { try { return new URL(page.url).pathname.toLowerCase(); } catch { return ''; } })();
+  const profilePath = /\/(?:agents?|staff|people|team|providers?|attorneys?|bios?)\/[^/]+\/?$/.test(path);
+  const slug = (path.split('/').filter(Boolean).at(-1) || '')
+    .replace(/^\d+[-_]/, '').replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+  if (own.length !== 1 && !profilePath) return [];
 
   // A JOB TITLE IS NEVER A NAME.
   //
@@ -502,19 +575,25 @@ function personOnTheirOwnPage(page) {
   // Stokes run, 2026-08-31). On a person's own page the address is theirs, so
   // it is the thing that says which heading is really the person: sritchie@
   // agrees with Ritchie and agrees with nothing about Lake Oswego.
-  const local = own[0].split('@')[0].toLowerCase().replace(/[^a-z]/g, '');
+  const local = own.length === 1 ? own[0].split('@')[0].toLowerCase().replace(/[^a-z]/g, '') : '';
   const agreesWithTheAddress = (candidate) => {
     const words = String(candidate).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
-    return words.some((w) => local.includes(w) || w.includes(local));
+    return !!local && words.some((w) => local.includes(w) || w.includes(local));
+  };
+  const agreesWithProfilePath = (candidate) => {
+    if (!profilePath) return false;
+    const words = String(candidate).toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
+    if (words.length < 2) return false;
+    return slug.includes(`${words[0]}-${words.at(-1)}`);
   };
 
   let name = null;
   for (const m of html.matchAll(/<h[1-3][^>]*>([\s\S]{0,120}?)<\/h[1-3]>/gi)) {
     const t = stripCredentials(textOf(m[1]));
     if (!looksLikeAPerson(t) || isATitle(t)) continue;
-    if (agreesWithTheAddress(t)) { name = t; break; }
+    if (agreesWithTheAddress(t) || agreesWithProfilePath(t)) { name = t; break; }
   }
-  if (!name) {
+  if (!name && own.length === 1) {
     // No heading the address backs up. Build the name from the address itself,
     // which on a profile page belongs to the person the page is about.
     const spaced = own[0].split('@')[0].replace(/[._-]+/g, ' ');
@@ -536,8 +615,8 @@ function personOnTheirOwnPage(page) {
   return [{
     name,
     role: (longestFirst.find((w) => new RegExp(`\\b${w}\\b`, 'i').test(after)) || null),
-    email: own[0],
-    phone: [...new Set(tels)][0] || null,
+    email: own.length === 1 && agreesWithTheAddress(name) ? own[0] : null,
+    phone: own.length === 1 && agreesWithTheAddress(name) ? [...new Set(tels)][0] || null : null,
     linkedIn: (linkedInProfilesOn(html) || [])[0] || null,
     foundOn: page.url,
   }];
@@ -886,7 +965,17 @@ function peopleFromSite(pages) {
   const all = new Map();
   for (const page of pages) {
     const taken = new Set();
-    for (const person of [...personOnTheirOwnPage(page), ...peopleOnPage(page, taken), ...rosterRun(page, taken)]) {
+    // A site sometimes appends its own brand to a person's name in a page
+    // title ("Lisa Tavares Lapinerealty"). That last word is not her surname.
+    let siteLabel = '';
+    try {
+      const hostParts = new URL(page.url).hostname.toLowerCase().split('.');
+      siteLabel = (hostParts[0] === 'www' ? hostParts[1] : hostParts[0] || '').replace(/[^a-z]/g, '');
+    } catch { /* no site label available */ }
+    for (const person of [...personOnTheirOwnPage(page), ...peopleOnPage(page, taken),
+      ...rosterRun(page, taken), ...structuredPeopleOnPage(page)]) {
+      if (siteLabel.length >= 7 && person.name.toLowerCase().split(/\s+/)
+        .some((part) => part.replace(/[^a-z]/g, '') === siteLabel)) continue;
       const key = person.name.toLowerCase();
       const prior = all.get(key);
       if (!prior) { all.set(key, person); continue; }

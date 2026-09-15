@@ -31,7 +31,7 @@ philip louis todd chad marcus travis shane jared cody trevor derek jeff cory bre
 casey grant blake garrett colin curtis dale duane wade dean drew glenn neil rick
 ross seth spencer stuart victor warren dustin lance lonnie marty mitchell reid
 rodney shawn troy wesley clint clay chase brady bret cole devon garrick pete craig kurt lyle nate rob stan vern wes brent
-chris jim mike nick rich rod ron tim tom will zach jake josh matt
+chris jim mike nick rich rod ron tim tom will zach jake josh matt alex sam
 mary patricia jennifer linda elizabeth barbara susan jessica sarah karen lisa nancy
 betty margaret sandra ashley kimberly emily donna michelle carol amanda dorothy
 melissa deborah stephanie rebecca sharon laura cynthia kathleen amy angela shirley
@@ -43,7 +43,7 @@ alice julia judy sophia grace denise amber danielle marilyn beverly charlotte
 natalie theresa diana brittany doris kayla alexis lori marie tammy tracy erin
 holly jill jodi kara kris leah lindsay melanie monica renee robin sonja stacy
 crystal krystal misty tonya darcy shelly staci kerri jodie marcia lynne
-becky cindy connie dawn debbie kathy patty penny sherry tami terri traci
+becky cindy connie dawn debbie kathy patty penny sherry tami terri traci jane
 tina wendy allison bonnie carrie colleen dana darlene elaine ellen erica gail
 gina heidi jenna jenny kate kim krista lana lynn maureen nina paula peggy rhonda
 rita sally sandy shannon sheila stacey suzanne tara valerie vicki whitney yvonne
@@ -93,7 +93,13 @@ const NEVER_IN_A_NAME = new RegExp([
   'financial', 'agency', 'agent', 'office', 'team', 'staff', 'owner', 'director',
   'president', 'principal', 'partner', 'associate', 'specialist', 'technician',
   'broker', 'advisor', 'clinician',
-  'assistant', 'coordinator', 'supervisor', 'engineer', 'hot', 'tub', 'shop',
+  'assistant', 'coordinator', 'supervisor', 'engineer', 'admin', 'hot', 'tub', 'shop',
+  'client', 'portal', 'tax', 'news', 'insurances?', 'accepted', 'patient',
+  'forms?', 'prescription', 'refills?', 'data', 'cooling', 'listings?',
+  'liquid', 'computer', 'handlers?', 'life', 'groups?', 'mortgage', 'calculator',
+  'email', 'bio', 'scroll', 'sign', 'estate', 'market', 'update', 'seller',
+  'soon', 'coming', 'website', 'websites', 'presentations?', 'dashboard',
+  'platform', 'optimized', 'mobile', 'reporting', 'marketing',
 ].map((word) => `\\b(?:${word})\\b`).join('|'), 'i');
 
 // Structural tells that a string is a heading rather than a person.
@@ -101,6 +107,7 @@ const NOT_A_NAME_SHAPE = [
   /[?:;!]/,                   // "Why Wood?"  "Expert Services:"
   /\d/,                       // a number never belongs in one
   /\b(the|and|our|your|we|for|with|about|from|that|this|more|all)\b/i,
+  /^Lake Oswego$/i,
 ];
 
 // Is this string safe to greet somebody by? The bar is deliberately high.
