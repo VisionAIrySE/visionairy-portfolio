@@ -31,6 +31,7 @@ const READER_VERSION = arg('reader-version', '2026-09-14-whole-site-openrouter')
 const HAS_EMAIL = !process.argv.includes('--include-without-email');
 const LOOK = process.argv.includes('--look');
 const SELECTED_MISSING_FULL_READ = process.argv.includes('--selected-missing-full-read');
+const SELECTED_ATTEMPT_PREFIX = arg('selected-attempt-prefix', '');
 
 if (!process.env.OPENROUTER_API_KEY) {
   console.error('OpenRouter access is not configured. Nothing was read or changed.');
@@ -61,6 +62,7 @@ runUnderstand({
   readerDescription: `${MODEL} through OpenRouter`,
   limit: LIMIT, lanes: LANES, untried: true, hasEmail: HAS_EMAIL, look: LOOK,
   selectedMissingFullRead: SELECTED_MISSING_FULL_READ,
+  selectedAttemptPrefix: SELECTED_ATTEMPT_PREFIX,
   ...(ID ? { only: ID } : {}),
 }).then((result) => {
   console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${CEILING.toFixed(2)} ceiling`);

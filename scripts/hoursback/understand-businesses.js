@@ -854,6 +854,7 @@ async function understandPass(injected = {}) {
   const hasEmail = injected.hasEmail ?? HAS_EMAIL;
   const selectedMissingFullRead = injected.selectedMissingFullRead
     ?? process.argv.includes('--selected-missing-full-read');
+  const selectedAttemptPrefix = injected.selectedAttemptPrefix || arg('selected-attempt-prefix', '');
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
   const modelUsed = injected.model || MODEL;
   const readerDescription = injected.readerDescription || `the local claude reader (${MODEL})`;
@@ -1051,7 +1052,9 @@ async function understandPass(injected = {}) {
       } } },
       { readings: { none: {
         reader: 'understand-businesses',
-        readerVersion: injected.readerVersion || READER_VERSION,
+        readerVersion: selectedAttemptPrefix
+          ? { startsWith: selectedAttemptPrefix }
+          : injected.readerVersion || READER_VERSION,
         finishedAt: { not: null },
       } } },
     ],

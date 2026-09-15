@@ -487,7 +487,8 @@ test('selected research backlog is picked from full reader pages, even with an o
   db.prospect.findMany = async ({ where } = {}) => { pickedWith = where; return []; };
   await runUnderstand({
     db, ask: fakeReader(() => NO_ANSWER), selectedMissingFullRead: true,
-    readerVersion: 'selected-backlog-test', fresh: 0, limit: 50,
+    readerVersion: 'selected-backlog-test',
+    selectedAttemptPrefix: 'selected-backlog-', fresh: 0, limit: 50,
     lastRunPath: aBoard('ub-selected-full-gap'),
   });
   assert.equal(pickedWith.contacts.some.isPrimary, true);
@@ -496,7 +497,8 @@ test('selected research backlog is picked from full reader pages, even with an o
     'website, no full reader pages, and no completed attempt in this run are all required');
   assert.equal(pickedWith.AND[1].readings.none.reader, 'understand-businesses');
   assert.equal(pickedWith.AND[1].readings.none.outcome, 'read');
-  assert.equal(pickedWith.AND[2].readings.none.readerVersion, 'selected-backlog-test');
+  assert.deepEqual(pickedWith.AND[2].readings.none.readerVersion,
+    { startsWith: 'selected-backlog-' });
   assert.ok(!pickedWith.NOT.some((rule) => rule.stage === 'NEEDS_REVIEW'),
     'an already selected contact remains in scope even if the business is in the review pile');
 });

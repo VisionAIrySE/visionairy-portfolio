@@ -15,6 +15,7 @@ const limit = Math.min(50, Math.max(1, Number(value('limit', '50'))));
 const writerCeiling = Math.max(0.05, Number(value('writer-ceiling', '5')));
 const writerModel = value('writer-model', 'openai/gpt-5.6-luna');
 const selectedGap = process.argv.includes('--selected-missing-full-read');
+const selectedAttemptPrefix = value('selected-attempt-prefix');
 const resume = process.argv.includes('--resume');
 const doIt = process.argv.includes('--do-it');
 
@@ -28,7 +29,8 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
   const stages = [
     ...(!resume ? [{ label: 'Read full websites', script: 'read-full-via-openrouter.cjs',
       args: [`--reader-version=${version}`, `--limit=${limit}`, '--ceiling=1',
-        ...(selectedGap ? ['--selected-missing-full-read'] : [])] }] : []),
+        ...(selectedGap ? ['--selected-missing-full-read'] : []),
+        ...(selectedAttemptPrefix ? [`--selected-attempt-prefix=${selectedAttemptPrefix}`] : [])] }] : []),
     { label: 'Save company-specific evidence', script: 'enhance-openrouter-read-batch.cjs',
       args: [`--reader-version=${version}`] },
     { label: 'Prepare four messages per address', script: 'write-the-whole-sequence.cjs',
