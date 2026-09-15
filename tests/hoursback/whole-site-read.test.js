@@ -1004,6 +1004,23 @@ test('an unreachable site still finishes its reading, as unreachable', async () 
   assert.equal(db.rows.readings[0].outcome, 'unreachable', 'a site that cannot be fetched must not look like one nobody tried');
 });
 
+test('an obvious directory address is recorded once and removed from future read queues', async () => {
+  const db = fakeDb();
+  const row = {
+    ...freshRow(),
+    name: 'Blue Widget Co',
+    website: 'https://www.yelp.com/biz/blue-widget-co-bend',
+  };
+  const visit = await runVisit(db, { row });
+  assert.equal(visit.outcome, 'not_their_site');
+  assert.equal(db.rows.readings.length, 1, 'the rejected address still leaves a completed evidence event');
+  assert.equal(db.rows.readings[0].outcome, 'read', 'the ownership decision is conclusive, not a tool failure');
+  assert.match(db.rows.readings[0].note, /not their site/);
+  const cleared = db.rows.prospectUpdates.find((entry) => entry.data && entry.data.siteStatus === 'NO_WEBSITE');
+  assert.ok(cleared, 'the directory address is cleared so it cannot consume every later batch');
+  assert.equal(cleared.data.website, null);
+});
+
 test('a visit that runs out of read time is kept and marked partial', async () => {
   const db = fakeDb();
   const visit = await script.visitOneBusiness(db, freshRow(), {

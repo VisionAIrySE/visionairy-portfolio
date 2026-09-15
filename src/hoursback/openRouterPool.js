@@ -6,6 +6,8 @@ function makeOpenRouterPool({
   ceilingUsd = 2,
   hardKillMs = 30000,
   maxTokens = 400,
+  systemPrompt = 'Write polished business English and answer with JSON only. No preamble or code fences.',
+  temperature = 0.2,
   fetchFn = fetch,
   onCall = null,
 } = {}) {
@@ -32,10 +34,10 @@ function makeOpenRouterPool({
         body: JSON.stringify({
           model,
           messages: [
-            { role: 'system', content: 'Write polished business English and answer with JSON only. No preamble or code fences.' },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: String(question) },
           ],
-          temperature: 0.2,
+          temperature,
           max_tokens: maxTokens,
           reasoning: { effort: 'none' },
           usage: { include: true },
@@ -48,6 +50,7 @@ function makeOpenRouterPool({
           const failure = await response.json();
           if (failure.error && failure.error.message) why += `: ${String(failure.error.message).slice(0, 160)}`;
         } catch { /* status remains useful */ }
+        if (onCall) onCall({ ms: Date.now() - began, answered: false, cost: 0, spent, why });
         return { answer: null, why, readerExhausted: [401, 402, 403, 429].includes(response.status) };
       }
       const payload = await response.json();
@@ -58,7 +61,9 @@ function makeOpenRouterPool({
       if (onCall) onCall({ ms: Date.now() - began, answered: Boolean(parsed && parsed.answer), cost, spent });
       return parsed;
     } catch (error) {
-      return { answer: null, why: error.name === 'TimeoutError' ? 'OpenRouter did not answer within the time limit' : error.message };
+      const why = error.name === 'TimeoutError' ? 'OpenRouter did not answer within the time limit' : error.message;
+      if (onCall) onCall({ ms: Date.now() - began, answered: false, cost: 0, spent, why });
+      return { answer: null, why };
     } finally {
       reserved -= reservationPerCall;
     }

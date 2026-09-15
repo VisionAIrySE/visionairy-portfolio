@@ -421,14 +421,31 @@ async function visitOneBusiness(db, r, deps = {}) {
     error: null,
   };
 
-  if (whyNotTheirs(url, name)) { visit.outcome = 'not_their_site'; return visit; }
-
   // ONE reading per visit. It opens as FAILED so a crash mid-visit leaves a
   // reading that says so, and every group read below shares its readingId.
   const reading = look ? null : await R.startReading(db, {
     prospectId: r.id, source: R.WEBSITE, sourceUrl: url,
-    reader: READER, readerVersion: READER_VERSION, model: MODEL,
+    reader: READER,
+    readerVersion: deps.readerVersion || READER_VERSION,
+    model: deps.model || MODEL,
   });
+
+  const obviousWrongSite = whyNotTheirs(url, name);
+  if (obviousWrongSite) {
+    if (!look) {
+      await db.prospect.update({
+        where: { id: r.id },
+        data: {
+          website: null, websiteManualValue: null, normalizedDomain: null,
+          siteStatus: 'NO_WEBSITE', siteReadAt: new Date(),
+          siteGaps: JSON.stringify([obviousWrongSite]),
+        },
+      });
+    }
+    if (reading) await R.finishReading(db, reading.id, R.READ, `not their site; ${obviousWrongSite}`);
+    visit.outcome = 'not_their_site';
+    return visit;
+  }
 
   try {
     // THE FRONT DOOR, CHECKED BEFORE ANYTHING IS SPENT. One page, one question:
@@ -836,6 +853,8 @@ async function understandPass(injected = {}) {
   const emailable = injected.emailable ?? EMAILABLE;
   const hasEmail = injected.hasEmail ?? HAS_EMAIL;
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
+  const modelUsed = injected.model || MODEL;
+  const readerDescription = injected.readerDescription || `the local claude reader (${MODEL})`;
   const lastRunAt = injected.lastRunPath || LAST_RUN;
   progress.done = 0; progress.total = 0;
 
@@ -957,7 +976,13 @@ async function understandPass(injected = {}) {
       // note at the flag. The manual column counts — a hand-typed address is
       // an address (2026-09-05).
       ...(hasEmail
-        ? { OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] }
+        ? {
+          OR: [
+            { email: { not: null } },
+            { emailManualValue: { not: null } },
+            { contacts: { some: { email: { not: null }, setAsideAt: null, bouncedAt: null } } },
+          ],
+        }
         : {}),
     };
   // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
@@ -1063,7 +1088,7 @@ async function understandPass(injected = {}) {
   const tally = {
     read: 0, notTheirSite: 0, siteDown: 0, readerFailed: 0, noReadableWords: 0, partial: 0,
     viaBrowser: 0, wordsRecovered: 0, browserBroke: 0, stalled: 0, nothingNew: 0,
-    tradeConfirmed: 0, tradeCorrected: 0, tradeUnsure: 0,
+    tradeConfirmed: 0, tradeCorrected: 0, tradeUnsure: 0, needsSiteDecision: 0,
     people: 0, roles: 0, rolesUnderstood: 0, emails: 0, directLines: 0, profiles: 0,
     sharedInbox: 0, formOnly: 0, phoneOnly: 0, held: 0, newlyScored: 0,
     modelCalls: 0, pagesFetched: 0, brokeOnThisOne: 0,
@@ -1106,6 +1131,8 @@ async function understandPass(injected = {}) {
       try {
         const visit = await visitOneBusiness(db, r, {
           controller, askTheReader: guard.ask, look,
+          model: modelUsed,
+          readerVersion: injected.readerVersion || READER_VERSION,
           ...(injected.fetch ? { fetch: injected.fetch } : {}),
         });
 
@@ -1132,6 +1159,7 @@ async function understandPass(injected = {}) {
         if (visit.stalled) tally.stalled += 1;
         if (visit.saidNothingNew) tally.nothingNew += 1;
         if (visit.outcome === 'not_their_site') { tally.notTheirSite += 1; continue; }
+        if (visit.outcome === 'ask_russ_whose_site') { tally.needsSiteDecision += 1; continue; }
         if (visit.outcome === 'unreachable') { tally.siteDown += 1; continue; }
         if (visit.outcome === 'failed') {
           tally.brokeOnThisOne += 1;
@@ -1244,6 +1272,7 @@ async function understandPass(injected = {}) {
   console.log(`\n${'='.repeat(74)}`);
   console.log(`read properly:            ${tally.read}   in ${mins} minutes   (${tally.partial} partial, kept and marked)`);
   console.log(`website was not theirs:   ${tally.notTheirSite}`);
+  console.log(`website needs a decision: ${tally.needsSiteDecision}`);
   console.log(`site would not answer:    ${tally.siteDown}`);
   console.log(`reader gave no answer:    ${tally.readerFailed}`);
   if (tally.browserBroke) console.log(`browser would NOT start:  ${tally.browserBroke}   (these are not thin websites — we never got to look)`);
@@ -1257,8 +1286,10 @@ async function understandPass(injected = {}) {
   }
   console.log('');
   console.log(`pages fetched:            ${tally.pagesFetched}`);
-  console.log(`model calls:              ${tally.modelCalls}   every one via the local claude reader (${MODEL}) — no OpenRouter, no paid call`);
-  console.log(`calls logged:             ${callLog.length}   (${callLog.filter((c) => c.via === 'local claude').length} local claude, 0 anything else)`);
+  console.log(`model calls:              ${tally.modelCalls}   every one via ${readerDescription}`);
+  if (!injected.ask) {
+    console.log(`calls logged:             ${callLog.length}   (${callLog.filter((c) => c.via === 'local claude').length} local claude, 0 anything else)`);
+  }
   console.log(`concurrency settled at:   ${controller.settledAt} in flight`);
   console.log('');
   console.log(`trade confirmed:          ${tally.tradeConfirmed}`);

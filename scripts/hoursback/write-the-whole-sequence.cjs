@@ -87,6 +87,7 @@ function expandRecipientCampaigns(p, allContacts = ALL_CONTACTS) {
 }
 const OPENROUTER_MODEL = arg('openrouter-model', '');
 const OPENROUTER_CEILING = Number(arg('openrouter-ceiling', 2));
+const READER_VERSION = arg('reader-version', '');
 const projectOpenRouterKey = (() => {
   try {
     const line = fs.readFileSync('.env', 'utf8').split(/\r?\n/)
@@ -418,7 +419,11 @@ if (require.main === module) (async () => {
     by: ['prospectId'],
     where: {
       source: 'website', outcome: 'read',
-      pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      ...(READER_VERSION ? { readerVersion: READER_VERSION } : {}),
+      pages: { some: { OR: [
+        { AND: [{ text: { not: null } }, { NOT: { text: '' } }] },
+        { sameAs: { not: null } },
+      ] } },
     },
   })).map((r) => r.prospectId);
   let targets = [];

@@ -3,10 +3,14 @@ const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
 
 (async () => {
   let calls = 0;
+  let requestBody = null;
   const success = makeOpenRouterPool({
     apiKey: 'test-key',
-    fetchFn: async () => {
+    systemPrompt: 'research facts only',
+    temperature: 0,
+    fetchFn: async (_url, options) => {
       calls += 1;
+      requestBody = JSON.parse(options.body);
       return {
         ok: true,
         json: async () => ({
@@ -20,18 +24,24 @@ const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
   assert.equal(answer.answer.body, 'clear copy');
   assert.equal(success.spent, 0.001);
   assert.equal(calls, 1);
+  assert.equal(requestBody.messages[0].content, 'research facts only');
+  assert.equal(requestBody.temperature, 0);
 
   const capped = makeOpenRouterPool({ apiKey: 'test-key', ceilingUsd: 0.005, fetchFn: async () => { throw new Error('must not call'); } });
   const blocked = await capped.ask('write it');
   assert.equal(blocked.readerExhausted, true);
   assert.match(blocked.why, /run ceiling was reached/);
 
+  let refusalLog = null;
   const unauthorized = makeOpenRouterPool({
     apiKey: 'test-key',
     fetchFn: async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'User not found' } }) }),
+    onCall: (entry) => { refusalLog = entry; },
   });
   const refused = await unauthorized.ask('write it');
   assert.equal(refused.readerExhausted, true);
   assert.match(refused.why, /User not found/);
+  assert.equal(refusalLog.answered, false);
+  assert.match(refusalLog.why, /401/);
   console.log('PASS: OpenRouter writing is bounded, measurable, and stops on authorization failure');
 })().catch((error) => { console.error(error); process.exit(1); });

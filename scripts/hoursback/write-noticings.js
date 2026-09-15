@@ -207,7 +207,10 @@ async function noticingRun(injected = {}) {
         some: {
           source: 'website',
           outcome: 'read',
-          pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+          pages: { some: { OR: [
+            { AND: [{ text: { not: null } }, { NOT: { text: '' } }] },
+            { sameAs: { not: null } },
+          ] } },
         },
       };
       where.repliedAt = null;
