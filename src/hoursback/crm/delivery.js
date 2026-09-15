@@ -5,6 +5,7 @@
 
 const CLAIM_LEASE_MS = 5 * 60 * 1000;
 const SAFE_RETRY_MS = 23 * 60 * 60 * 1000;
+const { presentationProblem } = require('./signature.js');
 
 function deliveryKey(messageId) {
   return `outreach:${messageId}`;
@@ -103,6 +104,19 @@ async function claim(db, messageId, makePayload, now = new Date()) {
     const payload = message.deliveryState === 'FAILED' ? savedPayload(message) : await makePayload(tx, message);
     if (!payload) {
       const reason = 'no deliverable email address is available';
+      await tx.outreachMessage.updateMany({
+        where: { id: message.id, state: 'QUEUED' },
+        data: { state: 'SUPPRESSED', deliveryState: 'BLOCKED',
+          suppressedReason: reason, deliveryError: reason },
+      });
+      return { blocked: reason };
+    }
+    // Inspect the exact HTML and plain-text payload before either is frozen
+    // or handed to Resend. A bad rendering must stop this recipient, not the
+    // whole batch, and its reason must be visible for review.
+    const problem = presentationProblem(payload);
+    if (problem) {
+      const reason = `email presentation check: ${problem}`;
       await tx.outreachMessage.updateMany({
         where: { id: message.id, state: 'QUEUED' },
         data: { state: 'SUPPRESSED', deliveryState: 'BLOCKED',

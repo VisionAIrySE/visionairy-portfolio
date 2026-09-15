@@ -43,15 +43,17 @@ function logoDataUri() {
 function signatureHtml() {
   const src = logoDataUri();
   const logo = src
-    ? `<tr><td style="padding-bottom:8px"><img src="${src}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="VisionAIry — Success Engineering" style="display:block;border:0"></td></tr>`
+    ? `<tr><td style="padding:8px 0"><img src="${src}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="VisionAIry — Success Engineering" style="display:block;border:0"></td></tr>`
     : '';
   return `<table cellpadding="0" cellspacing="0" border="0" style="font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a">
-  ${logo}
   <tr><td style="border-top:2px solid ${LEAF};padding-top:8px">
     <div style="padding-bottom:10px">Best regards,</div>
     <div style="font-weight:700">${CONTACT.name}</div>
     <div>Founder</div>
     <div>VisionAIry</div>
+  </td></tr>
+  ${logo}
+  <tr><td>
     <div style="padding-top:6px">
       <a href="tel:+1${CONTACT.phone.replace(/\D/g, '')}" style="color:#1a1a1a;text-decoration:none">${CONTACT.phone}</a> &nbsp;·&nbsp;
       <a href="mailto:${CONTACT.email}" style="color:#1a1a1a;text-decoration:none">${CONTACT.email}</a>
@@ -96,13 +98,33 @@ function boldTheFreePart(html) {
   return html.replace(THE_FREE_PART, (said) => `<strong>${said}</strong>`);
 }
 
+function bodyWithoutSignOff(body) {
+  // Saved and hand-edited letters can use Windows-style line endings.
+  return String(body || '').replace(/\r\n?/g, '\n')
+    .split(/\n{2,}Best regards,\s*\n/i)[0].trim();
+}
+
+function presentationProblem({ html, text } = {}) {
+  const rendered = String(html || '');
+  const plain = String(text || '');
+  if (/&lt;\s*br\s*\/?\s*&gt;|&lt;\s*br\s*\/?\s*>/i.test(rendered)
+      || /<br\s*\/?\s*>/i.test(plain)) return 'visible HTML break markers in the email';
+  if ((rendered.match(/Best regards,/g) || []).length > 1
+      || (plain.match(/Best regards,/g) || []).length > 1) return 'the email sign-off appears twice';
+  const logo = rendered.indexOf('<img src=');
+  const company = rendered.indexOf('<div>VisionAIry</div>');
+  if (logo >= 0 && company >= 0 && logo < company) return 'the logo is above the founder sign-off';
+  return null;
+}
+
 function toHtmlEmail(plainBody) {
   // Everything from "Best," onward is the sign-off; the drawn version
   // renders it, so the typed one is trimmed first.
-  const withoutSignOff = String(plainBody).split(/\n\nBest\b/)[0];
+  const withoutSignOff = bodyWithoutSignOff(plainBody);
   const paragraphs = withoutSignOff.split(/\n\n+/)
     .map((p) => {
-      const safe = p.replace(/\n/g, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const safe = p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
       return `<p style="margin:0 0 14px">${boldTheFreePart(safe)}</p>`;
     })
     .join('\n');
@@ -114,5 +136,6 @@ ${signatureHtml()}
 
 module.exports = {
   CONTACT, LOGO_WIDTH, LOGO_HEIGHT, GREEN, LEAF,
-  logoDataUri, signatureHtml, signatureText, toHtmlEmail, boldTheFreePart, THE_FREE_PART,
+  logoDataUri, signatureHtml, signatureText, bodyWithoutSignOff, presentationProblem,
+  toHtmlEmail, boldTheFreePart, THE_FREE_PART,
 };

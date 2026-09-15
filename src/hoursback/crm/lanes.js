@@ -990,7 +990,7 @@ async function sendQueuedEmails(db, options = {}) {
     return true;
   });
 
-  const { toHtmlEmail, signatureText } = require('./signature.js');
+  const { toHtmlEmail, bodyWithoutSignOff, signatureText } = require('./signature.js');
   const send = options.send || defaultSender(key);
 
   for (const m of queued) {
@@ -1001,7 +1001,7 @@ async function sendQueuedEmails(db, options = {}) {
       return {
         from, to, subject: current.subject,
         html: toHtmlEmail(current.body),
-        text: `${current.body.split(/\n\nRuss Wright\n/)[0]}\n\n${signatureText()}`,
+        text: `${bodyWithoutSignOff(current.body)}\n\n${signatureText()}`,
       };
     }, now);
     if (!claimed) continue;

@@ -63,6 +63,17 @@ test('only one concurrent worker claims a queued message', async () => {
   assert.equal(db.row.deliveryKey, 'outreach:message-1');
 });
 
+test('malformed HTML is held before a provider attempt and records the reason', async () => {
+  const db = memoryDb();
+  const result = await D.claim(db, db.row.id,
+    async () => payload({ html: '<p>Hi &lt;br> there</p>' }));
+  assert.match(result.blocked, /visible HTML break markers/);
+  assert.equal(db.row.state, 'SUPPRESSED');
+  assert.equal(db.row.deliveryState, 'BLOCKED');
+  assert.equal(db.row.deliveryLastAttemptAt, null);
+  assert.match(db.row.suppressedReason, /email presentation check/);
+});
+
 test('suppression is checked again immediately before provider delivery', async () => {
   const db = memoryDb();
   const now = new Date('2026-09-09T12:00:00Z');
