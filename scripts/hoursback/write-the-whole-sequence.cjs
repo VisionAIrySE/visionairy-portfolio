@@ -60,6 +60,7 @@ const PREPARE_ONLY = process.argv.includes('--prepare-only');
 const LIMIT = Number(arg('limit', 0)) || 0;
 const ONLY = arg('only', '');
 const ID = arg('id', '');
+const IDS = arg('ids', '').split(',').map((id) => id.trim()).filter(Boolean);
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
 const TOUCH = Number(arg('touch', 0));
 const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
@@ -434,6 +435,7 @@ if (require.main === module) (async () => {
         AND: [
           { id: { in: readable.slice(i, i + 200) } },
           ...(ID ? [{ id: ID }] : []),
+          ...(IDS.length ? [{ id: { in: IDS } }] : []),
         ],
         doNotContact: false,
         ...(ONLY ? { name: { contains: ONLY, mode: 'insensitive' } } : {}),
