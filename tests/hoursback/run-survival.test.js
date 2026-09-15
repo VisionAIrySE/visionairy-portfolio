@@ -481,6 +481,26 @@ test('understand-businesses --fresh skips the recently read and visits the rest'
   assert.match(board, /3 done, 0 left/);
 });
 
+test('selected research backlog is picked from full reader pages, even with an old read stamp or review stage', async () => {
+  const db = fakeUnderstandDb([]);
+  let pickedWith;
+  db.prospect.findMany = async ({ where } = {}) => { pickedWith = where; return []; };
+  await runUnderstand({
+    db, ask: fakeReader(() => NO_ANSWER), selectedMissingFullRead: true,
+    readerVersion: 'selected-backlog-test', fresh: 0, limit: 50,
+    lastRunPath: aBoard('ub-selected-full-gap'),
+  });
+  assert.equal(pickedWith.contacts.some.isPrimary, true);
+  assert.equal(pickedWith.repliedAt, null);
+  assert.equal(pickedWith.AND.length, 3,
+    'website, no full reader pages, and no completed attempt in this run are all required');
+  assert.equal(pickedWith.AND[1].readings.none.reader, 'understand-businesses');
+  assert.equal(pickedWith.AND[1].readings.none.outcome, 'read');
+  assert.equal(pickedWith.AND[2].readings.none.readerVersion, 'selected-backlog-test');
+  assert.ok(!pickedWith.NOT.some((rule) => rule.stage === 'NEEDS_REVIEW'),
+    'an already selected contact remains in scope even if the business is in the review pile');
+});
+
 // READ MEANS PAGES STORED (2026-09-02). Six businesses in the first fifty
 // carried a read date and held not one word — visits stamped finished before
 // anything landed. The resume filter trusted the stamp and never went back,

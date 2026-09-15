@@ -30,6 +30,7 @@ const ID = arg('id', '');
 const READER_VERSION = arg('reader-version', '2026-09-14-whole-site-openrouter');
 const HAS_EMAIL = !process.argv.includes('--include-without-email');
 const LOOK = process.argv.includes('--look');
+const SELECTED_MISSING_FULL_READ = process.argv.includes('--selected-missing-full-read');
 
 if (!process.env.OPENROUTER_API_KEY) {
   console.error('OpenRouter access is not configured. Nothing was read or changed.');
@@ -49,13 +50,17 @@ const writer = makeOpenRouterPool({
 
 console.log(`Full website research: up to ${LIMIT} unread businesses through ${MODEL}`);
 console.log(`OpenRouter spending ceiling: $${CEILING.toFixed(2)}`);
-console.log(HAS_EMAIL ? 'Queue: businesses with a usable company email on file' : 'Queue: businesses with or without an email');
+console.log(SELECTED_MISSING_FULL_READ
+  ? 'Queue: selected contacts whose business lacks saved full-site research'
+  : HAS_EMAIL ? 'Queue: businesses with a usable email on file'
+    : 'Queue: businesses with or without an email');
 
 runUnderstand({
   ask: writer.ask, model: MODEL,
   readerVersion: READER_VERSION,
   readerDescription: `${MODEL} through OpenRouter`,
   limit: LIMIT, lanes: LANES, untried: true, hasEmail: HAS_EMAIL, look: LOOK,
+  selectedMissingFullRead: SELECTED_MISSING_FULL_READ,
   ...(ID ? { only: ID } : {}),
 }).then((result) => {
   console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${CEILING.toFixed(2)} ceiling`);

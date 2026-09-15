@@ -852,6 +852,8 @@ async function understandPass(injected = {}) {
   const only = injected.only ?? ONLY;
   const emailable = injected.emailable ?? EMAILABLE;
   const hasEmail = injected.hasEmail ?? HAS_EMAIL;
+  const selectedMissingFullRead = injected.selectedMissingFullRead
+    ?? process.argv.includes('--selected-missing-full-read');
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
   const modelUsed = injected.model || MODEL;
   const readerDescription = injected.readerDescription || `the local claude reader (${MODEL})`;
@@ -962,7 +964,8 @@ async function understandPass(injected = {}) {
       NOT: [
         { AND: [{ website: null }, { websiteManualValue: null }] },
         // The set-aside pile is excluded UNLESS we are deliberately reading it.
-        ...(REVIEW_PILE || UNREAD_TRADES ? [] : [{ stage: 'NEEDS_REVIEW' }]),
+        ...(REVIEW_PILE || UNREAD_TRADES || selectedMissingFullRead
+          ? [] : [{ stage: 'NEEDS_REVIEW' }]),
       ],
       ...(REVIEW_PILE ? { stage: 'NEEDS_REVIEW' } : {}),
       ...(UNREAD_TRADES ? { stage: 'NEEDS_REVIEW', siteReadAt: null } : {}),
@@ -1031,7 +1034,32 @@ async function understandPass(injected = {}) {
       },
     }
     : {};
-  const where = only ? baseWhere : { ...alreadyDone, ...baseWhere, ...neverOpened };
+  // A selected recipient may still lack a qualifying full-site reading even
+  // when an old status field says READ. Work this backlog from actual saved
+  // pages, including selected businesses in the usual review pile. An attempt
+  // already completed by this run version is left as an exception rather than
+  // being picked again in every batch.
+  const selectedFullGap = selectedMissingFullRead ? {
+    repliedAt: null,
+    contacts: { some: {
+      isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
+    } },
+    AND: [
+      { readings: { none: {
+        source: R.WEBSITE, reader: 'understand-businesses', outcome: R.READ,
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      } } },
+      { readings: { none: {
+        reader: 'understand-businesses',
+        readerVersion: injected.readerVersion || READER_VERSION,
+        finishedAt: { not: null },
+      } } },
+    ],
+  } : {};
+  const where = only ? baseWhere : selectedMissingFullRead
+    ? { ...baseWhere, ...selectedFullGap,
+        AND: [...baseWhere.AND, ...selectedFullGap.AND] }
+    : { ...alreadyDone, ...baseWhere, ...neverOpened };
 
   // A RESUMED RUN'S NUMBERS ARE LEGIBLE, and they come from the database.
   if (FRESH && !only) {
