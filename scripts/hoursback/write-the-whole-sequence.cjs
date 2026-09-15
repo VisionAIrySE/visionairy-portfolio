@@ -61,6 +61,12 @@ const LIMIT = Number(arg('limit', 0)) || 0;
 const ONLY = arg('only', '');
 const ID = arg('id', '');
 const IDS = arg('ids', '').split(',').map((id) => id.trim()).filter(Boolean);
+// A repair can scope a model run to exact business/address pairs without
+// putting recipient addresses in command-line arguments or touching siblings.
+const TARGET_CAMPAIGNS = process.env.HOURSBACK_TARGET_CAMPAIGNS_JSON
+  ? new Set(JSON.parse(process.env.HOURSBACK_TARGET_CAMPAIGNS_JSON).map((item) =>
+    `${item.prospectId}|${String(item.sentTo || '').trim().toLowerCase()}`))
+  : null;
 const AT_ONCE = Math.max(1, Number(arg('at-once', 3)));
 const TOUCH = Number(arg('touch', 0));
 const OVERWRITE_EDITS = process.argv.includes('--overwrite-edits');
@@ -86,6 +92,13 @@ function expandRecipientCampaigns(p, allContacts = ALL_CONTACTS) {
     if (inbox && !alreadyIncluded) expanded.push({ ...p, _recipient: null });
   }
   return expanded.length ? expanded : [{ ...p, _recipient: null }];
+}
+function campaignKeyFor(p) {
+  return `${p.id}|${String((p._recipient && p._recipient.email)
+    || p.emailManualValue || p.email || '').trim().toLowerCase()}`;
+}
+function selectTargetCampaigns(campaigns, keys) {
+  return keys ? campaigns.filter((p) => keys.has(campaignKeyFor(p))) : campaigns;
 }
 const OPENROUTER_MODEL = arg('openrouter-model', '');
 const OPENROUTER_CEILING = Number(arg('openrouter-ceiling', 2));
@@ -480,6 +493,7 @@ if (require.main === module) (async () => {
   // deliverable person at a fully researched company; selection still alone
   // controls what appears in the active sending workflow.
   targets = targets.flatMap((p) => expandRecipientCampaigns(p));
+  targets = selectTargetCampaigns(targets, TARGET_CAMPAIGNS);
   if (DEBUG) {
     for (const p of targets) console.log(`DETAIL ${p.id} ${p.name}: ${p._recipient ? p._recipient.email : '(business inbox)'}`);
   }
@@ -560,7 +574,7 @@ if (require.main === module) (async () => {
     const roleTitle = writeTo.contactRole || null;
 
     const reading = await db.reading.findFirst({
-      where: { prospectId: p.id, findings: { some: { field: 'noticingJob' } } },
+      where: L.savedNoticingJobReadingWhere(p.id),
       orderBy: { startedAt: 'desc' },
       include: { findings: true },
     });
@@ -806,4 +820,5 @@ module.exports = {
   acceptableOpening,
   addressedSubject,
   expandRecipientCampaigns,
+  selectTargetCampaigns,
 };

@@ -231,6 +231,14 @@ function contentCheckForRecipient(first, prospect, { jobs, roleTitle, judgeStore
   return { ok: true, problem: null };
 }
 
+function savedNoticingJobReadingWhere(prospectId) {
+  return {
+    ...(prospectId ? { prospectId } : {}),
+    source: 'website', reader: 'noticing', outcome: 'read',
+    findings: { some: { field: 'noticingJob' } },
+  };
+}
+
 async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   const prospect = await db.prospect.findUnique({
     where: { id: prospectId },
@@ -267,7 +275,7 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
     !message.sentAt && !message.deliveryState && ['DRAFT', 'QUEUED'].includes(message.state)));
   const reading = selected.size && prospect.readings.length
     ? await db.reading.findFirst({
-      where: { prospectId, findings: { some: { field: 'noticingJob' } } },
+      where: savedNoticingJobReadingWhere(prospectId),
       orderBy: { startedAt: 'desc' },
       select: { findings: { where: { field: 'noticingJob' }, select: { value: true } } },
     }) : null;
@@ -355,7 +363,7 @@ async function selectedDraftGap(db, options = {}) {
   const jobReadings = prospects.length ? await db.reading.findMany({
     where: {
       prospectId: { in: prospects.map((prospect) => prospect.id) },
-      findings: { some: { field: 'noticingJob' } },
+      ...savedNoticingJobReadingWhere(),
     },
     orderBy: { startedAt: 'desc' },
     select: {
@@ -1311,6 +1319,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, savedNoticingJobReadingWhere, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

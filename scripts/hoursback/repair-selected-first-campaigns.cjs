@@ -31,7 +31,9 @@ async function failedFirsts() {
       judgeStored: (message, context) => {
         const verdict = J.judgeStored(message, context);
         if (!verdict.ok && L.isFirstContactMessage(message)) {
-          failures.set(message.prospectId, {
+          const sentTo = String(message.sentTo || '').trim().toLowerCase();
+          failures.set(`${message.prospectId}|${sentTo}`, {
+            prospectId: message.prospectId, sentTo,
             edited: Boolean(message.editedAt), reason: verdict.why,
           });
         }
@@ -48,22 +50,26 @@ async function failedFirsts() {
   }
   const before = await failedFirsts();
   const held = [...before.failures.values()].filter((item) => item.edited).length;
-  const ids = [...before.failures].filter(([, item]) => !item.edited)
-    .map(([id]) => id);
+  const targets = [...before.failures.values()].filter((item) => !item.edited);
+  const ids = [...new Set(targets.map((item) => item.prospectId))];
   console.log(`${before.gap.contentFailed} selected campaigns fail writing checks; ${ids.length} have an unedited failing first email; ${held} hand-edited first emails are held.`);
   if (!doIt) {
     console.log('Preview only. No draft was changed or lined up.');
     return;
   }
-  if (!expected || expected !== ids.length || held) {
-    throw new Error(`Repair scope changed. Expected ${expected} unedited failing first emails; found ${ids.length} and ${held} hand edits. Nothing was changed.`);
+  if (!expected || expected !== targets.length || held) {
+    throw new Error(`Repair scope changed. Expected ${expected} unedited failing first emails; found ${targets.length} and ${held} hand edits. Nothing was changed.`);
   }
   const code = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [
       path.join(__dirname, 'write-the-whole-sequence.cjs'),
       `--ids=${ids.join(',')}`, '--do-it', '--prepare-only',
       `--openrouter-model=${model}`, `--openrouter-ceiling=${ceiling}`,
-    ], { cwd: path.resolve(__dirname, '../..'), stdio: 'inherit', shell: false });
+    ], {
+      cwd: path.resolve(__dirname, '../..'), stdio: 'inherit', shell: false,
+      env: { ...process.env, HOURSBACK_TARGET_CAMPAIGNS_JSON: JSON.stringify(targets.map(
+        ({ prospectId, sentTo }) => ({ prospectId, sentTo }))) },
+    });
     child.once('error', reject);
     child.once('exit', (exitCode) => resolve(exitCode ?? 1));
   });
@@ -72,8 +78,8 @@ async function failedFirsts() {
     return;
   }
   const after = await failedFirsts();
-  const remaining = ids.filter((id) => after.failures.has(id));
-  console.log(`${ids.length - remaining.length} of ${ids.length} targeted first emails now pass; ${remaining.length} still need revision. First emails remain drafts.`);
+  const remaining = targets.filter((item) => after.failures.has(`${item.prospectId}|${item.sentTo}`));
+  console.log(`${targets.length - remaining.length} of ${targets.length} targeted first emails now pass; ${remaining.length} still need revision. First emails remain drafts.`);
   if (remaining.length) process.exitCode = 2;
 })().catch((error) => {
   console.error(`Repair stopped: ${error.message}`);
