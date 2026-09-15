@@ -31,10 +31,10 @@ assert.match(app, /Recipients and their email sequences/,
   'opening a company must combine recipient selection with campaign review');
 assert.match(app, /one\(campaign, \{ nested: true, showApproval: false \}\)/,
   'each recipient must have one checkbox beside their expandable campaign');
-assert.match(app, /selectedCount = intendedEmailRecipients\(prospect\)\.length/,
-  'the company heading must count selected recipients rather than already-written campaigns');
-assert.match(app, /const readyCount = messages\.filter\(isComplete\)\.length/,
-  'the ready count must reflect selected campaigns that pass the automatic checks');
+assert.match(app, /availableContacts\.length\s*\? selectedContacts\.length\s*: intendedEmailRecipients\(prospect\)\.length/,
+  'the company heading must count checked recipients rather than an unselected fallback contact');
+assert.match(app, /message\.state === 'QUEUED' && isComplete\(message\)/,
+  'the ready count must require a queued, complete first email');
 assert.match(app, /L\.syncSelectedEmailCampaigns\(db, message\.prospectId\)/,
   'saving recipient choices must make complete campaigns ready without a second approval step');
 assert.match(app, /recipientChoicesChanged==='true'/,

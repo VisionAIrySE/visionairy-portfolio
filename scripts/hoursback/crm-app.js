@@ -1370,13 +1370,26 @@ async function emailScreen(params) {
     const prospect = company.prospect;
     const availableContacts = (prospect.contacts || []).filter((person) => person.email && !person.bouncedAt);
     const selectedContacts = availableContacts.filter((person) => person.isPrimary);
-    const selectedCount = intendedEmailRecipients(prospect).length;
+    // The summary must reflect saved choices, not the display fallback that
+    // shows one unselected contact so Russ can still choose that person here.
+    const selectedCount = availableContacts.length
+      ? selectedContacts.length
+      : intendedEmailRecipients(prospect).length;
     const isComplete = (message) => Boolean(message.prospect.readings && message.prospect.readings.length)
       && L.campaignHasCompleteSequence(message);
-    const completeCount = messages.filter(isComplete).length;
-    const readyCount = messages.filter(isComplete).length;
+    const chosenAddresses = new Set(selectedContacts.map((person) =>
+      String(person.email).trim().toLowerCase()));
+    const chosenMessages = availableContacts.length
+      ? messages.filter((message) => chosenAddresses.has(
+        String(emailRecipient(message).address).trim().toLowerCase()))
+      : messages;
+    const completeCount = chosenMessages.filter(isComplete).length;
+    const readyCount = chosenMessages.filter((message) =>
+      message.state === 'QUEUED' && isComplete(message)).length;
     const campaignsWaiting = Math.max(0, selectedCount - completeCount);
-    const readinessLabel = readyCount === selectedCount ? 'Ready to send' : `${readyCount} ready to send`;
+    const readinessLabel = selectedCount
+      ? `${readyCount} lined up to send`
+      : 'No recipients selected';
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
@@ -1390,14 +1403,14 @@ async function emailScreen(params) {
       ontoggle="if(!this.open&amp;&amp;this.dataset.recipientChoicesChanged==='true'){this.dataset.recipientChoicesChanged='false';this.querySelector('form.recipient-choices').requestSubmit()}"
       ${messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
       <summary class="company-summary">
-        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} · ${readinessLabel}</div></div>
+        <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
-        <span class="state muted" style="font-size:12px">${campaignsWaiting ? `${completeCount} of ${selectedCount} campaigns complete` : 'All campaigns complete'}</span>
+        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} campaigns complete` : 'All selected campaigns complete'}</span>
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Recipients and their email sequences</h3>
         ${availableContacts.length ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
-          <p class="mini" style="margin-top:0">One checkmark controls each person. Checked means their complete campaign is included and ready for your next Send action. Open any person to spot-check all four messages. Changes save automatically when you close this company.</p>
+          <p class="mini" style="margin-top:0">One checkmark controls each person. A complete campaign is lined up when you save the choice. It can go out in the next scheduled run or when you press Send now. Open any person to spot-check all four messages. Changes save automatically when you close this company.</p>
           <button form="${formId}" style="margin:3px 0 8px">Save recipient choices</button>
           ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
             ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
@@ -1407,7 +1420,10 @@ async function emailScreen(params) {
             const address = String(person.email || '').trim().toLowerCase();
             const campaign = campaignByAddress.get(address);
             const checked = selectedContacts.some((chosen) => chosen.id === person.id);
-            const status = !checked ? 'Not included' : !campaign ? 'Campaign missing' : isComplete(campaign) ? 'Ready to send' : 'Incomplete — cannot send';
+            const status = !checked ? 'Not included' : !campaign ? 'Campaign missing'
+              : !isComplete(campaign) ? 'Incomplete — cannot send'
+                : campaign.state === 'QUEUED' ? 'Lined up to send'
+                  : 'Complete draft — save recipient choices to line it up';
             return `<div class="recipient" style="margin:8px 0">
               <label style="display:block;margin:0 0 6px">
                 <input form="${formId}" type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${checked ? 'checked' : ''}
@@ -1437,7 +1453,7 @@ async function emailScreen(params) {
   ${unconfirmed.length ? `<div class="card warn"><b>${unconfirmedTotal} email outcome${unconfirmedTotal === 1 ? ' needs' : 's need'} review.</b> The CRM will not retry ${unconfirmedTotal === 1 ? 'it' : 'them'} automatically because the provider may already have accepted ${unconfirmedTotal === 1 ? 'it' : 'them'}.
     <ul>${unconfirmed.map((m) => `<li><a href="/business/${m.prospectId}">${esc(resolveField(m.prospect, 'name'))}</a> — ${esc(m.deliveryTo || m.sentTo || 'recipient unknown')}${m.deliveryError ? ` — ${esc(m.deliveryError)}` : ''}</li>`).join('')}</ul></div>` : ''}
   <div class="score">
-    <div><b>${queuedAllTold}</b>ready to send<br><span class="muted">first emails waiting for your final send</span></div>
+    <div><b>${queuedAllTold}</b>lined up to send<br><span class="muted">first emails for the next scheduled run or Send now</span></div>
     <div><b>${waitingAllTold - queuedAllTold}</b>drafts to review</div>
     <div><b>${sent}</b>sent so far</div>
   </div>
@@ -1445,7 +1461,7 @@ async function emailScreen(params) {
   ${wording}
   <div class="workspace">
     <div class="step"><b>1. Choose and review</b><span>Open a company, check its recipients, and spot-check any message chains you want to read.</span></div>
-    <div class="step"><b>2. Send</b><span>Send the ready group when you choose. Saving recipient choices never sends email.</span></div>
+    <div class="step"><b>2. Send</b><span>Saving choices lines up complete campaigns. The scheduled run sends them, or you can press Send now.</span></div>
   </div>
   <div class="row" style="justify-content:flex-start;margin:10px 0 18px">
     <form method="POST" action="/email/send?weeks=${weeks}"><button ${approved && left > 0 && queuedAllTold > 0 ? 'class="primary"' : 'disabled'}>Send ${queuedAllTold} ready email${queuedAllTold === 1 ? '' : 's'} now</button></form>
@@ -2753,7 +2769,7 @@ const server = http.createServer(async (req, res) => {
           const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
           const readiness = await L.syncSelectedEmailCampaigns(db, message.prospectId);
           const said = refreshed
-            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} complete first email${readiness.ready === 1 ? ' is' : 's are'} ready for your next Send action.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}`
+            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} complete first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}`
             : 'The recipient choices were saved, but there is no sendable first email for this company.';
           return returnToMessage(said);
         }

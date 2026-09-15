@@ -770,6 +770,15 @@ if (require.main === module) (async () => {
     return !have.has('first') || [2, 3, 4].some((touch) => !have.has(`touch_${touch}`));
   }) : [];
 
+  // Preparing drafts after Russ selected recipients used to leave their new
+  // first emails in DRAFT. Only after the complete-run audit passes may those
+  // saved choices line up their campaigns for the scheduled run or Send now.
+  if (DO_IT && !stopReason && !incomplete.length) {
+    for (const prospectId of new Set(targetIds)) {
+      await L.syncSelectedEmailCampaigns(db, prospectId);
+    }
+  }
+
   console.log(`\nwritten: ${wrote}   protected: ${already}   refused: ${refused}   skipped: ${skipped}`);
   if (OPENROUTER_MODEL) console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${OPENROUTER_CEILING.toFixed(2)} run ceiling`);
   if (stopReason) console.log(`Stopped early: ${stopReason}`);
