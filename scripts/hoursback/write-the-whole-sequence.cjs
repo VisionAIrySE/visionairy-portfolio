@@ -354,10 +354,10 @@ function buildLetter(touch, { greeting, passage, seed }) {
     // Day 4: their job, deeper. Then the offer and the ask, unchanged.
     parts.push(passage, say('ask4'));
   } else if (touch === 3) {
-    // Day 8 keeps its one easy question, followed by the same clear call to
-    // action as every other email: free review, one tool recommendation, and
-    // no obligation.
-    parts.push(passage, say('ask8'));
+    // Day 8 keeps its one company-specific question, then explains that a
+    // focused build is an option only when buying or connecting does not fit.
+    // The review still returns just one costed recommendation.
+    parts.push(passage, say('customSoftwareChoice'), say('ask8'));
   } else {
     // Day 14: his own last-message wordings, with the passage in the middle.
     // "Last note from me." above it, what the fifteen minutes is for below,

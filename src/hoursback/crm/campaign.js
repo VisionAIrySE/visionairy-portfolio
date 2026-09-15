@@ -151,6 +151,16 @@ const ASK_DAY8 = [
   "A free fifteen-minute review gets you one concrete tool recommendation with its likely implementation cost and the reason it does or does not fit. Nothing to sign and no obligation.",
 ];
 
+// The third note widens the possible answer without widening the promise:
+// one evidence-backed problem, then buy/connect/build as a choice to price.
+// The recipient's actual work still comes from the tailored passage.
+const CUSTOM_SOFTWARE_CHOICE = [
+  "Sometimes connecting existing tools is enough. If packaged software makes your team change its process or pay for features it won't use, we can build a focused software platform around the way your work actually moves. We'd price both paths before recommending either one.",
+  "An existing tool may be the right answer. If it would force your team to work around features you don't need, we can build a focused software platform for the work you do instead. We'd compare the cost and fit before asking you to choose.",
+  "Sometimes the best answer is to connect what you already have. When a packaged product doesn't fit the way your work moves, we can build a focused platform around that process. We'd look at the cost of buying and building before recommending one.",
+  "I'd first check whether an existing tool can handle it. If that means changing the way your team works or paying for features it won't use, we can build a focused software platform instead. The cost and fit of each option would decide what I recommend.",
+];
+
 // WE DO NOT KNOW WHO THEY HIRED (Russ, 2026-09-03).
 //
 // Every wording asserted that the person doing this work "was hired to do
@@ -415,6 +425,7 @@ function slotsOfTheMessage() {
     followContext: waysToSay(FOLLOWUP_CONTEXT, 'followContext'),
     ask4: waysToSay(ASK_DAY4, 'ask4'),
     ask8: waysToSay(ASK_DAY8, 'ask8'),
+    customSoftwareChoice: waysToSay(CUSTOM_SOFTWARE_CHOICE, 'customSoftwareChoice'),
     part: waysToSay(DAY4_THE_PART, 'part'),
     look: waysToSay(DAY4_WHAT_ID_LOOK_FOR, 'look'),
     last: waysToSay(DAY8_OPEN, 'last'),
@@ -488,6 +499,7 @@ function daySmallAsk(name, t, seed = '') {
     `I wrote about ${t.hook}. No reply needed on that one.`,
     pick(waysToSay(C.THIRD_ASK, 'ask3'), seed, 'ask3'),
     pick(waysToSay(C.THIRD_WHY, 'why3'), seed, 'why3'),
+    pick(waysToSay(CUSTOM_SOFTWARE_CHOICE, 'customSoftwareChoice'), seed, 'customSoftwareChoice'),
     pick(waysToSay(ASK_DAY8, 'ask8'), seed, 'ask8'),
   ].join('\n\n');
 }
