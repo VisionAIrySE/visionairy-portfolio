@@ -6,6 +6,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
   if (match) process.env[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
 }
 const { PrismaClient } = require('@prisma/client');
+const R = require('../../src/hoursback/readings.js');
 const db = new PrismaClient();
 const readerFailureNotes = [
   'THE READER IS OUT OF ALLOWANCE — the run stops here; this business was cut off, not read',
@@ -13,29 +14,35 @@ const readerFailureNotes = [
   'the reader answered none of the group reads',
 ];
 (async () => {
-  const rows = await db.prospect.findMany({
-    where: {
-      doNotContact: false,
-      AND: [{ OR: [{ website: { not: null } }, { websiteManualValue: { not: null } }] }],
-      NOT: [
-        { AND: [{ website: null }, { websiteManualValue: null }] },
-        { stage: 'NEEDS_REVIEW' },
-      ],
-      OR: [
-        { email: { not: null } },
-        { emailManualValue: { not: null } },
-        { contacts: { some: { email: { not: null }, setAsideAt: null, bouncedAt: null } } },
-      ],
-      readings: {
-        none: {
-          source: 'WEBSITE', reader: 'understand-businesses',
-          OR: [
-            { outcome: { in: ['READ', 'NO_WEBSITE', 'UNREACHABLE'] } },
-            { AND: [{ finishedAt: { not: null } }, { NOT: { note: { in: readerFailureNotes } } }] },
-          ],
-        },
-      },
-    },
+  const hasWebsite = { AND: [{ OR: [{ website: { not: null } }, { websiteManualValue: { not: null } }] }] };
+  const notConcluded = { readings: { none: {
+    source: R.WEBSITE, reader: 'understand-businesses',
+    OR: [
+      { outcome: { in: [R.READ, R.NO_WEBSITE, R.UNREACHABLE] } },
+      { AND: [{ finishedAt: { not: null } }, { NOT: { note: { in: readerFailureNotes } } }] },
+    ],
+  } } };
+  const workingBase = {
+    doNotContact: false, ...hasWebsite,
+    NOT: [
+      { AND: [{ website: null }, { websiteManualValue: null }] },
+      { stage: 'NEEDS_REVIEW' },
+    ],
+  };
+  const queueWhere = {
+    ...workingBase, ...notConcluded,
+    OR: [
+      { email: { not: null } },
+      { emailManualValue: { not: null } },
+      { contacts: { some: { email: { not: null }, setAsideAt: null, bouncedAt: null } } },
+    ],
+  };
+  const [remainingWithEmail, remainingWorkingSites, remainingAllSites, rows] = await Promise.all([
+    db.prospect.count({ where: queueWhere }),
+    db.prospect.count({ where: { ...workingBase, ...notConcluded } }),
+    db.prospect.count({ where: { doNotContact: false, ...hasWebsite, ...notConcluded } }),
+    db.prospect.findMany({
+    where: queueWhere,
     select: { id: true, name: true, nameManualValue: true, website: true, websiteManualValue: true },
     orderBy: [
       { theirWork: { sort: 'asc', nulls: 'first' } },
@@ -43,7 +50,11 @@ const readerFailureNotes = [
       { automationScore: { sort: 'desc', nulls: 'last' } },
     ],
     take: 50,
-  });
+  }),
+  ]);
   rows.forEach((row, index) => console.log(`${index + 1}. ${row.nameManualValue || row.name} | ${row.websiteManualValue || row.website}`));
   console.log(`TOTAL ${rows.length}`);
+  console.log(`REMAINING WITH EMAIL ${remainingWithEmail}`);
+  console.log(`REMAINING IN WORKING LIST ${remainingWorkingSites}`);
+  console.log(`REMAINING ACROSS ALL CRM RECORDS ${remainingAllSites}`);
 })().finally(() => db.$disconnect());

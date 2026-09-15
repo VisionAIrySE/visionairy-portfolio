@@ -115,15 +115,30 @@ const DAY_NAME = {
     campaignKey(campaign.prospect.id, campaign.sentTo)));
   const slots = new Map();
   let unselectedDrafts = 0;
-  let duplicateSelectedDrafts = 0;
-  for (const m of storedLetters.sort((a, b) => a.createdAt - b.createdAt)) {
+  let selectedDrafts = 0;
+  const byBusiness = new Map();
+  for (const m of storedLetters) {
     const activeCampaign = campaignKey(m.prospectId, recipientOf(m));
     if (!expectedCampaignKeys.has(activeCampaign)) { unselectedDrafts += 1; continue; }
-    const key = `${activeCampaign}:${J.dayOf(m.openedWith)}`;
-    if (!slots.has(key)) slots.set(key, m);
-    else duplicateSelectedDrafts += 1;
+    selectedDrafts += 1;
+    const rows = byBusiness.get(m.prospectId) || [];
+    rows.push(m);
+    byBusiness.set(m.prospectId, rows);
+  }
+  // Judge the same active row the Email screen chooses. It first resolves
+  // older copies for each address, then prefers hand edits, an addressed
+  // draft, and a queued draft when two still describe the same slot.
+  const rank = (m) => (m.editedAt ? 4 : 0) + (m.sentTo ? 2 : 0) + (m.state === 'QUEUED' ? 1 : 0);
+  for (const rows of byBusiness.values()) {
+    for (const m of L.activeUnsentMessages(rows)) {
+      const activeCampaign = campaignKey(m.prospectId, recipientOf(m));
+      const key = `${activeCampaign}:${J.dayOf(m.openedWith)}`;
+      const previous = slots.get(key);
+      if (!previous || rank(m) > rank(previous)) slots.set(key, m);
+    }
   }
   const letters = [...slots.values()];
+  const duplicateSelectedDrafts = selectedDrafts - letters.length;
   const daysByCampaign = new Map();
   for (const m of letters) {
     const key = campaignKey(m.prospectId, recipientOf(m));

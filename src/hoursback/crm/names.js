@@ -181,6 +181,7 @@ function firstNameOfMarked(fullName) {
 const A_LEGAL_NAME = /(^|[^a-z])(llc|l\.l\.c|inc|incorporated|corp|corporation|co|company|ltd|limited|lp|llp|pc|p\.c|pllc|association|assoc|fund|trust|foundation|partnership)\.?$/i;
 
 const A_PAGE_TITLE = [
+  /^\{[a-z][a-z0-9_ -]*\}$/i,               // an unfilled template token, not a company name
   /\|/,                                        // "Contact Us | Lar-Moon Restoration"
   /&#|&amp;/,                                  // raw web punctuation, never typed by a person
   /^(home|index|welcome|about( us)?|contact( us)?|shop now|menu|our services|services)$/i,
