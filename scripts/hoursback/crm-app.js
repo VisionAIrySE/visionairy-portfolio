@@ -1093,7 +1093,7 @@ async function emailScreen(params) {
   const WAS_READ_RIGHT_THROUGH = {
     readings: {
       some: {
-        source: 'website',
+        source: 'website', reader: 'understand-businesses',
         outcome: 'read',
         pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
       },
@@ -1135,7 +1135,7 @@ async function emailScreen(params) {
         },
         readings: {
           where: {
-            source: 'website', outcome: 'read',
+            source: 'website', reader: 'understand-businesses', outcome: 'read',
             pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
           },
           select: { id: true }, take: 1,
@@ -1168,7 +1168,7 @@ async function emailScreen(params) {
     // Russ asked why it said 25 when the queue held 336. It was never a total.
     db.prospect.findMany({
       where: {
-        doNotContact: false,
+        doNotContact: false, repliedAt: null,
         messages: { some: {
           lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, openedWith: { not: 'after_the_call' },
           NOT: { openedWith: { startsWith: 'touch_' } },
@@ -1186,7 +1186,7 @@ async function emailScreen(params) {
         },
         readings: {
           where: {
-            source: 'website', outcome: 'read',
+            source: 'website', reader: 'understand-businesses', outcome: 'read',
             pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
           },
           select: { id: true }, take: 1,
