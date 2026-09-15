@@ -254,6 +254,23 @@ an audit of intended work against saved results. Treat this as a standing
 operating requirement, including after research batches, evidence extraction,
 contact and message preparation, queue reconciliation, and scheduled sending.
 
+Russ also directed on 2026-09-15 that no website review process may start with
+more than 50 websites. Enforce this maximum per invocation, including a
+controller that would otherwise launch several batches in one run. Finish and
+audit one cohort of at most 50 before selecting the next cohort. Do not hide a
+larger planned run behind smaller internal batches.
+
+Never choose or present an arbitrary dollar spending limit for Russ without
+his specific approval of that amount. Distinguish a user-approved budget from
+an internal technical stop threshold, an estimated charge, published model
+pricing, and the actual available account credit. Do not present one as
+another. Check the provider's current pricing, account credit, and actual
+charges when they matter; report those facts accurately. If a production
+process requires a spending ceiling and Russ has not approved its amount,
+prepare the work without paid model calls and obtain his specific choice
+before starting them. Do not purchase credits or enable automatic top-up
+without separate authorization.
+
 For each bounded stage, record the intended cohort and compare it with the
 actual database state. Report separately:
 
@@ -265,8 +282,9 @@ actual database state. Report separately:
 - uncertain delivery outcomes that must not be retried blindly
 
 Use a read-only audit before and after a stage. Retry actionable gaps within
-the authorized scope and spending ceiling, then audit again. Do not call a
-stage complete while an eligible intended record is missing a full website
+the authorized scope and any spending ceiling Russ specifically approved,
+then audit again. Do not call a stage complete while an eligible intended
+record is missing a full website
 read, supporting evidence, a valid recipient, any of its four messages, or a
 required queue or delivery outcome. Show the exact unresolved records and
 reasons when a stage cannot be completed.

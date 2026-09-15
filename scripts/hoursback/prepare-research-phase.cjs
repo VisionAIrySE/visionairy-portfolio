@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Run bounded 50-site preparation batches until the chosen cohort is either
-// researched or recorded as an exception. Compare planned attempts with
-// finished readings after every batch; never report an incomplete phase done.
+// Run one bounded cohort of at most 50 sites, then audit it. A later cohort
+// requires a separate invocation after the previous result is reviewed.
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -19,7 +18,7 @@ const value = (name, fallback = '') => {
 };
 const scope = value('scope', 'selected');
 const prefix = value('prefix');
-const maxBatches = Number(value('max-batches', scope === 'selected' ? '3' : '1'));
+const maxBatches = Number(value('max-batches', '1'));
 const ceiling = Number(value('ceiling', String(maxBatches * 8.5)));
 const doIt = process.argv.includes('--do-it');
 const BATCH_LIMIT = 50;
@@ -76,13 +75,13 @@ async function run(script, args) {
 
 (async () => {
   if (!['selected', 'all'].includes(scope) || !/^[a-zA-Z0-9_-]+$/.test(prefix)
-    || !Number.isInteger(maxBatches) || maxBatches < 1
+    || !Number.isInteger(maxBatches) || maxBatches !== 1
     || !Number.isFinite(ceiling) || ceiling < BATCH_CEILING
     || ceiling + 0.0001 < maxBatches * BATCH_CEILING) {
-    throw new Error('Supply a valid scope, unique prefix, batch count, and total ceiling of at least $8.50 per batch.');
+    throw new Error('Supply a valid scope, unique prefix, exactly one batch of at most 50 websites, and a valid technical stop threshold.');
   }
   if (!doIt) {
-    console.log(`Preview only: ${scope} websites, up to ${maxBatches} batches of ${BATCH_LIMIT}, model ceilings totaling $${(maxBatches * BATCH_CEILING).toFixed(2)}. No records or emails were changed.`);
+    console.log(`Preview only: ${scope} websites, one cohort of at most ${BATCH_LIMIT}. No records or emails were changed. Technical model-call stop thresholds are separate from a user-approved spending budget.`);
     return;
   }
   let batches = 0;
