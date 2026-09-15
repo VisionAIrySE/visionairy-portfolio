@@ -27,6 +27,8 @@
 
 // ---------------------------------------------------------------------------
 // The page as a reader would see it.
+
+const { plausiblePersonName } = require('./crm/names.js');
 //
 // Stripping the tags loses every address and number that lives in a link —
 // <a href="mailto:dan@x.com">Email Dan</a> becomes "Email Dan", and the one
@@ -253,7 +255,10 @@ function looksLikeAHuman(name, hasSomethingAttached = true) {
   // list and is a real person, so only the menu phrase is refused.
   if (/^skip\s+to\b/i.test(n)) return false;
   if (/^(Home|About|Contact|Menu|Search|Learn|Read|More|View|Book|Call|Get|Our|Your|We|The|This|Meet|Team|Staff|Welcome|Privacy|Terms|Careers|Blog|News|Services|Products|Locations|Reviews|Testimonials|FAQ|Copyright|Español|Espanol)\b/i.test(n)) return false;
-  return true;
+  if (words.length === 1) return /^[A-Z][a-z'’-]{1,}$/.test(n);
+  // The model may repeat a service or location heading verbatim. Being
+  // printed on the page is evidence of the words, not evidence of a person.
+  return plausiblePersonName(n.replace(/^(Dr|Mr|Mrs|Ms|Prof)\.?(?=\s)\s+/i, ''));
 }
 
 const A_PHONE = /(?:\+?1[\s.-]?)?\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})\b/;
@@ -403,7 +408,9 @@ function keepOnlyWhatWasRead(answer, document, businessName) {
   for (const p of Array.isArray(said.people) ? said.people : []) {
     if (!p || typeof p !== 'object') continue;
     const name = String(p.name || '').trim();
-    if (!looksLikeAHuman(name)) { out.dropped.push(`${name || '(no name)'} — not a person's name`); continue; }
+    if (!looksLikeAHuman(name, Boolean(p.role || p.email || p.phone || p.linkedIn))) {
+      out.dropped.push(`${name || '(no name)'} — not a person's name`); continue;
+    }
     // Their name has to actually be on the page they were read from.
     if (!haystack.includes(name.toLowerCase())) { out.dropped.push(`${name} — not found on the pages`); continue; }
 

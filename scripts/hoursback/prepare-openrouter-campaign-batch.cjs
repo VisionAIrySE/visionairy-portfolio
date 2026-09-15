@@ -36,6 +36,8 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
         ...(selectedAttemptPrefix ? [`--selected-attempt-prefix=${selectedAttemptPrefix}`] : [])] }] : []),
     ...(!resume ? [{ label: 'Audit website reading', script: 'audit-stage-completion.cjs',
       args: ['--stage=research', '--scope=batch', `--reader-version=${version}`, '--strict'] }] : []),
+    { label: 'Audit contact labels and recipient choice', script: 'audit-contact-finder.cjs',
+      args: [`--reader-version=${version}`, '--strict'] },
     { label: 'Save company-specific evidence', script: 'enhance-openrouter-read-batch.cjs',
       args: [`--reader-version=${version}`] },
     { label: 'Audit saved evidence', script: 'audit-stage-completion.cjs',

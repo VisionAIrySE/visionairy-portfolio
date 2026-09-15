@@ -239,6 +239,15 @@ When a campaign is blocked, show the exact reason in plain language. Never allow
 
 The research process should continuously build a buffer of complete campaigns. The full reader should prioritize relevant service, About, Team, staff, and individual profile pages and preserve the supporting evidence. A limited contact scan may help locate contact details, but it must be labeled as a quick scan and must never qualify a business as fully researched.
 
+Treat a website contact as a person only when the page supports that identity.
+Service names, location labels, departments, job titles, and navigation text
+must not become people. Website discovery may add candidate contacts for Russ
+to review; it must not select the first scraped candidate for sending or
+change a recipient choice Russ already made. Audit contact labels and
+selection after each website-reading cohort. Preserve questionable historical
+rows for review and use reversible set-aside only with specific production-data
+approval.
+
 The Send workspace should show one compact row per intended recipient. Expanding a row should show why that person was selected, the company-specific evidence behind the message, and all four messages in delivery order. Recipient selection must be available from both the company record and the preparation/sending workflow, with both views changing the same underlying selection.
 
 The company page should lead with status, next action, selected recipients, research readiness, and campaign readiness. Show the recipient campaigns next, then company-specific research and sources. Keep sales-support material, pricing, raw editable fields, and history available in clearly named collapsed sections so routine work does not require navigating a long data record.

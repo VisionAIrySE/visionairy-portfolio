@@ -16,6 +16,7 @@
 // Free, always. Their own websites, no key, no paid service, nothing to meter.
 
 const { textOf } = require('./enrich.js');
+const { plausiblePersonName } = require('./crm/names.js');
 // The same stripper the reader answers about. Every page the crawl returns
 // carries its readable text, because a page fetched and not kept is the
 // failure this repository exists to end (docs/hoursback/evidence-store.md).
@@ -297,14 +298,11 @@ const ORDINARY_WORD = new RegExp(`^(?:${[
 ].join('|')})$`, 'i');
 
 function looksLikeAPerson(clean) {
-  const parts = clean.split(' ');
-  if (parts.length < 2 || parts.length > 4) return false;
-  if (NOT_A_NAME.test(clean)) return false;
-  for (const w of parts) {
-    if (!/^[A-Z]/.test(w) && !/^(de|van|von|del|la|di|mac|mc|o')$/i.test(w)) return false;
-    if (ORDINARY_WORD.test(w)) return false;
-  }
-  return true;
+  const name = String(clean || '').trim();
+  if (NOT_A_NAME.test(name)) return false;
+  // Capitalized service and location labels pass a simple word-shape test.
+  // The same name check used before an email greeting rejects those labels.
+  return plausiblePersonName(name.replace(/^(Dr|Mr|Mrs|Ms|Prof)\.?(?=\s)\s+/i, ''));
 }
 
 function tidyPhone(m) { return `${m[1]}-${m[2]}-${m[3]}`; }
@@ -393,7 +391,22 @@ function roleFromLine(piece) {
   return ROLE_LINE.test(t) ? t.toLowerCase().replace(/[.,;:]+$/, '') : null;
 }
 
+// A run of capitalized labels on a services or locations page is not a staff
+// roster. About pages can still qualify when a heading explicitly introduces
+// the staff, even when the URL does not contain "team" or "people".
+function isStaffRosterPage(page) {
+  let pathname = '';
+  try { pathname = new URL(page.url).pathname; } catch { /* rely on headings */ }
+  if (looksLikeATeamPage(pathname)) return true;
+  for (const heading of String(page.html || '').matchAll(/<h[1-4][^>]*>([\s\S]{0,180}?)<\/h[1-4]>/gi)) {
+    const words = textOf(heading[1]).replace(/\s+/g, ' ').trim();
+    if (/^(?:meet\s+(?:the|our)\s+|our\s+)?(?:team|staff|people|leadership|providers|attorneys|agents|doctors|dentists|physicians|associates|employees)\b/i.test(words)) return true;
+  }
+  return false;
+}
+
 function rosterRun(page, taken = new Set()) {
+  if (!isStaffRosterPage(page)) return [];
   const text = textOf(page.html);
   const profiles = linkedInProfilesOn(page.html);
   // Split on the sentence marks the text reader inserts at block ends.
@@ -900,7 +913,7 @@ module.exports = {
   MAX_PAGES_WITH_A_TEAM_PAGE, linksBelow, looksLikeATeamPage,
   MAX_PAGES_PER_SITE, PAGE_TIMEOUT_MS, DELAY_BETWEEN_PAGES_MS,
   WORTH_OPENING, rank, linksToPeople, fetchPeoplePages,
-  peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, ROLE_WORDS,
+  peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, isStaffRosterPage, ROLE_WORDS,
   linkedInProfilesOn, profileNear, roleFromLine,
   // the whole-site crawl (2026-09-01)
   crawlWholeSite, pathShape, dateInPath, whySkip, titleOf,

@@ -38,7 +38,7 @@ async function savePeople(db, prospectId, people, businessTown = null) {
     if (here.length && here.length < people.length) people = here.concat(people.filter((p) => !local(p)));
   }
   let saved = 0;
-  for (const [i, person] of people.entries()) {
+  for (const person of people) {
     if (!person.name && !person.email) continue;
     const where = person.email
       ? { prospectId, email: person.email }
@@ -57,7 +57,9 @@ async function savePeople(db, prospectId, people, businessTown = null) {
       linkedIn: person.linkedIn || (existing && existing.linkedIn) || null,
       foundOn: person.foundOn || (existing && existing.foundOn) || null,
       source: 'WEBSITE',
-      isPrimary: i === 0 && !existing,
+      // Website discovery offers a contact for review. It never decides that
+      // the first scraped entry should receive email or clears Russ's choice.
+      isPrimary: existing ? existing.isPrimary : false,
     };
     if (existing) await db.contact.update({ where: { id: existing.id }, data });
     else await db.contact.create({ data });
@@ -167,4 +169,5 @@ async function main() {
   }
 }
 
+module.exports = { savePeople };
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });

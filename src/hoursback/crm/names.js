@@ -79,31 +79,33 @@ function nameFromEmail(email) {
 const NEVER_IN_A_NAME = new RegExp([
   'products?', 'services?', 'management', 'manager', 'consultant', 'association',
   'insurance', 'schedule', 'scheduling', 'shipping', 'estimate', 'estimates',
-  'installation', 'maintenance', 'repair', 'repairs', 'units?', 'storage',
+  'installation', 'maintenance', 'repair', 'repairs', 'systems?', 'solutions?',
+  'upgrades?', 'arizona', 'units?', 'storage',
   'dwelling', 'accessory', 'reconstructive', 'surgery', 'landscape', 'landscaping',
-  'builders?', 'construction', 'contractors?', 'plant', 'ranch', 'lotus', 'coffee',
-  'wood', 'graphic', 'artist', 'design', 'approach', 'accuracy', 'restore',
+  'builders?', 'construction', 'contractors?', 'plant', 'lotus', 'coffee',
+  'graphic', 'artist', 'design', 'approach', 'accuracy', 'restore',
   'mounts?', 'hobby', 'closed', 'vaccination', 'personalized', 'care', 'clinic',
   'dental', 'medical', 'realty', 'properties', 'company', 'group', 'center',
-  'centre', 'oregon', 'bend', 'redmond', 'sisters', 'prineville', 'madras',
+  // Town words can be genuine surnames (Michael Redmond). A location label
+  // such as "Bend Oregon" is still rejected by its state word.
+  'centre', 'oregon',
   'multiple', 'favorite', 'other', 'general', 'commercial', 'residential',
   'financial', 'agency', 'agent', 'office', 'team', 'staff', 'owner', 'director',
   'president', 'principal', 'partner', 'associate', 'specialist', 'technician',
+  'broker', 'advisor', 'clinician',
   'assistant', 'coordinator', 'supervisor', 'engineer', 'hot', 'tub', 'shop',
-].join('|'), 'i');
+].map((word) => `\\b(?:${word})\\b`).join('|'), 'i');
 
 // Structural tells that a string is a heading rather than a person.
 const NOT_A_NAME_SHAPE = [
   /[?:;!]/,                   // "Why Wood?"  "Expert Services:"
-  /\.$/,                      // "Property Management Consultant."
-  /\b[A-Z]{2,}\b/,            // "DESIGN IT"  "TV Mounts"
   /\d/,                       // a number never belongs in one
   /\b(the|and|our|your|we|for|with|about|from|that|this|more|all)\b/i,
 ];
 
 // Is this string safe to greet somebody by? The bar is deliberately high.
 function plausiblePersonName(raw) {
-  const n = String(raw || '').trim();
+  const n = String(raw || '').trim().replace(/,\s+(?=MD\.?$)/i, ' ').replace(/[.,]+$/, '');
   if (!n) return false;
   const words = n.split(/\s+/);
   if (words.length < 2 || words.length > 4) return false;   // "Fri Closed" is 2, caught below
@@ -111,18 +113,23 @@ function plausiblePersonName(raw) {
   if (NOT_A_NAME_SHAPE.some((re) => re.test(n))) return false;
   // Every word starts with a capital and is otherwise lower case, allowing a
   // middle initial, a hyphenated surname, an apostrophe and a suffix.
-  const wordOk = /^[A-Z][a-z'’-]*[a-z'’]?\.?$/;
+  // O'Brien, Jean-Luc and McDonald are ordinary surnames. A page label still
+  // has to pass the separate non-person word and heading checks above.
+  const wordOk = /^[A-Z][a-z]*(?:(?:['’-][A-Z]?[a-z]+)|[A-Z][a-z]+)*\.?$/;
   const initial = /^[A-Z]\.?$/;
-  const suffix = /^(Jr|Sr|II|III|IV)\.?$/i;
-  if (!words.every((w) => wordOk.test(w) || initial.test(w) || suffix.test(w))) return false;
+  const initials = /^(?:[A-Z]\.){2,}$/;
+  const suffix = /^(Jr|Sr|II|III|IV|MD)\.?$/i;
+  const surnameParticle = /^(de|da|di|van|von|del)$/;
+  if (!words.every((w, i) => wordOk.test(w) || initial.test(w) || initials.test(w)
+    || suffix.test(w) || (i > 0 && i < words.length - 1 && surnameParticle.test(w)))) return false;
   // First and last both have to be real words, not initials or suffixes.
   const first = words[0];
   const last = words[words.length - 1];
   const lastReal = suffix.test(last) ? words[words.length - 2] : last;
-  // "As Co" passes every shape test above and greets somebody "Hi As,". A
-  // given name under three letters is rare enough that blocking it costs
-  // almost nothing and saves a message that reads as broken.
-  if (!first || initial.test(first) || first.length < 3) return false;
+  // Keep familiar short names such as Ed without letting "As Co" through.
+  const shortFirst = new Set(['Ed', 'Jo', 'Al', 'Bo', 'Ty']);
+  if (!first || initial.test(first)
+    || (first.length < 3 && !shortFirst.has(first) && !initials.test(first))) return false;
   if (!lastReal || initial.test(lastReal) || lastReal.length < 2) return false;
   if (/^(co|llc|inc|pc|llp|ltd)\.?$/i.test(lastReal)) return false;
   return true;
@@ -134,7 +141,21 @@ function plausiblePersonName(raw) {
 function firstNameOf(fullName) {
   if (!plausiblePersonName(fullName)) return null;
   const first = String(fullName).trim().split(/\s+/)[0];
-  return first && first.length > 1 ? first : null;
+  return first && first.length > 1 && !/^(?:[A-Z]\.){2,}$/.test(first) ? first : null;
+}
+
+// Existing website-sourced recipients can have a real name in all capitals.
+// Let a human review ambiguous casing, but stop a clear role, service, or
+// encoded page fragment before its email reaches the provider.
+function obviousWebsiteRecipientLabel(raw) {
+  const name = String(raw || '').trim();
+  if (!name || name.split(/\s+/).length < 2) return false;
+  if (plausiblePersonName(name)) return false;
+  if (/^[A-Z\s'’-]+$/.test(name)) {
+    const normal = name.toLowerCase().replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+    if (plausiblePersonName(normal)) return false;
+  }
+  return true;
 }
 
 // THE NAME OF SOMEBODY RUSS HAS MARKED HIMSELF.
@@ -270,6 +291,6 @@ function doctorGreetingFor({ name, role, email } = {}) {
 
 module.exports = {
   NOT_A_PERSON, FIRST_NAMES, NEVER_IN_A_NAME, nameFromEmail, firstNameOf,
-  firstNameOfMarked, plausiblePersonName, doctorSurname, doctorGreetingFor,
+  firstNameOfMarked, plausiblePersonName, obviousWebsiteRecipientLabel, doctorSurname, doctorGreetingFor,
   nameLooksLikeAPageTitle, nameToSayOutLoud,
 };

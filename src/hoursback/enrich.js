@@ -230,6 +230,8 @@ function tradeWordsFrom(pages) {
 // office manager and whoever answers the phone, and those are three different
 // conversations. Everything found is kept; Russ decides who to write to.
 
+const { plausiblePersonName } = require('./crm/names.js');
+
 const ROLE_WORDS = [
   'Owner', 'Co-Owner', 'Founder', 'Co-Founder', 'President', 'Vice President', 'Principal',
   'Partner', 'Managing Partner', 'CEO', 'CFO', 'COO', 'General Manager', 'Office Manager',
@@ -259,7 +261,7 @@ function peopleFromPages(pages) {
       for (const m of text.matchAll(re)) {
         const name = (i === 0 ? m[1] : m[2]).trim();
         const role = (i === 0 ? m[2] : m[1]).trim();
-        if (NOT_A_PERSON_NAME.test(name)) continue;
+        if (NOT_A_PERSON_NAME.test(name) || !plausiblePersonName(name)) continue;
         if (name.split(/\s+/).length > 3) continue;
         const key = name.toLowerCase();
         if (!found.has(key)) found.set(key, { name, role, foundOn: page.url });
@@ -925,7 +927,9 @@ async function saveContacts(db, prospectId, finding, businessTown = null) {
       linkedIn: personalLinks[i] || (existing && existing.linkedIn) || null,
       foundOn: person.foundOn || null,
       source: 'WEBSITE',
-      isPrimary: i === 0,
+      // Preserve the recipient Russ selected; a reread must not retick the
+      // first scraped address or untick a different person.
+      isPrimary: existing ? existing.isPrimary : false,
     };
     if (existing) await db.contact.update({ where: { id: existing.id }, data });
     else await db.contact.create({ data });

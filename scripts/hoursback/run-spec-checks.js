@@ -2036,6 +2036,30 @@ def('contact_people_are_saved_and_a_hand_typed_one_survives', () => withDb(async
   return { ok, detail: ok ? `${saved.length} people saved, and the one Russ corrected survived a second reading untouched` : JSON.stringify({ saved: saved.length, after }) };
 }), 'lanes');
 
+def('website_contact_reads_never_choose_a_recipient_or_clear_russ_choice', () => withDb(async (db) => {
+  await cleanLane(db, 'foundchoice');
+  const prospect = await seedLane(db, 'foundchoice');
+  const e = enrich();
+  const sweep = require(path.join(ROOT, 'scripts/hoursback/people-sweep.js'));
+  const jane = { name: 'Jane Smith', email: 'jane@foundchoice.example', role: 'Office Manager' };
+  const alex = { name: 'Alex Carter', email: 'alex@foundchoice.example', role: 'Operations Manager' };
+  await e.saveContacts(db, prospect.id, { people: [jane, alex], linkedIn: { people: [] } });
+  const discovered = await db.contact.findMany({ where: { prospectId: prospect.id } });
+  const unchosen = discovered.every((person) => !person.isPrimary);
+  const selected = discovered.find((person) => person.email === alex.email);
+  await db.contact.update({ where: { id: selected.id }, data: { isPrimary: true } });
+  await e.saveContacts(db, prospect.id, { people: [jane, alex], linkedIn: { people: [] } });
+  await sweep.savePeople(db, prospect.id, [alex, jane,
+    { name: 'Sam Rivera', role: 'Technician', email: null }]);
+  const after = await db.contact.findMany({ where: { prospectId: prospect.id } });
+  const chosen = after.filter((person) => person.isPrimary);
+  const ok = unchosen && chosen.length === 1 && chosen[0].email === alex.email
+    && after.some((person) => person.name === 'Sam Rivera' && !person.isPrimary);
+  await cleanLane(db, 'foundchoice');
+  return { ok, detail: ok ? 'new website contacts stayed unselected and Russ\'s chosen person survived both rereads'
+    : JSON.stringify({ unchosen, after: after.map((p) => ({ name: p.name, selected: p.isPrimary })) }) };
+}), 'lanes');
+
 def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (db) => {
   await cleanLane(db, 'primary');
   const p = await seedLane(db, 'primary', { email: 'info@p.example' });
@@ -4862,7 +4886,9 @@ def('a_first_name_is_a_person_and_a_company_is_not', () => {
   // words long filed "Outwest Insurance" as an agent and "Dental Assistant"
   // as an office manager.
   const { looksLikeAHuman } = understand();
-  const people = ['Linda', 'Megan J. Horner', 'Skip David Shields', "Sean O'Brien", 'Yod Branch'];
+  const people = ['Linda', 'Megan J. Horner', 'Skip David Shields', "Sean O'Brien",
+    'Yod Branch', 'Ed Firkus', 'Michael Redmond', 'J.J. Jones',
+    'Darius Balumuka, MD', 'Eugene de Souza'];
   const notPeople = ['Outwest Insurance', 'Dental Assistant', 'Advanced Medical',
     'Construction Manager', 'Skip to content', 'Meet Our Team', 'Contact Us'];
   const missed = people.filter((n) => !looksLikeAHuman(n, true));
@@ -4876,6 +4902,55 @@ def('a_first_name_is_a_person_and_a_company_is_not', () => {
       ? 'a first name with a job beside it is a person; a company name never is; a bare word on its own is a heading'
       : `missed people: ${missed.join(', ')} | let through: ${letIn.join(', ')} | bare word kept: ${bareWordKept}`,
   };
+}, 'people');
+
+def('website_page_labels_are_stopped_before_email_delivery', () => {
+  const { blockedReason } = require(path.join(ROOT, 'src/hoursback/crm/delivery.js'));
+  const { obviousWebsiteRecipientLabel } = require(path.join(ROOT, 'src/hoursback/crm/names.js'));
+  const contacts = [
+    { name: 'Principal Broker', email: 'broker@example.test', source: 'WEBSITE', isPrimary: true },
+    { name: 'Heating System Repair', email: 'heat@example.test', source: 'WEBSITE', isPrimary: true },
+    { name: 'Darius Balumuka, MD', email: 'darius@example.test', source: 'WEBSITE', isPrimary: true },
+    { name: 'Eugene de Souza', email: 'eugene@example.test', source: 'WEBSITE', isPrimary: true },
+    { name: 'ALI ALIRE', email: 'ali@example.test', source: 'WEBSITE', isPrimary: true },
+  ];
+  const reasonFor = (contact) => blockedReason({ lane: 'EMAIL', sentTo: contact.email,
+    prospect: { contacts: [contact] } });
+  const blocked = contacts.slice(0, 2).map(reasonFor);
+  const allowed = contacts.slice(2).map(reasonFor);
+  const ok = blocked.every((reason) => reason && reason.includes('page label'))
+    && allowed.every((reason) => !reason)
+    && obviousWebsiteRecipientLabel('LASER CLINICIAN')
+    && obviousWebsiteRecipientLabel('Emmy&#64;TrueHappiness Com');
+  return { ok, detail: JSON.stringify({ blocked, allowed }) };
+}, 'people');
+
+def('website_contact_finder_keeps_staff_and_refuses_service_or_place_labels', () => {
+  const sweep = require(path.join(ROOT, 'src/hoursback/peopleSweep.js'));
+  const reader = understand();
+  const e = enrich();
+  const pages = [
+    { url: 'https://example.test/', html:
+      '<h2>Services</h2><h4>HVAC System Installation</h4><h4>Heating System Repair</h4><h4>Cooling System Maintenance</h4>' },
+    { url: 'https://example.test/locations/', html:
+      '<h2>Locations</h2><h4>Central Oregon</h4><h4>Bend Oregon</h4><h4>Redmond Oregon</h4>' },
+    { url: 'https://example.test/about/', html:
+      '<h2>Our Team</h2><h3>Jane Smith</h3><p>Office Manager</p><h3>Alex Carter</h3><p>Operations Manager</p><h3>Sam Rivera</h3><p>Technician</p>' },
+  ];
+  const people = sweep.peopleFromSite(pages).map((p) => p.name);
+  const rolePairs = e.peopleFromPages([{ url: 'https://example.test/about/', html:
+    '<p>Heating System Repair, Technician. Jane Smith, Owner.</p>' }]).map((p) => p.name);
+  const document = 'Heating System Repair. Bend Oregon. Jane Smith, Office Manager. Linda, Scheduler.';
+  const fromModel = reader.keepOnlyWhatWasRead({ people: [
+    { name: 'Heating System Repair', role: 'Technician' },
+    { name: 'Bend Oregon', role: 'Technician' },
+    { name: 'Jane Smith', role: 'Office Manager' },
+    { name: 'Linda', role: 'Scheduler' },
+  ] }, document, 'Example Heating').people.map((p) => p.name);
+  const ok = people.length === 3 && ['Jane Smith', 'Alex Carter', 'Sam Rivera'].every((n) => people.includes(n))
+    && rolePairs.length === 1 && rolePairs[0] === 'Jane Smith'
+    && fromModel.length === 2 && fromModel.includes('Jane Smith') && fromModel.includes('Linda');
+  return { ok, detail: JSON.stringify({ people, rolePairs, fromModel }) };
 }, 'people');
 
 def('a_shared_inbox_is_never_handed_to_a_person', () => {
