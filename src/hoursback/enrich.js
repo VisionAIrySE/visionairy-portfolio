@@ -716,15 +716,8 @@ async function applySiteRead(db, prospectId, finding, options = {}) {
   if (finding.yearsInBusiness) data.yearsInBusiness = finding.yearsInBusiness.years;
   if (finding.tools && finding.tools.length) data.toolsInUse = finding.tools.join(', ');
   if (finding.openRoles) data.openRoles = finding.openRoles;
-  // A team page with twelve faces is a team of twelve — better than anything
-  // most businesses publish, and it sets the price.
-  if (finding.teamCount && head.employeeCount === null) {
-    data.employeeCount = finding.teamCount;
-    data.headcountStatus = 'RESOLVED';
-    data.headcountPublishedAs = `${finding.teamCount} people named on their team page`;
-    const band = bandForEmployeeCount(finding.teamCount);
-    data.segment = band.band; data.auditFee = band.auditFee; data.guaranteedHours = band.guaranteedHours;
-  }
+  // The number of names found on a team page is a lower bound, not a
+  // published employee total. Never turn it into employeeCount or pricing.
   // The industry.
   //
   // This used to run the trade matcher over 3,000 characters of their page

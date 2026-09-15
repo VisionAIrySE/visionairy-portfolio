@@ -1435,10 +1435,11 @@ const { hoursSittingHere, scoreFromHours } = require('../../src/hoursback/opport
 const { scoreAutomationFit } = require('../../src/hoursback/scoring.js');
 
 function opportunityFromTheRead(understood, found, r) {
-  // The people named on their own site are a FLOOR on the team, never the
-  // team. Most businesses name three and employ twenty.
+  // A website roster names potential contacts, not the company's workforce.
+  // Rank with a staff count only when the site explicitly states it or Russ
+  // supplied one himself.
   const named = understood.people.length;
-  const team = named >= 3 ? named : null;
+  const team = understood.teamSize || r.employeeCountManualValue || null;
   const hours = hoursSittingHere({ trade: understood.trade || r.trade, people: team });
   const fromHours = scoreFromHours(hours.hours);
 
@@ -1451,7 +1452,7 @@ function opportunityFromTheRead(understood, found, r) {
   if (!understood.sharedEmail && !found.peopleWithEmail) signals.push({ signal: 'no_email_published', quote: 'no address published anywhere on their site' });
   if (!found.contactForm && !understood.sharedEmail && !found.peopleWithEmail) signals.push({ signal: 'no_way_to_enquire', quote: 'no way to get in touch but the phone' });
   if (named > 0) signals.push({ signal: 'named_decision_maker', quote: `you can ask for ${understood.people[0].name}` });
-  if (team) signals.push({ signal: 'team_size_known', quote: `at least ${team} people named on their own site` });
+  if (team) signals.push({ signal: 'team_size_known', quote: `${team} people stated by the site or Russ` });
   if (understood.yearsInBusiness >= 20) signals.push({ signal: 'long_established', quote: `${understood.yearsInBusiness} years, by their own account` });
   const tells = scoreAutomationFit({ signals });
 

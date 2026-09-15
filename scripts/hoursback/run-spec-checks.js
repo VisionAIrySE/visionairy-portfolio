@@ -2060,6 +2060,41 @@ def('website_contact_reads_never_choose_a_recipient_or_clear_russ_choice', () =>
     : JSON.stringify({ unchosen, after: after.map((p) => ({ name: p.name, selected: p.isPrimary })) }) };
 }), 'lanes');
 
+def('website_roster_count_is_not_the_company_staff_total', () => withDb(async (db) => {
+  await cleanLane(db, 'rosterfloor');
+  const prospect = await seedLane(db, 'rosterfloor');
+  const e = enrich();
+  const finding = e.readSite([{ url: 'https://example.test/team', html:
+    '<h1>Our Team</h1><h3>Jane Smith</h3><p>Owner</p><h3>Alex Carter</h3><p>Manager</p><h3>Sam Rivera</h3><p>Technician</p>'
+  }], { domain: 'example.test' });
+  const after = (await e.applySiteRead(db, prospect.id, finding)).prospect;
+  const ok = finding.teamCount === 3 && finding.employeeCount === null
+    && after.employeeCount === null && after.headcountPublishedAs === null;
+  await cleanLane(db, 'rosterfloor');
+  return { ok, detail: ok ? 'three people found for contact review; staff total stays unknown'
+    : JSON.stringify({ teamCount: finding.teamCount, staffTotal: after.employeeCount,
+      claimedAs: after.headcountPublishedAs }) };
+}), 'lanes');
+
+def('website_roster_count_does_not_inflate_the_read_score', () => {
+  const { opportunityFromTheRead } = require(path.join(ROOT,
+    'scripts/hoursback/understand-businesses.js'));
+  const base = { trade: 'trades', teamSize: null, canBookOnline: null,
+    formsToPrint: false, listsAFax: false, hiringOffice: false,
+    yearsInBusiness: null, sharedEmail: 'office@example.test' };
+  const found = { peopleWithEmail: 0, contactForm: true };
+  const record = { trade: 'trades', employeeCount: null, employeeCountManualValue: null };
+  const none = opportunityFromTheRead({ ...base, people: [] }, found, record);
+  const three = opportunityFromTheRead({ ...base, people: [
+    { name: 'Jane Smith' }, { name: 'Alex Carter' }, { name: 'Sam Rivera' },
+  ] }, found, record);
+  const declared = opportunityFromTheRead({ ...base, teamSize: 20, people: [] }, found, record);
+  const hours = (result) => result.evidence.find((row) => row.signal === 'hours_sitting_here').label;
+  const ok = hours(none) === hours(three) && hours(declared) !== hours(three);
+  return { ok, detail: JSON.stringify({ noRoster: hours(none), rosterThree: hours(three),
+    publishedTwenty: hours(declared) }) };
+});
+
 def('contact_a_named_person_can_replace_the_shared_inbox', () => withDb(async (db) => {
   await cleanLane(db, 'primary');
   const p = await seedLane(db, 'primary', { email: 'info@p.example' });

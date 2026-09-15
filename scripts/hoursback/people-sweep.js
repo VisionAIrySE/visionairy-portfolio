@@ -71,7 +71,7 @@ async function savePeople(db, prospectId, people, businessTown = null) {
 async function main() {
   const db = new PrismaClient();
   const started = Date.now();
-  let done = 0, withPeople = 0, withSize = 0, withPhones = 0, peopleSaved = 0, failed = 0;
+  let done = 0, withPeople = 0, withPhones = 0, peopleSaved = 0, failed = 0;
   try {
     const rows = await db.prospect.findMany({
       // Whichever address is on the record. It used to look only at the
@@ -121,32 +121,14 @@ async function main() {
           touched.push(b.id);
           if (people.some((p) => p.phone)) withPhones += 1;
         }
-        const size = ps.teamSizeFrom(people);
-        if (size) {
-          withSize += 1;
-          // Only where nothing was known — a number Russ typed always wins.
-          const current = await db.prospect.findUnique({
-            where: { id: b.id }, select: { employeeCount: true, employeeCountManualValue: true },
-          });
-          touched.push(b.id);
-          if (current.employeeCountManualValue === null && current.employeeCount === null) {
-            await db.prospect.update({
-              where: { id: b.id },
-              data: {
-                employeeCount: size,
-                headcountStatus: 'RESOLVED',
-                headcountPublishedAs: `${size} people named on their own site`,
-                headcountSourceUrl: (people.find((p) => p.foundOn) || {}).foundOn || null,
-              },
-            });
-          }
-        }
+        // A roster lists people available for contact review. Its length is
+        // only a lower bound; it must never become the company's staff total.
       } catch (e) {
         failed += 1;
       }
       if (done % PROGRESS_EVERY === 0) {
         const mins = Math.round((Date.now() - started) / 60000);
-        console.log(`${done}/${rows.length} read (${mins}m) — ${withPeople} with people, ${withSize} with a team size, ${withPhones} with a direct number, ${peopleSaved} people saved, ${failed} unreadable`);
+        console.log(`${done}/${rows.length} read (${mins}m) — ${withPeople} with people, ${withPhones} with a direct number, ${peopleSaved} people saved, ${failed} unreadable`);
       }
       await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_SITES_MS));
     }
@@ -157,7 +139,6 @@ async function main() {
     console.log(`DONE in ${Math.round((Date.now() - started) / 60000)} minutes`);
     console.log(`  businesses read:        ${done}`);
     console.log(`  with people found:      ${withPeople}`);
-    console.log(`  with a real team size:  ${withSize}`);
     console.log(`  with a direct number:   ${withPhones}`);
     console.log(`  people saved:           ${peopleSaved}`);
     console.log(`  unreadable:             ${failed}`);

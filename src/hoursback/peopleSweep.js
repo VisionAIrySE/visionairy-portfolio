@@ -902,18 +902,11 @@ function peopleFromSite(pages) {
   return [...all.values()];
 }
 
-// The team size their own site publishes, by counting the people it names.
-// Two is a coincidence and eighty is a directory of every agent in the state.
-function teamSizeFrom(people) {
-  const n = people.length;
-  return n >= 3 && n <= 80 ? n : null;
-}
-
 module.exports = {
   MAX_PAGES_WITH_A_TEAM_PAGE, linksBelow, looksLikeATeamPage,
   MAX_PAGES_PER_SITE, PAGE_TIMEOUT_MS, DELAY_BETWEEN_PAGES_MS,
   WORTH_OPENING, rank, linksToPeople, fetchPeoplePages,
-  peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, teamSizeFrom, looksLikeAPerson, isStaffRosterPage, ROLE_WORDS,
+  peopleOnPage, peopleFromSite, personOnTheirOwnPage, rosterRun, stripCredentials, looksLikeAPerson, isStaffRosterPage, ROLE_WORDS,
   linkedInProfilesOn, profileNear, roleFromLine,
   // the whole-site crawl (2026-09-01)
   crawlWholeSite, pathShape, dateInPath, whySkip, titleOf,

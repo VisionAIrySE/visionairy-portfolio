@@ -247,6 +247,10 @@ change a recipient choice Russ already made. Audit contact labels and
 selection after each website-reading cohort. Preserve questionable historical
 rows for review and use reversible set-aside only with specific production-data
 approval.
+The number of people named on a website is a lower bound, never the company's
+employee total or a basis for pricing and scoring. Use a staff count as the
+company total only when the site explicitly states that number or Russ supplies
+it himself.
 
 The Send workspace should show one compact row per intended recipient. Expanding a row should show why that person was selected, the company-specific evidence behind the message, and all four messages in delivery order. Recipient selection must be available from both the company record and the preparation/sending workflow, with both views changing the same underlying selection.
 
