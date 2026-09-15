@@ -2,6 +2,7 @@
 // Turn the current OpenRouter whole-site batch into evidence-backed noticing
 // records. Campaign writing remains a separate, auditable second command.
 const fs = require('fs');
+const path = require('path');
 for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
   const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
   if (match) process.env[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
@@ -11,7 +12,8 @@ if (!process.env.OPENROUTER_API_KEY) throw new Error('OpenRouter access is not c
 const { PrismaClient } = require('@prisma/client');
 const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
 const { main } = require('./write-noticings.js');
-const READER_VERSION = '2026-09-14-whole-site-openrouter';
+const versionArg = process.argv.find((value) => value.startsWith('--reader-version='));
+const READER_VERSION = versionArg ? versionArg.slice('--reader-version='.length) : '2026-09-14-whole-site-openrouter';
 const idArg = process.argv.find((value) => value.startsWith('--id='));
 const ONLY_ID = idArg ? idArg.slice(5) : '';
 const db = new PrismaClient();
@@ -48,6 +50,7 @@ const writer = makeOpenRouterPool({
   const result = await main({
     ids, limit: 50, atOnce: 4,
     ask: finder.ask, askToWrite: writer.ask,
+    reviewPage: path.resolve(__dirname, `../../docs/hoursback/messages-to-review-${READER_VERSION.replace(/[^a-z0-9-]/gi, '-')}.md`),
   });
   console.log(`Evidence-analysis cost: $${finder.spent.toFixed(4)} of $1.00`);
   console.log(`Customer-facing wording cost: $${writer.spent.toFixed(4)} of $1.50`);

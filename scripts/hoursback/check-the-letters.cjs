@@ -30,6 +30,7 @@ const L = require('../../src/hoursback/crm/lanes.js');
 const db = new PrismaClient();
 const SHOW = Number((process.argv.find((a) => a.startsWith('--show=')) || '').split('=')[1]
   || (process.argv.includes('--show') ? 3 : 0));
+const READER_VERSION = String((process.argv.find((a) => a.startsWith('--reader-version=')) || '').split('=')[1] || '').trim();
 
 const DAY_NAME = {
   0: 'day 0  — the first message, two jobs and two costs',
@@ -52,6 +53,7 @@ const DAY_NAME = {
     by: ['prospectId'],
     where: {
       source: 'website', outcome: 'read',
+      ...(READER_VERSION ? { readerVersion: READER_VERSION } : {}),
       pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
     },
   })).map((r) => r.prospectId);
@@ -112,14 +114,16 @@ const DAY_NAME = {
   const expectedCampaignKeys = new Set(expectedCampaigns.map((campaign) =>
     campaignKey(campaign.prospect.id, campaign.sentTo)));
   const slots = new Map();
+  let unselectedDrafts = 0;
+  let duplicateSelectedDrafts = 0;
   for (const m of storedLetters.sort((a, b) => a.createdAt - b.createdAt)) {
     const activeCampaign = campaignKey(m.prospectId, recipientOf(m));
-    if (!expectedCampaignKeys.has(activeCampaign)) continue;
+    if (!expectedCampaignKeys.has(activeCampaign)) { unselectedDrafts += 1; continue; }
     const key = `${activeCampaign}:${J.dayOf(m.openedWith)}`;
     if (!slots.has(key)) slots.set(key, m);
+    else duplicateSelectedDrafts += 1;
   }
   const letters = [...slots.values()];
-  const dormantExtras = storedLetters.length - letters.length;
   const daysByCampaign = new Map();
   for (const m of letters) {
     const key = campaignKey(m.prospectId, recipientOf(m));
@@ -161,7 +165,7 @@ const DAY_NAME = {
   for (const m of letters) byDay[J.dayOf(m.openedWith)].push(m);
 
   let cleanAll = 0;
-  console.log(`\n${dormantExtras} dormant duplicate campaign drafts excluded from the active-message counts.`);
+  console.log(`\n${unselectedDrafts} drafts for unselected contacts and ${duplicateSelectedDrafts} duplicate selected-recipient drafts excluded from active-message counts.`);
   console.log(`${incomplete.length} selected recipients at researched, reachable businesses are missing part of their four-message sequence.`);
   if (SHOW && incomplete.length) {
     for (const p of incomplete.slice(0, SHOW)) console.log(`   ${p.prospect.name} — ${p.label}: missing day ${p.missing.join(', ')}`);

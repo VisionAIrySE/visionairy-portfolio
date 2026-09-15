@@ -27,6 +27,7 @@ const LIMIT = Math.min(50, Math.max(1, Number(arg('limit', 50))));
 const LANES = Math.min(4, Math.max(1, Number(arg('lanes', 3))));
 const CEILING = Math.max(0.05, Number(arg('ceiling', 1)));
 const ID = arg('id', '');
+const READER_VERSION = arg('reader-version', '2026-09-14-whole-site-openrouter');
 const HAS_EMAIL = !process.argv.includes('--include-without-email');
 const LOOK = process.argv.includes('--look');
 
@@ -52,7 +53,7 @@ console.log(HAS_EMAIL ? 'Queue: businesses with a usable company email on file' 
 
 runUnderstand({
   ask: writer.ask, model: MODEL,
-  readerVersion: '2026-09-14-whole-site-openrouter',
+  readerVersion: READER_VERSION,
   readerDescription: `${MODEL} through OpenRouter`,
   limit: LIMIT, lanes: LANES, untried: true, hasEmail: HAS_EMAIL, look: LOOK,
   ...(ID ? { only: ID } : {}),

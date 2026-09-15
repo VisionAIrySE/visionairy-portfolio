@@ -7,9 +7,11 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
 }
 const { PrismaClient } = require('@prisma/client');
 const db = new PrismaClient();
+const versionArg = process.argv.find((value) => value.startsWith('--reader-version='));
+const READER_VERSION = versionArg ? versionArg.slice('--reader-version='.length) : '2026-09-14-whole-site-openrouter';
 (async () => {
   const rows = await db.reading.findMany({
-    where: { reader: 'understand-businesses', readerVersion: '2026-09-14-whole-site-openrouter' },
+    where: { reader: 'understand-businesses', readerVersion: READER_VERSION },
     select: {
       prospectId: true, outcome: true, note: true, startedAt: true, finishedAt: true,
       prospect: { select: { name: true, nameManualValue: true } },
@@ -25,7 +27,7 @@ const db = new PrismaClient();
   const meaningful = [...latest.values()].filter((row) => !/reader is out of allowance|could not get a single answer|reader answered none/i.test(row.note || ''));
   const pointerOnly = await db.reading.findMany({
     where: {
-      reader: 'understand-businesses', readerVersion: '2026-09-14-whole-site-openrouter', outcome: 'read',
+      reader: 'understand-businesses', readerVersion: READER_VERSION, outcome: 'read',
       pages: { some: { sameAs: { not: null } }, none: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
     },
     select: { prospectId: true, prospect: { select: { name: true, nameManualValue: true } } },

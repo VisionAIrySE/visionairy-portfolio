@@ -9,6 +9,7 @@ const L = require('../../src/hoursback/crm/lanes.js');
 const SHOW = Math.max(0, Number((process.argv.find((a) => a.startsWith('--show=')) || '').split('=')[1] || 20));
 const DETAILS = process.argv.includes('--details');
 const ONLY = String((process.argv.find((a) => a.startsWith('--only=')) || '').split('=')[1] || '').trim();
+const READER_VERSION = String((process.argv.find((a) => a.startsWith('--reader-version=')) || '').split('=')[1] || '').trim();
 const onlyCompany = ONLY ? { name: { contains: ONLY, mode: 'insensitive' } } : {};
 const usableState = new Set(['DRAFT', 'QUEUED', 'SENT', 'REPLIED']);
 const emailKey = (value) => String(value || '').trim().toLowerCase();
@@ -41,6 +42,7 @@ const isFirst = (message) => L.isFirstContactMessage(message);
     readings: {
       some: {
         source: 'website', outcome: 'read',
+        ...(READER_VERSION ? { readerVersion: READER_VERSION } : {}),
         pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
       },
     },
