@@ -41,6 +41,14 @@ async function dailySendRun(db, options = {}) {
         error: String(error && error.message || error).slice(0, 300) };
     }
   }
+  // The old backlog must be repaired and explicitly released before this
+  // switch is enabled in Render. Without it, the job only reports draft gaps.
+  const automaticLineupEnabled = options.automaticLineupEnabled === undefined
+    ? process.env.HOURSBACK_AUTO_LINEUP_SELECTED === 'true'
+    : options.automaticLineupEnabled === true;
+  const lineup = !messageIds && automaticLineupEnabled
+    ? await lanes.reconcileSelectedEmailCampaigns(db)
+    : null;
   // A named recovery run must touch only the messages it was given. It does
   // not add newly due customer messages to the queue while recovering them.
   const queued = messageIds
@@ -71,6 +79,7 @@ async function dailySendRun(db, options = {}) {
           ? `Selected draft check failed: ${selectedDrafts.error}`
           : `Selected first emails skipped because they are still drafts: ${selectedDrafts.complete} with four messages across ${selectedDrafts.businesses} businesses; ${selectedDrafts.contentReady} pass writing checks, ${selectedDrafts.contentFailed} need revision`]
         : []),
+      ...(lineup ? [`Selected campaigns checked: ${lineup.ready} ready; ${lineup.incomplete} incomplete; ${lineup.contentBlocked} need writing revision`] : []),
       `Failed: ${delivery.failed || 0}`,
       `Blocked before delivery: ${delivery.blocked || 0}`,
       `Needs checking: ${delivery.unconfirmed || 0}`,
@@ -90,7 +99,7 @@ async function dailySendRun(db, options = {}) {
       report.reason = String(error && error.message || error).slice(0, 500);
     }
   }
-  return { replies, queued, delivery, report, selectedDrafts };
+  return { replies, queued, delivery, report, selectedDrafts, lineup };
 }
 
 module.exports = { dailySendRun };

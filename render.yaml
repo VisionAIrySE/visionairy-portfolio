@@ -56,3 +56,7 @@ services:
         sync: false   # set true only after an end-to-end reply test passes
       # Customer outreach remains off after deployment. Only after Russ gives
       # separate approval, add HOURSBACK_CUSTOMER_EMAIL_ENABLED=true in Render.
+      # Enable only after the existing selected-draft backlog has been reviewed
+      # and released; otherwise old passing drafts will join the next send.
+      - key: HOURSBACK_AUTO_LINEUP_SELECTED
+        sync: false

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { syncSelectedEmailCampaigns, selectedDraftGap } = require('../../src/hoursback/crm/lanes.js');
+const { syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns } = require('../../src/hoursback/crm/lanes.js');
 
 function fixture(selected) {
   const address = 'person@example.test';
@@ -16,7 +16,15 @@ function fixture(selected) {
     readings: [{ id: 'reading-1' }], messages,
   };
   const db = {
-    prospect: { findUnique: async () => prospect, findMany: async () => [prospect] },
+    prospect: { findUnique: async (query) => {
+      assert.equal(query.select.readings.where.reader, 'understand-businesses');
+      return prospect;
+    }, findMany: async (query) => {
+      if (query.select && query.select.readings) {
+        assert.equal(query.select.readings.where.reader, 'understand-businesses');
+      }
+      return [prospect];
+    } },
     reading: {
       findFirst: async () => ({ findings: [{ value: 'one verified job' }] }),
       findMany: async () => [{
@@ -102,4 +110,19 @@ test('the read-only gap check finds selected drafts missed by the morning run', 
   assert.deepEqual(await selectedDraftGap(db, options),
     { complete: 1, incomplete: 0, businesses: 1, contentReady: 1, contentFailed: 0 });
   assert.equal(messages[0].state, 'DRAFT', 'the check must not change the send lineup');
+});
+
+test('reconciliation lines up eligible selected campaigns and holds campaigns that fail a writing check', async () => {
+  const { db, messages, address } = fixture(true);
+  messages.push({ id: 'message-3', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'DRAFT', openedWith: 'touch_4', sentTo: address,
+    sentAt: null, queuedAt: null, deliveryState: null });
+  const result = await reconcileSelectedEmailCampaigns(db,
+    { judgeStored: () => ({ ok: true }) });
+  assert.equal(result.ready, 1);
+  assert.equal(messages[0].state, 'QUEUED');
+  const held = await reconcileSelectedEmailCampaigns(db,
+    { judgeStored: () => ({ ok: false, why: 'revision needed' }) });
+  assert.equal(held.contentBlocked, 1);
+  assert.equal(messages[0].state, 'DRAFT');
 });

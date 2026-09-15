@@ -418,7 +418,7 @@ if (require.main === module) (async () => {
   const readable = (await db.reading.groupBy({
     by: ['prospectId'],
     where: {
-      source: 'website', outcome: 'read',
+      source: 'website', reader: 'understand-businesses', outcome: 'read',
       ...(READER_VERSION ? { readerVersion: READER_VERSION } : {}),
       pages: { some: { OR: [
         { AND: [{ text: { not: null } }, { NOT: { text: '' } }] },

@@ -242,7 +242,7 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
       },
       readings: {
         where: {
-          source: 'website', outcome: 'read',
+          source: 'website', reader: 'understand-businesses', outcome: 'read',
           pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
         },
         select: { id: true }, take: 1,
@@ -338,7 +338,7 @@ async function selectedDraftGap(db, options = {}) {
       },
       readings: {
         where: {
-          source: 'website', outcome: 'read',
+          source: 'website', reader: 'understand-businesses', outcome: 'read',
           pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
         },
         select: { id: true }, take: 1,
@@ -397,6 +397,37 @@ async function selectedDraftGap(db, options = {}) {
     if (gapsHere) businesses += 1;
   }
   return { complete, incomplete, businesses, contentReady, contentFailed };
+}
+
+// Recheck selected first emails before a scheduled run. This is deliberately
+// opt-in at the scheduler: enabling it before the existing backlog is reviewed
+// would line up old, otherwise eligible drafts for customer delivery.
+async function reconcileSelectedEmailCampaigns(db, options = {}) {
+  const prospects = await db.prospect.findMany({
+    where: {
+      doNotContact: false, repliedAt: null,
+      contacts: { some: {
+        isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
+      } },
+      messages: { some: {
+        lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
+        openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } },
+      } },
+    },
+    select: { id: true },
+  });
+  const result = { businesses: prospects.length, ready: 0, incomplete: 0,
+    contentBlocked: 0, contentProblems: [] };
+  for (const prospect of prospects) {
+    const checked = await syncSelectedEmailCampaigns(db, prospect.id, options);
+    result.ready += checked.ready;
+    result.incomplete += checked.incomplete;
+    result.contentBlocked += checked.contentBlocked;
+    result.contentProblems.push(...checked.contentProblems.map((problem) =>
+      ({ businessId: prospect.id, ...problem })));
+  }
+  return result;
 }
 
 function isFirstContactMessage(message) {
@@ -1092,7 +1123,10 @@ async function sendQueuedEmails(db, options = {}) {
         deliveryLeaseExpiresAt: { lte: now } },
     ] },
     include: { prospect: { include: {
-      readings: { where: { source: 'website', outcome: 'read' }, select: { id: true }, take: 1 },
+      readings: { where: {
+        source: 'website', reader: 'understand-businesses', outcome: 'read',
+        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+      }, select: { id: true }, take: 1 },
       messages: {
       where: { lane: 'EMAIL', openedWith: { not: 'after_the_call' } },
       select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true },
@@ -1277,6 +1311,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

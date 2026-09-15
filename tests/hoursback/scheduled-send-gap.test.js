@@ -36,3 +36,27 @@ test('the morning report exposes selected, complete drafts without lining them u
   assert.deepEqual(result.selectedDrafts,
     { complete: 38, incomplete: 2, businesses: 2, contentReady: 37, contentFailed: 1 });
 });
+
+test('the morning sender reconciles selected drafts only when the separate lineup switch is enabled', async () => {
+  const calls = [];
+  const lanes = {
+    MAX_PER_RUN: 200,
+    selectedDraftGap: async () => ({ complete: 1, incomplete: 0, businesses: 1,
+      contentReady: 1, contentFailed: 0 }),
+    reconcileSelectedEmailCampaigns: async () => {
+      calls.push('reconcile');
+      return { businesses: 1, ready: 1, incomplete: 0, contentBlocked: 0,
+        contentProblems: [] };
+    },
+    queueDueTouches: async () => { calls.push('queue-followups'); return {}; },
+    sendQueuedEmails: async () => { calls.push('send'); return { sent: 1 }; },
+  };
+  const options = { lanes, customerEmailEnabled: true, apiKey: 'dummy-key',
+    replyMonitor: { assertOutboundProtected: () => ({ configured: true }) } };
+  await dailySendRun({}, options);
+  assert.deepEqual(calls, ['queue-followups', 'send']);
+  calls.length = 0;
+  const enabled = await dailySendRun({}, { ...options, automaticLineupEnabled: true });
+  assert.deepEqual(calls, ['reconcile', 'queue-followups', 'send']);
+  assert.equal(enabled.lineup.ready, 1);
+});
