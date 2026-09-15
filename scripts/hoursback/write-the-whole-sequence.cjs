@@ -56,6 +56,7 @@ const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
 const db = new PrismaClient();
 const arg = (n, d) => { const h = process.argv.find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
 const DO_IT = process.argv.includes('--do-it');
+const PREPARE_ONLY = process.argv.includes('--prepare-only');
 const LIMIT = Number(arg('limit', 0)) || 0;
 const ONLY = arg('only', '');
 const ID = arg('id', '');
@@ -773,7 +774,7 @@ if (require.main === module) (async () => {
   // Preparing drafts after Russ selected recipients used to leave their new
   // first emails in DRAFT. Only after the complete-run audit passes may those
   // saved choices line up their campaigns for the scheduled run or Send now.
-  if (DO_IT && !stopReason && !incomplete.length) {
+  if (DO_IT && !PREPARE_ONLY && !stopReason && !incomplete.length) {
     for (const prospectId of new Set(targetIds)) {
       await L.syncSelectedEmailCampaigns(db, prospectId);
     }

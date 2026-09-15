@@ -31,6 +31,7 @@ const db = new PrismaClient();
 const SHOW = Number((process.argv.find((a) => a.startsWith('--show=')) || '').split('=')[1]
   || (process.argv.includes('--show') ? 3 : 0));
 const READER_VERSION = String((process.argv.find((a) => a.startsWith('--reader-version=')) || '').split('=')[1] || '').trim();
+const STRICT = process.argv.includes('--strict');
 
 const DAY_NAME = {
   0: 'day 0  — the first message, two jobs and two costs',
@@ -52,7 +53,7 @@ const DAY_NAME = {
   const readyIds = (await db.reading.groupBy({
     by: ['prospectId'],
     where: {
-      source: 'website', outcome: 'read',
+      source: 'website', reader: 'understand-businesses', outcome: 'read',
       ...(READER_VERSION ? { readerVersion: READER_VERSION } : {}),
       pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
     },
@@ -210,6 +211,6 @@ const DAY_NAME = {
   }
 
   console.log(`\n${cleanAll} of ${letters.length} letters, read in full, pass the rules that belong to them.`);
-  if (incomplete.length) process.exitCode = 2;
+  if (incomplete.length || (STRICT && cleanAll !== letters.length)) process.exitCode = 2;
   await db.$disconnect();
 })().catch((e) => { console.error('failed:', e.message); process.exit(1); });
