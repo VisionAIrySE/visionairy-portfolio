@@ -13,6 +13,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
 const { PrismaClient } = require('@prisma/client');
 const L = require('../../src/hoursback/crm/lanes.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
+const C = require('../../src/hoursback/crm/campaign.js');
 const db = new PrismaClient();
 const option = (name, fallback = '') => {
   const found = process.argv.find((arg) => arg.startsWith(`--${name}=`));
@@ -26,6 +27,7 @@ const model = option('model', 'openai/gpt-5.6-luna');
 async function failedFirsts() {
   return db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+    await C.loadHisWordings(tx);
     const failures = new Map();
     const gap = await L.selectedDraftGap(tx, {
       judgeStored: (message, context) => {

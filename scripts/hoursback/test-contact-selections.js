@@ -75,10 +75,14 @@ async function main() {
     { id: 'alice-day4', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'alice@example.test', sentAt: null, deliveryState: null },
     { id: 'bob-day4', prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT', openedWith: 'touch_2', sentTo: 'bob@example.test', sentAt: null, deliveryState: null },
   ];
+  const campaignContacts = [
+    { email: 'alice@example.test', isPrimary: true, bouncedAt: null, setAsideAt: null },
+    { email: 'bob@example.test', isPrimary: true, bouncedAt: null, setAsideAt: null },
+  ];
   const scheduleDb = {
     messageTemplate: { findUnique: async () => ({ approvedAt: new Date(), body: BODY, approvedWording: L.wordingFingerprint() }) },
     prospect: { findUniqueOrThrow: async () => ({ id: 'business-1', email: 'office@example.test', doNotContact: false, repliedAt: null }) },
-    contact: { findFirst: async () => null },
+    contact: { findFirst: async () => null, findMany: async () => campaignContacts },
     outreachMessage: {
       findMany: async ({ where }) => where.state ? sentFirsts : dueDrafts.filter((m) => m.openedWith === where.openedWith),
       update: async ({ where, data }) => {
@@ -92,6 +96,10 @@ async function main() {
   assert.equal((await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false })).id, 'alice-day4');
   assert.equal((await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false })).id, 'bob-day4');
   assert.equal(await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false }), null);
+  dueDrafts[1].state = 'DRAFT';
+  campaignContacts[1].isPrimary = false;
+  assert.equal(await L.queueNextTouch(scheduleDb, 'business-1', now, { allowFirstContact: false }), null);
+  assert.equal(dueDrafts[1].state, 'DRAFT');
 
   console.log('PASS: selections persist and every recipient keeps one authoritative first email');
 }

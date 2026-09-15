@@ -15,6 +15,7 @@ const limit = Math.min(50, Math.max(1, Number(value('limit', '50'))));
 const writerCeiling = Math.max(0.05, Number(value('writer-ceiling', '5')));
 const writerModel = value('writer-model', 'openai/gpt-5.6-luna');
 const selectedGap = process.argv.includes('--selected-missing-full-read');
+const allGap = process.argv.includes('--all-missing-full-read');
 const selectedAttemptPrefix = value('selected-attempt-prefix');
 const resume = process.argv.includes('--resume');
 const doIt = process.argv.includes('--do-it');
@@ -22,7 +23,8 @@ const doIt = process.argv.includes('--do-it');
 if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
   console.error('Supply a unique --reader-version using only letters, numbers, dashes, and underscores.');
   process.exitCode = 2;
-} else if (!Number.isFinite(limit) || !Number.isFinite(writerCeiling)) {
+} else if (!Number.isFinite(limit) || !Number.isFinite(writerCeiling)
+  || (selectedGap && allGap)) {
   console.error('The batch size and writing spending ceiling must be numbers.');
   process.exitCode = 2;
 } else {
@@ -30,12 +32,19 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
     ...(!resume ? [{ label: 'Read full websites', script: 'read-full-via-openrouter.cjs',
       args: [`--reader-version=${version}`, `--limit=${limit}`, '--ceiling=1',
         ...(selectedGap ? ['--selected-missing-full-read'] : []),
+        ...(allGap ? ['--all-missing-full-read', '--include-without-email'] : []),
         ...(selectedAttemptPrefix ? [`--selected-attempt-prefix=${selectedAttemptPrefix}`] : [])] }] : []),
+    ...(!resume ? [{ label: 'Audit website reading', script: 'audit-stage-completion.cjs',
+      args: ['--stage=research', '--scope=batch', `--reader-version=${version}`, '--strict'] }] : []),
     { label: 'Save company-specific evidence', script: 'enhance-openrouter-read-batch.cjs',
       args: [`--reader-version=${version}`] },
+    { label: 'Audit saved evidence', script: 'audit-stage-completion.cjs',
+      args: ['--stage=evidence', '--scope=batch', `--reader-version=${version}`, '--strict'] },
     { label: 'Prepare four messages per address', script: 'write-the-whole-sequence.cjs',
       args: [`--reader-version=${version}`, '--all-contacts', '--do-it', '--prepare-only',
         `--openrouter-model=${writerModel}`, `--openrouter-ceiling=${writerCeiling}`] },
+    { label: 'Audit every recipient campaign', script: 'audit-stage-completion.cjs',
+      args: ['--stage=drafts', '--scope=batch', `--reader-version=${version}`, '--strict'] },
     { label: 'Check all active messages in the batch', script: 'check-the-letters.cjs',
       args: [`--reader-version=${version}`, '--strict'] },
   ];
@@ -61,7 +70,7 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
           return;
         }
       }
-      console.log('Preparation stages finished. Review the recipient and readiness audit before enabling automatic sending.');
+      console.log('All preparation stages passed their checks. Review any website exceptions in the audit reports before enabling automatic sending.');
     })().catch((error) => {
       console.error(`Preparation stopped: ${error.message}`);
       process.exitCode = 1;

@@ -49,6 +49,8 @@ const writer = makeOpenRouterPool({
   await db.$disconnect();
   const result = await main({
     ids, limit: 50, atOnce: 4,
+    skipStaleReadingRepair: true,
+    evidenceOnly: true,
     ask: finder.ask, askToWrite: writer.ask,
     reviewPage: path.resolve(__dirname, `../../docs/hoursback/messages-to-review-${READER_VERSION.replace(/[^a-z0-9-]/gi, '-')}.md`),
   });

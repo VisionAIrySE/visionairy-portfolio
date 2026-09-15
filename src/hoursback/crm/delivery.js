@@ -20,6 +20,12 @@ function blockedReason(message) {
   const contact = target && contacts.find((c) => String(c.email || '').toLowerCase() === target);
   if (contact && contact.bouncedAt) return 'that contact address has bounced';
   if (contact && contact.setAsideAt) return 'that contact has been set aside';
+  // The queue can outlive a changed checkbox. Recheck the recipient inside
+  // the claim and again immediately before the provider attempt.
+  if (contact && !contact.isPrimary && message.lane === 'EMAIL'
+      && message.openedWith !== 'after_the_call') {
+    return 'that recipient is no longer selected';
+  }
   const businessAddress = String(message.prospect.email || '').toLowerCase();
   const anotherContactWorks = contacts.some((c) => c.email && !c.bouncedAt && !c.setAsideAt);
   if (message.prospect.emailBouncedAt

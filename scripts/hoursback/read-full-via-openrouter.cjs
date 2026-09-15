@@ -28,9 +28,11 @@ const LANES = Math.min(4, Math.max(1, Number(arg('lanes', 3))));
 const CEILING = Math.max(0.05, Number(arg('ceiling', 1)));
 const ID = arg('id', '');
 const READER_VERSION = arg('reader-version', '2026-09-14-whole-site-openrouter');
-const HAS_EMAIL = !process.argv.includes('--include-without-email');
 const LOOK = process.argv.includes('--look');
 const SELECTED_MISSING_FULL_READ = process.argv.includes('--selected-missing-full-read');
+const ALL_MISSING_FULL_READ = process.argv.includes('--all-missing-full-read');
+const HAS_EMAIL = !ALL_MISSING_FULL_READ
+  && !process.argv.includes('--include-without-email');
 const SELECTED_ATTEMPT_PREFIX = arg('selected-attempt-prefix', '');
 
 if (!process.env.OPENROUTER_API_KEY) {
@@ -53,6 +55,7 @@ console.log(`Full website research: up to ${LIMIT} unread businesses through ${M
 console.log(`OpenRouter spending ceiling: $${CEILING.toFixed(2)}`);
 console.log(SELECTED_MISSING_FULL_READ
   ? 'Queue: selected contacts whose business lacks saved full-site research'
+  : ALL_MISSING_FULL_READ ? 'Queue: all active website businesses lacking saved full-site research'
   : HAS_EMAIL ? 'Queue: businesses with a usable email on file'
     : 'Queue: businesses with or without an email');
 
@@ -62,7 +65,9 @@ runUnderstand({
   readerDescription: `${MODEL} through OpenRouter`,
   limit: LIMIT, lanes: LANES, untried: true, hasEmail: HAS_EMAIL, look: LOOK,
   selectedMissingFullRead: SELECTED_MISSING_FULL_READ,
+  allMissingFullRead: ALL_MISSING_FULL_READ,
   selectedAttemptPrefix: SELECTED_ATTEMPT_PREFIX,
+  skipStaleReadingRepair: true,
   ...(ID ? { only: ID } : {}),
 }).then((result) => {
   console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${CEILING.toFixed(2)} ceiling`);

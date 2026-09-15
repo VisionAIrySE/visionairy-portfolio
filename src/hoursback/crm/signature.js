@@ -101,7 +101,9 @@ function boldTheFreePart(html) {
 function bodyWithoutSignOff(body) {
   // Saved and hand-edited letters can use Windows-style line endings.
   return String(body || '').replace(/\r\n?/g, '\n')
-    .split(/\n{2,}Best regards,\s*\n/i)[0].trim();
+    // Some stored letters have only one line break before the sign-off.
+    // Match the sign-off as a complete line, not a phrase in the prose.
+    .split(/\n+(?:Best(?: regards)?|Regards|Sincerely),[ \t]*\n/i)[0].trim();
 }
 
 function presentationProblem({ html, text } = {}) {

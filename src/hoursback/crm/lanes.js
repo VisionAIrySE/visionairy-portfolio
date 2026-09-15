@@ -1010,6 +1010,12 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
 
   const firsts = sent.filter(isFirstContactMessage);
   if (!firsts.length) return allowFirstContact ? queueEmail(db, prospectId) : null;
+  const campaignContacts = await db.contact.findMany({
+    where: { prospectId, email: { not: null } },
+    select: { email: true, isPrimary: true, bouncedAt: true, setAsideAt: true },
+  });
+  const contactByAddress = new Map(campaignContacts.map((contact) =>
+    [String(contact.email).trim().toLowerCase(), contact]));
 
   // Each selected person advances through their own clock. Counting all sent
   // rows at the business level made a second person's first email look like
@@ -1017,6 +1023,9 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
   const normalize = (value) => String(value || '').trim().toLowerCase();
   for (const first of firsts) {
     const campaignAddress = first.sentTo || recipient;
+    const campaignContact = contactByAddress.get(String(campaignAddress).trim().toLowerCase());
+    if (campaignContact && (!campaignContact.isPrimary || campaignContact.bouncedAt
+      || campaignContact.setAsideAt)) continue;
     const campaignSent = sent.filter((message) => message.id !== first.id
       && !isFirstContactMessage(message)
       && (normalize(message.sentTo) === normalize(campaignAddress)

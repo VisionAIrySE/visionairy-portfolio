@@ -4,6 +4,7 @@
 // the order a scheduled job needs.
 
 const L = require('./lanes.js');
+const C = require('./campaign.js');
 
 async function dailySendRun(db, options = {}) {
   const lanes = options.lanes || L;
@@ -33,6 +34,11 @@ async function dailySendRun(db, options = {}) {
   const messageIds = Array.isArray(options.messageIds)
     ? [...new Set(options.messageIds.map((id) => String(id).trim()).filter(Boolean))]
     : null;
+  // The scheduled process starts fresh each day. Read Russ's approved
+  // wordings before any content judgement, or valid drafts look defective.
+  if (db.voiceWording && typeof db.voiceWording.findMany === 'function') {
+    await C.loadHisWordings(db);
+  }
   let selectedDrafts = null;
   if (!messageIds && typeof lanes.selectedDraftGap === 'function') {
     try { selectedDrafts = await lanes.selectedDraftGap(db); }

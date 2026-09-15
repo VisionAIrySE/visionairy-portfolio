@@ -854,6 +854,10 @@ async function understandPass(injected = {}) {
   const hasEmail = injected.hasEmail ?? HAS_EMAIL;
   const selectedMissingFullRead = injected.selectedMissingFullRead
     ?? process.argv.includes('--selected-missing-full-read');
+  const allMissingFullRead = injected.allMissingFullRead
+    ?? process.argv.includes('--all-missing-full-read');
+  const missingFullRead = selectedMissingFullRead || allMissingFullRead;
+  const skipStaleReadingRepair = injected.skipStaleReadingRepair === true;
   const selectedAttemptPrefix = injected.selectedAttemptPrefix || arg('selected-attempt-prefix', '');
   const ask = injected.ask || askTheReader; // tests hand in a fake; a real run uses the LOCAL reader, nothing else
   const modelUsed = injected.model || MODEL;
@@ -965,8 +969,10 @@ async function understandPass(injected = {}) {
       NOT: [
         { AND: [{ website: null }, { websiteManualValue: null }] },
         // The set-aside pile is excluded UNLESS we are deliberately reading it.
-        ...(REVIEW_PILE || UNREAD_TRADES || selectedMissingFullRead
+        ...(REVIEW_PILE || UNREAD_TRADES || missingFullRead
           ? [] : [{ stage: 'NEEDS_REVIEW' }]),
+        ...(allMissingFullRead
+          ? [{ stage: { in: ['CUSTOMER', 'EXPANDED_CUSTOMER', 'DORMANT'] } }] : []),
       ],
       ...(REVIEW_PILE ? { stage: 'NEEDS_REVIEW' } : {}),
       ...(UNREAD_TRADES ? { stage: 'NEEDS_REVIEW', siteReadAt: null } : {}),
@@ -989,10 +995,11 @@ async function understandPass(injected = {}) {
         }
         : {}),
     };
-  // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
+  // Historical standalone runs close unfinished readings before counting.
+  // Controlled OpenRouter preparation skips that unrelated production repair.
   // (Russ, 2026-09-05: "this should happen automatically"). Nothing is deleted;
   // a reading that never finished gets its end time and a note saying why.
-  {
+  if (!skipStaleReadingRepair) {
     const closed = await R.closeWhatDiedEarlier(db);
     if (closed) console.log(`closed ${closed} reading(s) a stopped run had left open`);
   }
@@ -1040,11 +1047,11 @@ async function understandPass(injected = {}) {
   // pages, including selected businesses in the usual review pile. An attempt
   // already completed by this run version is left as an exception rather than
   // being picked again in every batch.
-  const selectedFullGap = selectedMissingFullRead ? {
+  const fullGap = missingFullRead ? {
     repliedAt: null,
-    contacts: { some: {
+    ...(selectedMissingFullRead ? { contacts: { some: {
       isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
-    } },
+    } } } : {}),
     AND: [
       { readings: { none: {
         source: R.WEBSITE, reader: 'understand-businesses', outcome: R.READ,
@@ -1059,9 +1066,9 @@ async function understandPass(injected = {}) {
       } } },
     ],
   } : {};
-  const where = only ? baseWhere : selectedMissingFullRead
-    ? { ...baseWhere, ...selectedFullGap,
-        AND: [...baseWhere.AND, ...selectedFullGap.AND] }
+  const where = only ? baseWhere : missingFullRead
+    ? { ...baseWhere, ...fullGap,
+        AND: [...baseWhere.AND, ...fullGap.AND] }
     : { ...alreadyDone, ...baseWhere, ...neverOpened };
 
   // A RESUMED RUN'S NUMBERS ARE LEGIBLE, and they come from the database.

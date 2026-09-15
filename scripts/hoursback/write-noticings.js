@@ -167,11 +167,14 @@ async function noticingRun(injected = {}) {
   const fresh = injected.fresh ?? FRESH;
   const atOnce = injected.atOnce ?? AT_ONCE;
   const missingSequences = injected.missingSequences ?? MISSING_SEQUENCES;
+  const skipStaleReadingRepair = injected.skipStaleReadingRepair === true;
+  const evidenceOnly = injected.evidenceOnly === true;
 
-  // CLOSE WHAT A STOPPED RUN LEFT OPEN, every time, before anything is counted
+  // The historical standalone command closes unfinished readings before it
+  // starts. Controlled preparation runs skip that unrelated production repair.
   // (Russ, 2026-09-05: "this should happen automatically"). Nothing is deleted;
   // a reading that never finished gets its end time and a note saying why.
-  {
+  if (!skipStaleReadingRepair) {
     const R2 = require('../../src/hoursback/readings.js');
     const closed = await R2.closeWhatDiedEarlier(db);
     if (closed) console.log(`closed ${closed} reading(s) a stopped run had left open`);
@@ -377,8 +380,9 @@ async function noticingRun(injected = {}) {
             : 'what the letter would become (nothing was written)';
       } else {
         await N.recordNoticing(db, p.id, res, { sourceUrl: p.websiteManualValue || p.website });
-        after = await L.draftFor(db, p.id, 'EMAIL');
-        if (!after) status = 'sentence recorded; no letter stands (no address, or nothing honest to open with)';
+        after = evidenceOnly ? before : await L.draftFor(db, p.id, 'EMAIL');
+        if (evidenceOnly) status = 'company evidence recorded; email drafts left for the separate writing stage';
+        else if (!after) status = 'sentence recorded; no letter stands (no address, or nothing honest to open with)';
         else if (after.sentAt) { status = 'already sent — left exactly as it was; the sentence is on file for the next letter'; leftAlone += 1; }
         else if (after.editedAt) { status = 'edited by Russ — left exactly as it was; the sentence is on file'; leftAlone += 1; }
         else { status = before ? 'draft rewritten to carry the noticing' : 'draft written fresh, carrying the noticing'; rewritten += 1; }

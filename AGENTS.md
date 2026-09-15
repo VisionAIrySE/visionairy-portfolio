@@ -247,6 +247,53 @@ Preserve all working behavior during the redesign, including multiple contacts p
 
 Implement the redesign in reviewable stages over the existing working services: shared readiness and navigation; Today and Prepare; Send; company page; remaining pages and full regression audit. Keep the existing screen available as a temporary fallback while each replacement path is verified. Do not combine the workflow redesign with an unnecessary framework migration.
 
+## Stage Completion and Audit Loop
+
+Russ directed on 2026-09-15 that every website-to-email stage must close with
+an audit of intended work against saved results. Treat this as a standing
+operating requirement, including after research batches, evidence extraction,
+contact and message preparation, queue reconciliation, and scheduled sending.
+
+For each bounded stage, record the intended cohort and compare it with the
+actual database state. Report separately:
+
+- completed records
+- actionable records that can still be finished within the authorized scope
+- failed or unavailable websites and other exceptions needing review
+- intentionally paused, suppressed, replied, bounced, archived, or
+  do-not-contact records
+- uncertain delivery outcomes that must not be retried blindly
+
+Use a read-only audit before and after a stage. Retry actionable gaps within
+the authorized scope and spending ceiling, then audit again. Do not call a
+stage complete while an eligible intended record is missing a full website
+read, supporting evidence, a valid recipient, any of its four messages, or a
+required queue or delivery outcome. Show the exact unresolved records and
+reasons when a stage cannot be completed.
+
+The selected-send cohort and the whole active-business backlog are different
+scopes. Auditing one does not prove the other is complete. Keep a visible
+whole-backlog count so unread websites or incomplete campaigns outside the
+current batch cannot disappear from progress reports.
+
+Before any Prisma CLI work on the disposable test database, point both
+`DATABASE_URL` and `DIRECT_URL` at the local `hoursback_test` database and
+verify Prisma names that local database in its output. The Prisma CLI uses
+`DIRECT_URL` for migration commands even when `DATABASE_URL` is set to the
+test database. Never run a migration command when Prisma names Supabase.
+
+Immediately before any provider send, recheck current recipient selection,
+reply and bounce stops, do-not-contact state, full research, four-message
+completeness, and presentation. After a scheduled run, compare messages that
+were queued and due with provider-confirmed sent records, failures, held
+uncertain outcomes, and messages left unsent. Flag duplicates and sends that
+occurred after a recorded stop. If historical intent cannot be proven from
+saved records, state that limit plainly instead of claiming certainty.
+
+These audits do not themselves authorize production changes, deployment,
+GitHub pushes, or real emails; the five specific approval boundaries above
+still apply.
+
 ## Historical Instructions
 
 Read uppercase CLAUDE.md when relevant because it contains historical evidence, prior safety rules, and known failure history.

@@ -22,6 +22,23 @@ try {
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
   }
 } catch { /* no .env — env vars are the source of truth */ }
+// Every executable spec check runs against the disposable local database.
+// Prisma also has a directUrl used by its CLI; override both so .env cannot
+// quietly route a test or migration toward the production Supabase project.
+const TEST_URL = process.env.TEST_DATABASE_URL
+  || 'postgresql://postgres:test@localhost:55432/hoursback_test';
+const parsedTestUrl = new URL(TEST_URL);
+if (!['localhost', '127.0.0.1'].includes(parsedTestUrl.hostname)
+  || parsedTestUrl.port !== '55432'
+  || parsedTestUrl.pathname !== '/hoursback_test') {
+  throw new Error('Spec checks require the disposable local hoursback_test database on port 55432.');
+}
+process.env.TEST_DATABASE_URL = TEST_URL;
+process.env.DATABASE_URL = TEST_URL;
+process.env.DIRECT_URL = TEST_URL;
+process.env.RESEND_API_KEY = 'disabled-test-key';
+process.env.OPENROUTER_API_KEY = 'disabled-test-key';
+process.env.HOURSBACK_CUSTOMER_EMAIL_ENABLED = 'false';
 const BM = path.join(ROOT, 'docs/hoursback/business-model.md');
 const LD = path.join(ROOT, 'docs/hoursback/locked-decisions.md');
 const SPEC_DIR = path.join(ROOT, 'docs/hoursback/specs');
