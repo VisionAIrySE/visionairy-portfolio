@@ -13,6 +13,7 @@ const value = (name, fallback = '') => {
 const version = value('reader-version');
 const limit = Math.min(50, Math.max(1, Number(value('limit', '50'))));
 const writerCeiling = Math.max(0.05, Number(value('writer-ceiling', '5')));
+const noSpendingLimit = process.argv.includes('--no-spending-limit');
 const writerModel = value('writer-model', 'openai/gpt-5.6-luna');
 const selectedGap = process.argv.includes('--selected-missing-full-read');
 const allGap = process.argv.includes('--all-missing-full-read');
@@ -30,7 +31,8 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
 } else {
   const stages = [
     ...(!resume ? [{ label: 'Read full websites', script: 'read-full-via-openrouter.cjs',
-      args: [`--reader-version=${version}`, `--limit=${limit}`, '--ceiling=1',
+      args: [`--reader-version=${version}`, `--limit=${limit}`,
+        ...(noSpendingLimit ? ['--no-spending-limit'] : ['--ceiling=1']),
         ...(selectedGap ? ['--selected-missing-full-read'] : []),
         ...(allGap ? ['--all-missing-full-read', '--include-without-email'] : []),
         ...(selectedAttemptPrefix ? [`--selected-attempt-prefix=${selectedAttemptPrefix}`] : [])] }] : []),
@@ -39,12 +41,15 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
     { label: 'Audit contact labels and recipient choice', script: 'audit-contact-finder.cjs',
       args: [`--reader-version=${version}`, '--strict'] },
     { label: 'Save company-specific evidence', script: 'enhance-openrouter-read-batch.cjs',
-      args: [`--reader-version=${version}`] },
+      args: [`--reader-version=${version}`,
+        ...(noSpendingLimit ? ['--no-spending-limit'] : [])] },
     { label: 'Audit saved evidence', script: 'audit-stage-completion.cjs',
       args: ['--stage=evidence', '--scope=batch', `--reader-version=${version}`, '--strict'] },
     { label: 'Prepare four messages per address', script: 'write-the-whole-sequence.cjs',
       args: [`--reader-version=${version}`, '--all-contacts', '--do-it', '--prepare-only',
-        `--openrouter-model=${writerModel}`, `--openrouter-ceiling=${writerCeiling}`] },
+        `--openrouter-model=${writerModel}`,
+        ...(noSpendingLimit ? ['--no-spending-limit']
+          : [`--openrouter-ceiling=${writerCeiling}`])] },
     { label: 'Audit every recipient campaign', script: 'audit-stage-completion.cjs',
       args: ['--stage=drafts', '--scope=batch', `--reader-version=${version}`, '--strict'] },
     { label: 'Check all active messages in the batch', script: 'check-the-letters.cjs',

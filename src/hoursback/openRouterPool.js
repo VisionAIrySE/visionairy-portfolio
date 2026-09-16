@@ -20,7 +20,7 @@ function makeOpenRouterPool({
     const began = Date.now();
     if (closed) return { answer: null, why: 'the OpenRouter writer is closed', readerExhausted: true };
     if (!apiKey) return { answer: null, why: 'OpenRouter access is not configured', readerExhausted: true };
-    if (spent + reserved + reservationPerCall > ceilingUsd) {
+    if (Number.isFinite(ceilingUsd) && spent + reserved + reservationPerCall > ceilingUsd) {
       return { answer: null, why: `the OpenRouter $${ceilingUsd.toFixed(2)} run ceiling was reached`, readerExhausted: true };
     }
     reserved += reservationPerCall;

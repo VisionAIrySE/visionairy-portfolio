@@ -6,7 +6,17 @@
 const CLAIM_LEASE_MS = 5 * 60 * 1000;
 const SAFE_RETRY_MS = 23 * 60 * 60 * 1000;
 const { presentationProblem } = require('./signature.js');
-const { obviousWebsiteRecipientLabel } = require('./names.js');
+const { obviousWebsiteRecipientLabel, firstNameOf } = require('./names.js');
+
+function mismatchedGreeting(body, contactName) {
+  const firstName = firstNameOf(contactName);
+  if (!firstName) return false;
+  const greeting = String(body || '').match(/^\s*(?:Hi|Hello)\s+([^,\n]+),/i);
+  if (!greeting || /^there\b/i.test(greeting[1].trim())) return false;
+  const words = String(contactName).toLowerCase().match(/[a-z]+/g) || [];
+  const addressed = greeting[1].toLowerCase().match(/[a-z]+/g) || [];
+  return !addressed.some((word) => words.includes(word));
+}
 
 function deliveryKey(messageId) {
   return `outreach:${messageId}`;
@@ -24,6 +34,9 @@ function blockedReason(message) {
   if (contact && contact.source === 'WEBSITE'
       && obviousWebsiteRecipientLabel(contact.name)) {
     return 'the website contact name appears to be a page label, not a person';
+  }
+  if (contact && mismatchedGreeting(message.body, contact.name)) {
+    return 'the email greeting names someone other than the selected contact';
   }
   // The queue can outlive a changed checkbox. Recheck the recipient inside
   // the claim and again immediately before the provider attempt.

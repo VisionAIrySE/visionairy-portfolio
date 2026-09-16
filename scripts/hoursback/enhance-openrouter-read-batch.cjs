@@ -16,16 +16,19 @@ const versionArg = process.argv.find((value) => value.startsWith('--reader-versi
 const READER_VERSION = versionArg ? versionArg.slice('--reader-version='.length) : '2026-09-14-whole-site-openrouter';
 const idArg = process.argv.find((value) => value.startsWith('--id='));
 const ONLY_ID = idArg ? idArg.slice(5) : '';
+const NO_SPENDING_LIMIT = process.argv.includes('--no-spending-limit');
 const db = new PrismaClient();
 const finder = makeOpenRouterPool({
   model: 'google/gemini-3.1-flash-lite', apiKey: process.env.OPENROUTER_API_KEY,
-  ceilingUsd: 1, hardKillMs: 120000, maxTokens: 1800, temperature: 0,
+  ceilingUsd: NO_SPENDING_LIMIT ? Infinity : 1,
+  hardKillMs: 120000, maxTokens: 1800, temperature: 0,
   systemPrompt: 'Analyze only the supplied website evidence and answer with JSON only. No preamble, explanation, or code fences.',
   onCall: ({ answered, why }) => { if (!answered && why) console.error(`Evidence call failed: ${why}`); },
 });
 const writer = makeOpenRouterPool({
   model: 'openai/gpt-5.6-luna', apiKey: process.env.OPENROUTER_API_KEY,
-  ceilingUsd: 1.5, hardKillMs: 120000, maxTokens: 1000, temperature: 0.2,
+  ceilingUsd: NO_SPENDING_LIMIT ? Infinity : 1.5,
+  hardKillMs: 120000, maxTokens: 1000, temperature: 0.2,
   systemPrompt: 'Write precise, natural business English grounded only in the supplied evidence. Answer with JSON only. No preamble or code fences.',
   onCall: ({ answered, why }) => { if (!answered && why) console.error(`Writing call failed: ${why}`); },
 });
@@ -54,8 +57,10 @@ const writer = makeOpenRouterPool({
     ask: finder.ask, askToWrite: writer.ask,
     reviewPage: path.resolve(__dirname, `../../docs/hoursback/messages-to-review-${READER_VERSION.replace(/[^a-z0-9-]/gi, '-')}.md`),
   });
-  console.log(`Evidence-analysis cost: $${finder.spent.toFixed(4)} of $1.00`);
-  console.log(`Customer-facing wording cost: $${writer.spent.toFixed(4)} of $1.50`);
+  console.log(`Evidence-analysis cost: $${finder.spent.toFixed(4)}`
+    + (NO_SPENDING_LIMIT ? '' : ' of $1.00'));
+  console.log(`Customer-facing wording cost: $${writer.spent.toFixed(4)}`
+    + (NO_SPENDING_LIMIT ? '' : ' of $1.50'));
   finder.close(); writer.close();
   process.exitCode = result.code || 0;
 })().catch(async (error) => {

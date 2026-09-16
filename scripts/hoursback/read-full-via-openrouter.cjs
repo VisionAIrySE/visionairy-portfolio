@@ -25,7 +25,8 @@ const arg = (name, fallback) => {
 const MODEL = arg('model', 'google/gemini-3.1-flash-lite');
 const LIMIT = Math.min(50, Math.max(1, Number(arg('limit', 50))));
 const LANES = Math.min(4, Math.max(1, Number(arg('lanes', 3))));
-const CEILING = Math.max(0.05, Number(arg('ceiling', 1)));
+const NO_SPENDING_LIMIT = process.argv.includes('--no-spending-limit');
+const CEILING = NO_SPENDING_LIMIT ? Infinity : Math.max(0.05, Number(arg('ceiling', 1)));
 const ID = arg('id', '');
 const READER_VERSION = arg('reader-version', '2026-09-14-whole-site-openrouter');
 const LOOK = process.argv.includes('--look');
@@ -52,7 +53,9 @@ const writer = makeOpenRouterPool({
 });
 
 console.log(`Full website research: up to ${LIMIT} unread businesses through ${MODEL}`);
-console.log(`OpenRouter spending ceiling: $${CEILING.toFixed(2)}`);
+console.log(NO_SPENDING_LIMIT
+  ? 'No added spending ceiling; actual OpenRouter charges will be reported.'
+  : `OpenRouter spending ceiling: $${CEILING.toFixed(2)}`);
 console.log(SELECTED_MISSING_FULL_READ
   ? 'Queue: selected contacts whose business lacks saved full-site research'
   : ALL_MISSING_FULL_READ ? 'Queue: all active website businesses lacking saved full-site research'
@@ -70,7 +73,8 @@ runUnderstand({
   skipStaleReadingRepair: true,
   ...(ID ? { only: ID } : {}),
 }).then((result) => {
-  console.log(`OpenRouter cost: $${writer.spent.toFixed(4)} of the $${CEILING.toFixed(2)} ceiling`);
+  console.log(`OpenRouter cost: $${writer.spent.toFixed(4)}`
+    + (NO_SPENDING_LIMIT ? '' : ` of the $${CEILING.toFixed(2)} ceiling`));
   writer.close();
   process.exitCode = result.code || 0;
 }).catch((error) => {

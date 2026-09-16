@@ -19,10 +19,8 @@ const value = (name, fallback = '') => {
 const scope = value('scope', 'selected');
 const prefix = value('prefix');
 const maxBatches = Number(value('max-batches', '1'));
-const ceiling = Number(value('ceiling', String(maxBatches * 8.5)));
 const doIt = process.argv.includes('--do-it');
 const BATCH_LIMIT = 50;
-const BATCH_CEILING = 8.5;
 
 function eligibleWhere() {
   const where = {
@@ -75,13 +73,11 @@ async function run(script, args) {
 
 (async () => {
   if (!['selected', 'all'].includes(scope) || !/^[a-zA-Z0-9_-]+$/.test(prefix)
-    || !Number.isInteger(maxBatches) || maxBatches !== 1
-    || !Number.isFinite(ceiling) || ceiling < BATCH_CEILING
-    || ceiling + 0.0001 < maxBatches * BATCH_CEILING) {
-    throw new Error('Supply a valid scope, unique prefix, exactly one batch of at most 50 websites, and a valid technical stop threshold.');
+    || !Number.isInteger(maxBatches) || maxBatches !== 1) {
+    throw new Error('Supply a valid scope, unique prefix, and exactly one batch of at most 50 websites.');
   }
   if (!doIt) {
-    console.log(`Preview only: ${scope} websites, one cohort of at most ${BATCH_LIMIT}. No records or emails were changed. Technical model-call stop thresholds are separate from a user-approved spending budget.`);
+    console.log(`Preview only: ${scope} websites, one cohort of at most ${BATCH_LIMIT}. No records or emails were changed. OpenRouter charges will be reported; no spending ceiling is added.`);
     return;
   }
   let batches = 0;
@@ -95,6 +91,7 @@ async function run(script, args) {
       `--reader-version=${version}`, `--limit=${expected}`,
       `--selected-attempt-prefix=${prefix}_`,
       scope === 'selected' ? '--selected-missing-full-read' : '--all-missing-full-read',
+      '--no-spending-limit',
       '--do-it',
     ]);
     const after = await snapshot(version);

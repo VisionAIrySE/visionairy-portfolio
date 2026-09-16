@@ -74,6 +74,24 @@ test('malformed HTML is held before a provider attempt and records the reason', 
   assert.match(db.row.suppressedReason, /email presentation check/);
 });
 
+test('a selected contact cannot receive a campaign greeting meant for another person', async () => {
+  const db = memoryDb({ body: 'Hi Nicolle,\n\nA note about your business.',
+    sentTo: 'yod@example.com', prospect: { doNotContact: false, repliedAt: null,
+      contacts: [{ name: 'Yod Branch', email: 'yod@example.com', isPrimary: true }] } });
+  const result = await D.claim(db, db.row.id, async () => payload({ to: 'yod@example.com' }));
+  assert.match(result.blocked, /greeting names someone other than/);
+  assert.equal(db.row.state, 'SUPPRESSED');
+  assert.equal(db.row.deliveryState, 'BLOCKED');
+});
+
+test('a greeting for the selected person passes even when their address uses an initial', () => {
+  assert.equal(D.blockedReason({ lane: 'EMAIL', sentTo: 'rgarcia@example.com',
+    body: 'Hi Rocio,\n\nA note about your business.', prospect: {
+      doNotContact: false, repliedAt: null,
+      contacts: [{ name: 'Rocio Garcia', email: 'rgarcia@example.com', isPrimary: true }],
+    } }), null);
+});
+
 test('suppression is checked again immediately before provider delivery', async () => {
   const db = memoryDb();
   const now = new Date('2026-09-09T12:00:00Z');

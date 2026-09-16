@@ -101,7 +101,8 @@ function selectTargetCampaigns(campaigns, keys) {
   return keys ? campaigns.filter((p) => keys.has(campaignKeyFor(p))) : campaigns;
 }
 const OPENROUTER_MODEL = arg('openrouter-model', '');
-const OPENROUTER_CEILING = Number(arg('openrouter-ceiling', 2));
+const OPENROUTER_CEILING = process.argv.includes('--no-spending-limit')
+  ? Infinity : Number(arg('openrouter-ceiling', 2));
 const READER_VERSION = arg('reader-version', '');
 const projectOpenRouterKey = (() => {
   try {
