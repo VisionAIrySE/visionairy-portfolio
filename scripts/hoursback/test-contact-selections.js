@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const L = require('../../src/hoursback/crm/lanes.js');
 const { BODY } = require('../../src/hoursback/crm/firstContact.js');
-const { saveContactSelections, canonicalFirstMessages, activeUnsentMessages, addressFor, personFor } = L;
+const { saveContactSelections, canonicalFirstMessages, activeUnsentMessages, addressFor, personFor,
+  whoTheLetterGoesTo } = L;
 
 async function main() {
   const rows = new Map([
@@ -58,13 +59,21 @@ async function main() {
   });
   assert.equal(blankAddress, null);
 
-  let personLookup = 0;
   const selectedAtInbox = { name: 'Robin Owner', role: 'Owner', email: null, isPrimary: true };
-  const inboxPerson = await personFor({ contact: { findFirst: async () => {
-    personLookup += 1;
-    return personLookup === 3 ? selectedAtInbox : null;
-  } } }, 'business-1');
-  assert.equal(inboxPerson, selectedAtInbox);
+  const inboxPerson = await personFor({ contact: { findFirst: async ({ where }) =>
+    where.email ? null : selectedAtInbox } }, 'business-1');
+  assert.equal(inboxPerson, null);
+
+  const companyInbox = await whoTheLetterGoesTo({ contact: { findFirst: async () => null } },
+    'business-1', { name: 'Example Co', contactName: 'Unselected Person', ownerName: 'Website Owner' });
+  assert.equal(companyInbox.writeTo.contactName, null);
+  assert.equal(companyInbox.writeTo.ownerName, null);
+
+  const selectedPerson = { name: 'Alice Smith', role: 'Owner', email: 'alice@example.test' };
+  const directRecipient = await whoTheLetterGoesTo({ contact: { findFirst: async () => selectedPerson } },
+    'business-1', { name: 'Example Co', contactName: 'Other Person', ownerName: 'Website Owner' });
+  assert.equal(directRecipient.writeTo.contactName, 'Alice Smith');
+  assert.equal(directRecipient.writeTo.contactRole, 'Owner');
 
   const sentAt = new Date('2026-09-01T12:00:00Z');
   const sentFirsts = [

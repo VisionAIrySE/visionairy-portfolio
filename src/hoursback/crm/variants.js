@@ -385,7 +385,7 @@ const AFTER_THE_LOOK = [
 // One line, not three. This sits between the hook and the ask, which is where
 // people stop reading, so it earns exactly one sentence (2026-08-27).
 const WHAT_I_DO_FREE = [
-  "I'm local, and I find that kind of work and hand it to software — sometimes something off the shelf, sometimes built around how you actually run.",
+  "I'm local, and I find that kind of work and hand it to software, sometimes something off the shelf and sometimes built around how you actually run.",
   "I'm here in Central Oregon, and what I do is take that work off businesses: sometimes with something that already exists, sometimes with something built for them.",
   "I'm local to Central Oregon and I put in the software that does that work instead, whether it already exists or has to be built.",
 ];

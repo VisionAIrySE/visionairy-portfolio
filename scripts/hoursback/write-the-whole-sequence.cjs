@@ -43,6 +43,7 @@
 //   node scripts/hoursback/write-the-whole-sequence.cjs --missing-only --do-it
 //   node scripts/hoursback/write-the-whole-sequence.cjs --all-contacts --missing-only --do-it
 const { PrismaClient } = require('@prisma/client');
+const { emailFields } = require('../../src/hoursback/crm/emailText.js');
 const fs = require('fs');
 const FC = require('../../src/hoursback/crm/firstContact.js');
 const C = require('../../src/hoursback/crm/campaign.js');
@@ -396,15 +397,8 @@ function acceptableSubject(subject) {
     && !/\b(free|offer|opportunit\w*|quick question|ai|automation|solution|juggling|streamlin\w*|optimi[sz]\w*|efficien\w*)\b/i.test(s);
 }
 
-function addressedSubject(subject, greeting) {
-  const person = String(greeting || '').replace(/^(hi|hello|dear)\s+/i, '').replace(/,$/, '').trim();
-  if (!person || /^hello$/i.test(person)) return subject;
-  const room = Math.max(8, 65 - person.length - 3);
-  const raw = String(subject).trim();
-  const shortened = raw.length <= room
-    ? raw
-    : raw.slice(0, room).replace(/\s+\S*$/, '').trim() || raw.slice(0, room);
-  return `${person} — ${shortened}`;
+function addressedSubject(subject, _greeting) {
+  return emailFields({ subject, body: '' }).subject;
 }
 
 function acceptableQuestion(question, jobCount) {
@@ -623,9 +617,12 @@ if (require.main === module) (async () => {
                 : 'the reply question was not a short either-or question';
           continue;
         }
-        const candidate = buildFirstLetter({ greeting, passage, question, seed: p.name });
-        const v = J.judgeLetter(candidate, { day: 0, jobs, roleTitle });
-        if (v.ok) { first = candidate; firstSubject = addressedSubject(subject, greeting); } else {
+        const candidate = emailFields({
+          subject: addressedSubject(subject, greeting),
+          body: buildFirstLetter({ greeting, passage, question, seed: p.name }),
+        });
+        const v = J.judgeLetter(candidate.body, { day: 0, jobs, roleTitle });
+        if (v.ok) { first = candidate.body; firstSubject = candidate.subject; } else {
           whyFirst = v.why;
           if (DEBUG) console.log(`  rejected day 0 passage: ${passage}`);
         }
@@ -711,12 +708,15 @@ if (require.main === module) (async () => {
         }
         const got = answer && answer.answer ? String(answer.answer.body || '').trim().replace(/\n+/g, ' ') : '';
         if (!got) { why = 'the answer could not be read'; continue; }
-        const candidate = buildLetter(touch, { greeting, passage: got, seed: p.name });
+        const candidate = emailFields({
+          subject: THE_ANGLES[touch].subject,
+          body: buildLetter(touch, { greeting, passage: got, seed: p.name }),
+        });
         // JUDGED BY THE ONE JUDGE, TOLD WHICH DAY IT IS. The same judge the
         // page, the send queue and the nightly check use — so a letter that
         // passes here cannot be reported as failing anywhere else.
-        const v = J.judgeLetter(candidate, { day: THE_ANGLES[touch].day, jobs, roleTitle });
-        if (v.ok) full = candidate; else why = v.why;
+        const v = J.judgeLetter(candidate.body, { day: THE_ANGLES[touch].day, jobs, roleTitle });
+        if (v.ok) full = candidate.body; else why = v.why;
       }
       if (!full) { console.log(`  ✗ ${p.name} day ${THE_ANGLES[touch].day}: ${String(why).slice(0, 80)}`); refused += 1; continue; }
 

@@ -43,7 +43,7 @@ function logoDataUri() {
 function signatureHtml() {
   const src = logoDataUri();
   const logo = src
-    ? `<tr><td style="padding:8px 0"><img src="${src}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="VisionAIry — Success Engineering" style="display:block;border:0"></td></tr>`
+    ? `<tr><td style="padding:8px 0"><img src="${src}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="VisionAIry: Success Engineering" style="display:block;border:0"></td></tr>`
     : '';
   return `<table cellpadding="0" cellspacing="0" border="0" style="font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1a1a">
   <tr><td style="border-top:2px solid ${LEAF};padding-top:8px">
@@ -106,9 +106,12 @@ function bodyWithoutSignOff(body) {
     .split(/\n+(?:Best(?: regards)?|Regards|Sincerely),[ \t]*\n/i)[0].trim();
 }
 
-function presentationProblem({ html, text } = {}) {
+function presentationProblem({ subject, html, text } = {}) {
   const rendered = String(html || '');
   const plain = String(text || '');
+  if (/[\u2014\u2013]/.test(`${subject || ''}\n${rendered}\n${plain}`)) {
+    return 'a long dash remains in the customer email';
+  }
   if (/&lt;\s*br\s*\/?\s*&gt;|&lt;\s*br\s*\/?\s*>/i.test(rendered)
       || /<br\s*\/?\s*>/i.test(plain)) return 'visible HTML break markers in the email';
   if ((rendered.match(/Best regards,/g) || []).length > 1

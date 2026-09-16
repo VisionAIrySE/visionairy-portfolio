@@ -694,16 +694,15 @@ function sentenceCase(t) {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
-function researchedSubjectFor(prospect, trade, who) {
+function researchedSubjectFor(prospect, trade) {
   const role = String(prospect.contactRole || '').toLowerCase();
-  const prefix = who ? who + ' — ' : '';
-  if (/sales|broker|business development|revenue|leasing/.test(role)) return prefix + 'which opportunities are hardest to keep visible?';
-  if (/finance|account|controller|bookkeep|billing|chief financial|cfo/.test(role)) return prefix + 'the work sitting between done and paid';
-  if (/operations|project|production|dispatch|service manager/.test(role)) return prefix + 'which handoff is hardest to keep visible?';
-  if (/marketing|growth|communications/.test(role)) return prefix + 'which inquiries never become conversations?';
-  if (trade === 'dental') return prefix + 'the work hiding behind an open chair';
-  if (trade === 'accounting') return prefix + 'the documents clients said they sent';
-  return prefix + 'which repeated job is costing more?';
+  if (/sales|broker|business development|revenue|leasing/.test(role)) return 'which opportunities are hardest to keep visible?';
+  if (/finance|account|controller|bookkeep|billing|chief financial|cfo/.test(role)) return 'the work sitting between done and paid';
+  if (/operations|project|production|dispatch|service manager/.test(role)) return 'which handoff is hardest to keep visible?';
+  if (/marketing|growth|communications/.test(role)) return 'which inquiries never become conversations?';
+  if (trade === 'dental') return 'the work hiding behind an open chair';
+  if (trade === 'accounting') return 'the documents clients said they sent';
+  return 'which repeated job is costing more?';
 }
 
 function draftFirstContact(prospect, signals = []) {
@@ -731,7 +730,7 @@ function draftFirstContact(prospect, signals = []) {
   // subject points at that operational question too. A generic signal subject
   // beside a company-specific email made the research look pasted in.
   const subject = prospect.noticing
-    ? researchedSubjectFor(prospect, trade, who)
+    ? researchedSubjectFor(prospect, trade)
     : leadsWithTrade
       ? TO.subjectFor(trade, business)
       : (SUBJECTS[key] || TO.subjectFor(trade, business));
@@ -766,7 +765,8 @@ function draftFirstContact(prospect, signals = []) {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/([^\n]) {2,}/g, '$1 ')
     .replace(/\n +/g, '\n');
-  return { subject, body, openedWith: key, trade, register };
+  const { emailFields } = require('./emailText.js');
+  return { ...emailFields({ subject, body }), openedWith: key, trade, register };
 }
 
 // The LinkedIn version: shorter, same observation, same close. Never sent by
@@ -848,7 +848,8 @@ function draftFollowUpTouch(prospect, openedWith, touch) {
   const subject = touch === 2 ? C.subjectDayFour(t)
     : touch === 3 ? 'One question'
       : 'Closing the loop';
-  return { subject, body, openedWith: `touch_${touch}` };
+  const { emailFields } = require('./emailText.js');
+  return { ...emailFields({ subject, body }), openedWith: `touch_${touch}` };
 }
 
 module.exports = {

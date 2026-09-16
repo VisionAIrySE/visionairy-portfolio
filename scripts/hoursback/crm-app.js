@@ -2774,8 +2774,11 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(303, { Location: `/email?sent=0&why=${encodeURIComponent('That message could not be edited because delivery has started.')}` });
             return res.end();
           }
-          const body = String(form.body || '').trim();
-          const subject = String(form.subject || '').trim() || null;
+          const { emailFields } = require('../../src/hoursback/crm/emailText.js');
+          const { body, subject } = emailFields({
+            body: String(form.body || '').trim(),
+            subject: String(form.subject || '').trim() || null,
+          });
           if (body && body !== m.body) {
             const { captureRewrite } = require('../../src/hoursback/crm/voiceCapture.js');
             captureRewrite({ before: m.body, after: body, business: m.prospect.name, lane: m.lane, subject });
@@ -3058,6 +3061,12 @@ const server = http.createServer(async (req, res) => {
             if (before && before.deliveryState) {
               clashes.push(`${before.prospect.name || 'one message'} could not be edited because delivery has started`);
               continue;
+            }
+            if (before && before.lane === 'EMAIL') {
+              const { emailFields } = require('../../src/hoursback/crm/emailText.js');
+              const clean = emailFields({ subject: fields.subject ?? before.subject, body: fields.body ?? before.body });
+              if (Object.prototype.hasOwnProperty.call(fields, 'subject')) fields.subject = clean.subject;
+              if (Object.prototype.hasOwnProperty.call(fields, 'body')) fields.body = clean.body;
             }
             const beforeBody = before && String(before.body || '').replace(/\r\n?/g, '\n').trim();
             if (!before || !fields.body || fields.body === beforeBody) {

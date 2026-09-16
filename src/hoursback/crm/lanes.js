@@ -10,6 +10,7 @@
 // waiting on EVERY lane. Nobody who has answered gets chased.
 
 const { draftFirstContact, draftLinkedIn, BODY } = require('./firstContact.js');
+const { emailFields } = require('./emailText.js');
 const I = require('./inboxSelection.js');
 const crypto = require('crypto');
 
@@ -543,30 +544,12 @@ function campaignHasCompleteSequence(message) {
         || (blankIsUnambiguous && !normalize(candidate.sentTo)))));
 }
 
-// The person that address belongs to, for the greeting and the screen.
-//
-// These two used to be joined by `||` with no await between them. A database
-// query returns a promise, and a promise is always truthy, so the first branch
-// won every time and the fallback was dead code — which is why 328 of 691
-// drafts opened "Hello," while a name sat on the record (2026-08-26). Anyone
-// whose first-found person was marked primary without an email, or was never
-// marked primary at all, fell straight through to nobody.
+// A name is safe only when Russ selected that exact person and the message is
+// going to that person's direct address. A website name must never be borrowed
+// for a company inbox greeting.
 async function personFor(db, prospectId) {
-  const marked = await db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
-    orderBy: { createdAt: 'asc' },
-  });
-  if (marked) return marked;
-  const namedAddress = await db.contact.findFirst({
-    where: { prospectId, name: { not: null }, email: { not: null }, bouncedAt: null, setAsideAt: null },
-    orderBy: { createdAt: 'asc' },
-  });
-  if (namedAddress) return namedAddress;
-  // A selected person without a direct address may still be the intended
-  // reader at the business inbox. Keep their name and role for the greeting
-  // only after proving that no other person's direct address will receive it.
   return db.contact.findFirst({
-    where: { prospectId, isPrimary: true, name: { not: null }, setAsideAt: null },
+    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -626,27 +609,9 @@ async function whoTheLetterGoesTo(db, prospectId, p) {
   const marked = person && person.name && firstNameOfMarked(person.name) ? person.name : null;
   // Keep the selected person's role with their name. Otherwise a message can
   // greet the right person while aiming its examples at somebody else's job.
-  let writeTo = marked
+  const writeTo = marked
     ? { ...p, contactName: marked, contactRole: person.role || null, ownerName: null }
-    : p;
-  // At a small shop the "general" inbox is the owner's inbox. 404 businesses
-  // had a person's name on file and only a general address, and every one of
-  // them was greeted "Hello,". Where three or fewer people are named on the
-  // whole site, that address almost certainly reaches one of them, so the
-  // greeting uses their name. Above that there is a real front desk and it
-  // does not. The name still has to pass the person test, which is what stops
-  // "Hi Vaccination," (2026-08-26).
-  if (!writeTo.contactName && !writeTo.ownerName) {
-    const named = await db.contact.findMany({
-      where: { prospectId, name: { not: null } },
-      select: { name: true }, orderBy: { createdAt: 'asc' },
-    });
-    if (named.length && named.length <= 3) {
-      const { firstNameOf } = require('./names.js');
-      const usable = named.find((c) => firstNameOf(c.name));
-      if (usable) writeTo = { ...writeTo, contactName: usable.name };
-    }
-  }
+    : { ...p, contactName: null, contactRole: null, ownerName: null };
   return { writeTo, person };
 }
 
@@ -935,7 +900,7 @@ If anything comes up in the meantime you'd rather I looked at first, just say th
 Russ Wright
 Visionairy
 russ@visionairy.biz`;
-  return { subject: `Following up — ${business}`, body, openedWith: 'after_the_call' };
+  return { subject: `Following up: ${business}`, body, openedWith: 'after_the_call' };
 }
 
 // Put one in the batch. It lands unapproved and stays that way until the
@@ -1237,10 +1202,11 @@ async function sendQueuedEmails(db, options = {}) {
     const claimed = await D.claim(db, m.id, async (tx, current) => {
       const to = current.sentTo || await addressFor(tx, current.prospectId, current.prospect);
       if (!to) return null;
+      const clean = emailFields({ subject: current.subject, body: current.body });
       return {
-        from, to, subject: current.subject,
-        html: toHtmlEmail(current.body),
-        text: `${bodyWithoutSignOff(current.body)}\n\n${signatureText()}`,
+        from, to, subject: clean.subject,
+        html: toHtmlEmail(clean.body),
+        text: `${bodyWithoutSignOff(clean.body)}\n\n${signatureText()}`,
       };
     }, now);
     if (!claimed) continue;
