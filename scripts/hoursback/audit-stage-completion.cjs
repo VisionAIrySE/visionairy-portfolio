@@ -58,7 +58,7 @@ function auditBusiness(business, report) {
     && !['CUSTOMER', 'EXPANDED_CUSTOMER', 'DORMANT'].includes(business.stage);
   const inScope = scope === 'ids' ? targetIds.has(business.id)
     : scope === 'batch' ? attempted.length > 0
-    : scope === 'selected' ? selected.length > 0 && isActive
+    : scope === 'selected' ? (selected.length > 0 || business.emailInboxSelected) && isActive
       : isActive && isWebsiteEligible;
   if (!inScope) return;
   report.counts.businesses += 1;

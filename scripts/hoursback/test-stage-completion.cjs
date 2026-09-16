@@ -19,6 +19,17 @@ auditBusiness(business(), unread);
 assert.equal(unread.counts.needsFullRead, 1,
   'a selected site without saved pages must remain unfinished');
 
+const inboxOnly = business();
+inboxOnly.contacts = [];
+inboxOnly.email = 'office@example.test';
+inboxOnly.emailInboxSelected = true;
+const selectedInbox = report();
+auditBusiness(inboxOnly, selectedInbox);
+assert.equal(selectedInbox.counts.businesses, 1,
+  'a checked company inbox must be included in the selected completion audit');
+assert.equal(selectedInbox.counts.needsFullRead, 1,
+  'a checked company inbox must not bypass required website research');
+
 const researched = business();
 researched.readings.push({ reader: 'understand-businesses', source: 'website',
   outcome: 'read', pages: [{ text: 'The company handles recurring jobs.' }],
