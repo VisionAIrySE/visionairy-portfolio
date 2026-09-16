@@ -85,6 +85,17 @@ const DAY_NAME = {
     },
     include: { prospect: true },
   });
+  // A provider-confirmed first email is already in place. An older unsent
+  // duplicate must not make its recipient look incomplete or be judged as the
+  // next customer-facing letter.
+  const deliveredLetters = await db.outreachMessage.findMany({
+    where: {
+      lane: 'EMAIL', state: 'SENT', deliveryState: 'DELIVERED',
+      sentAt: { not: null }, providerMessageId: { not: null },
+      openedWith: { not: 'after_the_call' }, prospectId: { in: expectedIds },
+    },
+    select: { prospectId: true, sentTo: true, openedWith: true },
+  });
 
   // A few older imports left more than one unsent row for the same campaign
   // slot. The runtime keeps the first row for that prospect and touch, so the
@@ -138,9 +149,19 @@ const DAY_NAME = {
       if (!previous || rank(m) > rank(previous)) slots.set(key, m);
     }
   }
-  const letters = [...slots.values()];
-  const duplicateSelectedDrafts = selectedDrafts - letters.length;
+  const deliveredKeys = new Set(deliveredLetters.map((m) =>
+    `${campaignKey(m.prospectId, recipientOf(m))}:${J.dayOf(m.openedWith)}`));
+  const letters = [...slots.values()].filter((m) => !deliveredKeys.has(
+    `${campaignKey(m.prospectId, recipientOf(m))}:${J.dayOf(m.openedWith)}`));
+  const duplicateSelectedDrafts = selectedDrafts - slots.size;
+  const alreadyDeliveredDrafts = slots.size - letters.length;
   const daysByCampaign = new Map();
+  for (const m of deliveredLetters) {
+    const key = campaignKey(m.prospectId, recipientOf(m));
+    const days = daysByCampaign.get(key) || new Set();
+    days.add(J.dayOf(m.openedWith));
+    daysByCampaign.set(key, days);
+  }
   for (const m of letters) {
     const key = campaignKey(m.prospectId, recipientOf(m));
     const days = daysByCampaign.get(key) || new Set();
@@ -181,7 +202,7 @@ const DAY_NAME = {
   for (const m of letters) byDay[J.dayOf(m.openedWith)].push(m);
 
   let cleanAll = 0;
-  console.log(`\n${unselectedDrafts} drafts for unselected contacts and ${duplicateSelectedDrafts} duplicate selected-recipient drafts excluded from active-message counts.`);
+  console.log(`\n${unselectedDrafts} drafts for unselected contacts, ${duplicateSelectedDrafts} duplicate selected-recipient drafts, and ${alreadyDeliveredDrafts} unsent copies of provider-delivered messages excluded from active-message counts.`);
   console.log(`${incomplete.length} selected recipients at researched, reachable businesses are missing part of their four-message sequence.`);
   if (SHOW && incomplete.length) {
     for (const p of incomplete.slice(0, SHOW)) console.log(`   ${p.prospect.name} — ${p.label}: missing day ${p.missing.join(', ')}`);

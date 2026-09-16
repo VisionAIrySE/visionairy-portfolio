@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns } = require('../../src/hoursback/crm/lanes.js');
+const { syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns,
+  canonicalFirstMessages } = require('../../src/hoursback/crm/lanes.js');
 
 function fixture(selected) {
   const address = 'person@example.test';
@@ -71,6 +72,27 @@ test('writing all four messages does not line up an unselected contact', async (
     { judgeStored: () => ({ ok: true }) });
   assert.deepEqual(result, { ready: 0, incomplete: 0, contentBlocked: 0, contentProblems: [] });
   assert.equal(messages[0].state, 'DRAFT');
+});
+
+test('a delivered first email wins over an old unsent copy and cannot be lined up again', async () => {
+  const { db, messages, address } = fixture(true);
+  messages.push({ id: 'message-3', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'DRAFT', openedWith: 'touch_4', sentTo: address,
+    sentAt: null, queuedAt: null, deliveryState: null });
+  messages.push({ id: 'delivered-first', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'SENT', openedWith: 'tailored_first', sentTo: address,
+    sentAt: new Date('2026-09-15T17:00:00Z'), deliveryState: 'DELIVERED' });
+  assert.equal(canonicalFirstMessages(messages).find((m) => m.sentTo === address).id,
+    'delivered-first');
+  const result = await syncSelectedEmailCampaigns(db, 'business-1',
+    { judgeStored: () => ({ ok: true }) });
+  assert.deepEqual(result, { ready: 0, incomplete: 0,
+    contentBlocked: 0, contentProblems: [] });
+  assert.equal(messages[0].state, 'DRAFT');
+  messages[0].state = 'QUEUED';
+  await syncSelectedEmailCampaigns(db, 'business-1',
+    { judgeStored: () => ({ ok: true }) });
+  assert.equal(messages[0].state, 'DRAFT', 'an older queued copy must be held');
 });
 
 test('four present messages stay out of the send lineup when one fails the writing check', async () => {

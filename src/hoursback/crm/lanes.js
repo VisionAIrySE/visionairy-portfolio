@@ -271,6 +271,9 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   const normalize = (value) => String(value || '').trim().toLowerCase();
   const selected = new Map(prospect.contacts.map((contact) =>
     [normalize(contact.email), contact]).filter(([email]) => email));
+  const deliveredFirstAddresses = new Set(prospect.messages.filter((message) =>
+    isFirstContactMessage(message) && message.sentAt
+      && message.deliveryState === 'DELIVERED').map((message) => normalize(message.sentTo)));
   const firsts = canonicalFirstMessages(prospect.messages.filter((message) =>
     !message.sentAt && !message.deliveryState && ['DRAFT', 'QUEUED'].includes(message.state)));
   const reading = selected.size && prospect.readings.length
@@ -286,6 +289,13 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   for (const first of firsts) {
     const recorded = normalize(first.sentTo);
     const address = recorded || (selected.size === 1 ? [...selected.keys()][0] : '');
+    if (address && deliveredFirstAddresses.has(address)) {
+      if (first.state === 'QUEUED') {
+        await db.outreachMessage.update({ where: { id: first.id },
+          data: { state: 'DRAFT', queuedAt: null } });
+      }
+      continue;
+    }
     const chosen = address && selected.has(address);
     const complete = chosen && prospect.readings.length
       && campaignHasCompleteSequence({ ...first, sentTo: address, prospect });
@@ -460,7 +470,9 @@ function canonicalFirstMessages(messages) {
 
   const keep = [];
   for (const rows of byCampaign.values()) {
-    const rank = (m) => (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
+    const rank = (m) => (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)
+      || m.deliveryState === 'DELIVERED' ? 32 : 0)
+      + (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
       + (m.state === 'QUEUED' ? 2 : 0);
     keep.push(rows.reduce((best, message) => rank(message) > rank(best) ? message : best));
   }
