@@ -7,7 +7,8 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8').split(/\r?\n/)) {
   const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
-  if (match && !process.env[match[1]]) {
+  // This repository's private key must win over a stale machine-level key.
+  if (match && (!process.env[match[1]] || match[1] === 'OPENROUTER_API_KEY')) {
     process.env[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
   }
 }
@@ -20,7 +21,7 @@ const value = (name, fallback = '') => {
 };
 const doIt = process.argv.includes('--do-it');
 const expected = Number(value('expected-count', '0'));
-const ceiling = Number(value('ceiling', '5'));
+const ceiling = Number(value('ceiling', '0'));
 const model = value('model', 'openai/gpt-5.6-luna');
 const normalize = (s) => String(s || '').trim().toLowerCase();
 
@@ -39,7 +40,7 @@ async function inventory() {
     const businesses = await tx.prospect.findMany({
       where: { id: { in: ids }, doNotContact: false, repliedAt: null },
       select: {
-        id: true, email: true, emailManualValue: true, emailBouncedAt: true,
+        id: true, name: true, email: true, emailManualValue: true, emailBouncedAt: true,
         contacts: {
           where: { setAsideAt: null, bouncedAt: null },
           select: { name: true, email: true, isPrimary: true },
@@ -51,8 +52,9 @@ async function inventory() {
       select: {
         id: true, prospectId: true, sentTo: true, openedWith: true,
         lane: true, state: true, sentAt: true, deliveryState: true,
-        suppressedReason: true,
+        suppressedReason: true, createdAt: true,
       },
+      orderBy: { createdAt: 'asc' },
     });
     const byBusiness = new Map();
     for (const row of messages) {
@@ -82,9 +84,20 @@ async function inventory() {
           && (row.sentAt || row.deliveryState))) continue;
         const first = firsts.find((row) => normalize(row.sentTo) === address);
         if (first && (first.sentAt || first.deliveryState || first.state === 'REPLIED')) continue;
-        if (first && first.state === 'SUPPRESSED') {
+        // A deliberately unselected recipient can have only suppressed
+        // follow-ups and no first row. Treat any suppressed row for that
+        // recipient as the hold; otherwise the repair audit falsely asks the
+        // writer to recreate a campaign Russ intentionally left unselected.
+        const suppressed = rows.find((row) => row.state === 'SUPPRESSED'
+          && (normalize(row.sentTo) === address
+            || (!normalize(row.sentTo) && (
+              addresses.size === 1
+              || valid.length === 1
+              || (selected.length === 1 && normalize(selected[0].email) === address)
+            ))));
+        if (suppressed) {
           heldSuppressed += 1;
-          const reason = first.suppressedReason || 'reason not recorded';
+          const reason = suppressed.suppressedReason || 'reason not recorded';
           heldReasons[reason] = (heldReasons[reason] || 0) + 1;
           continue;
         }
@@ -96,7 +109,7 @@ async function inventory() {
         if (complete) continue;
         if (!hasFirst) missingFirst += 1;
         else missingFollowUps += 1;
-        targets.push({ prospectId: b.id, sentTo: address });
+        targets.push({ prospectId: b.id, companyName: b.name, sentTo: address });
       }
     }
     return { fullyResearched: ids.length, targets, missingFirst,
@@ -105,18 +118,23 @@ async function inventory() {
 }
 
 (async () => {
-  if (!Number.isFinite(expected) || !Number.isFinite(ceiling) || ceiling <= 0) {
+  if (!Number.isFinite(expected) || !Number.isFinite(ceiling) || ceiling < 0) {
     throw new Error('The expected count and spending ceiling must be valid numbers.');
   }
   const before = await inventory();
-  console.log(`${before.targets.length} incomplete campaigns at fully researched businesses; ${before.missingFirst} lack a first email, ${before.missingFollowUps} lack follow-ups, and ${before.heldSuppressed} intentionally suppressed campaigns are held.`);
+  const companyCount = new Set(before.targets.map((target) => target.prospectId)).size;
+  console.log(`${before.targets.length} incomplete campaigns across ${companyCount} fully researched businesses; ${before.missingFirst} lack a first email, ${before.missingFollowUps} lack follow-ups, and ${before.heldSuppressed} intentionally suppressed campaigns are held.`);
   if (before.heldSuppressed) console.log(`Held reasons: ${JSON.stringify(before.heldReasons)}`);
   if (!doIt) {
+    console.log(`Unfinished businesses: ${[...new Set(before.targets.map((target) => target.companyName))].join('; ') || 'none'}`);
     console.log('Preview only. No draft was changed or lined up.');
     return;
   }
   if (!expected || expected !== before.targets.length) {
     throw new Error(`Repair scope changed. Expected ${expected}, found ${before.targets.length}. Nothing was changed.`);
+  }
+  if (ceiling <= 0) {
+    throw new Error('An explicitly approved positive spending ceiling is required. Nothing was changed.');
   }
   const ids = [...new Set(before.targets.map((target) => target.prospectId))];
   const code = await new Promise((resolve, reject) => {
