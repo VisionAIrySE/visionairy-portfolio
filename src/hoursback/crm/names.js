@@ -100,6 +100,7 @@ const NEVER_IN_A_NAME = new RegExp([
   'email', 'bio', 'scroll', 'sign', 'estate', 'market', 'update', 'seller',
   'soon', 'coming', 'website', 'websites', 'presentations?', 'dashboard',
   'platform', 'optimized', 'mobile', 'reporting', 'marketing',
+  'template', 'placeholder',
 ].map((word) => `\\b(?:${word})\\b`).join('|'), 'i');
 
 // Structural tells that a string is a heading rather than a person.

@@ -84,6 +84,15 @@ test('a selected contact cannot receive a campaign greeting meant for another pe
   assert.equal(db.row.deliveryState, 'BLOCKED');
 });
 
+test('a website template placeholder with an address is held before delivery', () => {
+  assert.match(D.blockedReason({ lane: 'EMAIL', sentTo: 'template.placeholder@gmail.com',
+    body: 'Hi Template,\n\nA note about your business.', prospect: {
+      doNotContact: false, repliedAt: null,
+      contacts: [{ name: 'Template Placeholder', email: 'template.placeholder@gmail.com',
+        source: 'WEBSITE', isPrimary: true }],
+    } }), /page label, not a person/);
+});
+
 test('a greeting for the selected person passes even when their address uses an initial', () => {
   assert.equal(D.blockedReason({ lane: 'EMAIL', sentTo: 'rgarcia@example.com',
     body: 'Hi Rocio,\n\nA note about your business.', prospect: {
