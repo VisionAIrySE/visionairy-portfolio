@@ -93,6 +93,19 @@ test('a website template placeholder with an address is held before delivery', (
     } }), /page label, not a person/);
 });
 
+test('a recoverable old label does not hide the corrected selected person at the same address', () => {
+  assert.equal(D.blockedReason({ lane: 'EMAIL', sentTo: 'erica@example.com',
+    body: 'Hi Erica,\n\nA note about your business.', prospect: {
+      doNotContact: false, repliedAt: null,
+      contacts: [
+        { name: 'Principal Broker', email: 'erica@example.com', source: 'WEBSITE',
+          isPrimary: false, setAsideAt: new Date('2026-09-15') },
+        { name: 'Erica Davis', email: 'erica@example.com', source: 'WEBSITE',
+          isPrimary: true, setAsideAt: null },
+      ],
+    } }), null);
+});
+
 test('a greeting for the selected person passes even when their address uses an initial', () => {
   assert.equal(D.blockedReason({ lane: 'EMAIL', sentTo: 'rgarcia@example.com',
     body: 'Hi Rocio,\n\nA note about your business.', prospect: {

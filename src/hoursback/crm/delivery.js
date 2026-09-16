@@ -28,7 +28,9 @@ function blockedReason(message) {
   if (message.prospect.repliedAt) return 'the business has replied';
   const target = String(message.deliveryTo || message.sentTo || '').toLowerCase();
   const contacts = message.prospect.contacts || [];
-  const contact = target && contacts.find((c) => String(c.email || '').toLowerCase() === target);
+  const matchingContacts = target ? contacts.filter((c) =>
+    String(c.email || '').toLowerCase() === target) : [];
+  const contact = matchingContacts.find((c) => !c.setAsideAt) || matchingContacts[0];
   if (contact && contact.bouncedAt) return 'that contact address has bounced';
   if (contact && contact.setAsideAt) return 'that contact has been set aside';
   if (contact && contact.source === 'WEBSITE'
