@@ -10,7 +10,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
     process.env.DATABASE_URL = match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
   }
 }
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Prisma } = require('@prisma/client');
 const { emailFields } = require('../../src/hoursback/crm/emailText.js');
 const L = require('../../src/hoursback/crm/lanes.js');
 const db = new PrismaClient();
@@ -88,16 +88,29 @@ async function run() {
         `${message.subject || ''}\n${message.body || ''}\n${message.deliverySubject || ''}\n${message.deliveryHtml || ''}\n${message.deliveryText || ''}`)).length,
     };
     if (doIt) {
-      for (const { message, next } of changes) {
-        const updated = await tx.outreachMessage.updateMany({
-          where: {
-            id: message.id, lane: 'EMAIL', sentAt: null, deliveryState: null,
-            state: { in: ['DRAFT', 'QUEUED', 'SUPPRESSED'] },
-            subject: message.subject, body: message.body,
-          },
-          data: { subject: next.subject, body: next.body },
-        });
-        if (updated.count !== 1) throw new Error('A draft changed during the repair. Every update was rolled back.');
+      for (let start = 0; start < changes.length; start += 300) {
+        const group = changes.slice(start, start + 300);
+        const values = Prisma.join(group.map(({ message, next }) => Prisma.sql`(
+          ${message.id}, ${next.subject}, ${next.body}, ${message.subject}, ${message.body}
+        )`));
+        const updated = await tx.$executeRaw(Prisma.sql`
+          UPDATE "OutreachMessage" AS message
+          SET "subject" = correction."newSubject",
+              "body" = correction."newBody"
+          FROM (VALUES ${values}) AS correction(
+            "id", "newSubject", "newBody", "oldSubject", "oldBody"
+          )
+          WHERE message."id" = correction."id"
+            AND message."lane" = 'EMAIL'
+            AND message."state" IN ('DRAFT', 'QUEUED', 'SUPPRESSED')
+            AND message."sentAt" IS NULL
+            AND message."deliveryState" IS NULL
+            AND message."subject" IS NOT DISTINCT FROM correction."oldSubject"
+            AND message."body" = correction."oldBody"
+        `);
+        if (updated !== group.length) {
+          throw new Error('A draft changed during the repair. Every update was rolled back.');
+        }
       }
       if (!template) throw new Error('The approved campaign template is missing. Every update was rolled back.');
       if (!template.approvedAt || template.approvedWording !== L.wordingFingerprint()) {
