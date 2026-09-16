@@ -1464,7 +1464,7 @@ async function emailScreen(params) {
     <div><b>${waitingAllTold - queuedAllTold}</b>drafts to review</div>
     <div><b>${sent}</b>sent so far</div>
   </div>
-  ${selectedCompleteDrafts ? `<div class="card warn"><b>${selectedCompleteDrafts} selected first email${selectedCompleteDrafts === 1 ? ' is' : 's are'} still drafts.</b> All four messages are present, but the scheduled run will skip these until they pass the writing check and are lined up. Saving a company's recipient choices rechecks that company's campaigns.</div>` : ''}
+  ${selectedCompleteDrafts ? `<div class="card warn"><b>${selectedCompleteDrafts} selected first email${selectedCompleteDrafts === 1 ? ' is' : 's are'} still drafts.</b> All four messages are present, but drafts will not go out in a scheduled run until they are lined up. Saving a company's recipient choices checks that company's campaigns and lines up those that pass the writing rules.</div>` : ''}
   <p class="mini">${reachable} companies can be reached by email. ${left >= Number.MAX_SAFE_INTEGER ? 'There is no daily sending limit.' : `${left} messages remain available today.`}</p>
   ${wording}
   <div class="workspace">
