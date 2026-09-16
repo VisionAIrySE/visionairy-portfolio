@@ -28,6 +28,7 @@ const { markDoNotContact, CALL_OUTCOMES } = require('../../src/hoursback/crm/sta
 const { freezeQuote } = require('../../src/hoursback/crm/quote.js');
 const { setOverride, resolveField, OVERRIDABLE } = require('../../src/hoursback/overrides.js');
 const L = require('../../src/hoursback/crm/lanes.js');
+const EP = require('../../src/hoursback/crm/emailProgress.js');
 const { draftFirstContact, draftLinkedIn, BODY: TEMPLATE_BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
 const { refreshProspect } = require('../../src/hoursback/refresh.js');
 const { forTrade } = require('../../src/hoursback/scenarios.js');
@@ -1182,7 +1183,8 @@ async function emailScreen(params) {
         },
         messages: {
           where: { lane: 'EMAIL' },
-          select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, deliveryState: true },
+          select: { id: true, prospectId: true, lane: true, state: true, openedWith: true,
+            sentTo: true, sentAt: true, providerMessageId: true, deliveryState: true },
         },
         readings: {
           where: {
@@ -1203,9 +1205,11 @@ async function emailScreen(params) {
   // per recipient and including the company's complete message list on every
   // row multiplied large companies into tens of thousands of duplicate
   // objects and could exceed Render's 512 MB service limit.
+  const campaignKey = EP.campaignKey;
+  const deliveredFirsts = EP.deliveredFirstKeys(allFirstRows);
   const currentRecipientFirsts = (prospects) => prospects.flatMap((prospect) =>
-    currentCampaignMessages(prospect, prospect.messages)
-      .filter(L.isFirstContactMessage)
+    EP.pendingFirsts(prospect,
+      currentCampaignMessages(prospect, prospect.messages), deliveredFirsts)
       .map((message) => ({ ...message, prospect })));
   const matchingFirstRows = currentRecipientFirsts(readyRows);
   const groupedCompanies = [];
@@ -1390,12 +1394,16 @@ async function emailScreen(params) {
       ? messages.filter((message) => chosenAddresses.has(
         String(emailRecipient(message).address).trim().toLowerCase()))
       : messages;
-    const completeCount = chosenMessages.filter(isComplete).length;
+    const sentCount = (availableContacts.length
+      ? selectedContacts.map((person) => person.email)
+      : intendedEmailRecipients(prospect)).filter((address) =>
+      deliveredFirsts.has(campaignKey(prospect.id, address))).length;
+    const completeCount = sentCount + chosenMessages.filter(isComplete).length;
     const readyCount = chosenMessages.filter((message) =>
       message.state === 'QUEUED' && isComplete(message)).length;
     const campaignsWaiting = Math.max(0, selectedCount - completeCount);
     const readinessLabel = selectedCount
-      ? `${readyCount} lined up to send`
+      ? `${sentCount ? `${sentCount} sent · ` : ''}${readyCount} lined up to send`
       : 'No recipients selected';
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
@@ -1412,7 +1420,7 @@ async function emailScreen(params) {
       <summary class="company-summary">
         <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
-        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} have four messages` : 'Four messages exist for each selected recipient'}</span>
+        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} have a complete chain or have already received the first email` : 'Every selected recipient has a complete chain or has received the first email'}</span>
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Recipients and their email sequences</h3>
@@ -1427,7 +1435,9 @@ async function emailScreen(params) {
             const address = String(person.email || '').trim().toLowerCase();
             const campaign = campaignByAddress.get(address);
             const checked = selectedContacts.some((chosen) => chosen.id === person.id);
-            const status = !checked ? 'Not included' : !campaign ? 'Campaign missing'
+            const status = !checked ? 'Not included'
+              : deliveredFirsts.has(campaignKey(prospect.id, address)) ? 'First email already sent'
+              : !campaign ? 'Campaign missing'
               : !isComplete(campaign) ? 'Incomplete — cannot send'
                 : campaign.state === 'QUEUED' ? 'Lined up to send'
                   : 'Four messages exist — save choices to check readiness';

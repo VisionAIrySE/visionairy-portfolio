@@ -95,6 +95,15 @@ test('a delivered first email wins over an old unsent copy and cannot be lined u
   assert.equal(messages[0].state, 'DRAFT', 'an older queued copy must be held');
 });
 
+test('an uncertain provider outcome does not masquerade as confirmed delivery', () => {
+  const { messages, address } = fixture(true);
+  messages.push({ id: 'uncertain-first', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'SENT', openedWith: 'tailored_first', sentTo: address,
+    sentAt: new Date('2026-09-15T17:00:00Z'), deliveryState: 'UNCONFIRMED' });
+  assert.equal(canonicalFirstMessages(messages).find((m) => m.sentTo === address).id,
+    'message-0');
+});
+
 test('four present messages stay out of the send lineup when one fails the writing check', async () => {
   const { db, messages, address } = fixture(true);
   messages.push({

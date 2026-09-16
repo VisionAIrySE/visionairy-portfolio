@@ -470,8 +470,8 @@ function canonicalFirstMessages(messages) {
 
   const keep = [];
   for (const rows of byCampaign.values()) {
-    const rank = (m) => (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)
-      || m.deliveryState === 'DELIVERED' ? 32 : 0)
+    const rank = (m) => (m.sentAt && m.deliveryState === 'DELIVERED'
+      || m.state === 'REPLIED' ? 32 : 0)
       + (m.editedAt ? 8 : 0) + (m.openedWith === 'tailored_first' ? 4 : 0)
       + (m.state === 'QUEUED' ? 2 : 0);
     keep.push(rows.reduce((best, message) => rank(message) > rank(best) ? message : best));
@@ -1158,7 +1158,7 @@ async function sendQueuedEmails(db, options = {}) {
       }, select: { id: true }, take: 1 },
       messages: {
       where: { lane: 'EMAIL', openedWith: { not: 'after_the_call' } },
-      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true },
+      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true, sentAt: true, providerMessageId: true },
     } } } },
     orderBy: { prospect: { automationScore: 'desc' } },
     take: ceiling < MAX_PER_RUN ? ceiling : undefined,
@@ -1175,8 +1175,14 @@ async function sendQueuedEmails(db, options = {}) {
     }
   }
   const allowedFirst = new Set(canonicalFirstMessages(siblingFirsts).map((m) => m.id));
+  const deliveredFirstRecipients = new Set(siblingFirsts.filter((m) =>
+    isFirstContactMessage(m) && m.state === 'SENT' && m.sentAt
+    && m.providerMessageId && m.deliveryState === 'DELIVERED')
+    .map((m) => `${m.prospectId}|${String(m.sentTo || '').trim().toLowerCase()}`));
   const queued = queuedRows.filter((m) => {
     if (isFirstContactMessage(m) && !allowedFirst.has(m.id)) return false;
+    if (isFirstContactMessage(m) && deliveredFirstRecipients.has(
+      `${m.prospectId}|${String(m.sentTo || '').trim().toLowerCase()}`)) return false;
     // A company with a website does not enter delivery until the deep reader
     // has stored actual words from that site. The quick scan performed when a
     // card is saved is useful for contact details, but it is not the evidence

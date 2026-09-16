@@ -81,9 +81,18 @@ function auditBusiness(business, report) {
   }
   if (!jobs.length) return;
 
-  const expected = scope === 'all' || scope === 'batch' || scope === 'ids'
-    ? contacts : selected;
   const inbox = normalize(business.emailManualValue || business.email);
+  const alternateUnnamed = contacts.filter((contact) => !contact.name
+    && !contact.isPrimary && normalize(contact.email) !== inbox
+    && !business.messages.some((message) => isFirst(message)
+      && normalize(message.sentTo) === normalize(contact.email)));
+  if (includesStage('drafts') && alternateUnnamed.length) {
+    for (const contact of alternateUnnamed) addIssue(report,
+      'alternateAddressNeedsVerification', business, contact.email,
+      'An unnamed, unselected alternate inbox is saved. Confirm who uses it before treating it as another recipient campaign.');
+  }
+  const expected = scope === 'all' || scope === 'batch' || scope === 'ids'
+    ? contacts.filter((contact) => !alternateUnnamed.includes(contact)) : selected;
   if (inbox && !business.emailBouncedAt && !selected.length
     && !contacts.some((contact) => contact.name)
     && !expected.some((contact) => normalize(contact.email) === inbox)
