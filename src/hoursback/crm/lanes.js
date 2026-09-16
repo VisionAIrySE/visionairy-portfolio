@@ -10,6 +10,7 @@
 // waiting on EVERY lane. Nobody who has answered gets chased.
 
 const { draftFirstContact, draftLinkedIn, BODY } = require('./firstContact.js');
+const I = require('./inboxSelection.js');
 const crypto = require('crypto');
 
 // Every sentence that can reach a reader, in one fingerprint. Approval is of
@@ -108,14 +109,20 @@ async function addressFor(db, prospectId, prospect, exclude = []) {
     orderBy: { createdAt: 'asc' },
   });
   if (chosen) return chosen.email;
+  // An explicit company-inbox choice outranks an unselected named contact.
+  // The later fallbacks only make drafts inspectable; queue and sender gates
+  // still refuse them until Russ checks the recipient.
+  const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
+  const businessInbox = p && !p.emailBouncedAt ? (p.emailManualValue || p.email) : null;
+  if (p && p.emailInboxSelected && businessInbox && !exclude.includes(businessInbox)) {
+    return String(businessInbox).trim() || null;
+  }
   const named = await db.contact.findFirst({
     where: { prospectId, name: { not: null }, email: { contains: '@', notIn: excluded }, bouncedAt: null, setAsideAt: null },
     orderBy: { createdAt: 'asc' },
   });
   if (named) return named.email;
   if (exclude.length) return null;   // everyone marked has already had one
-  const p = prospect || await db.prospect.findUnique({ where: { id: prospectId } });
-  const businessInbox = p && !p.emailBouncedAt ? (p.emailManualValue || p.email) : null;
   return String(businessInbox || '').trim() || null;
 }
 
@@ -243,7 +250,8 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   const prospect = await db.prospect.findUnique({
     where: { id: prospectId },
     select: {
-      doNotContact: true, repliedAt: true,
+      doNotContact: true, repliedAt: true, email: true, emailManualValue: true,
+      emailInboxSelected: true,
       contacts: {
         where: { isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
         select: { email: true, name: true, role: true },
@@ -271,6 +279,8 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
   const normalize = (value) => String(value || '').trim().toLowerCase();
   const selected = new Map(prospect.contacts.map((contact) =>
     [normalize(contact.email), contact]).filter(([email]) => email));
+  const inbox = I.selectedInboxAddress(prospect);
+  if (inbox) selected.set(inbox, { name: 'Company inbox', role: null });
   const deliveredFirstAddresses = new Set(prospect.messages.filter((message) =>
     isFirstContactMessage(message) && message.sentAt
       && message.deliveryState === 'DELIVERED').map((message) => normalize(message.sentTo)));
@@ -339,9 +349,9 @@ async function selectedDraftGap(db, options = {}) {
   const prospects = await db.prospect.findMany({
     where: {
       doNotContact: false, repliedAt: null,
-      contacts: { some: {
+      OR: [{ contacts: { some: {
         isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
-      } },
+      } } }, { emailInboxSelected: true }],
       messages: { some: {
         lane: 'EMAIL', state: 'DRAFT', sentAt: null,
         openedWith: { not: 'after_the_call' },
@@ -349,7 +359,7 @@ async function selectedDraftGap(db, options = {}) {
       } },
     },
     select: {
-      id: true,
+      id: true, email: true, emailManualValue: true, emailInboxSelected: true,
       contacts: {
         where: { isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
         select: { email: true, role: true },
@@ -394,6 +404,8 @@ async function selectedDraftGap(db, options = {}) {
   for (const prospect of prospects) {
     const selected = new Map(prospect.contacts.map((person) =>
       [String(person.email).trim().toLowerCase(), person.role]));
+    const inbox = I.selectedInboxAddress(prospect);
+    if (inbox) selected.set(inbox, null);
     const firsts = canonicalFirstMessages(prospect.messages);
     const jobs = jobsByProspect.get(prospect.id) || [];
     let gapsHere = 0;
@@ -424,9 +436,9 @@ async function reconcileSelectedEmailCampaigns(db, options = {}) {
   const prospects = await db.prospect.findMany({
     where: {
       doNotContact: false, repliedAt: null,
-      contacts: { some: {
+      OR: [{ contacts: { some: {
         isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
-      } },
+      } } }, { emailInboxSelected: true }],
       messages: { some: {
         lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] }, sentAt: null,
         openedWith: { not: 'after_the_call' },
@@ -769,6 +781,11 @@ async function queueEmail(db, prospectId) {
   }
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact || p.repliedAt) return null;
+  const marked = await db.contact.count({ where: {
+    prospectId, isPrimary: true, email: { not: null }, bouncedAt: null,
+    setAsideAt: null,
+  } });
+  if (!marked && !p.emailInboxSelected) return null;
   const msg = await draftFor(db, prospectId, 'EMAIL');
   if (!msg || msg.state !== 'DRAFT') return msg;
   return db.outreachMessage.update({ where: { id: msg.id }, data: { state: 'QUEUED', queuedAt: new Date() } });
@@ -1038,6 +1055,8 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
     const campaignContact = contactByAddress.get(String(campaignAddress).trim().toLowerCase());
     if (campaignContact && (!campaignContact.isPrimary || campaignContact.bouncedAt
       || campaignContact.setAsideAt)) continue;
+    if (!campaignContact && I.normalize(campaignAddress) === I.businessInboxAddress(p)
+      && !p.emailInboxSelected) continue;
     const campaignSent = sent.filter((message) => message.id !== first.id
       && !isFirstContactMessage(message)
       && (normalize(message.sentTo) === normalize(campaignAddress)
@@ -1156,6 +1175,8 @@ async function sendQueuedEmails(db, options = {}) {
         source: 'website', reader: 'understand-businesses', outcome: 'read',
         pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
       }, select: { id: true }, take: 1 },
+      contacts: { where: { isPrimary: true, email: { not: null },
+        bouncedAt: null, setAsideAt: null }, select: { email: true, isPrimary: true } },
       messages: {
       where: { lane: 'EMAIL', openedWith: { not: 'after_the_call' } },
       select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true, sentAt: true, providerMessageId: true },
@@ -1183,6 +1204,13 @@ async function sendQueuedEmails(db, options = {}) {
     if (isFirstContactMessage(m) && !allowedFirst.has(m.id)) return false;
     if (isFirstContactMessage(m) && deliveredFirstRecipients.has(
       `${m.prospectId}|${String(m.sentTo || '').trim().toLowerCase()}`)) return false;
+    const coldCampaign = m.openedWith !== 'after_the_call';
+    if (coldCampaign && m.sentTo && !I.selectedPersonAddresses(m.prospect)
+      .includes(I.normalize(m.sentTo))
+      && I.selectedInboxAddress(m.prospect) !== I.normalize(m.sentTo)) {
+      result.blocked += 1;
+      return false;
+    }
     // A company with a website does not enter delivery until the deep reader
     // has stored actual words from that site. The quick scan performed when a
     // card is saved is useful for contact details, but it is not the evidence

@@ -36,10 +36,9 @@ const DRY = process.argv.includes('--dry-run');
   // nothing at all, because the reader writes '' where it saw a blank
   // (2026-08-28).
   const blank = (f) => ({ OR: [{ [f]: null }, { [f]: '' }] });
-  // Being marked as the main contact is NOT protection. The reader marks the
-  // first person it finds, and on a page full of headings the first thing it
-  // finds is a heading — "Drainage Solutions" was the main contact at an
-  // excavation company (2026-08-28). Only what Russ typed is safe.
+  // Being marked as the main contact is NOT protection. Historical reader
+  // runs marked the first entry on some pages, including headings such as
+  // "Drainage Solutions". Only what Russ typed is safe.
   const where = {
     AND: [
       { source: { not: 'RUSS' } },
@@ -60,23 +59,8 @@ const DRY = process.argv.includes('--dry-run');
     console.log(`\nactually removed: ${r.count}`);
   }
 
-  // Somebody has to be the one written to. Where the deletion took the marked
-  // contact away, mark the best of what is left: an address first, then a job
-  // title, then whoever was found first.
-  if (!DRY) {
-    const orphaned = await db.prospect.findMany({
-      where: { doNotContact: false, contacts: { some: {} , none: { isPrimary: true } } },
-      select: { id: true, contacts: { select: { id: true, email: true, role: true }, orderBy: { createdAt: 'asc' } } },
-    });
-    let remarked = 0;
-    for (const b of orphaned) {
-      const best = b.contacts.find((c) => c.email) || b.contacts.find((c) => c.role) || b.contacts[0];
-      if (!best) continue;
-      await db.contact.update({ where: { id: best.id }, data: { isPrimary: true } });
-      remarked += 1;
-    }
-    console.log(`main contact set again at: ${remarked} businesses`);
-  }
+  // Removing a bad row must never choose a replacement recipient. Every
+  // remaining person stays available for Russ to select explicitly.
 
   const left = await db.contact.count({ where: { prospect: { doNotContact: false } } });
   const withEmail = await db.contact.count({ where: { prospect: { doNotContact: false }, email: { not: null } } });

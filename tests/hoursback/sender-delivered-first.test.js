@@ -31,3 +31,24 @@ test('sender never attempts an older queued first email for a recipient already 
   assert.equal(result.sent, 0);
   assert.equal(providerAttempts, 0);
 });
+
+test('sender refuses a queued company-inbox draft until that inbox is explicitly chosen', async () => {
+  const sentAt = new Date('2026-09-15T16:00:00Z');
+  const queued = { id: 'inbox-first', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'QUEUED', openedWith: 'tailored_first', sentTo: 'office@example.test',
+    sentAt: null, providerMessageId: null, deliveryState: null };
+  let providerAttempts = 0;
+  const db = {
+    messageTemplate: { findUnique: async () => ({ approvedAt: sentAt,
+      body: BODY, approvedWording: L.wordingFingerprint() }) },
+    outreachMessage: { findMany: async () => [{ ...queued, prospect: {
+      id: 'business-1', email: queued.sentTo, emailInboxSelected: false,
+      contacts: [], readings: [], messages: [queued],
+    } }] },
+  };
+  const result = await L.sendQueuedEmails(db, { apiKey: 'test-only', limit: 1,
+    send: async () => { providerAttempts += 1; throw new Error('unselected inbox sent'); } });
+  assert.equal(result.blocked, 1);
+  assert.equal(result.attempted, 0);
+  assert.equal(providerAttempts, 0);
+});

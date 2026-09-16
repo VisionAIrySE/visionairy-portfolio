@@ -29,6 +29,7 @@ const { freezeQuote } = require('../../src/hoursback/crm/quote.js');
 const { setOverride, resolveField, OVERRIDABLE } = require('../../src/hoursback/overrides.js');
 const L = require('../../src/hoursback/crm/lanes.js');
 const EP = require('../../src/hoursback/crm/emailProgress.js');
+const I = require('../../src/hoursback/crm/inboxSelection.js');
 const { draftFirstContact, draftLinkedIn, BODY: TEMPLATE_BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
 const { refreshProspect } = require('../../src/hoursback/refresh.js');
 const { forTrade } = require('../../src/hoursback/scenarios.js');
@@ -413,20 +414,19 @@ function emailStep(message) {
   return { order: 1, label: 'First email', day: 'Day 0' };
 }
 
-function intendedEmailRecipients(prospect) {
-  const contacts = (prospect.contacts || []).filter((c) => c.email && !c.bouncedAt);
-  const marked = contacts.filter((c) => c.isPrimary);
-  const recipients = (marked.length ? marked : contacts.filter((c) => c.name).slice(0, 1))
-    .map((c) => String(c.email).trim().toLowerCase());
-  if (!recipients.length) {
-    const inbox = prospect.emailManualValue || prospect.email;
-    if (inbox) recipients.push(String(inbox).trim().toLowerCase());
-  }
-  return recipients;
+function candidateEmailRecipients(prospect) {
+  const recipients = (prospect.contacts || [])
+    .filter((person) => person.email && !person.bouncedAt && !person.setAsideAt)
+    .map((person) => I.normalize(person.email));
+  const inbox = I.businessInboxAddress(prospect);
+  if (inbox && !recipients.includes(inbox)) recipients.push(inbox);
+  return [...new Set(recipients)];
 }
 
 function currentCampaignMessages(prospect, messages) {
-  const recipients = intendedEmailRecipients(prospect);
+  // Showing a written campaign is not approval to send it. Every address with
+  // a saved chain remains inspectable until Russ checks that recipient.
+  const recipients = candidateEmailRecipients(prospect);
   const chosen = new Map();
   const other = [];
   for (const message of L.activeUnsentMessages(messages)) {
@@ -1235,7 +1235,8 @@ async function emailScreen(params) {
   const selectedCompleteDrafts = allFirst.filter((m) => {
     if (m.state !== 'DRAFT' || !hasDeepResearch(m) || !L.campaignHasCompleteSequence(m)) return false;
     const address = String(m.sentTo || '').trim().toLowerCase();
-    return (m.prospect.contacts || []).some((person) => person.isPrimary
+    return I.selectedInboxAddress(m.prospect) === address
+      || (m.prospect.contacts || []).some((person) => person.isPrimary
       && person.email && !person.bouncedAt
       && String(person.email).trim().toLowerCase() === address);
   }).length;
@@ -1314,7 +1315,9 @@ async function emailScreen(params) {
   const one = (m, options = {}) => {
     const nested = Boolean(options.nested);
     const showApproval = options.showApproval !== false;
-    const recipient = emailRecipient(m);
+    const recipient = options.inbox
+      ? { ...emailRecipient(m), name: 'Company inbox', role: null }
+      : emailRecipient(m);
     const step = emailStep(m);
     const researched = Boolean(m.prospect.readings && m.prospect.readings.length);
     const complete = researched && L.campaignHasCompleteSequence(m);
@@ -1381,22 +1384,20 @@ async function emailScreen(params) {
     const prospect = company.prospect;
     const availableContacts = (prospect.contacts || []).filter((person) => person.email && !person.bouncedAt);
     const selectedContacts = availableContacts.filter((person) => person.isPrimary);
-    // The summary must reflect saved choices, not the display fallback that
-    // shows one unselected contact so Russ can still choose that person here.
-    const selectedCount = availableContacts.length
-      ? selectedContacts.length
-      : intendedEmailRecipients(prospect).length;
+    const inbox = I.businessInboxAddress(prospect);
+    const inboxCandidate = inbox && !availableContacts.some((person) =>
+      I.normalize(person.email) === inbox) ? inbox : '';
+    const inboxChosen = Boolean(inboxCandidate && prospect.emailInboxSelected);
+    // A saved company email is available to choose, not a checked person.
+    const selectedCount = selectedContacts.length + (inboxChosen ? 1 : 0);
     const isComplete = (message) => Boolean(message.prospect.readings && message.prospect.readings.length)
       && L.campaignHasCompleteSequence(message);
     const chosenAddresses = new Set(selectedContacts.map((person) =>
       String(person.email).trim().toLowerCase()));
-    const chosenMessages = availableContacts.length
-      ? messages.filter((message) => chosenAddresses.has(
-        String(emailRecipient(message).address).trim().toLowerCase()))
-      : messages;
-    const sentCount = (availableContacts.length
-      ? selectedContacts.map((person) => person.email)
-      : intendedEmailRecipients(prospect)).filter((address) =>
+    if (inboxChosen) chosenAddresses.add(inbox);
+    const chosenMessages = messages.filter((message) => chosenAddresses.has(
+      I.normalize(emailRecipient(message).address)));
+    const sentCount = [...chosenAddresses].filter((address) =>
       deliveredFirsts.has(campaignKey(prospect.id, address))).length;
     const completeCount = sentCount + chosenMessages.filter(isComplete).length;
     const readyCount = chosenMessages.filter((message) =>
@@ -1405,6 +1406,11 @@ async function emailScreen(params) {
     const readinessLabel = selectedCount
       ? `${sentCount ? `${sentCount} sent · ` : ''}${readyCount} lined up to send`
       : 'No recipients selected';
+    const progressLabel = !selectedCount ? 'Choose a person or the company inbox to prepare sending'
+      : campaignsWaiting ? `${completeCount} of ${selectedCount} selected campaigns have four messages`
+        : readyCount + sentCount === selectedCount
+          ? 'Every selected campaign is sent or lined up'
+          : `${selectedCount - readyCount - sentCount} selected campaign${selectedCount - readyCount - sentCount === 1 ? ' is' : 's are'} still a draft — save choices to check readiness`;
     const recipientQuery = new URLSearchParams();
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
@@ -1420,12 +1426,12 @@ async function emailScreen(params) {
       <summary class="company-summary">
         <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
-        <span class="state muted" style="font-size:12px">${!selectedCount ? 'Choose recipients to prepare sending' : campaignsWaiting ? `${completeCount} of ${selectedCount} have a complete chain or have already received the first email` : 'Every selected recipient has a complete chain or has received the first email'}</span>
+        <span class="state muted" style="font-size:12px">${progressLabel}</span>
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Recipients and their email sequences</h3>
-        ${availableContacts.length ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
-          <p class="mini" style="margin-top:0">One checkmark controls each person. A complete campaign is lined up when you save the choice. It can go out in the next scheduled run or when you press Send now. Open any person to spot-check all four messages. Changes save automatically when you close this company.</p>
+        ${availableContacts.length || inboxCandidate ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
+          <p class="mini" style="margin-top:0">Choose the people or company inbox you want to email. Saving checks each chosen campaign and lines up complete messages that pass the writing rules. Open a recipient to read all four messages. Changes also save when you close this company.</p>
           <button form="${formId}" style="margin:3px 0 8px">Save recipient choices</button>
           ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
             ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
@@ -1449,8 +1455,25 @@ async function emailScreen(params) {
               </label>
               ${campaign ? one(campaign, { nested: true, showApproval: false }) : ''}
             </div>`;
-          }).join('')}</div>
-          <button form="${formId}">Save recipient choices</button>` : '<p class="mini">No individual contact with an email is on file. This company uses its general inbox.</p>'}
+          }).join('')}
+          ${inboxCandidate ? (() => {
+            const campaign = campaignByAddress.get(inboxCandidate);
+            const status = !inboxChosen ? 'Not included'
+              : deliveredFirsts.has(campaignKey(prospect.id, inboxCandidate)) ? 'First email already sent'
+                : !campaign ? 'Campaign missing'
+                  : !isComplete(campaign) ? 'Incomplete — cannot send'
+                    : campaign.state === 'QUEUED' ? 'Lined up to send'
+                      : 'Four messages exist — save choices to check readiness';
+            return `<div class="recipient" style="margin:8px 0">
+              <label style="display:block;margin:0 0 6px">
+                <input form="${formId}" type="checkbox" name="inbox" value="1" style="width:auto;vertical-align:middle" ${inboxChosen ? 'checked' : ''}
+                  onchange="this.closest('details.company-campaign').dataset.recipientChoicesChanged='true'">
+                <b>Company inbox</b> <span class="muted">· ${esc(inboxCandidate)} · ${esc(status)}</span>
+              </label>
+              ${campaign ? one(campaign, { nested: true, showApproval: false, inbox: true }) : '<p class="mini">The email chain has not been prepared yet.</p>'}
+            </div>`;
+          })() : ''}</div>
+          <button form="${formId}">Save recipient choices</button>` : '<p class="mini">No person or company inbox with a usable email address is on file.</p>'}
       </div>
     </details>`;
   };
@@ -1967,6 +1990,12 @@ async function businessCard(id, saved) {
   <h2>Who works there (${activeContacts.length})</h2>
   <p class="muted">Every box below is editable. Choose either Send or Archive for a person, then press save once at the bottom. Archive keeps the contact on this account and stops using them for outreach. What you type is kept as yours — no later reading of their website overwrites it.</p>
   <form id="contactMessageChanges" method="POST" action="/people/save?back=${p.id}">
+  ${I.businessInboxAddress(p) ? `<div class="recipient" style="margin:8px 0 12px">
+    <input type="hidden" name="inboxVisible" value="${esc(p.id)}">
+    <label style="display:inline;width:auto;margin:0"><input type="checkbox" name="inbox" value="${esc(p.id)}" style="width:auto;vertical-align:middle" ${p.emailInboxSelected ? 'checked' : ''}>
+      <b>Send to company inbox</b> <span class="muted">· ${esc(I.businessInboxAddress(p))}</span></label>
+    <div class="mini">This is a separate recipient choice. Having the address saved does not select it.</div>
+  </div>` : ''}
   ${activeContacts.length ? `<p class="row" style="margin:6px 0 12px">
     <label style="display:inline;width:auto;font-size:16px"><input type="checkbox" id="selectAllContacts" style="width:auto;vertical-align:middle" ${activeContacts.every((c) => c.isPrimary) ? 'checked' : ''}
       onclick="this.form.querySelectorAll('input[name=send]').forEach(function(box){box.checked=this.checked}.bind(this));if(this.checked)this.form.querySelectorAll('input[name=remove]').forEach(function(box){box.checked=false})">
@@ -2780,18 +2809,35 @@ const server = http.createServer(async (req, res) => {
             select: { id: true, email: true, bouncedAt: true },
             orderBy: { createdAt: 'asc' },
           });
+          const prospect = await db.prospect.findUnique({
+            where: { id: message.prospectId },
+            select: { email: true, emailManualValue: true },
+          });
+          const inbox = I.businessInboxAddress(prospect);
+          const inboxCandidate = inbox && !contacts.some((person) => person.email
+            && !person.bouncedAt && I.normalize(person.email) === inbox) ? inbox : '';
+          const inboxChosen = Boolean(inboxCandidate && form.inbox === '1');
           const allowed = new Set(contacts.filter((person) => person.email && !person.bouncedAt).map((person) => person.id));
           const selected = [...new Set([].concat(form.recipient || []).filter((contactId) => allowed.has(contactId)))];
           await L.saveContactSelections(db, contacts.map((person) => person.id), selected);
-          if (!selected.length) {
+          await db.prospect.update({ where: { id: message.prospectId },
+            data: { emailInboxSelected: inboxChosen } });
+          if (inboxChosen) {
+            await db.outreachMessage.updateMany({ where: {
+              prospectId: message.prospectId, lane: 'EMAIL', sentAt: null,
+              state: 'SUPPRESSED', suppressedReason: 'no recipients selected',
+            }, data: { state: 'DRAFT', suppressedReason: null, queuedAt: null } });
+          }
+          if (!selected.length && !inboxChosen && !inboxCandidate) {
             await L.excludeEmailCampaigns(db, message.prospectId);
             return returnToMessage('Company excluded from email sending. Select a contact later to restore its campaigns.');
           }
-          const refreshed = await L.draftFor(db, message.prospectId, 'EMAIL');
+          if (selected.length) await L.draftFor(db, message.prospectId, 'EMAIL');
           const readiness = await L.syncSelectedEmailCampaigns(db, message.prospectId);
-          const said = refreshed
-            ? `${selected.length === 1 ? 'Recipient saved' : `${selected.length} recipients saved`}. ${readiness.ready} first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${readiness.contentBlocked ? ` ${readiness.contentBlocked} campaign${readiness.contentBlocked === 1 ? ' is' : 's are'} held by the writing check. ${readiness.contentProblems.slice(0, 2).map((problem) => `${problem.recipient}, ${problem.message}: ${problem.why}`).join('; ')}` : ''}`
-            : 'The recipient choices were saved, but there is no sendable first email for this company.';
+          const chosenCount = selected.length + (inboxChosen ? 1 : 0);
+          const said = chosenCount
+            ? `${chosenCount} recipient${chosenCount === 1 ? '' : 's'} saved. ${readiness.ready} first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${readiness.contentBlocked ? ` ${readiness.contentBlocked} campaign${readiness.contentBlocked === 1 ? ' is' : 's are'} held by the writing check. ${readiness.contentProblems.slice(0, 2).map((problem) => `${problem.recipient}, ${problem.message}: ${problem.why}`).join('; ')}` : ''}`
+            : 'No recipients selected. This company is excluded from email sending; check a person or its inbox to restore the campaign.';
           return returnToMessage(said);
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
@@ -2806,6 +2852,8 @@ const server = http.createServer(async (req, res) => {
             where: { id: { in: picked }, state: 'DRAFT', sentAt: null },
             include: { prospect: { include: {
               messages: { where: { lane: 'EMAIL' } },
+              contacts: { where: { isPrimary: true, email: { not: null },
+                bouncedAt: null, setAsideAt: null }, select: { email: true, isPrimary: true } },
               readings: {
                 where: {
                   source: 'website', outcome: 'read',
@@ -2815,8 +2863,15 @@ const server = http.createServer(async (req, res) => {
               },
             } } },
           }) : [];
-          const completeIds = candidates.filter((m) => m.prospect.readings.length && L.campaignHasCompleteSequence(m)).map((m) => m.id);
-          const incomplete = candidates.length - completeIds.length;
+          const selectedCandidates = candidates.filter((message) => {
+            const address = I.normalize(message.sentTo);
+            return I.selectedPersonAddresses(message.prospect).includes(address)
+              || I.selectedInboxAddress(message.prospect) === address;
+          });
+          const completeIds = selectedCandidates.filter((m) => m.prospect.readings.length
+            && L.campaignHasCompleteSequence(m)).map((m) => m.id);
+          const notSelected = candidates.length - selectedCandidates.length;
+          const incomplete = selectedCandidates.length - completeIds.length;
           if (completeIds.length) {
             await db.outreachMessage.updateMany({
               where: { id: { in: completeIds }, state: 'DRAFT', sentAt: null },
@@ -2824,6 +2879,7 @@ const server = http.createServer(async (req, res) => {
             });
           }
           const said = `${completeIds.length} marked ready. Nothing has been sent.`
+            + (notSelected ? ` ${notSelected} unchecked recipient${notSelected === 1 ? ' was' : 's were'} not lined up.` : '')
             + (incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' was' : 's were'} blocked because follow-ups are missing.` : '');
           res.writeHead(303, { Location: `/email?sent=${completeIds.length}&why=${encodeURIComponent(said)}` });
           return res.end();
@@ -3023,6 +3079,19 @@ const server = http.createServer(async (req, res) => {
           // optional review and does not require a second checkbox.
           const ticked = [].concat(form.send || []).filter(Boolean);
           try {
+          const visibleInboxProspectIds = [...new Set([].concat(form.inboxVisible || []).filter(Boolean))];
+          const selectedInboxProspectIds = new Set([].concat(form.inbox || []).filter((id) =>
+            visibleInboxProspectIds.includes(id)));
+          for (const prospectId of visibleInboxProspectIds) {
+            const inboxSelected = selectedInboxProspectIds.has(prospectId);
+            await db.prospect.update({ where: { id: prospectId },
+              data: { emailInboxSelected: inboxSelected } });
+            if (inboxSelected) await db.outreachMessage.updateMany({ where: {
+              prospectId, lane: 'EMAIL', sentAt: null, state: 'SUPPRESSED',
+              suppressedReason: 'no recipients selected',
+            }, data: { state: 'DRAFT', suppressedReason: null, queuedAt: null } });
+            affectedProspectIds.add(prospectId);
+          }
           const activeSubmittedPersonIds = submittedPersonIds.filter((id) => !goners.includes(id));
           const submittedSet = new Set(activeSubmittedPersonIds);
           const selectedSubmittedIds = ticked.filter((id) => submittedSet.has(id));
@@ -3036,7 +3105,9 @@ const server = http.createServer(async (req, res) => {
             const hasSelectedRecipient = await db.contact.count({
               where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
             });
-            if (!hasSelectedRecipient) {
+            const inboxSelected = await db.prospect.findUnique({ where: { id: prospectId },
+              select: { emailInboxSelected: true } });
+            if (!hasSelectedRecipient && !inboxSelected.emailInboxSelected) {
               await L.excludeEmailCampaigns(db, prospectId);
               continue;
             }

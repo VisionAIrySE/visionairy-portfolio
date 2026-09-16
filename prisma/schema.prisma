@@ -52,6 +52,9 @@ model Prospect {
   emailManualValue         String?
   emailConfidence          Float?
   emailStatus              String?
+  // A business inbox is an address, not a person. Keep its sending choice
+  // separate from Contact.isPrimary so it can be reviewed and reversed.
+  emailInboxSelected        Boolean @default(false)
 
   headcountPublishedAs String? // "8-20" when the site published a range
 

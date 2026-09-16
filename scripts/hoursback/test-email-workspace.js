@@ -31,12 +31,20 @@ assert.match(app, /Recipients and their email sequences/,
   'opening a company must combine recipient selection with campaign review');
 assert.match(app, /one\(campaign, \{ nested: true, showApproval: false \}\)/,
   'each recipient must have one checkbox beside their expandable campaign');
-assert.match(app, /availableContacts\.length\s*\? selectedContacts\.length\s*: intendedEmailRecipients\(prospect\)\.length/,
-  'the company heading must count checked recipients rather than an unselected fallback contact');
+assert.match(app, /selectedContacts\.length \+ \(inboxChosen \? 1 : 0\)/,
+  'the company heading must count only checked people and an explicitly chosen business inbox');
+assert.match(app, /name="inbox" value="1"/,
+  'a general inbox must have its own visible choice beside its campaign');
+assert.match(app, /name="inbox" value="\$\{esc\(p\.id\)\}"/,
+  'the company page must use the same explicit business-inbox choice');
+assert.match(app, /one\(campaign, \{ nested: true, showApproval: false, inbox: true \}\)/,
+  'a general inbox must expose its saved four-message chain in the Email workspace');
 assert.match(app, /message\.state === 'QUEUED' && isComplete\(message\)/,
   'the ready count must require a queued, complete first email');
 assert.match(app, /L\.syncSelectedEmailCampaigns\(db, message\.prospectId\)/,
   'saving recipient choices must make complete campaigns ready without a second approval step');
+assert.match(app, /I\.selectedPersonAddresses\(message\.prospect\)\.includes\(address\)/,
+  'the older mark-ready action must also refuse unchecked recipients');
 assert.match(app, /recipientChoicesChanged==='true'/,
   'closing a company must save changed recipient choices automatically');
 assert.match(app, /Save recipient choices/,

@@ -1729,6 +1729,9 @@ async function seedLane(db, tag, extra = {}) {
     data: {
       placeId: `lane-${tag}`, name: `Lane ${tag} Co`, phone: '541-555-0500',
       email: `owner@lane${tag}.example`, ownerName: 'Dale Hutchins',
+      // Sender tests represent Russ explicitly choosing this synthetic inbox.
+      // Merely saving an address must never approve it in the real CRM.
+      emailInboxSelected: true,
       scoreEvidence: FAX_TELL, automationScore: 12, fieldSource: 'test', ...extra,
     },
   });
@@ -4499,7 +4502,11 @@ def('both_channels_make_the_same_offer', () => withLiveDb(async (db) => {
   // Only what can still reach a reader. A stood-down message carries whatever
   // it said the day its business stopped being contactable, and holding
   // tonight's ask against it measures nothing.
-  const live = { editedAt: null, state: { in: ['DRAFT', 'QUEUED'] } };
+  const live = { editedAt: null, state: { in: ['DRAFT', 'QUEUED'] },
+    // Sender fixtures run in parallel in the disposable database. They prove
+    // delivery mechanics, not the wording of Russ's saved campaigns.
+    OR: [{ prospect: { fieldSource: null } },
+      { prospect: { fieldSource: { not: 'test' } } }] };
   const emails = await db.outreachMessage.findMany({ where: { lane: 'EMAIL', ...live }, select: { body: true } });
   const notes = await db.outreachMessage.findMany({ where: { lane: 'LINKEDIN', ...live }, select: { body: true } });
   const badE = emails.filter((m) => !asks(m.body)).length;

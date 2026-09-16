@@ -40,7 +40,7 @@ function fixture(selected) {
       },
     },
   };
-  return { db, messages, address };
+  return { db, prospect, messages, address };
 }
 
 test('a contact selected before campaign writing is lined up only after all four messages exist', async () => {
@@ -71,6 +71,25 @@ test('writing all four messages does not line up an unselected contact', async (
   const result = await syncSelectedEmailCampaigns(db, 'business-1',
     { judgeStored: () => ({ ok: true }) });
   assert.deepEqual(result, { ready: 0, incomplete: 0, contentBlocked: 0, contentProblems: [] });
+  assert.equal(messages[0].state, 'DRAFT');
+});
+
+test('an explicitly chosen company inbox lines up, and unchecking it holds, its first email', async () => {
+  const { db, prospect, messages, address } = fixture(false);
+  prospect.email = address;
+  prospect.emailInboxSelected = true;
+  messages.push({ id: 'message-3', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'DRAFT', openedWith: 'touch_4', sentTo: address,
+    sentAt: null, queuedAt: null, deliveryState: null });
+  let result = await syncSelectedEmailCampaigns(db, 'business-1',
+    { judgeStored: () => ({ ok: true }) });
+  assert.equal(result.ready, 1);
+  assert.equal(messages[0].state, 'QUEUED');
+
+  prospect.emailInboxSelected = false;
+  result = await syncSelectedEmailCampaigns(db, 'business-1',
+    { judgeStored: () => ({ ok: true }) });
+  assert.equal(result.ready, 0);
   assert.equal(messages[0].state, 'DRAFT');
 });
 

@@ -8,6 +8,7 @@ const L = require('../../src/hoursback/crm/lanes.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const C = require('../../src/hoursback/crm/campaign.js');
 const D = require('../../src/hoursback/crm/delivery.js');
+const I = require('../../src/hoursback/crm/inboxSelection.js');
 const { presentationProblem } = require('../../src/hoursback/crm/signature.js');
 
 const option = (name, fallback = '') => {
@@ -93,11 +94,10 @@ function auditBusiness(business, report) {
   }
   const expected = scope === 'all' || scope === 'batch' || scope === 'ids'
     ? contacts.filter((contact) => !alternateUnnamed.includes(contact)) : selected;
-  if (inbox && !business.emailBouncedAt && !selected.length
-    && !contacts.some((contact) => contact.name)
+  if (inbox && !business.emailBouncedAt
+    && (business.emailInboxSelected || scope === 'all' || scope === 'batch' || scope === 'ids')
     && !expected.some((contact) => normalize(contact.email) === inbox)
-    && (scope === 'all' || scope === 'batch' || scope === 'ids'
-      || !contacts.length)) {
+    && (business.emailInboxSelected || !contacts.length)) {
     expected.push({ name: 'shared business inbox', email: inbox, role: null });
   }
   if (!expected.length && includesStage('drafts')) {
@@ -136,7 +136,8 @@ function auditBusiness(business, report) {
       }
       report.counts.completeCampaigns += 1;
     }
-    if (includesStage('lineup') && recipient.isPrimary) {
+    if (includesStage('lineup') && (recipient.isPrimary
+      || address === I.selectedInboxAddress(business))) {
       if (first.state === 'DRAFT') report.counts.selectedDrafts += 1;
       if (first.state === 'QUEUED') report.counts.selectedQueued += 1;
     }
@@ -152,7 +153,8 @@ async function auditQueue(tx, report) {
       openedWith: true, sentTo: true, deliveryTo: true, deliveryState: true,
       prospect: { select: {
         name: true, website: true, websiteManualValue: true,
-        doNotContact: true, repliedAt: true, email: true, emailBouncedAt: true,
+        doNotContact: true, repliedAt: true, email: true, emailManualValue: true,
+        emailInboxSelected: true, emailBouncedAt: true,
         contacts: { select: {
           email: true, isPrimary: true, bouncedAt: true, setAsideAt: true,
         } },
@@ -175,6 +177,9 @@ async function auditQueue(tx, report) {
     const target = normalize(message.deliveryTo || message.sentTo);
     const blocked = D.blockedReason({ ...message, prospect: business });
     if (blocked) addIssue(report, 'queuedWrong', business, target, blocked);
+    else if (target && !I.selectedPersonAddresses(business).includes(target)
+      && I.selectedInboxAddress(business) !== target) addIssue(report,
+      'queuedWrong', business, target, 'Email is lined up for an unchecked recipient.');
     else if (isFirst(message) && (business.websiteManualValue || business.website)
       && !business.readings.length) addIssue(report, 'queuedWrong', business, target,
         'First email was lined up without saved full website pages.');
@@ -283,15 +288,16 @@ async function main() {
             OR: [{ website: { not: null } },
               { websiteManualValue: { not: null } }],
           } : {}),
-          ...(scope === 'selected' ? { contacts: { some: {
+          ...(scope === 'selected' ? { OR: [{ contacts: { some: {
             isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null,
-          } } } : {}) },
+          } } }, { emailInboxSelected: true }] } : {}) },
           orderBy: { id: 'asc' }, take: 100,
           ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
           select: {
             id: true, name: true, website: true, websiteManualValue: true,
             stage: true, doNotContact: true, repliedAt: true,
-            email: true, emailManualValue: true, emailBouncedAt: true,
+            email: true, emailManualValue: true, emailInboxSelected: true,
+            emailBouncedAt: true,
             contacts: { select: {
               name: true, role: true, email: true, bouncedAt: true,
               setAsideAt: true, isPrimary: true,
