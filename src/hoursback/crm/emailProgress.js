@@ -18,4 +18,10 @@ function pendingFirsts(prospect, chosenMessages, delivered) {
       && !delivered.has(campaignKey(prospect.id, message.sentTo)));
 }
 
-module.exports = { campaignKey, deliveredFirstKeys, pendingFirsts };
+function campaignHasStarted(prospect) {
+  return (prospect && prospect.messages || []).some((message) =>
+    L.isFirstContactMessage(message)
+    && (message.state === 'SENT' || message.sentAt || message.providerMessageId));
+}
+
+module.exports = { campaignKey, deliveredFirstKeys, pendingFirsts, campaignHasStarted };

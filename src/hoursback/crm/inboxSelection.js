@@ -17,5 +17,9 @@ function selectedInboxAddress(prospect) {
     && !selectedPersonAddresses(prospect).includes(inbox) ? inbox : '';
 }
 
+function hasSelectedRecipient(prospect) {
+  return selectedPersonAddresses(prospect).length > 0 || Boolean(selectedInboxAddress(prospect));
+}
+
 module.exports = { normalize, businessInboxAddress, selectedPersonAddresses,
-  selectedInboxAddress };
+  selectedInboxAddress, hasSelectedRecipient };

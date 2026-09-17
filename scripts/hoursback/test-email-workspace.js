@@ -53,6 +53,14 @@ assert.match(app, /Save choices for <span id="recipient-save-count">0<\/span> co
   'the master save must show how many companies will be saved');
 assert.match(app, /action="\/email\/recipients-all/,
   'the master save must submit every changed company in one action');
+assert.match(app, /value="unstarted"[^>]*>ready to choose — no recipient selected and outreach not started/,
+  'the Email filters must offer a worklist containing only untouched, prepared companies');
+assert.match(app, /!I\.hasSelectedRecipient\(company\.prospect\)/,
+  'the untouched filter must exclude every company with a saved recipient choice');
+assert.match(app, /!startedCompanyIds\.has\(company\.id\)/,
+  'the untouched filter must exclude every company whose first email has started');
+assert.match(app, /L\.campaignHasCompleteSequence\(message\)/,
+  'the untouched filter must require a complete four-message campaign');
 assert.match(app, /Save recipient choices/,
   'recipient choices must also have a clear save action above the contact list');
 assert.match(app, /selectAll\.checked=all\.every/,

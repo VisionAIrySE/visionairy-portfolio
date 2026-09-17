@@ -1270,10 +1270,10 @@ async function emailScreen(params) {
     EP.pendingFirsts(prospect,
       currentCampaignMessages(prospect, prospect.messages), deliveredFirsts)
       .map((message) => ({ ...message, prospect })));
-  const matchingFirstRows = currentRecipientFirsts(readyRows);
-  const groupedCompanies = [];
+  const candidateFirstRows = currentRecipientFirsts(readyRows);
+  let groupedCompanies = [];
   const companyById = new Map();
-  for (const message of matchingFirstRows) {
+  for (const message of candidateFirstRows) {
     let company = companyById.get(message.prospectId);
     if (!company) {
       company = { id: message.prospectId, prospect: message.prospect, messages: [] };
@@ -1282,6 +1282,18 @@ async function emailScreen(params) {
     }
     company.messages.push(message);
   }
+  if (review === 'unstarted') {
+    const startedCompanyIds = new Set(allFirstRows
+      .filter((prospect) => EP.campaignHasStarted(prospect))
+      .map((prospect) => prospect.id));
+    groupedCompanies = groupedCompanies.filter((company) =>
+      !I.hasSelectedRecipient(company.prospect)
+      && !startedCompanyIds.has(company.id)
+      && company.messages.some((message) =>
+        Boolean(message.prospect.readings && message.prospect.readings.length)
+        && L.campaignHasCompleteSequence(message)));
+  }
+  const matchingFirstRows = groupedCompanies.flatMap((company) => company.messages);
   const matchingCompanyCount = groupedCompanies.length;
   const visibleCompanies = groupedCompanies.slice(0, 25);
   const ready = visibleCompanies.flatMap((company) => company.messages);
@@ -1600,6 +1612,7 @@ async function emailScreen(params) {
     <select name="review" style="width:auto">
       <option value=""${review ? '' : ' selected'}>every message</option>
       <option value="readthrough"${review === 'readthrough' ? ' selected' : ''}>read right through — their whole site is on file</option>
+      <option value="unstarted"${review === 'unstarted' ? ' selected' : ''}>ready to choose — no recipient selected and outreach not started</option>
       <option value="personal"${review === 'personal' ? ' selected' : ''}>ready to review — opens on their own website</option>
       <option value="trade"${review === 'trade' ? ' selected' : ''}>still opens on the trade sentence</option>
     </select>
@@ -1616,6 +1629,7 @@ async function emailScreen(params) {
   </form>
   ${review === 'personal' ? `<p class="mini">${matching} of ${waitingTotal} open on a sentence written from their own website — what they do, in their words. The rest open on the sentence written for their trade.</p>` : ''}
   ${review === 'readthrough' ? `<p class="mini">${matching} of ${waitingTotal} have had their whole website read and their words kept — every one of these is written from what the business actually says about itself.</p>` : ''}
+  ${review === 'unstarted' ? `<p class="mini">${matchingCompanyCount} compan${matchingCompanyCount === 1 ? 'y is' : 'ies are'} fully researched with a complete four-message campaign, no recipient selected, and no first email started. Choose recipients here, then use the floating Save all button.</p>` : ''}
   ${review === 'trade' ? '<p class="mini">These still open on the sentence written for their whole trade. Nothing is wrong with them — their website simply had not been read closely enough yet to say something only about them.</p>' : ''}
   <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
   <p class="muted">Open a company to see its selected contacts and their roles. Open a contact to review that person&rsquo;s complete email sequence: Day 0, Day 4, Day 8, and Day 14.</p>

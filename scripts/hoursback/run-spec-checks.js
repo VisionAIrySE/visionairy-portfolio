@@ -4739,6 +4739,29 @@ def('the_email_page_has_one_visible_save_for_all_changed_companies', () => {
     : `right=${floatsRight}, changed-only=${onlyWhenChanged}, batch=${submitsBatch}, no-close-reload=${noCloseReload}` };
 }, 'lanes');
 
+def('the_ready_to_choose_filter_means_no_selection_and_no_started_email', () => {
+  const EP = require(path.join(ROOT, 'src/hoursback/crm/emailProgress.js'));
+  const I = require(path.join(ROOT, 'src/hoursback/crm/inboxSelection.js'));
+  const first = (extra = {}) => ({ lane: 'EMAIL', openedWith: 'tailored_first', state: 'DRAFT', ...extra });
+  const untouched = {
+    email: 'office@example.test', emailInboxSelected: false,
+    contacts: [{ email: 'owner@example.test', isPrimary: false, bouncedAt: null, setAsideAt: null }],
+    messages: [first()],
+  };
+  const personChosen = { ...untouched, contacts: [{ ...untouched.contacts[0], isPrimary: true }] };
+  const inboxChosen = { ...untouched, emailInboxSelected: true };
+  const sent = { ...untouched, messages: [first({ state: 'SENT', sentAt: new Date(), providerMessageId: 'sent-1' })] };
+  const attempted = { ...untouched, messages: [first({ providerMessageId: 'attempt-1' })] };
+  const followUpOnly = { ...untouched, messages: [{ lane: 'EMAIL', openedWith: 'touch_2', state: 'SENT', sentAt: new Date() }] };
+  const ok = !I.hasSelectedRecipient(untouched) && !EP.campaignHasStarted(untouched)
+    && I.hasSelectedRecipient(personChosen) && I.hasSelectedRecipient(inboxChosen)
+    && EP.campaignHasStarted(sent) && EP.campaignHasStarted(attempted)
+    && !EP.campaignHasStarted(followUpOnly);
+  return { ok, detail: ok
+    ? 'only a company with no chosen person or inbox and no first-email send attempt counts as untouched'
+    : 'the untouched campaign boundary admitted a selected or previously started company' };
+}, 'lanes');
+
 def('the_questions_can_be_read_before_a_call', () => {
   // Reading them for the first time on a live call is how you get halfway down
   // and find the order is wrong (Russ, 2026-08-27).
