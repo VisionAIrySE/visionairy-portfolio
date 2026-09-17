@@ -41,12 +41,18 @@ assert.match(app, /one\(campaign, \{ nested: true, showApproval: false, inbox: t
   'a general inbox must expose its saved four-message chain in the Email workspace');
 assert.match(app, /message\.state === 'QUEUED' && isComplete\(message\)/,
   'the ready count must require a queued, complete first email');
-assert.match(app, /L\.syncSelectedEmailCampaigns\(db, message\.prospectId\)/,
+assert.match(app, /L\.syncSelectedEmailCampaigns\(db, prospectId\)/,
   'saving recipient choices must make complete campaigns ready without a second approval step');
 assert.match(app, /I\.selectedPersonAddresses\(message\.prospect\)\.includes\(address\)/,
   'the older mark-ready action must also refuse unchecked recipients');
-assert.match(app, /recipientChoicesChanged==='true'/,
-  'closing a company must save changed recipient choices automatically');
+assert.doesNotMatch(app, /ontoggle="[^"]*requestSubmit/,
+  'closing a company must not reload the page before choices from other companies are complete');
+assert.match(app, /id="recipient-save-dock" class="recipient-save-dock" hidden/,
+  'the master save must float unobtrusively until at least one company changes');
+assert.match(app, /Save choices for <span id="recipient-save-count">0<\/span> companies/,
+  'the master save must show how many companies will be saved');
+assert.match(app, /action="\/email\/recipients-all/,
+  'the master save must submit every changed company in one action');
 assert.match(app, /Save recipient choices/,
   'recipient choices must also have a clear save action above the contact list');
 assert.match(app, /selectAll\.checked=all\.every/,
@@ -66,7 +72,7 @@ assert.match(app, /if\(this\.checked\).*querySelector\('input\[name=remove\]'/,
 assert.match(app, /what === 'recipients'/);
 assert.doesNotMatch(app, /Choose at least one contact with a working email\. Nothing was changed\./,
   'saving no checked contacts must not silently restore the default recipient');
-assert.match(app, /Company excluded from email sending/,
+assert.match(app, /company is excluded from email sending/,
   'saving no checked contacts must confirm that the company was removed from sending');
 assert.match(lanesSource, /suppressedReason: 'no recipients selected'/,
   'an empty recipient selection must persist as a reversible campaign exclusion');

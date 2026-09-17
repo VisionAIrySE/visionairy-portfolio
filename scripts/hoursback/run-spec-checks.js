@@ -4695,6 +4695,50 @@ def('the_hours_figure_carries_the_sentence_it_came_from', () => {
     : `perDay=${perDay.hours} range=${range.hours} straight=${straight.hours}` };
 }, 'lanes');
 
+def('one_email_page_save_keeps_each_changed_company_separate', async () => {
+  const B = require(path.join(ROOT, 'src/hoursback/crm/recipientChoiceBatch.js'));
+  const choices = B.choicesFromForm({
+    company: ['company-a', 'company-b', 'company-a'],
+    'recipient.company-a': ['person-1', 'person-2', 'person-1'],
+    'inbox.company-a': '1',
+    // Company B is deliberately present with no checked recipients. It must
+    // reach the save path as an empty choice so an earlier choice is cleared.
+  });
+  const visited = [];
+  const results = await B.mapWithConcurrency(choices, 2, async (choice) => {
+    visited.push(choice.prospectId);
+    return choice.contactIds.length + (choice.chooseInbox ? 1 : 0);
+  });
+  const first = choices[0];
+  const cleared = choices[1];
+  const ok = choices.length === 2
+    && first.prospectId === 'company-a'
+    && first.contactIds.join(',') === 'person-1,person-2'
+    && first.chooseInbox
+    && cleared.prospectId === 'company-b'
+    && cleared.contactIds.length === 0
+    && !cleared.chooseInbox
+    && visited.sort().join(',') === 'company-a,company-b'
+    && results.join(',') === '3,0';
+  return { ok, detail: ok
+    ? 'one click saves every changed company, including a company cleared to zero recipients, without duplicating choices'
+    : JSON.stringify({ choices, visited, results }) };
+}, 'lanes');
+
+def('the_email_page_has_one_visible_save_for_all_changed_companies', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'scripts/hoursback/crm-app.js'), 'utf8');
+  const floatsRight = /recipient-save-dock\{position:fixed;right:18px/.test(src);
+  const onlyWhenChanged = /recipient-save-dock\[hidden\]\{display:none\}/.test(src)
+    && /changedRecipientCompanies\(\)/.test(src);
+  const submitsBatch = /action="\/email\/recipients-all/.test(src)
+    && /add\('company', business\)/.test(src);
+  const noCloseReload = !/ontoggle="[^"]*requestSubmit/.test(src);
+  const ok = floatsRight && onlyWhenChanged && submitsBatch && noCloseReload;
+  return { ok, detail: ok
+    ? 'the floating right-side save appears for unsaved choices and submits every changed company without reloading when an accordion closes'
+    : `right=${floatsRight}, changed-only=${onlyWhenChanged}, batch=${submitsBatch}, no-close-reload=${noCloseReload}` };
+}, 'lanes');
+
 def('the_questions_can_be_read_before_a_call', () => {
   // Reading them for the first time on a live call is how you get halfway down
   // and find the order is wrong (Russ, 2026-08-27).
