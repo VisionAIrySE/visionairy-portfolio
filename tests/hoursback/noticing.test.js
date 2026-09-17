@@ -398,7 +398,7 @@ test('a fully tailored first email survives an ordinary page refresh', async () 
   assert.equal(db.writes.updated, 0);
 });
 
-test('a tailored first email is invalidated when its recipient changes', async () => {
+test('a different recipient receives a separate first email', async () => {
   const db = fakeDb({
     prospect: PROSPECT, contact: DALE, findings: NOTICING_FINDINGS,
     existingMessage: {
@@ -408,12 +408,29 @@ test('a tailored first email is invalidated when its recipient changes', async (
       deliveryState: null, inviteBody: null,
     },
   });
-  await L.draftFor(db, 'p1', 'EMAIL');
-  assert.equal(db.writes.updated, 1);
-  assert.equal(db.writes.lastUpdate.data.sentTo, DALE.email);
-  assert.equal(db.writes.lastUpdate.data.state, 'DRAFT');
-  assert.equal(db.writes.lastUpdate.data.queuedAt, null);
-  assert.notEqual(db.writes.lastUpdate.data.body, 'WRITTEN FOR SOMEBODY ELSE');
+  const out = await L.draftFor(db, 'p1', 'EMAIL');
+  assert.equal(db.writes.updated, 0);
+  assert.equal(db.writes.created, 1);
+  assert.equal(out.sentTo, DALE.email);
+  assert.notEqual(out.body, 'WRITTEN FOR SOMEBODY ELSE');
+});
+
+test('a newly selected inferred-name recipient starts after a coworker was sent', async () => {
+  const mitch = { id: 'c2', name: null, role: null, email: 'mitch@smithcpa.example', isPrimary: true, bouncedAt: null };
+  const db = fakeDb({
+    prospect: PROSPECT, contact: mitch, findings: NOTICING_FINDINGS,
+    existingMessage: {
+      id: 'alice-first', state: 'SENT', subject: 'Already delivered',
+      body: 'Hi Alice,\n\nAlready delivered.', openedWith: 'tailored_first',
+      sentTo: 'alice@smithcpa.example', sentAt: new Date(),
+      deliveryState: 'DELIVERED', editedAt: null, inviteBody: null,
+    },
+  });
+  const out = await L.draftFor(db, 'p1', 'EMAIL', { recipient: mitch.email });
+  assert.equal(db.writes.updated, 0);
+  assert.equal(db.writes.created, 1);
+  assert.equal(out.sentTo, mitch.email);
+  assert.match(out.body, /^Hi Mitch,/);
 });
 
 test('with no noticing on file the same rewrite keeps the trade sentence', async () => {

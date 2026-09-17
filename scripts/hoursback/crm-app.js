@@ -30,6 +30,7 @@ const { setOverride, resolveField, OVERRIDABLE } = require('../../src/hoursback/
 const L = require('../../src/hoursback/crm/lanes.js');
 const EP = require('../../src/hoursback/crm/emailProgress.js');
 const I = require('../../src/hoursback/crm/inboxSelection.js');
+const N = require('../../src/hoursback/crm/names.js');
 const RCB = require('../../src/hoursback/crm/recipientChoiceBatch.js');
 const { draftFirstContact, draftLinkedIn, BODY: TEMPLATE_BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
 const { refreshProspect } = require('../../src/hoursback/refresh.js');
@@ -455,11 +456,25 @@ function emailRecipient(message) {
     && String(person.email).trim().toLowerCase() === address.toLowerCase());
   const opener = String(message.body || '').match(/^Hi ([^,]+),/);
   const greeted = opener && opener[1] !== 'there' ? opener[1] : null;
+  const inferred = !contact?.name && !greeted ? N.nameFromEmail(address) : null;
   return {
     address: address || 'no address',
-    name: (contact && contact.name) || greeted || 'Name not confirmed',
+    name: (contact && contact.name) || greeted || inferred || 'Name not confirmed',
+    inferredName: Boolean(inferred),
     role: contact && contact.role || null,
   };
+}
+
+function contactNameForDisplay(person) {
+  if (person && person.name) return person.name;
+  const inferred = N.nameFromEmail(person && person.email);
+  return inferred ? `${inferred} (from email address)` : 'Name not confirmed';
+}
+
+function recipientNameForDisplay(recipient) {
+  return recipient.inferredName
+    ? `${recipient.name} (from email address)`
+    : recipient.name;
 }
 
 // Each reason a business needs a look, in the words Russ would use.
@@ -1054,17 +1069,9 @@ async function saveEmailRecipientChoices(prospectId, submittedContactIds, choose
   });
   const prospect = await db.prospect.findUnique({
     where: { id: prospectId },
-    select: {
-      id: true, email: true, emailManualValue: true,
-      messages: { where: {
-        lane: 'EMAIL', sentAt: null, deliveryState: null,
-        openedWith: { not: 'after_the_call' },
-        NOT: { openedWith: { startsWith: 'touch_' } },
-      }, select: { id: true }, take: 1 },
-    },
+    select: { id: true, email: true, emailManualValue: true },
   });
   if (!prospect) return { saved: false, why: 'company not found' };
-  if (!prospect.messages.length) return { saved: false, why: 'delivery has already started' };
 
   const inbox = I.businessInboxAddress(prospect);
   const inboxCandidate = inbox && !contacts.some((person) => person.email
@@ -1093,10 +1100,9 @@ async function saveEmailRecipientChoices(prospectId, submittedContactIds, choose
     } };
   }
 
-  // Refresh the active first message before the readiness check. This is the
-  // same path the individual company button has always used; the master save
-  // simply invokes it for every company changed on the page.
-  await L.draftFor(db, prospectId, 'EMAIL');
+  // Every selected address owns a separate campaign. A newly found person can
+  // start even after somebody else at this company has received Day 0.
+  await L.ensureSelectedFirstDrafts(db, prospectId);
   const readiness = await L.syncSelectedEmailCampaigns(db, prospectId);
   return { saved: true, chosenCount, readiness };
 }
@@ -1404,7 +1410,7 @@ async function emailScreen(params) {
       ${showApproval ? `<label style="display:inline;width:auto;margin:0" onclick="event.stopPropagation()">
         <input type="checkbox" name="pick" value="${m.id}" form="pickForm"
           style="width:auto;vertical-align:middle" ${m.state === 'QUEUED' ? 'checked disabled' : !complete ? 'disabled' : ''}></label>` : '<span></span>'}
-      <div>${nested ? '' : `<b>${esc(resolveField(m.prospect, 'name'))}</b>`}<div${nested ? '' : ' class="mini"'}><b>${esc(recipient.name)}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ''}</div></div>
+      <div>${nested ? '' : `<b>${esc(resolveField(m.prospect, 'name'))}</b>`}<div${nested ? '' : ' class="mini"'}><b>${esc(recipientNameForDisplay(recipient))}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ' · role not known'}</div></div>
       <div class="subject"><b>${esc(m.subject || 'No subject')}</b><div class="mini">${esc(step.label)} · ${esc(step.day)}</div></div>
       ${scoreBadge(m.prospect.automationScore, m.prospectId)}
       <span class="state muted" style="font-size:12px">${!researched ? 'Research waiting — cannot send' : !complete ? 'Incomplete — cannot send' : m.state === 'QUEUED' ? 'Ready' : 'Draft'}${nested ? '<br><b>Open email chain</b>' : ''}</span>
@@ -1412,12 +1418,12 @@ async function emailScreen(params) {
 
     <div style="padding:0 12px 12px">
       <div class="recipient">
-        <b>Recipient: ${esc(recipient.name)}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ''}<br>
+        <b>Recipient: ${esc(recipientNameForDisplay(recipient))}</b>${recipient.role ? ` · ${esc(recipient.role)}` : ' · role not known'}<br>
         <span class="muted">${esc(recipient.address)} · ${esc(step.label)}, ${esc(step.day)}</span>
       </div>
       ${nested ? '' : availableContacts.length ? `<form method="POST" action="/email/recipients/${m.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices">
         <h3 style="margin:16px 0 4px">Who should receive this campaign?</h3>
-        <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Saving updates the recipient shown above and refreshes the first email for that person. It does not send anything.</p>
+        <p class="mini" style="margin-top:0">Tick the contact or contacts you want. Saving gives each selected address its own campaign, including a newly found person at a company already contacted. It does not send anything.</p>
         ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
           ${selectedContacts.length === availableContacts.length ? 'checked' : ''}
           onclick="this.form.querySelectorAll('input[name=recipient]').forEach(function(box){box.checked=this.checked}.bind(this))">
@@ -1425,9 +1431,9 @@ async function emailScreen(params) {
         <div class="contact-choices">${availableContacts.map((person) => `<label style="display:block;margin:7px 0">
           <input type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${selectedContacts.some((chosen) => chosen.id === person.id) ? 'checked' : ''}
             onchange="const all=[...this.form.querySelectorAll('input[name=recipient]')];const selectAll=this.form.querySelector('.select-all-contacts');if(selectAll)selectAll.checked=all.every(function(box){return box.checked})">
-          <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)}</span>
+          <b>${esc(contactNameForDisplay(person))}</b>${person.role ? ` · ${esc(person.role)}` : ' · role not known'} <span class="muted">· ${esc(person.email)}</span>
         </label>`).join('')}</div>
-        <button>Save recipient choices and refresh first email</button>
+        <button>Save recipient choices and prepare first emails</button>
       </form>` : `<p class="mini">No individual contact with a working email is on file. This message uses the business email shown above.</p>`}
       <h3 style="margin:16px 0 4px">Message to review now</h3>
       <form method="POST" action="/email/edit/${m.id}">
@@ -1521,7 +1527,7 @@ async function emailScreen(params) {
               <label style="display:block;margin:0 0 6px">
                 <input form="${formId}" type="checkbox" name="recipient" value="${person.id}" style="width:auto;vertical-align:middle" ${checked ? 'checked' : ''}
                   onchange="markRecipientChoicesChanged(this);const group=this.closest('details.company-campaign');const all=[...group.querySelectorAll('input[form=${formId}][name=recipient]')];const selectAll=group.querySelector('.select-all-contacts');if(selectAll)selectAll.checked=all.every(function(box){return box.checked})">
-                <b>${esc(person.name || 'Name not confirmed')}</b>${person.role ? ` · ${esc(person.role)}` : ''} <span class="muted">· ${esc(person.email)} · ${esc(status)}</span>
+                <b>${esc(contactNameForDisplay(person))}</b>${person.role ? ` · ${esc(person.role)}` : ' · role not known'} <span class="muted">· ${esc(person.email)} · ${esc(status)}</span>
               </label>
               ${campaign ? one(campaign, { nested: true, showApproval: false }) : ''}
             </div>`;
@@ -2130,7 +2136,8 @@ async function businessCard(id, saved) {
         onchange="if(this.checked)this.closest('tr').querySelector('input[name=remove]').checked=false;const all=[...this.form.querySelectorAll('input[name=send]')];this.form.querySelector('#selectAllContacts').checked=all.every(function(box){return box.checked})"></td>
       <td style="text-align:center"><label class="mini" style="display:inline;width:auto"><input type="checkbox" name="remove" value="${c.id}" style="width:auto"
         onchange="if(this.checked){this.closest('tr').querySelector('input[name=send]').checked=false;this.form.querySelector('#selectAllContacts').checked=false}"> archive</label></td>
-      <td><input name="p.${c.id}.name" value="${esc(c.name || '')}" placeholder="nobody named" style="padding:5px 7px;font-size:14px"></td>
+      <td><input name="p.${c.id}.name" value="${esc(c.name || '')}" placeholder="${esc(N.nameFromEmail(c.email) ? `${N.nameFromEmail(c.email)} (from email; confirm)` : 'nobody named')}" style="padding:5px 7px;font-size:14px">
+        ${!c.name && N.nameFromEmail(c.email) ? `<div class="mini">Suggested by the address; not confirmed</div>` : ''}</td>
       <td><input name="p.${c.id}.role" value="${esc(c.role || '')}" placeholder="what they do" style="padding:5px 7px;font-size:14px"></td>
       <td><input name="p.${c.id}.email" value="${esc(c.email || '')}" placeholder="no address" style="padding:5px 7px;font-size:14px">${c.bouncedAt ? '<div class="mini">bounced</div>' : ''}</td>
       <td><input name="p.${c.id}.phone" value="${esc(c.phone || '')}" placeholder="direct line" style="padding:5px 7px;font-size:14px"></td>
@@ -2931,7 +2938,7 @@ const server = http.createServer(async (req, res) => {
           const incomplete = saved.reduce((sum, result) => sum + result.readiness.incomplete, 0);
           const contentBlocked = saved.reduce((sum, result) => sum + result.readiness.contentBlocked, 0);
           const said = batch.length
-            ? `${saved.length} compan${saved.length === 1 ? 'y' : 'ies'} saved with ${chosen} selected recipient${chosen === 1 ? '' : 's'}. ${ready} first email${ready === 1 ? ' is' : 's are'} lined up. Nothing was sent.${incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${contentBlocked ? ` ${contentBlocked} campaign${contentBlocked === 1 ? ' is' : 's are'} held by the writing check.` : ''}${skipped ? ` ${skipped} compan${skipped === 1 ? 'y was' : 'ies were'} not changed because delivery had already started or the record changed.` : ''}`
+            ? `${saved.length} compan${saved.length === 1 ? 'y' : 'ies'} saved with ${chosen} selected recipient${chosen === 1 ? '' : 's'}. ${ready} first email${ready === 1 ? ' is' : 's are'} lined up. Nothing was sent.${incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${contentBlocked ? ` ${contentBlocked} campaign${contentBlocked === 1 ? ' is' : 's are'} held by the writing check.` : ''}${skipped ? ` ${skipped} compan${skipped === 1 ? 'y was' : 'ies were'} not changed because the record changed.` : ''}`
             : 'No changed recipient choices were submitted.';
           const back = new URLSearchParams();
           for (const key of ['trade', 'floor', 'review']) {
@@ -2953,8 +2960,8 @@ const server = http.createServer(async (req, res) => {
             return res.end();
           };
           const message = await db.outreachMessage.findUnique({ where: { id: arg } });
-          if (!message || message.lane !== 'EMAIL' || message.sentAt || message.deliveryState) {
-            return returnToMessage('That recipient could not be changed because delivery has already started.');
+          if (!message || message.lane !== 'EMAIL') {
+            return returnToMessage('That company could not be found.');
           }
           const saved = await saveEmailRecipientChoices(
             message.prospectId,
@@ -3245,9 +3252,9 @@ const server = http.createServer(async (req, res) => {
               await L.excludeEmailCampaigns(db, prospectId);
               continue;
             }
-            // Rebuild Day 0 for the saved recipient before readiness is synced,
-            // so a changed selection cannot inherit another person's wording.
-            await L.draftFor(db, prospectId, 'EMAIL');
+            // Give every saved recipient their own Day 0. This also allows a
+            // newly found person to start after a coworker's campaign began.
+            await L.ensureSelectedFirstDrafts(db, prospectId);
             const readiness = await L.syncSelectedEmailCampaigns(db, prospectId);
             lined += readiness.ready;
             incompleteCampaigns += readiness.incomplete;

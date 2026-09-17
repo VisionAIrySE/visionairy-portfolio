@@ -547,9 +547,13 @@ function campaignHasCompleteSequence(message) {
 // A name is safe only when Russ selected that exact person and the message is
 // going to that person's direct address. A website name must never be borrowed
 // for a company inbox greeting.
-async function personFor(db, prospectId) {
+async function personFor(db, prospectId, recipient = null) {
+  const address = String(recipient || '').trim();
   return db.contact.findFirst({
-    where: { prospectId, isPrimary: true, email: { not: null }, bouncedAt: null, setAsideAt: null },
+    where: {
+      prospectId, isPrimary: true, bouncedAt: null, setAsideAt: null,
+      email: address || { not: null },
+    },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -562,8 +566,8 @@ function signalsOf(prospect) {
   catch { return []; }
 }
 
-// One draft per business per lane, never a second. Returns the row, or null
-// when there is nothing specific to open with.
+// One first-email draft per recipient. Returns the row, or null when there is
+// nothing specific to open with.
 // WHEN WE CAN NO LONGER WRITE TO SOMEBODY, WHAT THEY WERE SENT LAST TIME MUST
 // NOT KEEP STANDING.
 //
@@ -600,8 +604,8 @@ async function standDownStaleDrafts(db, prospectId, lane, why) {
 // this letter addressed to, and what is their job" with the SAME rules the
 // draft itself uses — a second copy of these rules is how two channels ended
 // up greeting two different people.
-async function whoTheLetterGoesTo(db, prospectId, p) {
-  const person = await personFor(db, prospectId);
+async function whoTheLetterGoesTo(db, prospectId, p, recipient = null) {
+  const person = await personFor(db, prospectId, recipient);
   // A person Russ marked wins over the owner on the record, and a single given
   // name counts — the ordinary rule wants two words and threw away every team
   // page that lists only "Kevin".
@@ -609,20 +613,28 @@ async function whoTheLetterGoesTo(db, prospectId, p) {
   const marked = person && person.name && firstNameOfMarked(person.name) ? person.name : null;
   // Keep the selected person's role with their name. Otherwise a message can
   // greet the right person while aiming its examples at somebody else's job.
+  // Give the writer this recipient's address. If no name is confirmed,
+  // greetingFor can safely recover an obvious first name such as Mitch from
+  // mitch@ while shared inboxes still receive a plain "Hello". The inferred
+  // name remains a display/writing aid; it is not stored as confirmed data.
+  const addressed = recipient ? { ...p, email: recipient, emailManualValue: null } : p;
   const writeTo = marked
-    ? { ...p, contactName: marked, contactRole: person.role || null, ownerName: null }
-    : { ...p, contactName: null, contactRole: null, ownerName: null };
+    ? { ...addressed, contactName: marked, contactRole: person.role || null, ownerName: null }
+    : { ...addressed, contactName: null, contactRole: person && person.role || null, ownerName: null };
   return { writeTo, person };
 }
 
-async function draftFor(db, prospectId, lane) {
+async function draftFor(db, prospectId, lane, options = {}) {
   const p = await db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
   if (p.doNotContact) return standDownStaleDrafts(db, prospectId, lane, 'marked do not contact');
-  const recipient = lane === 'EMAIL' ? await addressFor(db, prospectId, p) : null;
+  const requestedRecipient = String(options.recipient || '').trim();
+  const recipient = lane === 'EMAIL'
+    ? (requestedRecipient || await addressFor(db, prospectId, p))
+    : null;
   if (lane === 'EMAIL' && !recipient) {
     return standDownStaleDrafts(db, prospectId, lane, 'no deliverable address is available');
   }
-  let { writeTo } = await whoTheLetterGoesTo(db, prospectId, p);
+  let { writeTo } = await whoTheLetterGoesTo(db, prospectId, p, recipient);
   // THE NOTICING — one sentence read off THIS business's own site, recorded
   // through the append-only reading store. Where one stands, it takes the
   // place of the trade's week sentence in the first email and nothing else in
@@ -663,14 +675,12 @@ async function draftFor(db, prospectId, lane) {
     const sameRecipient = (m) => String(m.sentTo || '').trim().toLowerCase() === String(recipient || '').trim().toLowerCase();
     existing = canonicalFirstMessages(liveFirsts.filter(sameRecipient))[0]
       // A legacy single-recipient draft may not have stored its address yet.
-      || canonicalFirstMessages(liveFirsts.filter((m) => !m.sentTo))[0]
-      // When the only selected recipient changes, reuse the unsent first row
-      // so the prior person's copy cannot remain live as a second campaign.
-      || canonicalFirstMessages(liveFirsts)[0]
+      || (!candidates.some((m) => isFirstContactMessage(m) && m.sentTo)
+        ? canonicalFirstMessages(liveFirsts.filter((m) => !m.sentTo))[0] : null)
       || candidates.find((m) => isFirstContactMessage(m) && sameRecipient(m)
         && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
-      || candidates.find((m) => isFirstContactMessage(m) && !m.sentTo
-        && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state)))
+      || (!requestedRecipient && candidates.find((m) => isFirstContactMessage(m) && !m.sentTo
+        && (m.sentAt || ['SENT', 'REPLIED'].includes(m.state))))
       // Preserve a deliberately skipped or suppressed first email. A later
       // refresh must not quietly create it again.
       || candidates.find((m) => isFirstContactMessage(m) && sameRecipient(m))
@@ -732,6 +742,26 @@ async function draftFor(db, prospectId, lane) {
       ...(lane === 'EMAIL' ? { sentTo: recipient } : {}),
     },
   });
+}
+
+// Make sure every selected address has its own Day 0 draft. This does not
+// select anybody, write the three model-written follow-ups, queue an
+// incomplete campaign, or touch a sibling recipient's sent or edited mail.
+async function ensureSelectedFirstDrafts(db, prospectId) {
+  const prospect = await db.prospect.findUnique({ where: { id: prospectId } });
+  if (!prospect) return [];
+  const addresses = (await everyoneMarked(db, prospectId))
+    .map((person) => String(person.email || '').trim())
+    .filter(Boolean);
+  const inbox = I.selectedInboxAddress(prospect);
+  if (inbox) addresses.push(inbox);
+  const unique = [...new Map(addresses.map((address) => [address.toLowerCase(), address])).values()];
+  const drafts = [];
+  for (const recipient of unique) {
+    const message = await draftFor(db, prospectId, 'EMAIL', { recipient });
+    if (message) drafts.push(message);
+  }
+  return drafts;
 }
 
 // ---------------------------------------------------------------------------
@@ -1340,6 +1370,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, savedNoticingJobReadingWhere, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, ensureSelectedFirstDrafts, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, savedNoticingJobReadingWhere, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

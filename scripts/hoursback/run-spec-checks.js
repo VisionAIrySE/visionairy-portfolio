@@ -1912,7 +1912,7 @@ def('handadd_business_typed_by_russ_outranks_any_sweep', () => withDb(async (db)
 
 def('handadd_name_recovered_only_when_it_is_really_a_name', () => {
   const { nameFromEmail } = require(path.join(ROOT, 'src/hoursback/crm/names.js'));
-  const real = ['dale@x.com', 'devon@dgainescpa.com', 'sonja@y.com', 'reid@z.com'].map(nameFromEmail);
+  const real = ['dale@x.com', 'devon@dgainescpa.com', 'sonja@y.com', 'reid@z.com', 'mitch@company.com'].map(nameFromEmail);
   const junk = ['info@x.com', 'your@email', 'bagadmin@y.org', 'frontdesk@z.com', 'xqzptv@w.com'].map(nameFromEmail);
   const ok = real.every(Boolean) && junk.every((n) => n === null);
   return { ok, detail: ok ? `real names recovered (${real.join(', ')}); shared inboxes and nonsense left alone` : JSON.stringify({ real, junk }) };

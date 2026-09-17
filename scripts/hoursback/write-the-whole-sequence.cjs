@@ -564,8 +564,12 @@ if (require.main === module) (async () => {
     });
 
     const writeTo = p._recipient
-      ? { ...p, contactName: p._recipient.name || null, contactRole: p._recipient.role || null, ownerName: null }
-      : (await L.whoTheLetterGoesTo(db, p.id, p)).writeTo;
+      ? {
+        ...p, email: p._recipient.email, emailManualValue: null,
+        contactName: p._recipient.name || null,
+        contactRole: p._recipient.role || null, ownerName: null,
+      }
+      : (await L.whoTheLetterGoesTo(db, p.id, p, recipientAddress)).writeTo;
     const roleTitle = writeTo.contactRole || null;
 
     const reading = await db.reading.findFirst({
