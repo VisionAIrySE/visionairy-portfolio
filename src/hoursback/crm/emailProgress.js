@@ -24,4 +24,14 @@ function campaignHasStarted(prospect) {
     && (message.state === 'SENT' || message.sentAt || message.providerMessageId));
 }
 
-module.exports = { campaignKey, deliveredFirstKeys, pendingFirsts, campaignHasStarted };
+function startedFirstKeys(messages) {
+  return new Set((messages || []).filter((message) =>
+    L.isFirstContactMessage(message)
+    && (message.state === 'SENT' || message.state === 'REPLIED'
+      || message.sentAt || message.providerMessageId))
+    .map((message) => campaignKey(message.prospectId,
+      message.sentTo || message.deliveryTo))
+    .filter((key) => !key.endsWith('|')));
+}
+
+module.exports = { campaignKey, deliveredFirstKeys, pendingFirsts, campaignHasStarted, startedFirstKeys };

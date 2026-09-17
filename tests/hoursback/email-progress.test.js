@@ -30,3 +30,13 @@ test('an unconfirmed send cannot hide a pending email from the waiting screen', 
   assert.deepEqual(EP.pendingFirsts(business, [pending],
     EP.deliveredFirstKeys([business])).map((m) => m.id), ['pending']);
 });
+
+test('campaign starts are tracked by address, not by the whole company', () => {
+  const messages = [
+    { prospectId: 'business-1', lane: 'EMAIL', state: 'SENT', openedWith: 'tailored_first',
+      sentTo: 'alice@example.test', sentAt: new Date(), providerMessageId: 'sent-1' },
+  ];
+  const started = EP.startedFirstKeys(messages);
+  assert.equal(started.has(EP.campaignKey('business-1', 'alice@example.test')), true);
+  assert.equal(started.has(EP.campaignKey('business-1', 'mitch@example.test')), false);
+});

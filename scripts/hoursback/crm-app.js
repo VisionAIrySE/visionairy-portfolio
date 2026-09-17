@@ -1173,21 +1173,23 @@ async function emailScreen(params) {
   if (review === 'trade') prospectWhere.NOT = HAS_ITS_OWN_LINE;
   if (review === 'readthrough') Object.assign(prospectWhere, WAS_READ_RIGHT_THROUGH);
 
-  const [left, readyRows, sent, batch, allFirstRows, unconfirmed, unconfirmedTotal] = await Promise.all([
+  const activeFirstMessageWhere = {
+    lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] },
+    openedWith: { not: 'after_the_call' },
+    NOT: { openedWith: { startsWith: 'touch_' } },
+  };
+  const readyProspectWhere = review === 'unstarted'
+    ? { ...prospectWhere, ...L.emailReachableWhere() }
+    : { ...prospectWhere, messages: { some: activeFirstMessageWhere } };
+
+  const [left, readyRows, sent, batch, allFirstRows, unconfirmed, unconfirmedTotal, startedFirstRows] = await Promise.all([
     L.emailsLeftToday(db, weeks),
     db.prospect.findMany({
       // THE FIRST MESSAGE ONLY. The follow-ups are written and stored now
       // rather than invented when a page opens, so without this the list would
       // hold four rows per business and he would be ticking day-eight messages
       // to send today (2026-09-08).
-      where: {
-        ...prospectWhere,
-        messages: { some: {
-          lane: 'EMAIL', state: { in: ['DRAFT', 'QUEUED'] },
-          openedWith: { not: 'after_the_call' },
-          NOT: { openedWith: { startsWith: 'touch_' } },
-        } },
-      },
+      where: readyProspectWhere,
       include: {
         contacts: {
           where: { setAsideAt: null },
@@ -1265,6 +1267,24 @@ async function emailScreen(params) {
       orderBy: { deliveryLastAttemptAt: 'desc' }, take: 10,
     }),
     db.outreachMessage.count({ where: { lane: 'EMAIL', deliveryState: 'UNCONFIRMED' } }),
+    db.outreachMessage.findMany({
+      where: {
+        lane: 'EMAIL',
+        OR: [
+          { state: { in: ['SENT', 'REPLIED'] } },
+          { sentAt: { not: null } },
+          { providerMessageId: { not: null } },
+          { state: 'SUPPRESSED', suppressedReason: 'skipped on the email screen' },
+        ],
+        openedWith: { not: 'after_the_call' },
+        NOT: { openedWith: { startsWith: 'touch_' } },
+      },
+      select: {
+        prospectId: true, lane: true, openedWith: true, state: true,
+        sentTo: true, deliveryTo: true, sentAt: true, providerMessageId: true,
+        suppressedReason: true,
+      },
+    }),
   ]);
   // Fetch each company and its messages once. Fetching one first-message row
   // per recipient and including the company's complete message list on every
@@ -1272,6 +1292,12 @@ async function emailScreen(params) {
   // objects and could exceed Render's 512 MB service limit.
   const campaignKey = EP.campaignKey;
   const deliveredFirsts = EP.deliveredFirstKeys(allFirstRows);
+  const startedFirsts = EP.startedFirstKeys(startedFirstRows);
+  const skippedFirsts = new Set(startedFirstRows.filter((message) =>
+    message.suppressedReason === 'skipped on the email screen')
+    .map((message) => campaignKey(message.prospectId,
+      message.sentTo || message.deliveryTo))
+    .filter((key) => !key.endsWith('|')));
   const currentRecipientFirsts = (prospects) => prospects.flatMap((prospect) =>
     EP.pendingFirsts(prospect,
       currentCampaignMessages(prospect, prospect.messages), deliveredFirsts)
@@ -1289,16 +1315,24 @@ async function emailScreen(params) {
     company.messages.push(message);
   }
   if (review === 'unstarted') {
-    const startedCompanyIds = new Set(allFirstRows
-      .filter((prospect) => EP.campaignHasStarted(prospect))
-      .map((prospect) => prospect.id));
-    groupedCompanies = groupedCompanies.filter((company) =>
-      !I.hasSelectedRecipient(company.prospect)
-      && !startedCompanyIds.has(company.id)
-      && company.messages.some((message) =>
-        Boolean(message.prospect.readings && message.prospect.readings.length)
-        && L.campaignHasCompleteSequence(message)));
+    const pendingByProspect = new Map(groupedCompanies.map((company) =>
+      [company.id, company.messages]));
+    groupedCompanies = readyRows.map((prospect) => ({
+      id: prospect.id,
+      prospect,
+      messages: pendingByProspect.get(prospect.id) || [],
+    })).filter((company) => candidateEmailRecipients(company.prospect).some((address) => {
+      const key = campaignKey(company.id, address);
+      return !startedFirsts.has(key) && !skippedFirsts.has(key);
+    }));
   }
+  const unstartedAddressCount = review === 'unstarted'
+    ? groupedCompanies.reduce((total, company) => total
+      + candidateEmailRecipients(company.prospect).filter((address) => {
+        const key = campaignKey(company.id, address);
+        return !startedFirsts.has(key) && !skippedFirsts.has(key);
+      }).length, 0)
+    : 0;
   const matchingFirstRows = groupedCompanies.flatMap((company) => company.messages);
   const matchingCompanyCount = groupedCompanies.length;
   const visibleCompanies = groupedCompanies.slice(0, 25);
@@ -1347,7 +1381,9 @@ async function emailScreen(params) {
   // read as "25 messages match out of 865", which is not what it meant: 25 is
   // simply one page. With a filter on, the honest second number is how many
   // that filter finds (2026-09-02).
-  const matching = (onlyTrade || floor || review) ? matchingFirstRows.length : waitingTotal;
+  const matching = review === 'unstarted'
+    ? unstartedAddressCount
+    : (onlyTrade || floor || review) ? matchingFirstRows.length : waitingTotal;
   const reachable = await db.prospect.count({
     where: { doNotContact: false, repliedAt: null, ...L.emailReachableWhere() },
   });
@@ -1492,13 +1528,12 @@ async function emailScreen(params) {
     for (const key of ['trade', 'floor', 'review']) {
       if (params.get(key)) recipientQuery.set(key, params.get(key));
     }
-    const first = messages[0];
     const formId = `recipient-form-${company.id}`;
     const campaignByAddress = new Map(messages.map((message) => [
       String(emailRecipient(message).address || '').trim().toLowerCase(), message,
     ]));
     return `<details class="card company-campaign" data-business="${company.id}" data-recipient-choices-changed="false"
-      ${messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
+      ${params.get('changed') === company.id || messages.some((m) => params.get('changed') === m.id) ? 'open' : ''}>
       <summary class="company-summary">
         <div><b>${esc(resolveField(prospect, 'name'))}</b><div class="mini">${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected · ${readinessLabel}</div></div>
         ${scoreBadge(prospect.automationScore, prospect.id)}
@@ -1506,7 +1541,7 @@ async function emailScreen(params) {
       </summary>
       <div class="company-campaign-body">
         <h3 style="margin:4px 0">Recipients and their email sequences</h3>
-        ${availableContacts.length || inboxCandidate ? `<form id="${formId}" method="POST" action="/email/recipients/${first.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
+        ${availableContacts.length || inboxCandidate ? `<form id="${formId}" method="POST" action="/email/recipients-for/${company.id}${recipientQuery.size ? `?${esc(recipientQuery.toString())}` : ''}" class="recipient-choices"></form>
           <p class="mini" style="margin-top:0">Choose the people or company inbox you want to email. Save this company now, or make choices in several companies and use the floating Save all button. Saving checks each chosen campaign and lines up complete messages that pass the writing rules. Open a recipient to read all four messages.</p>
           <button form="${formId}" style="margin:3px 0 8px">Save recipient choices</button>
           ${availableContacts.length > 1 ? `<label style="display:block;margin:8px 0"><input type="checkbox" class="select-all-contacts" style="width:auto;vertical-align:middle"
@@ -1517,8 +1552,9 @@ async function emailScreen(params) {
             const address = String(person.email || '').trim().toLowerCase();
             const campaign = campaignByAddress.get(address);
             const checked = selectedContacts.some((chosen) => chosen.id === person.id);
-            const status = !checked ? 'Not included'
-              : deliveredFirsts.has(campaignKey(prospect.id, address)) ? 'First email already sent'
+            const hasStarted = startedFirsts.has(campaignKey(prospect.id, address));
+            const status = hasStarted ? 'Campaign already started'
+              : !checked ? 'Not included'
               : !campaign ? 'Campaign missing'
               : !isComplete(campaign) ? 'Incomplete — cannot send'
                 : campaign.state === 'QUEUED' ? 'Lined up to send'
@@ -1534,8 +1570,9 @@ async function emailScreen(params) {
           }).join('')}
           ${inboxCandidate ? (() => {
             const campaign = campaignByAddress.get(inboxCandidate);
-            const status = !inboxChosen ? 'Not included'
-              : deliveredFirsts.has(campaignKey(prospect.id, inboxCandidate)) ? 'First email already sent'
+            const hasStarted = startedFirsts.has(campaignKey(prospect.id, inboxCandidate));
+            const status = hasStarted ? 'Campaign already started'
+              : !inboxChosen ? 'Not included'
                 : !campaign ? 'Campaign missing'
                   : !isComplete(campaign) ? 'Incomplete — cannot send'
                     : campaign.state === 'QUEUED' ? 'Lined up to send'
@@ -1618,7 +1655,7 @@ async function emailScreen(params) {
     <select name="review" style="width:auto">
       <option value=""${review ? '' : ' selected'}>every message</option>
       <option value="readthrough"${review === 'readthrough' ? ' selected' : ''}>read right through — their whole site is on file</option>
-      <option value="unstarted"${review === 'unstarted' ? ' selected' : ''}>ready to choose — no recipient selected and outreach not started</option>
+      <option value="unstarted"${review === 'unstarted' ? ' selected' : ''}>any email address whose campaign has not started</option>
       <option value="personal"${review === 'personal' ? ' selected' : ''}>ready to review — opens on their own website</option>
       <option value="trade"${review === 'trade' ? ' selected' : ''}>still opens on the trade sentence</option>
     </select>
@@ -1635,7 +1672,7 @@ async function emailScreen(params) {
   </form>
   ${review === 'personal' ? `<p class="mini">${matching} of ${waitingTotal} open on a sentence written from their own website — what they do, in their words. The rest open on the sentence written for their trade.</p>` : ''}
   ${review === 'readthrough' ? `<p class="mini">${matching} of ${waitingTotal} have had their whole website read and their words kept — every one of these is written from what the business actually says about itself.</p>` : ''}
-  ${review === 'unstarted' ? `<p class="mini">${matchingCompanyCount} compan${matchingCompanyCount === 1 ? 'y is' : 'ies are'} fully researched with a complete four-message campaign, no recipient selected, and no first email started. Choose recipients here, then use the floating Save all button.</p>` : ''}
+  ${review === 'unstarted' ? `<p class="mini">${matchingCompanyCount} compan${matchingCompanyCount === 1 ? 'y has' : 'ies have'} at least one email address whose own campaign has not started. A company remains here when one person was contacted but another was not. Choose the new recipients here; missing or incomplete messages stay clearly blocked.</p>` : ''}
   ${review === 'trade' ? '<p class="mini">These still open on the sentence written for their whole trade. Nothing is wrong with them — their website simply had not been read closely enough yet to say something only about them.</p>' : ''}
   <p class="mini">The order holds still while you work, so coming back from a business puts you where you left off. Press Re-rank to sort by score again.</p>
   <p class="muted">Open a company to see its selected contacts and their roles. Open a contact to review that person&rsquo;s complete email sequence: Day 0, Day 4, Day 8, and Day 14.</p>
@@ -2948,23 +2985,29 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(303, { Location: `/email?${back.toString()}` });
           return res.end();
         }
-        if (what === 'recipients' && arg) {
+        if ((what === 'recipients' || what === 'recipients-for') && arg) {
+          let prospectId = what === 'recipients-for' ? arg : null;
+          let changedKey = what === 'recipients-for' ? arg : null;
           const returnToMessage = (notice) => {
             const back = new URLSearchParams();
             for (const key of ['trade', 'floor', 'review']) {
               if (url.searchParams.get(key)) back.set(key, url.searchParams.get(key));
             }
-            back.set('changed', arg);
+            back.set('changed', changedKey || arg);
             back.set('notice', notice);
-            res.writeHead(303, { Location: `/email?${back.toString()}#email-${encodeURIComponent(arg)}` });
+            res.writeHead(303, { Location: `/email?${back.toString()}` });
             return res.end();
           };
-          const message = await db.outreachMessage.findUnique({ where: { id: arg } });
-          if (!message || message.lane !== 'EMAIL') {
-            return returnToMessage('That company could not be found.');
+          if (what === 'recipients') {
+            const message = await db.outreachMessage.findUnique({ where: { id: arg } });
+            if (!message || message.lane !== 'EMAIL') {
+              return returnToMessage('That company could not be found.');
+            }
+            prospectId = message.prospectId;
+            changedKey = message.id;
           }
           const saved = await saveEmailRecipientChoices(
-            message.prospectId,
+            prospectId,
             [].concat(form.recipient || []).filter(Boolean),
             form.inbox === '1',
           );

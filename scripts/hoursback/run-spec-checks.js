@@ -4741,25 +4741,21 @@ def('the_email_page_has_one_visible_save_for_all_changed_companies', () => {
 
 def('the_ready_to_choose_filter_means_no_selection_and_no_started_email', () => {
   const EP = require(path.join(ROOT, 'src/hoursback/crm/emailProgress.js'));
-  const I = require(path.join(ROOT, 'src/hoursback/crm/inboxSelection.js'));
-  const first = (extra = {}) => ({ lane: 'EMAIL', openedWith: 'tailored_first', state: 'DRAFT', ...extra });
-  const untouched = {
-    email: 'office@example.test', emailInboxSelected: false,
-    contacts: [{ email: 'owner@example.test', isPrimary: false, bouncedAt: null, setAsideAt: null }],
-    messages: [first()],
-  };
-  const personChosen = { ...untouched, contacts: [{ ...untouched.contacts[0], isPrimary: true }] };
-  const inboxChosen = { ...untouched, emailInboxSelected: true };
-  const sent = { ...untouched, messages: [first({ state: 'SENT', sentAt: new Date(), providerMessageId: 'sent-1' })] };
-  const attempted = { ...untouched, messages: [first({ providerMessageId: 'attempt-1' })] };
-  const followUpOnly = { ...untouched, messages: [{ lane: 'EMAIL', openedWith: 'touch_2', state: 'SENT', sentAt: new Date() }] };
-  const ok = !I.hasSelectedRecipient(untouched) && !EP.campaignHasStarted(untouched)
-    && I.hasSelectedRecipient(personChosen) && I.hasSelectedRecipient(inboxChosen)
-    && EP.campaignHasStarted(sent) && EP.campaignHasStarted(attempted)
-    && !EP.campaignHasStarted(followUpOnly);
+  const rows = [
+    { prospectId: 'company-1', lane: 'EMAIL', openedWith: 'tailored_first',
+      state: 'SENT', sentTo: 'alice@example.test', sentAt: new Date(), providerMessageId: 'sent-1' },
+    { prospectId: 'company-2', lane: 'EMAIL', openedWith: 'tailored_first',
+      state: 'DRAFT', sentTo: 'pat@example.test', providerMessageId: 'attempt-1' },
+    { prospectId: 'company-1', lane: 'EMAIL', openedWith: 'touch_2',
+      state: 'SENT', sentTo: 'mitch@example.test', sentAt: new Date() },
+  ];
+  const started = EP.startedFirstKeys(rows);
+  const ok = started.has(EP.campaignKey('company-1', 'alice@example.test'))
+    && started.has(EP.campaignKey('company-2', 'pat@example.test'))
+    && !started.has(EP.campaignKey('company-1', 'mitch@example.test'));
   return { ok, detail: ok
-    ? 'only a company with no chosen person or inbox and no first-email send attempt counts as untouched'
-    : 'the untouched campaign boundary admitted a selected or previously started company' };
+    ? 'a company remains eligible when Alice started but Mitch did not; each address is judged separately'
+    : 'the filter collapsed separate recipient campaigns into one company-level status' };
 }, 'lanes');
 
 def('the_questions_can_be_read_before_a_call', () => {
