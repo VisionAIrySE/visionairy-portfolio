@@ -102,8 +102,8 @@ function selectTargetCampaigns(campaigns, keys) {
   return keys ? campaigns.filter((p) => keys.has(campaignKeyFor(p))) : campaigns;
 }
 const OPENROUTER_MODEL = arg('openrouter-model', '');
-const OPENROUTER_CEILING = process.argv.includes('--no-spending-limit')
-  ? Infinity : Number(arg('openrouter-ceiling', 2));
+const OPENROUTER_CEILING = OPENROUTER_MODEL
+  ? require('../../src/hoursback/spendingChoice.js').spendingChoice(process.argv, 'openrouter-ceiling') : undefined;
 const READER_VERSION = arg('reader-version', '');
 const projectOpenRouterKey = (() => {
   try {
@@ -507,6 +507,16 @@ if (require.main === module) (async () => {
     })
     : makeReaderPool({ size: Math.min(AT_ONCE, 3), model: process.env.HOURSBACK_WRITER_MODEL || 'sonnet' });
   let wrote = 0; let already = 0; let refused = 0; let skipped = 0;
+  // Share only immutable source evidence inside this authorized run.
+  // Recipient roles, messages, manual edits and delivery state remain separate.
+  const evidenceByCompany = new Map();
+  const evidenceFor = (id) => {
+    if (!evidenceByCompany.has(id)) evidenceByCompany.set(id, db.reading.findFirst({
+      where: L.savedNoticingJobReadingWhere(id), orderBy: { startedAt: 'desc' },
+      include: { findings: { where: { field: { in: ['noticingJob', 'noticingArea'] } } } },
+    }));
+    return evidenceByCompany.get(id);
+  };
   let stopReason = null;
   const expectedCampaigns = [];
 
@@ -572,11 +582,7 @@ if (require.main === module) (async () => {
       : (await L.whoTheLetterGoesTo(db, p.id, p, recipientAddress)).writeTo;
     const roleTitle = writeTo.contactRole || null;
 
-    const reading = await db.reading.findFirst({
-      where: L.savedNoticingJobReadingWhere(p.id),
-      orderBy: { startedAt: 'desc' },
-      include: { findings: true },
-    });
+    const reading = await evidenceFor(p.id);
     const jobs = reading ? reading.findings.filter((f) => f.field === 'noticingJob').map((f) => f.value).filter(Boolean) : [];
     if (!jobs.length) { console.log(`  · ${p.name}: no work recorded — skipped`); skipped += 1; return; }
 

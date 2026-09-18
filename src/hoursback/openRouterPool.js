@@ -3,7 +3,7 @@ const { readAnswer } = require('./readAnswer.js');
 function makeOpenRouterPool({
   model = 'openai/gpt-5.6-luna',
   apiKey,
-  ceilingUsd = 2,
+  ceilingUsd,
   hardKillMs = 30000,
   maxTokens = 400,
   systemPrompt = 'Write polished business English and answer with JSON only. No preamble or code fences.',
@@ -18,6 +18,7 @@ function makeOpenRouterPool({
 
   async function ask(question) {
     const began = Date.now();
+    if (!(ceilingUsd === Infinity || (Number.isFinite(ceilingUsd) && ceilingUsd > 0))) return { answer: null, why: 'An explicit spending choice is required before paid work.', readerExhausted: true };
     if (closed) return { answer: null, why: 'the OpenRouter writer is closed', readerExhausted: true };
     if (!apiKey) return { answer: null, why: 'OpenRouter access is not configured', readerExhausted: true };
     if (Number.isFinite(ceilingUsd) && spent + reserved + reservationPerCall > ceilingUsd) {

@@ -40,6 +40,7 @@ function assertConfigured(env = process.env) {
 
 async function resendJson(url, apiKey, options = {}, fetchImpl = fetch) {
   const response = await fetchImpl(url, {
+    signal: AbortSignal.timeout(30000),
     ...options,
     headers: { authorization: `Bearer ${apiKey}`, ...(options.headers || {}) },
   });
@@ -53,7 +54,7 @@ async function attachmentContent(emailId, attachment, apiKey, fetchImpl) {
     apiKey, {}, fetchImpl,
   );
   if (!detail.download_url) throw new Error('a reply attachment had no download address');
-  const response = await fetchImpl(detail.download_url);
+  const response = await fetchImpl(detail.download_url, { signal: AbortSignal.timeout(30000) });
   if (!response.ok) throw new Error(`a reply attachment could not be retrieved (${response.status})`);
   return {
     filename: attachment.filename || 'attachment',
@@ -70,10 +71,9 @@ async function forwardReceived(event, options = {}) {
     `https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`,
     config.apiKey, {}, fetchImpl,
   );
-  const attachments = [];
-  for (const attachment of email.attachments || []) {
-    attachments.push(await attachmentContent(emailId, attachment, config.apiKey, fetchImpl));
-  }
+  const { mapWithConcurrency } = require('./recipientChoiceBatch.js');
+  const attachments = await mapWithConcurrency(email.attachments || [], 2,
+    (attachment) => attachmentContent(emailId, attachment, config.apiKey, fetchImpl));
   const originalFrom = email.from || event.data.from;
   const subject = email.subject || event.data.subject || 'Customer reply';
   const payload = {

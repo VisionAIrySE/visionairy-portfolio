@@ -150,3 +150,28 @@ exports.WAITING_FOR_HIM = WAITING_FOR_HIM;
 exports.heSetThis = heSetThis;
 exports.applyOrHold = applyOrHold;
 exports.waitingFor = waitingFor;
+
+// Save one form as one record change with its field history in the same commit.
+async function setOverrides(db, prospectId, values, plain = {}, correctedBy = 'russ') {
+  return db.$transaction(async (tx) => {
+    const before = await tx.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+    const data = { ...plain };
+    const edits = [];
+    for (const [field, value] of Object.entries(values)) {
+      if (!OVERRIDABLE.includes(field)) throw new Error('Field is not editable: ' + field);
+      if (String(before[field] ?? '') === String(value ?? '')) continue;
+      data[field] = value;
+      edits.push({ prospectId, fieldName: field, valueBefore: String(before[field] ?? ''),
+        valueAfter: String(value ?? ''), correctedBy });
+      if (field === 'employeeCount') {
+        const b = require('./rules.js').bandForEmployeeCount(value ?? before.employeeCount);
+        Object.assign(data, { segment: b.band, auditFee: b.auditFee, guaranteedHours: b.guaranteedHours });
+      }
+    }
+    const after = Object.keys(data).length
+      ? await tx.prospect.update({ where: { id: prospectId }, data }) : before;
+    if (edits.length) await tx.prospectFieldEdit.createMany({ data: edits });
+    return after;
+  });
+}
+exports.setOverrides = setOverrides;

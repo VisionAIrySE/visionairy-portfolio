@@ -17,17 +17,20 @@ const READER_VERSION = versionArg ? versionArg.slice('--reader-version='.length)
 const idArg = process.argv.find((value) => value.startsWith('--id='));
 const ONLY_ID = idArg ? idArg.slice(5) : '';
 const NO_SPENDING_LIMIT = process.argv.includes('--no-spending-limit');
+const { spendingChoice } = require('../../src/hoursback/spendingChoice.js');
+const finderCeiling = spendingChoice(process.argv, 'finder-ceiling');
+const evidenceWriterCeiling = spendingChoice(process.argv, 'evidence-writer-ceiling');
 const db = new PrismaClient();
 const finder = makeOpenRouterPool({
   model: 'google/gemini-3.1-flash-lite', apiKey: process.env.OPENROUTER_API_KEY,
-  ceilingUsd: NO_SPENDING_LIMIT ? Infinity : 1,
+  ceilingUsd: finderCeiling,
   hardKillMs: 120000, maxTokens: 1800, temperature: 0,
   systemPrompt: 'Analyze only the supplied website evidence and answer with JSON only. No preamble, explanation, or code fences.',
   onCall: ({ answered, why }) => { if (!answered && why) console.error(`Evidence call failed: ${why}`); },
 });
 const writer = makeOpenRouterPool({
   model: 'openai/gpt-5.6-luna', apiKey: process.env.OPENROUTER_API_KEY,
-  ceilingUsd: NO_SPENDING_LIMIT ? Infinity : 1.5,
+  ceilingUsd: evidenceWriterCeiling,
   hardKillMs: 120000, maxTokens: 1000, temperature: 0.2,
   systemPrompt: 'Write precise, natural business English grounded only in the supplied evidence. Answer with JSON only. No preamble or code fences.',
   onCall: ({ answered, why }) => { if (!answered && why) console.error(`Writing call failed: ${why}`); },

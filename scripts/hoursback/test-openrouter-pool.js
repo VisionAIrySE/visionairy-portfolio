@@ -5,7 +5,7 @@ const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
   let calls = 0;
   let requestBody = null;
   const success = makeOpenRouterPool({
-    apiKey: 'test-key',
+    apiKey: 'test-key', ceilingUsd: Infinity,
     systemPrompt: 'research facts only',
     temperature: 0,
     fetchFn: async (_url, options) => {
@@ -47,7 +47,7 @@ const { makeOpenRouterPool } = require('../../src/hoursback/openRouterPool.js');
 
   let refusalLog = null;
   const unauthorized = makeOpenRouterPool({
-    apiKey: 'test-key',
+    apiKey: 'test-key', ceilingUsd: Infinity,
     fetchFn: async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'User not found' } }) }),
     onCall: (entry) => { refusalLog = entry; },
   });

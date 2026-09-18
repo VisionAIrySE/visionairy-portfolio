@@ -12,7 +12,10 @@ const value = (name, fallback = '') => {
 };
 const version = value('reader-version');
 const limit = Math.min(50, Math.max(1, Number(value('limit', '50'))));
-const writerCeiling = Math.max(0.05, Number(value('writer-ceiling', '5')));
+const writerCeiling = Number(value('writer-ceiling'));
+const readCeiling = Number(value('read-ceiling'));
+const finderCeiling = Number(value('finder-ceiling'));
+const evidenceWriterCeiling = Number(value('evidence-writer-ceiling'));
 const noSpendingLimit = process.argv.includes('--no-spending-limit');
 const writerModel = value('writer-model', 'openai/gpt-5.6-luna');
 const selectedGap = process.argv.includes('--selected-missing-full-read');
@@ -24,15 +27,15 @@ const doIt = process.argv.includes('--do-it');
 if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
   console.error('Supply a unique --reader-version using only letters, numbers, dashes, and underscores.');
   process.exitCode = 2;
-} else if (!Number.isFinite(limit) || !Number.isFinite(writerCeiling)
+} else if (!Number.isFinite(limit) || (doIt && !noSpendingLimit && [writerCeiling, readCeiling, finderCeiling, evidenceWriterCeiling].some((amount) => !Number.isFinite(amount) || amount <= 0))
   || (selectedGap && allGap)) {
-  console.error('The batch size and writing spending ceiling must be numbers.');
+  console.error('Supply explicit approved read, finder, evidence-writer and writer ceilings, or --no-spending-limit.');
   process.exitCode = 2;
 } else {
   const stages = [
     ...(!resume ? [{ label: 'Read full websites', script: 'read-full-via-openrouter.cjs',
       args: [`--reader-version=${version}`, `--limit=${limit}`,
-        ...(noSpendingLimit ? ['--no-spending-limit'] : ['--ceiling=1']),
+        ...(noSpendingLimit ? ['--no-spending-limit'] : [`--ceiling=${readCeiling}`]),
         ...(selectedGap ? ['--selected-missing-full-read'] : []),
         ...(allGap ? ['--all-missing-full-read', '--include-without-email'] : []),
         ...(selectedAttemptPrefix ? [`--selected-attempt-prefix=${selectedAttemptPrefix}`] : [])] }] : []),
@@ -42,7 +45,7 @@ if (!version || !/^[a-zA-Z0-9_-]+$/.test(version)) {
       args: [`--reader-version=${version}`, '--strict'] },
     { label: 'Save company-specific evidence', script: 'enhance-openrouter-read-batch.cjs',
       args: [`--reader-version=${version}`,
-        ...(noSpendingLimit ? ['--no-spending-limit'] : [])] },
+        ...(noSpendingLimit ? ['--no-spending-limit'] : [`--finder-ceiling=${finderCeiling}`, `--evidence-writer-ceiling=${evidenceWriterCeiling}`])] },
     { label: 'Audit saved evidence', script: 'audit-stage-completion.cjs',
       args: ['--stage=evidence', '--scope=batch', `--reader-version=${version}`, '--strict'] },
     { label: 'Prepare four messages per address', script: 'write-the-whole-sequence.cjs',

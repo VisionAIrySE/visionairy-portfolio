@@ -160,12 +160,16 @@ async function saveContactSelections(db, visibleContactIds, selectedContactIds) 
   const selected = [...new Set([].concat(selectedContactIds || []).filter((id) => visibleSet.has(id)))];
   if (!visible.length) return { visible: 0, selected: 0 };
 
-  await db.$transaction([
-    db.contact.updateMany({ where: { id: { in: visible } }, data: { isPrimary: false } }),
-    ...(selected.length
-      ? [db.contact.updateMany({ where: { id: { in: selected } }, data: { isPrimary: true } })]
-      : []),
-  ]);
+  const writeChoices = async (tx) => {
+    await tx.contact.updateMany({ where: { id: { in: visible }, isPrimary: true,
+      NOT: { id: { in: selected } } }, data: { isPrimary: false } });
+    if (selected.length) await tx.contact.updateMany({
+      where: { id: { in: selected }, isPrimary: false }, data: { isPrimary: true },
+    });
+  };
+  // A caller may already own the company transaction.
+  if (typeof db.$transaction === 'function') await db.$transaction(writeChoices);
+  else await writeChoices(db);
 
   // Selecting somebody again reverses only the temporary exclusion created
   // by the Email workspace. Bounce, reply, spam and do-not-contact blocks use
@@ -1059,6 +1063,8 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
   // rows at the business level made a second person's first email look like
   // the first person's Day 4 follow-up, which could skip or reorder touches.
   const normalize = (value) => String(value || '').trim().toLowerCase();
+  const possibleByTouch = new Map();
+  const advanced = [];
   for (const first of firsts) {
     const campaignAddress = first.sentTo || recipient;
     const campaignContact = contactByAddress.get(String(campaignAddress).trim().toLowerCase());
@@ -1073,34 +1079,43 @@ async function queueNextTouch(db, prospectId, now = new Date(), options = {}) {
     const due = touchDue(1 + campaignSent.length, first.sentAt, now);
     if (due === null || due === 1) continue;
 
-    const possible = await db.outreachMessage.findMany({
-      where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` },
-      orderBy: { createdAt: 'asc' },
-    });
+    if (!possibleByTouch.has(due)) {
+      possibleByTouch.set(due, await db.outreachMessage.findMany({
+        where: { prospectId, lane: 'EMAIL', openedWith: `touch_${due}` },
+        orderBy: { createdAt: 'asc' },
+      }));
+    }
+    const possible = possibleByTouch.get(due);
     const already = possible.find((message) => normalize(message.sentTo) === normalize(campaignAddress))
       || (firsts.length === 1 ? possible.find((message) => !normalize(message.sentTo)) : null);
     // A follow-up already queued or sent for this person is not new work. Keep
     // looking so another selected recipient can advance in the same run.
     if (already) {
       if (already.state === 'DRAFT' && !already.sentAt && !already.deliveryState) {
-        return db.outreachMessage.update({
+        const updated = await db.outreachMessage.update({
           where: { id: already.id },
           data: { state: 'QUEUED', queuedAt: now, sentTo: campaignAddress },
         });
+        Object.assign(already, updated);
+        if (!options.allDue) return updated;
+        advanced.push(updated);
       }
       continue;
     }
     const built = draftFollowUpTouch(p, first.openedWith, due);
     if (!built) continue;
-    return db.outreachMessage.create({
+    const created = await db.outreachMessage.create({
       data: {
         prospectId, lane: 'EMAIL', state: 'QUEUED', queuedAt: now,
         subject: built.subject, body: built.body, openedWith: built.openedWith,
         sentTo: campaignAddress,
       },
     });
+    possible.push(created);
+    if (!options.allDue) return created;
+    advanced.push(created);
   }
-  return null;
+  return options.allDue ? advanced : null;
 }
 
 // Walk everyone reachable and queue whatever each is due. Bounded, like
@@ -1122,18 +1137,16 @@ async function queueDueTouches(db, options = {}) {
   const out = { first: 0, second: 0, third: 0, fourth: 0, skipped: 0 };
   for (const p of rows) {
     let found = 0;
-    const seen = new Set();
-    // More than one selected person at a company may be due on the same day.
-    // Walk until no new campaign advances, with a hard bound for bad data.
-    for (let pass = 0; pass < 50; pass += 1) {
-      const m = await queueNextTouch(db, p.id, now, { allowFirstContact });
-      if (!m || seen.has(m.id)) break;
-      seen.add(m.id); found += 1;
+    // Inspect each company's history once, advancing each due recipient once.
+    // This finite traversal has no arbitrary recipient cutoff.
+    const next = await queueNextTouch(db, p.id, now,
+      { allowFirstContact, allDue: !allowFirstContact });
+    for (const m of (Array.isArray(next) ? next : next ? [next] : [])) {
+      found += 1;
       if (m.openedWith === 'touch_2') out.second += 1;
       else if (m.openedWith === 'touch_3') out.third += 1;
       else if (m.openedWith === 'touch_4') out.fourth += 1;
       else out.first += 1;
-      if (allowFirstContact) break;
     }
     if (!found) out.skipped += 1;
   }
@@ -1173,26 +1186,13 @@ async function sendQueuedEmails(db, options = {}) {
   const ceiling = Math.min(allowedToday, Number(options.limit || MAX_PER_RUN), MAX_PER_RUN);
   if (ceiling <= 0) { result.stoppedBecause = "today's ceiling is already spent"; return result; }
 
-  const queuedRows = await db.outreachMessage.findMany({
-    where: { lane: 'EMAIL', ...(messageIds ? { id: { in: messageIds } } : {}), OR: [
-      { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null } },
-      { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
-        deliveryLeaseExpiresAt: { lte: now } },
-    ] },
-    include: { prospect: { include: {
-      readings: { where: {
-        source: 'website', reader: 'understand-businesses', outcome: 'read',
-        pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
-      }, select: { id: true }, take: 1 },
-      contacts: { where: { isPrimary: true, email: { not: null },
-        bouncedAt: null, setAsideAt: null }, select: { email: true, isPrimary: true } },
-      messages: {
-      where: { lane: 'EMAIL', openedWith: { not: 'after_the_call' } },
-      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, deliveryState: true, sentAt: true, providerMessageId: true },
-    } } } },
-    orderBy: { prospect: { automationScore: 'desc' } },
-    take: ceiling < MAX_PER_RUN ? ceiling : undefined,
-  });
+  const queueWhere = { lane: 'EMAIL', ...(messageIds ? { id: { in: messageIds } } : {}), OR: [
+    { state: 'QUEUED', prospect: { doNotContact: false, repliedAt: null } },
+    { state: 'SENDING', deliveryState: { in: ['CLAIMED', 'ATTEMPTING'] },
+      deliveryLeaseExpiresAt: { lte: now } },
+  ] };
+  const { queuedEmailPages } = require('./queuedEmailPages.js');
+  for await (const queuedRows of queuedEmailPages(db, queueWhere)) {
   // Old first drafts can survive a campaign rewrite. If a tailored first
   // email exists, the older copy is neither displayed nor delivered. This is
   // a read-time safety gate; the historical row remains for an explicit,
@@ -1276,6 +1276,11 @@ async function sendQueuedEmails(db, options = {}) {
         try { await D.markUnconfirmed(db, m.id, e); } catch (_) { /* the next run will recover the lease safely */ }
         result.unconfirmed += 1;
       }
+    }
+  }
+    if (result.sent >= ceiling) {
+      result.stoppedBecause = 'the requested run is complete';
+      break;
     }
   }
   if (!result.stoppedBecause) result.stoppedBecause = result.unresearched

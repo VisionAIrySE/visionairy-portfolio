@@ -45,7 +45,8 @@ const BUSY = new Set();
 function refreshInBackground(id) {
   if (BUSY.has(id)) return;
   BUSY.add(id);
-  refreshProspect(db, id)
+  // Saving fields is not approval to visit an external website.
+  refreshProspect(db, id, { readSite: false })
     .catch((e) => console.error('refresh failed for', id, e.message))
     .finally(() => BUSY.delete(id));
 }
@@ -187,7 +188,7 @@ const scoreBadge = (n, id) => {
 // Never offered when his new wording names the business or the person — that is
 // a note to one reader, and sending it to 869 strangers is the harm this whole
 // check exists to prevent.
-async function spreadOffer(message, prospect) {
+async function spreadOffer(message, prospect, wordings = null) {
   if (!message || !message.editedAt || message.lane !== 'EMAIL') return null;
   const SPREAD = require('../../src/hoursback/crm/spreadEdit.js');
   const { draftFirstContact } = require('../../src/hoursback/crm/firstContact.js');
@@ -205,7 +206,8 @@ async function spreadOffer(message, prospect) {
   if (found.kind === 'order') return found;
   if (found.kind === 'cannot_tell') return found;
   if (SPREAD.looksPersonal(found.now, resolveField(prospect, 'name'), prospect.contactName || prospect.ownerName)) return null;
-  const already = await db.voiceWording.findFirst({ where: { slot: found.slot, wording: found.now, retiredAt: null } });
+  const already = wordings ? wordings.some((row) => row.slot === found.slot && row.wording === found.now)
+    : await db.voiceWording.findFirst({ where: { slot: found.slot, wording: found.now, retiredAt: null } });
   if (already) return null;
   return found;
 }
@@ -656,127 +658,28 @@ async function pipelineScreen() {
 // letter can exist. Reading a site we cannot write to produces a sentence with
 // nowhere to live, so the missing half is what this leads with.
 async function progressScreen() {
-  const R = require('../../src/hoursback/readings.js');
-  const N = require('../../src/hoursback/crm/noticing.js');
-  const hasAddress = { OR: [{ email: { not: null } }, { emailManualValue: { not: null } }] };
-  const hasSite = { OR: [{ website: { not: null } }, { websiteManualValue: { not: null } }] };
-
-  // Our own reader giving nothing back is the ONLY thing that leaves a
-  // business untouched. "This is a parked domain" is an answer, not a failure.
-  const READER_GAVE_NOTHING = [
-    'the reader could not be started',
-    'the reader gave nothing back',
-    'the reader ran out of allowance',
-  ];
-  const neverProperlyRead = {
-    readings: {
-      none: {
-        source: R.WEBSITE,
-        reader: 'understand-businesses',
-        OR: [
-          { outcome: { in: [R.READ, R.NO_WEBSITE, R.UNREACHABLE] } },
-          { AND: [{ finishedAt: { not: null } }, { NOT: { note: { in: READER_GAVE_NOTHING } } }] },
-        ],
-      },
-    },
-  };
-
-  const live = { doNotContact: false };
-  const [withAddress, withSite, readAnything] = await Promise.all([
-    db.prospect.count({ where: { ...live, ...hasAddress } }),
-    db.prospect.count({ where: { ...live, ...hasSite } }),
-    db.reading.groupBy({ by: ['prospectId'], where: { pages: { some: {} } } }),
-  ]);
-  const readIds = readAnything.map((r) => r.prospectId);
-
-  // Of the businesses whose site we have read, who can we actually write to?
-  const canWriteTo = [];
-  for (let i = 0; i < readIds.length; i += 200) {
-    const part = await db.prospect.findMany({
-      where: { id: { in: readIds.slice(i, i + 200) }, ...live, ...hasAddress },
-      select: { id: true },
-    });
-    canWriteTo.push(...part.map((p) => p.id));
-  }
-  const onCurrentWording = await db.reading.findMany({
-    where: { prospectId: { in: canWriteTo }, readerVersion: N.READER_VERSION },
-    select: { prospectId: true }, distinct: ['prospectId'],
-  });
-  const ready = onCurrentWording.length;
-  const waitingToBeWritten = Math.max(0, canWriteTo.length - ready);
-
-  const [stillToRead, noAddress, settled, readWithNothing] = await Promise.all([
-    // TWO "EITHER-OR" CONDITIONS CANNOT SIT SIDE BY SIDE. Spreading both
-    // "has an address" and "has a website" put the same key in twice, the
-    // second quietly replaced the first, and the address half vanished — the
-    // page said 1,395 businesses could be emailed when only 882 have an
-    // address at all. Caught by reading the page's own numbers against each
-    // other. They go under AND, where both survive (2026-09-06).
-    db.prospect.count({
-      where: {
-        ...live,
-        AND: [hasAddress, hasSite],
-        NOT: [{ stage: 'NEEDS_REVIEW' }],
-        ...neverProperlyRead,
-      },
-    }),
-    db.prospect.count({ where: { ...live, ...hasSite, NOT: [hasAddress] } }),
-    db.reading.groupBy({ by: ['outcome'], where: { source: R.WEBSITE, reader: 'understand-businesses' }, _count: { _all: true } }),
-    db.reading.count({ where: { source: R.WEBSITE, reader: 'understand-businesses', outcome: R.READ, pages: { none: {} } } }),
-  ]);
-
-  let lastRun = null;
-  try { lastRun = fs.readFileSync(path.resolve(__dirname, '../../docs/hoursback/last-run.md'), 'utf8'); }
-  catch { lastRun = null; }
-
-  const card = (n, label, note) => `<div style="flex:1;min-width:150px;padding:14px 16px;border:1px solid #e8e4d8;border-radius:6px;background:#fff">
-    <div style="font-size:30px;font-weight:600;line-height:1.1">${n}</div>
-    <div style="margin-top:2px">${label}</div>
-    ${note ? `<div class="muted" style="font-size:12px;margin-top:5px">${note}</div>` : ''}</div>`;
-
-  const total = ready + waitingToBeWritten + stillToRead;
-  const pct = total ? Math.round((ready / total) * 100) : 0;
-
-  return page(`<h1>Progress</h1>
-  <p class="muted">Counted from the records every time this page is opened. Nothing here is remembered from a
-    run or typed in by hand.</p>
-
-  <h2>What you can send</h2>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">
-    ${card(ready, '<b>ready to send</b>', 'their own site read, an address to send to, current wording')}
-    ${card(waitingToBeWritten, 'waiting on a letter', 'site already read — only the writing is left')}
-    ${card(stillToRead, 'waiting on a website read', 'we can email them, nobody has read their site yet')}
-  </div>
-  <div style="height:10px;background:#efece2;border-radius:5px;overflow:hidden;margin:14px 0">
-    <div style="height:100%;width:${pct}%;background:#7a9a6a"></div></div>
-  <p class="muted">${pct}% of the ${total} businesses you can email are ready to go.</p>
-
-  <h2>Why the rest are not ready</h2>
-  <table style="border-collapse:collapse;font-size:14px">
-    <tr><td style="padding:4px 18px 4px 0"><b>${noAddress}</b></td>
-        <td>have a website but <b>no email address</b> — reading their site would produce nothing sendable</td></tr>
-    <tr><td style="padding:4px 18px 4px 0"><b>${readWithNothing}</b></td>
-        <td>were visited and the site gave <b>no words at all</b> — a placeholder, a parked domain, or a page that blocks reading</td></tr>
-    ${settled.filter((s) => s.outcome !== R.READ).map((s) => `<tr>
-      <td style="padding:4px 18px 4px 0"><b>${s._count._all}</b></td>
-      <td>${s.outcome === R.NO_WEBSITE ? 'have <b>no website</b> to read'
-    : s.outcome === R.UNREACHABLE ? 'their site <b>would not answer</b> when we called'
-      : `ended as <b>${esc(s.outcome)}</b>`}</td></tr>`).join('')}
-  </table>
-
-  <h2>The whole list, for context</h2>
-  <p class="muted"><b>${withAddress}</b> have an email address ·
-    <b>${withSite}</b> have a website · <b>${readIds.length}</b> have had their site read ·
-    <b>${canWriteTo.length}</b> have both, which is the most letters that can exist today.</p>
-
-  ${lastRun ? `<h2>What the last run said</h2>
-    <pre style="white-space:pre-wrap;font-size:13px;background:#fff;border:1px solid #e8e4d8;border-radius:6px;padding:12px">${esc(lastRun.slice(0, 2000))}</pre>` : ''}
-  `);
+  const t = await require('../../src/hoursback/crm/workflowProgress.js').loadWorkflowProgress(db);
+  const row = (count, label) => '<tr><td style="padding:8px 20px"><b>' + count + '</b></td><td>' + label + '</td></tr>';
+  return page('<h1>Progress</h1><p>Current saved results across all companies not marked do-not-contact. Companies and email recipients are counted separately.</p>'
+    + '<h2>Company research</h2><table>'
+    + row(t.companies, 'companies in the database')
+    + row(t.websites, 'companies with websites')
+    + row(t.researched, 'companies with saved full website research')
+    + row(t.researchedWithEmail, 'researched companies with at least one usable email')
+    + row(t.researchWithEmailWaiting, 'companies with an email still needing full research')
+    + row(t.researchWithoutEmailWaiting, 'companies without an email still needing full research')
+    + row(t.researchedWithoutEmail, 'researched companies without a usable email')
+    + '</table><h2>Recipient campaigns</h2><table>'
+    + row(t.recipients, 'distinct usable company/address pairs')
+    + row(t.fourWritten, 'unstarted, researched recipient campaigns with all four messages written')
+    + row(t.selectedQueued, 'of those, selected and lined up to send')
+    + row(t.messagesMissing, 'researched recipient campaigns still missing messages')
+    + row(t.started, 'recipient campaigns already started')
+    + row(t.held, 'unstarted campaigns held by a stop, review status or delivery uncertainty')
+    + '</table><p>Four messages written does not mean selected or cleared to send. Saving recipient choices runs the writing and readiness checks. Delivery rechecks current stop conditions.</p>'
+    + '<p><a href="/email">Review recipient campaigns</a></p>');
 }
 
-// ---------------------------------------------------------------------------
-// The money. What is quoted, what has been said yes to, and what has actually
-// been paid — kept apart, because a customer who has not paid is not revenue.
 async function moneyScreen() {
   const { callToPaidReadout } = require('../../src/hoursback/crm/queues.js');
   const now = new Date();
@@ -1062,51 +965,7 @@ async function addBusiness(form) {
 // So it is a button now. It runs when it is asked to and never otherwise, and
 // nothing else in the app is slowed down by it.
 async function saveEmailRecipientChoices(prospectId, submittedContactIds, chooseInbox) {
-  const [contacts, prospect] = await Promise.all([
-    db.contact.findMany({
-      where: { prospectId, setAsideAt: null },
-      select: { id: true, email: true, bouncedAt: true },
-      orderBy: { createdAt: 'asc' },
-    }),
-    db.prospect.findUnique({
-      where: { id: prospectId },
-      select: { id: true, email: true, emailManualValue: true },
-    }),
-  ]);
-  if (!prospect) return { saved: false, why: 'company not found' };
-
-  const inbox = I.businessInboxAddress(prospect);
-  const inboxCandidate = inbox && !contacts.some((person) => person.email
-    && !person.bouncedAt && I.normalize(person.email) === inbox) ? inbox : '';
-  const inboxChosen = Boolean(inboxCandidate && chooseInbox);
-  const allowed = new Set(contacts.filter((person) => person.email && !person.bouncedAt)
-    .map((person) => person.id));
-  const selected = [...new Set([].concat(submittedContactIds || [])
-    .filter((contactId) => allowed.has(contactId)))];
-
-  await Promise.all([
-    L.saveContactSelections(db, contacts.map((person) => person.id), selected),
-    db.prospect.update({ where: { id: prospectId },
-      data: { emailInboxSelected: inboxChosen } }),
-    ...(inboxChosen ? [db.outreachMessage.updateMany({ where: {
-      prospectId, lane: 'EMAIL', sentAt: null,
-      state: 'SUPPRESSED', suppressedReason: 'no recipients selected',
-    }, data: { state: 'DRAFT', suppressedReason: null, queuedAt: null } })] : []),
-  ]);
-
-  const chosenCount = selected.length + (inboxChosen ? 1 : 0);
-  if (!chosenCount) {
-    await L.excludeEmailCampaigns(db, prospectId);
-    return { saved: true, chosenCount: 0, readiness: {
-      ready: 0, incomplete: 0, contentBlocked: 0, contentProblems: [],
-    } };
-  }
-
-  // Every selected address owns a separate campaign. A newly found person can
-  // start even after somebody else at this company has received Day 0.
-  await L.ensureSelectedFirstDrafts(db, prospectId);
-  const readiness = await L.syncSelectedEmailCampaigns(db, prospectId);
-  return { saved: true, chosenCount, readiness };
+  return RCB.saveChoices(db, prospectId, submittedContactIds, chooseInbox, L);
 }
 
 async function emailScreen(params) {
@@ -1200,7 +1059,7 @@ async function emailScreen(params) {
         },
         messages: {
           where: { lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] } },
-          select: { id: true, prospectId: true, lane: true, state: true, subject: true, body: true, openedWith: true, sentTo: true, editedAt: true, createdAt: true },
+          select: { id: true, prospectId: true, lane: true, state: true, openedWith: true, sentTo: true, editedAt: true, createdAt: true, deliveryState: true, sentAt: true },
           orderBy: { createdAt: 'asc' },
         },
         readings: {
@@ -1338,6 +1197,19 @@ async function emailScreen(params) {
   const matchingFirstRows = groupedCompanies.flatMap((company) => company.messages);
   const matchingCompanyCount = groupedCompanies.length;
   const visibleCompanies = groupedCompanies.slice(0, 25);
+  // Keep backlog counts lightweight. Message text is needed only on this page.
+  const visibleMessages = visibleCompanies.length ? await db.outreachMessage.findMany({
+    where: { prospectId: { in: visibleCompanies.map((company) => company.id) },
+      lane: 'EMAIL', sentAt: null, state: { in: ['DRAFT', 'QUEUED'] } },
+    orderBy: { createdAt: 'asc' },
+  }) : [];
+  const visibleById = new Map(visibleMessages.map((message) => [message.id, message]));
+  for (const company of visibleCompanies) {
+    company.prospect.messages = company.prospect.messages.map((message) =>
+      ({ ...message, ...(visibleById.get(message.id) || {}) }));
+    company.messages = company.messages.map((message) =>
+      ({ ...message, ...(visibleById.get(message.id) || {}), prospect: company.prospect }));
+  }
   const ready = visibleCompanies.flatMap((company) => company.messages);
   const allFirst = currentRecipientFirsts(allFirstRows);
   const waitingAllTold = allFirst.length;
@@ -1390,7 +1262,6 @@ async function emailScreen(params) {
     where: { doNotContact: false, repliedAt: null, ...L.emailReachableWhere() },
   });
 
-  const sample = ready[0] || await db.outreachMessage.findFirst({ where: { lane: 'EMAIL' }, orderBy: { createdAt: 'desc' } });
   // THE SAMPLE LETTER IS GONE (Russ, 2026-09-08: "If I am not using these
   // sections, remove them").
   //
@@ -1595,6 +1466,7 @@ async function emailScreen(params) {
 
   const justSent = params.get('sent');
   const notice = params.get('notice');
+  const saveIssues = String(params.get('saveIssues') || '').split(',').filter(Boolean).slice(0, 100);
   const sendFailed = Number(params.get('failed') || 0);
   const sendBlocked = Number(params.get('blocked') || 0);
   const sendUnconfirmed = Number(params.get('unconfirmed') || 0);
@@ -1606,6 +1478,7 @@ async function emailScreen(params) {
   return page(`<h1>Email workspace</h1>
   <p class="muted">Choose who should receive a campaign, spot-check as many messages as you want, then send the ready group when you choose.</p>
   ${notice ? `<div class="card" style="background:#dcfce7;border-color:#16a34a"><b>${esc(notice)}</b></div>` : ''}
+  ${saveIssues.length ? `<div class="card warn"><b>Companies needing another check</b><p>${saveIssues.map((id, index) => `<a href="/business/${encodeURIComponent(id)}">Open company ${index + 1}</a>`).join(' · ')}</p><p>Saved choices remain saved. Open each company to review or retry preparation.</p></div>` : ''}
   ${justSent !== null ? `<div class="card" style="background:${sendUnconfirmed ? '#fef3c7;border-color:#d97706' : '#dcfce7;border-color:#16a34a'}"><b>${esc(justSent)} sent.</b>
     ${sendFailed ? `${sendFailed} refused and left queued. ` : ''}${sendBlocked ? `${sendBlocked} blocked before delivery. ` : ''}${sendRecovered ? `${sendRecovered} safely recovered. ` : ''}
     ${sendUnconfirmed ? `<b>${sendUnconfirmed} outcome${sendUnconfirmed === 1 ? ' is' : 's are'} unconfirmed; check the provider before taking action.</b> ` : ''}${esc(params.get('why') || '')}</div>` : ''}
@@ -1948,8 +1821,10 @@ async function businessCard(id, saved) {
   const waiting = await waitingFor(db, p.id);
 
   const offers = {};
+  const editWordings = p.messages.some((m) => m.editedAt && m.lane === 'EMAIL')
+    ? await db.voiceWording.findMany({ where: { retiredAt: null }, select: { slot: true, wording: true } }) : [];
   for (const m of p.messages) {
-    const o = await spreadOffer(m, p);
+    const o = await spreadOffer(m, p, editWordings);
     if (o) offers[m.id] = o;
   }
 
@@ -2286,25 +2161,19 @@ async function businessCard(id, saved) {
 // Saves the card. Overridable fields go through the corrections path, so who
 // typed it and when is kept forever; the rest are plain notes.
 async function saveBusiness(id, form) {
-  const before = await db.prospect.findUniqueOrThrow({ where: { id } });
+  const values = {};
   for (const field of OVERRIDABLE) {
     if (!(field in form)) continue;
     const raw = String(form[field]).trim();
-    const value = raw === '' ? null : (field === 'employeeCount' ? Number(raw) : raw);
-    if (String(resolveField(before, field) ?? '') === String(value ?? '')) continue;
-    await setOverride(db, id, field, value, 'russ');
+    values[field] = raw === '' ? null : (field === 'employeeCount' ? Number(raw) : raw);
   }
   const plain = {};
-  for (const f of ['ownerName', 'contactName', 'contactRole', 'theirWork']) {
-    if (f in form) plain[f] = String(form[f]).trim() || null;
+  for (const field of ['ownerName', 'contactName', 'contactRole', 'theirWork']) {
+    if (field in form) plain[field] = String(form[field]).trim() || null;
   }
-  if ('isDecisionMaker' in form) {
-    plain.isDecisionMaker = form.isDecisionMaker === 'yes' ? true : (form.isDecisionMaker === 'no' ? false : null);
-  }
-  if (Object.keys(plain).length) await db.prospect.update({ where: { id }, data: plain });
-  // Everything that follows from what was just typed: read their site, score
-  // the record, settle the trade, clear "needs a look", write the message.
-  // Started, not waited on — a site read can take most of a minute.
+  if ('isDecisionMaker' in form) plain.isDecisionMaker = form.isDecisionMaker === 'yes'
+    ? true : form.isDecisionMaker === 'no' ? false : null;
+  await require('../../src/hoursback/overrides.js').setOverrides(db, id, values, plain);
   refreshInBackground(id);
 }
 
@@ -2751,6 +2620,14 @@ function loginPage(wrong) {
 const html = (res, body) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(body); };
 
 const server = http.createServer(async (req, res) => {
+  const began = performance.now();
+  res.once('finish', () => {
+    const route = String(req.url || '/').split('?')[0].split('/')[1] || 'home';
+    const known = ['home', 'email', 'business', 'list', 'progress', 'pipeline', 'people', 'money', 'mail-events', 'login'];
+    console.log(JSON.stringify({ event: 'crm_request', route: known.includes(route) ? route : 'other',
+      method: req.method, status: res.statusCode, ms: Math.round(performance.now() - began),
+      heapMB: Math.round(process.memoryUsage().heapUsed / 1048576) }));
+  });
   try {
     const url = new URL(req.url, 'http://localhost');
     const [, route, id] = url.pathname.split('/');
@@ -2967,23 +2844,27 @@ const server = http.createServer(async (req, res) => {
                   choice.prospectId, choice.contactIds, choice.chooseInbox,
                 );
               } catch (error) {
-                return { saved: false, why: error.message };
+                return { saved: false, prospectId: choice.prospectId, why: 'Save failed; no recipient choices were changed. Reload this company and retry.' };
               }
             });
           const saved = results.filter((result) => result && result.saved);
           const skipped = results.length - saved.length;
+          const unfinished = saved.filter((result) => result.preparationError);
+          const issues = results.filter((result) => !result.saved || result.preparationError);
+          const issueLinks = issues.map((result) => result.prospectId).join(',');
           const chosen = saved.reduce((sum, result) => sum + result.chosenCount, 0);
           const ready = saved.reduce((sum, result) => sum + result.readiness.ready, 0);
           const incomplete = saved.reduce((sum, result) => sum + result.readiness.incomplete, 0);
           const contentBlocked = saved.reduce((sum, result) => sum + result.readiness.contentBlocked, 0);
           const said = batch.length
-            ? `${saved.length} compan${saved.length === 1 ? 'y' : 'ies'} saved with ${chosen} selected recipient${chosen === 1 ? '' : 's'}. ${ready} first email${ready === 1 ? ' is' : 's are'} lined up. Nothing was sent.${incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${contentBlocked ? ` ${contentBlocked} campaign${contentBlocked === 1 ? ' is' : 's are'} held by the writing check.` : ''}${skipped ? ` ${skipped} compan${skipped === 1 ? 'y was' : 'ies were'} not changed because the record changed.` : ''}`
+            ? `${saved.length} compan${saved.length === 1 ? 'y' : 'ies'} saved with ${chosen} selected recipient${chosen === 1 ? '' : 's'}. ${ready} first email${ready === 1 ? ' is' : 's are'} lined up. Nothing was sent.${incomplete ? ` ${incomplete} incomplete campaign${incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${contentBlocked ? ` ${contentBlocked} campaign${contentBlocked === 1 ? ' is' : 's are'} held by the writing check.` : ''}${skipped ? ` ${skipped} compan${skipped === 1 ? 'y was' : 'ies were'} not saved. Review the companies listed below.` : ''}`
             : 'No changed recipient choices were submitted.';
           const back = new URLSearchParams();
           for (const key of ['trade', 'floor', 'review']) {
             if (url.searchParams.get(key)) back.set(key, url.searchParams.get(key));
           }
-          back.set('notice', said);
+          back.set('notice', said + (unfinished.length ? ` Choices saved for ${unfinished.length} companies, but campaign preparation needs a retry.` : ''));
+          if (issueLinks) back.set('saveIssues', issueLinks);
           res.writeHead(303, { Location: `/email?${back.toString()}` });
           return res.end();
         }
@@ -3014,6 +2895,7 @@ const server = http.createServer(async (req, res) => {
             form.inbox === '1',
           );
           if (!saved.saved) return returnToMessage(`Recipient choices were not changed because ${saved.why}.`);
+          if (saved.preparationError) return returnToMessage(saved.preparationError);
           const { readiness, chosenCount } = saved;
           const said = chosenCount
             ? `${chosenCount} recipient${chosenCount === 1 ? '' : 's'} saved. ${readiness.ready} first email${readiness.ready === 1 ? ' is' : 's are'} lined up for the next scheduled run or Send now.${readiness.incomplete ? ` ${readiness.incomplete} incomplete campaign${readiness.incomplete === 1 ? ' remains' : 's remain'} blocked.` : ''}${readiness.contentBlocked ? ` ${readiness.contentBlocked} campaign${readiness.contentBlocked === 1 ? ' is' : 's are'} held by the writing check. ${readiness.contentProblems.slice(0, 2).map((problem) => `${problem.recipient}, ${problem.message}: ${problem.why}`).join('; ')}` : ''}`

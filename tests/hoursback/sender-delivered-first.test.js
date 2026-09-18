@@ -18,12 +18,9 @@ test('sender never attempts an older queued first email for a recipient already 
   const db = {
     messageTemplate: { findUnique: async () => ({ approvedAt: sentAt,
       body: BODY, approvedWording: L.wordingFingerprint() }) },
-    outreachMessage: { findMany: async ({ include }) => {
-      assert.equal(include.prospect.include.messages.select.sentAt, true);
-      assert.equal(include.prospect.include.messages.select.providerMessageId, true);
-      return [{ ...siblings[0], prospect: { id: 'business-1',
-        website: null, websiteManualValue: null, readings: [], messages: siblings } }];
-    } },
+    outreachMessage: { findMany: async () => [{ ...siblings[0] }] },
+    prospect: { findMany: async () => [{ id: 'business-1',
+      website: null, websiteManualValue: null, readings: [], messages: siblings }] },
   };
   const result = await L.sendQueuedEmails(db, { apiKey: 'test-only', limit: 1,
     send: async () => { providerAttempts += 1; throw new Error('duplicate sent'); } });
@@ -41,10 +38,11 @@ test('sender refuses a queued company-inbox draft until that inbox is explicitly
   const db = {
     messageTemplate: { findUnique: async () => ({ approvedAt: sentAt,
       body: BODY, approvedWording: L.wordingFingerprint() }) },
-    outreachMessage: { findMany: async () => [{ ...queued, prospect: {
+    outreachMessage: { findMany: async () => [queued] },
+    prospect: { findMany: async () => [{
       id: 'business-1', email: queued.sentTo, emailInboxSelected: false,
       contacts: [], readings: [], messages: [queued],
-    } }] },
+    }] },
   };
   const result = await L.sendQueuedEmails(db, { apiKey: 'test-only', limit: 1,
     send: async () => { providerAttempts += 1; throw new Error('unselected inbox sent'); } });
