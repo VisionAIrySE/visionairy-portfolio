@@ -51,31 +51,32 @@ function countCompanies(prospects, totals = {
 }
 
 async function loadWorkflowProgress(db) {
-  let cursor; let totals = countCompanies([]);
-  for (;;) {
-    const rows = await db.prospect.findMany({
-      where: { doNotContact: false }, orderBy: { id: 'asc' }, take: 250,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
-        id: true, stage: true, repliedAt: true, doNotContact: true,
-        website: true, websiteManualValue: true, email: true, emailManualValue: true,
-        emailBouncedAt: true, emailInboxSelected: true,
-        contacts: { where: { setAsideAt: null },
-          select: { email: true, isPrimary: true, bouncedAt: true, setAsideAt: true } },
-        readings: { where: { source: 'website', reader: 'understand-businesses', outcome: 'read',
-          pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } } },
-          select: { id: true }, take: 1 },
-        messages: { where: { lane: 'EMAIL' }, select: {
-          id: true, prospectId: true, lane: true, state: true, openedWith: true,
-          sentTo: true, deliveryTo: true, editedAt: true, sentAt: true,
-          deliveryState: true, providerMessageId: true,
-        } },
-      },
-    });
-    totals = countCompanies(rows, totals);
-    if (rows.length < 250) return totals;
-    cursor = rows[rows.length - 1].id;
-  }
+  // Four metadata-only reads, rather than several round trips per 250 companies.
+  // Never fetch message bodies, delivery payloads or saved webpage text here.
+  const [prospects, contacts, readings, messages] = await Promise.all([
+    db.prospect.findMany({ where: { doNotContact: false }, select: {
+      id: true, repliedAt: true, doNotContact: true, website: true, websiteManualValue: true,
+      email: true, emailManualValue: true, emailBouncedAt: true, emailInboxSelected: true,
+    } }),
+    db.contact.findMany({ where: { setAsideAt: null, email: { not: null },
+      prospect: { doNotContact: false } }, select: {
+      prospectId: true, email: true, isPrimary: true, bouncedAt: true, setAsideAt: true,
+    } }),
+    db.reading.groupBy({ by: ['prospectId'], where: {
+      prospect: { doNotContact: false }, source: 'website',
+      reader: 'understand-businesses', outcome: 'read',
+      pages: { some: { AND: [{ text: { not: null } }, { NOT: { text: '' } }] } },
+    } }),
+    db.outreachMessage.findMany({ where: { lane: 'EMAIL', prospect: { doNotContact: false } },
+      select: { id: true, prospectId: true, lane: true, state: true, openedWith: true,
+        sentTo: true, deliveryTo: true, editedAt: true, sentAt: true,
+        deliveryState: true, providerMessageId: true } }),
+  ]);
+  const byId = new Map(prospects.map((p) => [p.id, { ...p, contacts: [], readings: [], messages: [] }]));
+  for (const c of contacts) byId.get(c.prospectId)?.contacts.push(c);
+  for (const r of readings) byId.get(r.prospectId)?.readings.push(r);
+  for (const m of messages) byId.get(m.prospectId)?.messages.push(m);
+  return countCompanies(byId.values());
 }
 
 module.exports = { countCompanies, loadWorkflowProgress };

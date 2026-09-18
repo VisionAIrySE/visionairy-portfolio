@@ -351,3 +351,13 @@ Remaining recommendations, deliberately not represented as completed fixes:
 - Dependency separation and historical-file cleanup require an import/use inventory;
   nothing was deleted merely because it looked old.
 - Live timing/memory measurements are still required after deploying this release.
+
+
+### Live deployment verification correction
+
+The first live Progress check exceeded 60 seconds: metadata pagination still
+made too many remote round trips across the full database. Replaced that loader
+with four metadata-only reads and in-memory grouping, preserving all counters.
+A strictly read-only production check completed in 4,488 ms before redeployment.
+A regression test verifies four calls across 35,000 synthetic companies and no
+message-body retrieval; the local database/HTTP test passed again.
