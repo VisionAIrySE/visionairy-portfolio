@@ -1062,15 +1062,17 @@ async function addBusiness(form) {
 // So it is a button now. It runs when it is asked to and never otherwise, and
 // nothing else in the app is slowed down by it.
 async function saveEmailRecipientChoices(prospectId, submittedContactIds, chooseInbox) {
-  const contacts = await db.contact.findMany({
-    where: { prospectId, setAsideAt: null },
-    select: { id: true, email: true, bouncedAt: true },
-    orderBy: { createdAt: 'asc' },
-  });
-  const prospect = await db.prospect.findUnique({
-    where: { id: prospectId },
-    select: { id: true, email: true, emailManualValue: true },
-  });
+  const [contacts, prospect] = await Promise.all([
+    db.contact.findMany({
+      where: { prospectId, setAsideAt: null },
+      select: { id: true, email: true, bouncedAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+    db.prospect.findUnique({
+      where: { id: prospectId },
+      select: { id: true, email: true, emailManualValue: true },
+    }),
+  ]);
   if (!prospect) return { saved: false, why: 'company not found' };
 
   const inbox = I.businessInboxAddress(prospect);
@@ -1082,15 +1084,15 @@ async function saveEmailRecipientChoices(prospectId, submittedContactIds, choose
   const selected = [...new Set([].concat(submittedContactIds || [])
     .filter((contactId) => allowed.has(contactId)))];
 
-  await L.saveContactSelections(db, contacts.map((person) => person.id), selected);
-  await db.prospect.update({ where: { id: prospectId },
-    data: { emailInboxSelected: inboxChosen } });
-  if (inboxChosen) {
-    await db.outreachMessage.updateMany({ where: {
+  await Promise.all([
+    L.saveContactSelections(db, contacts.map((person) => person.id), selected),
+    db.prospect.update({ where: { id: prospectId },
+      data: { emailInboxSelected: inboxChosen } }),
+    ...(inboxChosen ? [db.outreachMessage.updateMany({ where: {
       prospectId, lane: 'EMAIL', sentAt: null,
       state: 'SUPPRESSED', suppressedReason: 'no recipients selected',
-    }, data: { state: 'DRAFT', suppressedReason: null, queuedAt: null } });
-  }
+    }, data: { state: 'DRAFT', suppressedReason: null, queuedAt: null } })] : []),
+  ]);
 
   const chosenCount = selected.length + (inboxChosen ? 1 : 0);
   if (!chosenCount) {

@@ -748,16 +748,30 @@ async function draftFor(db, prospectId, lane, options = {}) {
 // select anybody, write the three model-written follow-ups, queue an
 // incomplete campaign, or touch a sibling recipient's sent or edited mail.
 async function ensureSelectedFirstDrafts(db, prospectId) {
-  const prospect = await db.prospect.findUnique({ where: { id: prospectId } });
+  const [prospect, marked, messages] = await Promise.all([
+    db.prospect.findUnique({ where: { id: prospectId } }),
+    everyoneMarked(db, prospectId),
+    db.outreachMessage.findMany({
+      where: { prospectId, lane: 'EMAIL' },
+      select: { lane: true, openedWith: true, sentTo: true },
+    }),
+  ]);
   if (!prospect) return [];
-  const addresses = (await everyoneMarked(db, prospectId))
+  const addresses = marked
     .map((person) => String(person.email || '').trim())
     .filter(Boolean);
   const inbox = I.selectedInboxAddress(prospect);
   if (inbox) addresses.push(inbox);
   const unique = [...new Map(addresses.map((address) => [address.toLowerCase(), address])).values()];
+  const existingFirsts = messages.filter(isFirstContactMessage);
+  const existingAddresses = new Set(existingFirsts
+    .map((message) => String(message.sentTo || '').trim().toLowerCase())
+    .filter(Boolean));
+  const recipientlessLegacyFirst = unique.length === 1
+    && existingFirsts.some((message) => !String(message.sentTo || '').trim());
   const drafts = [];
   for (const recipient of unique) {
+    if (existingAddresses.has(recipient.toLowerCase()) || recipientlessLegacyFirst) continue;
     const message = await draftFor(db, prospectId, 'EMAIL', { recipient });
     if (message) drafts.push(message);
   }
