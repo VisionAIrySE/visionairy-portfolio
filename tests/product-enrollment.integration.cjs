@@ -1,0 +1,84 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {PrismaClient}=require('@prisma/client');
+const S=require('../src/hoursback/crm/productEnrollment.js');
+// Never inherit application credentials. All writes stay in the named disposable schema.
+const db=new PrismaClient({datasources:{db:{url:'postgresql://postgres:test@localhost:55432/hoursback_test?schema=product_build_test'}}});
+test('product choices and enrollments are isolated in the real test database',async()=> {
+ try {
+  await db.$transaction(async tx=> {
+   const scope=new Proxy(tx,{get:(target,key)=>key==='$transaction'?fn=>fn(tx):target[key]});
+   const suffix=Date.now().toString();
+   const a=await tx.cRMProduct.create({data:{id:'vision-'+suffix,name:'VisionAIry'}});
+   const b=await tx.cRMProduct.create({data:{id:'stock-'+suffix,name:'StockerAI'}});
+   assert.equal(b.sendingEnabled,false);
+   const company=await tx.prospect.create({data:{placeId:'product-test-'+suffix,name:'Fixture',email:'office@example.test',emailInboxSelected:true,contacts:{create:{name:'Person',email:'person@example.test',isPrimary:true}}},include:{contacts:true}});
+   const other=await tx.prospect.create({data:{placeId:'other-'+suffix,name:'Other',contacts:{create:{email:'other@example.test'}}},include:{contacts:true}});
+   const person=company.contacts[0];
+   await S.addMembership(scope,a.id,company.id); await S.addMembership(scope,b.id,company.id);
+   assert.equal(await tx.productRecipient.count(),0);
+   await S.saveRecipientChoices(scope,{productId:a.id,prospectId:company.id,contactIds:[person.id]});
+   await S.saveRecipientChoices(scope,{productId:b.id,prospectId:company.id,chooseInbox:true});
+   await S.saveRecipientChoices(scope,{productId:b.id,prospectId:company.id});
+   assert.equal(await tx.productRecipient.count({where:{productId:a.id,selected:true}}),1);
+   assert.equal(await tx.productRecipient.count({where:{productId:b.id,selected:true}}),0);
+   assert.equal((await tx.contact.findUnique({where:{id:person.id}})).isPrimary,true);
+   assert.equal((await tx.prospect.findUnique({where:{id:company.id}})).emailInboxSelected,true);
+   await assert.rejects(S.saveRecipientChoices(scope,{productId:b.id,prospectId:company.id,contactIds:[other.contacts[0].id]}),/Contact does not belong/);
+   await assert.rejects(S.addMembership(scope,'unknown',company.id),/Unknown product/);
+   const seqA=await tx.productSequence.create({data:{productId:a.id,version:1,dayNumbers:[1,5,9,15],businessDaysOnly:false,approvedAt:new Date()}});
+   const seqB=await tx.productSequence.create({data:{productId:b.id,version:1,dayNumbers:[1,4,9,16,25],businessDaysOnly:true,approvedAt:new Date()}});
+   const A=require('../src/hoursback/crm/productActions.js');
+   const select=await A.handleProductPost(scope,{productId:b.id,action:'choices',form:{csrf:A.formToken(b.id),prospectId:company.id,inbox:'1'}});
+   assert.equal(select.status,200);assert.equal(select.refresh,true);
+   const selectedInbox=await tx.productRecipient.findFirst({where:{productId:b.id}});
+   assert.equal(await tx.productEnrollment.count({where:{recipientId:selectedInbox.id}}),1);
+   const clear=await A.handleProductPost(scope,{productId:b.id,action:'choices',form:{csrf:A.formToken(b.id),prospectId:company.id}});
+   assert.equal(clear.selected,0);
+   assert.equal((await tx.productRecipient.findUnique({where:{id:selectedInbox.id}})).selected,false);
+   const recipient=await tx.productRecipient.findFirst({where:{productId:a.id}});
+   await assert.rejects(S.enrollRecipient(scope,{productId:b.id,recipientId:recipient.id,sequenceId:seqB.id}),/must belong/);
+   await assert.rejects(S.enrollRecipient(scope,{productId:a.id,recipientId:recipient.id,sequenceId:seqB.id}),/must belong/);
+   const first=await S.enrollRecipient(scope,{productId:a.id,recipientId:recipient.id,sequenceId:seqA.id});
+   const again=await S.enrollRecipient(scope,{productId:a.id,recipientId:recipient.id,sequenceId:seqA.id});
+   assert.equal(first.id,again.id); assert.equal(first.state,'DRAFT');
+   const {saveProductDraft}=require('../src/hoursback/crm/productMessages.js');
+   const {productWorkspace,renderWorkspace}=require('../src/hoursback/crm/productWorkspace.js');
+   const draft={productId:a.id,enrollmentId:first.id,touch:1,subject:'A subject',body:'A body'};
+   await assert.rejects(saveProductDraft(scope,{...draft,productId:b.id}),/does not belong/);
+   await assert.rejects(saveProductDraft(scope,{...draft,touch:5}),/outside/);
+   await saveProductDraft(scope,{...draft,manual:true});
+   await assert.rejects(saveProductDraft(scope,{...draft,body:'Generated replacement'}),/manually edited/);
+   const viewA=await productWorkspace(tx,a.id);
+   const viewB=await productWorkspace(tx,b.id);
+   assert.equal(viewA.memberships[0].recipients[0].enrollments[0].messages[0].body,'A body');
+   assert.equal(viewB.memberships[0].recipients[0].enrollments[0].messages.length,0);
+   assert.equal(await tx.outreachMessage.count(),0,'new drafts must not enter legacy sender storage');
+   assert.match(renderWorkspace(viewA),/A body/);
+   assert.doesNotMatch(renderWorkspace(viewB),/A body/);
+   await tx.productEnrollment.update({where:{id:first.id},data:{state:'STARTED',startedAt:new Date()}});
+   await assert.rejects(saveProductDraft(scope,{...draft,manual:true}),/unstarted/);
+   await tx.productRecipient.update({where:{id:recipient.id},data:{repliedAt:new Date()}});
+   await assert.rejects(S.enrollRecipient(scope,{productId:a.id,recipientId:recipient.id,sequenceId:seqA.id}),/not eligible/);
+   throw new Error('ROLLBACK_FIXTURES');
+  },{timeout:20000});
+ } catch(e) {if(e.message!=='ROLLBACK_FIXTURES') throw e;}
+ finally {await db.$disconnect();}
+});
+
+test('database rejects cross-product enrollment even without the service',async()=> {
+ const isolated=new PrismaClient({datasources:{db:{url:'postgresql://postgres:test@localhost:55432/hoursback_test?schema=product_build_test'}}});
+ const suffix='constraint-'+Date.now();
+ try {
+  await assert.rejects(isolated.$transaction(async tx=>{
+   const a=await tx.cRMProduct.create({data:{id:'a-'+suffix,name:'A'}});
+   const b=await tx.cRMProduct.create({data:{id:'b-'+suffix,name:'B'}});
+   const p=await tx.prospect.create({data:{placeId:suffix,name:'Constraint fixture'}});
+   const membership=await tx.productProspect.create({data:{productId:a.id,prospectId:p.id}});
+   const recipient=await tx.productRecipient.create({data:{productId:a.id,membershipId:membership.id,recipientKey:'inbox',email:'office@example.test'}});
+   const sequence=await tx.productSequence.create({data:{productId:b.id,version:1,dayNumbers:[1],businessDaysOnly:true}});
+   await tx.productEnrollment.create({data:{productId:a.id,recipientId:recipient.id,sequenceId:sequence.id}});
+  }),error=>error.code==='P2003');
+  assert.equal(await isolated.cRMProduct.count({where:{id:{in:['a-'+suffix,'b-'+suffix]}}}),0,'this test’s fixtures must roll back independently of concurrent tests');
+ } finally {await isolated.$disconnect();}
+});

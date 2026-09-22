@@ -6,7 +6,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
   if (match) process.env[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
 }
 const { PrismaClient } = require('@prisma/client');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const versionArg = process.argv.find((value) => value.startsWith('--reader-version='));
 const version = versionArg && versionArg.slice('--reader-version='.length);
 if (!version) throw new Error('Specify --reader-version=...');

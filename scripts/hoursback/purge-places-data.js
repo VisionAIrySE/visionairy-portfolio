@@ -31,7 +31,7 @@ try {
 (async () => {
   const { PrismaClient } = require('@prisma/client');
   const R = require('../../src/hoursback/registryFile.js');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const dry = process.argv.includes('--dry-run');
 
   // The free public register: a name found here is not Google's.

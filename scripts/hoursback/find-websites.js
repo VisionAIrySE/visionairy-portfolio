@@ -172,7 +172,7 @@ async function tryHost(host) {
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const sample = Number(arg('sample', 0));
   const limit = sample || Number(arg('limit', 200));
   const dry = process.argv.includes('--dry-run') || Boolean(sample);

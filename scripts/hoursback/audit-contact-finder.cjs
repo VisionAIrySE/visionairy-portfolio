@@ -11,7 +11,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
 }
 const { PrismaClient } = require('@prisma/client');
 const { plausiblePersonName, obviousWebsiteRecipientLabel } = require('../../src/hoursback/crm/names.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const businessId = (process.argv.find((arg) => arg.startsWith('--business-id=')) || '').slice(14);
 const readerVersion = (process.argv.find((arg) => arg.startsWith('--reader-version=')) || '').slice(17);
 const strict = process.argv.includes('--strict');

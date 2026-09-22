@@ -65,7 +65,7 @@ function domainOf(value) {
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   if (REPORT.includes(REFUSED)) {
     console.error(`refusing to act on ${REFUSED} — it was wrong about at least 26 of the 66.`);

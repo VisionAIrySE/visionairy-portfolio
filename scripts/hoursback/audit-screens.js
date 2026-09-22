@@ -11,7 +11,7 @@ const { PrismaClient } = require('@prisma/client');
 const L = require('../../src/hoursback/crm/lanes.js');
 const Q = require('../../src/hoursback/crm/queues.js');
 (async () => {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const problems = [];
   const say = (label, n) => console.log(`  ${String(n).padStart(6)}  ${label}`);
 

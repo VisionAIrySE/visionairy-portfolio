@@ -11,7 +11,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
 }
 const { PrismaClient } = require('@prisma/client');
 const { plausiblePersonName } = require('../../src/hoursback/crm/names.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const EINSTEIN_ID = 'cmt956rje02yet7s79q86at0c';
 const CREATED_FROM = new Date('2026-08-31T22:23:42.000Z');
 const CREATED_TO = new Date('2026-08-31T22:24:03.000Z');

@@ -144,7 +144,7 @@ async function markIt(db, prospect, reasons) {
 }
 
 async function main() {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const tally = {
     acquired: 0, no_working_website: 0, page_is_not_theirs: 0, name_is_a_page_title: 0,
   };

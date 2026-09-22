@@ -43,7 +43,7 @@ const PAGES = 8;
 // began a real run that touched 78 records before it was killed.
 if (require.main === module) (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   // The 645 he can email — the ones closest to earning money.
   const rows = await db.prospect.findMany({

@@ -82,7 +82,7 @@ Judge what the business IS, not what words appear. A firm of accountants that me
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   let done = [];
   try { done = JSON.parse(fs.readFileSync(SEEN, 'utf8')); } catch { done = []; }

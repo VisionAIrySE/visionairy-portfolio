@@ -26,7 +26,7 @@ const limit = Math.min(50, Math.max(1, Number(value('limit', '50'))));
 const expected = Number(value('expected-count', '0'));
 const spendingCeiling = Number(value('spending-ceiling', '0'));
 const doIt = process.argv.includes('--do-it');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 async function run(script, args) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
@@ -111,7 +111,7 @@ async function targets() {
     });
     console.log(`Evidence model cost: $${finder.spent.toFixed(4)}; wording model cost: $${writer.spent.toFixed(4)}; approved total ceiling: $${spendingCeiling.toFixed(2)}.`);
     if (result.code) process.exitCode = result.code;
-    const verifyDb = new PrismaClient();
+    const verifyDb = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
     try {
       const readyIds = await verifyDb.$transaction(async (tx) => {
         await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');

@@ -27,7 +27,7 @@ const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const { makeReaderPool } = require('../../src/hoursback/readerPool.js');
 const { claimTheMachine } = require('../../src/hoursback/onlyOneCopy.js');
 
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const arg = (n, d) => { const h = process.argv.find((a) => a.startsWith(`--${n}=`)); return h ? h.split('=')[1] : d; };
 const DO_IT = process.argv.includes('--do-it');
 const LIMIT = Number(arg('limit', 0)) || 0;

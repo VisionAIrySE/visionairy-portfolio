@@ -72,7 +72,7 @@ Answer null unless you are sure. A wrong name goes out on a letter and cannot be
 (async () => {
   const { PrismaClient } = require('@prisma/client');
   const { setOverride } = require('../../src/hoursback/overrides.js');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   const rows = await db.prospect.findMany({
     where: { doNotContact: false, OR: [{ email: { not: null } }, { phone: { not: null } }] },

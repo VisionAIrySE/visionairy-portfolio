@@ -303,7 +303,7 @@ async function visitWithBrowser(db, r, deps = {}) {
 // ---------------------------------------------------------------------------
 if (require.main === module) (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   // The batch ceiling holds whatever was asked for. Standing order.
   const takeAtMost = Math.min(LIMIT || BATCH_OF_SITES, BATCH_OF_SITES);

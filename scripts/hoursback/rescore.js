@@ -26,7 +26,7 @@ const { signalsFor } = require('../../src/hoursback/refresh.js');
 (async () => {
   const { PrismaClient } = require('@prisma/client');
   const { scoreAutomationFit } = require('../../src/hoursback/scoring.js');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const dryRun = process.argv.includes('--dry-run');
 
   const all = await db.prospect.findMany({

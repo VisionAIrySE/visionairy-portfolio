@@ -20,7 +20,7 @@ const { runMonthlyTopUp, requireApiKey } = require('../../src/hoursback/places.j
 (async () => {
   try {
     requireApiKey();
-    const db = new PrismaClient();
+    const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
     const run = await runMonthlyTopUp({ db });
     console.log(`monthly top-up done: ${run.placesInserted} new of ${run.placesSeen} seen, cells ${run.cellsCompleted}/${run.cellsAttempted}`);
     await db.$disconnect();

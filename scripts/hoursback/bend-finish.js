@@ -6,7 +6,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
 }
 const { PrismaClient } = require('@prisma/client');
 const { REGIONAL_CELLS, createPlacesClient, googleFetchPage, runRegionalCapture } = require('../../src/hoursback/places.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 let requests = 0;
 const client = createPlacesClient({
   fetchPage: async (cell, token) => {

@@ -11,7 +11,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
 }
 const { PrismaClient } = require('@prisma/client');
 const { scoreFor, ownerCountsFor } = require('../../src/hoursback/refresh.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const BUSINESS_ID = 'cmt956rje02yet7s79q86at0c';
 
 (async () => {

@@ -13,7 +13,7 @@
 // Prints ids, comma-separated, and nothing else.
 const { PrismaClient } = require('@prisma/client');
 const N = require('../../src/hoursback/crm/noticing.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 (async () => {
   const readable = (await db.reading.groupBy({ by: ['prospectId'], where: { pages: { some: {} } } }))
     .map((r) => r.prospectId);

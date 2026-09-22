@@ -27,7 +27,7 @@ const say = (s) => { console.log(s); lines.push(s); };
   const { PrismaClient } = require('@prisma/client');
   const L = require('../../src/hoursback/crm/lanes.js');
   const { BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   // The template Russ approves is the SHAPE plus the sentences. Saving it here
   // is what makes the approve button come back after a rewrite.

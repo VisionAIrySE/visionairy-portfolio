@@ -27,7 +27,7 @@ const C = require('../../src/hoursback/crm/campaign.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const L = require('../../src/hoursback/crm/lanes.js');
 
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const SHOW = Number((process.argv.find((a) => a.startsWith('--show=')) || '').split('=')[1]
   || (process.argv.includes('--show') ? 3 : 0));
 const READER_VERSION = String((process.argv.find((a) => a.startsWith('--reader-version=')) || '').split('=')[1] || '').trim();

@@ -144,7 +144,7 @@ Say "cannot_tell" when the site is too thin to judge, or when it could honestly 
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   const flagged = [...fs.readFileSync(FROM, 'utf8').matchAll(/id: `([a-z0-9]+)`/g)].map((m) => m[1]);
   let done = [];

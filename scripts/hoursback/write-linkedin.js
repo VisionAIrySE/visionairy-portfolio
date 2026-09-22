@@ -27,7 +27,7 @@ const arg = (n, d) => {
 const LIMIT = Number(arg('limit', 0)) || 0;
 
 async function main() {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   try {
     await C.loadHisWordings(db);
     // ONLY THE ONES A NOTE CAN ACTUALLY REACH. The first run walked all 32,739

@@ -60,7 +60,7 @@ const arg = (name, fallback) => {
   const { PrismaClient } = require('@prisma/client');
   const R = require('../../src/hoursback/registryFile.js');
   const { tradeOf } = require('../../src/hoursback/crm/queues.js');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const dry = process.argv.includes('--dry-run');
   const limit = Number(arg('limit', 0)) || Infinity;
 

@@ -15,7 +15,7 @@ try {
 
 const { PrismaClient } = require('@prisma/client');
 const { dailySendRun } = require('../../src/hoursback/crm/scheduler.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const messageIds = process.env.HOURSBACK_MESSAGE_IDS
   ? process.env.HOURSBACK_MESSAGE_IDS.split(',').map((id) => id.trim()).filter(Boolean)
   : null;

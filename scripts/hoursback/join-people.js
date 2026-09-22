@@ -31,7 +31,7 @@ const SHOW = Number((process.argv.find((a) => a.startsWith('--show=')) || '--sho
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   // Only businesses actually being worked. Scoped to everything on file this
   // would have created 30,625 people rows across the whole state register —

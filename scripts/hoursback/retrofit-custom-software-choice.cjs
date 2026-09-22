@@ -11,7 +11,7 @@ const { PrismaClient } = require('@prisma/client');
 const C = require('../../src/hoursback/crm/campaign.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const { pick } = require('../../src/hoursback/crm/variants.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const DO_IT = process.argv.includes('--do-it');
 const SHOW_SKIPPED = process.argv.includes('--show-skipped');
 

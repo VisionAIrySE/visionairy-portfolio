@@ -1,0 +1,934 @@
+{
+  "productId": "stockerai",
+  "sourceDate": "2026-06-30",
+  "source": "Russ supplied operator target list",
+  "note": "Import preview only. Supplied assertions are not newly verified website evidence. No company or recipient has been imported or selected.",
+  "operators": [
+    {
+      "sourceRow": 1,
+      "name": "DP Vending LLC",
+      "location": "Aurora/Denver, CO",
+      "suppliedFit": "mid, likely fits",
+      "website": "https://dpvendingllc.com",
+      "suppliedContact": "info@dpvendingllc.com · 888-996-0638",
+      "candidateEmails": [
+        "info@dpvendingllc.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 2,
+      "name": "Denver's Best Vending",
+      "location": "Denver, CO",
+      "suppliedFit": "small, low end",
+      "website": "https://denversbestvending.com",
+      "suppliedContact": "Stephen@DenversBestVending.com · 720-338-5570",
+      "candidateEmails": [
+        "stephen@denversbestvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 3,
+      "name": "Vending Services, LLC",
+      "location": "Charlotte, NC",
+      "suppliedFit": "fits",
+      "website": "https://vendsvs.com",
+      "suppliedContact": "jeremiah@vendsvs.com · 704-921-6344",
+      "candidateEmails": [
+        "jeremiah@vendsvs.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 4,
+      "name": "Advanced Vending Solutions",
+      "location": "Charlotte, NC",
+      "suppliedFit": "upper end (est. 1979)",
+      "website": "https://advancedvending.com",
+      "suppliedContact": "jerad@advancedvending.com · 704-651-9268",
+      "candidateEmails": [
+        "jerad@advancedvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 5,
+      "name": "Smoky Mountain Vending",
+      "location": "Nashville, TN",
+      "suppliedFit": "fits, upper",
+      "website": "https://smokymountainvending.com",
+      "suppliedContact": "info@smokymountainvending.com · 615-348-8139",
+      "candidateEmails": [
+        "info@smokymountainvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 6,
+      "name": "A-Z Vendors LLC",
+      "location": "Nashville, TN",
+      "suppliedFit": "fits",
+      "website": "https://theazvendors.com",
+      "suppliedContact": "contact page · 629-203-3862",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 7,
+      "name": "Vending Unlimited",
+      "location": "Columbus, OH",
+      "suppliedFit": "fits, upper (est. 1994)",
+      "website": "https://vendingohio.com",
+      "suppliedContact": "Sales@vendingohio.com · 614-444-5454",
+      "candidateEmails": [
+        "sales@vendingohio.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 8,
+      "name": "Triple Play Vending",
+      "location": "Indianapolis, IN",
+      "suppliedFit": "fits",
+      "website": "https://tripleplayvending.com",
+      "suppliedContact": "rharrison@tripleplayvending.com · 317-446-8068",
+      "candidateEmails": [
+        "rharrison@tripleplayvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 9,
+      "name": "Lamont's Vending",
+      "location": "Kansas City, MO",
+      "suppliedFit": "fits",
+      "website": "https://lamontsvending.com",
+      "suppliedContact": "contact page",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 10,
+      "name": "Quality Vending & Coffee",
+      "location": "Kansas City, MO",
+      "suppliedFit": "fits, upper",
+      "website": "https://qualityvendingkc.com",
+      "suppliedContact": "contact page · 816-436-7377",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 11,
+      "name": "Vendo Snacks",
+      "location": "Tampa, FL",
+      "suppliedFit": "fits, low-mid (est. 2022)",
+      "website": "https://vendo-snacks.com",
+      "suppliedContact": "info@vendo-snacks.com · 813-454-3222",
+      "candidateEmails": [
+        "info@vendo-snacks.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 12,
+      "name": "Drapalla Vending",
+      "location": "San Antonio, TX",
+      "suppliedFit": "upper (est. 1975)",
+      "website": "https://drapalla.com",
+      "suppliedContact": "contact page · 210-366-0990",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 13,
+      "name": "2 Kings Vending",
+      "location": "San Antonio, TX",
+      "suppliedFit": "low end",
+      "website": "https://2kingssanantoniovending.com",
+      "suppliedContact": "twookingsvending@gmail.com · 210-215-8351",
+      "candidateEmails": [
+        "twookingsvending@gmail.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 14,
+      "name": "5K Vending",
+      "location": "San Antonio, TX",
+      "suppliedFit": "low-mid",
+      "website": "https://5kvending.com",
+      "suppliedContact": "phone: 210-441-2106",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 15,
+      "name": "Royal ReFresh",
+      "location": "Tualatin/Portland, OR",
+      "suppliedFit": "fits, growing",
+      "website": "https://getroyalrefresh.com",
+      "suppliedContact": "info@getroyalrefresh.com · 503-704-9759",
+      "candidateEmails": [
+        "info@getroyalrefresh.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 16,
+      "name": "Smitty's Vending",
+      "location": "Portland, OR",
+      "suppliedFit": "fits (est. 1976)",
+      "website": "https://smittysvending.com",
+      "suppliedContact": "phone 503-233-6000",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 17,
+      "name": "Precision Vending",
+      "location": "Tacoma, WA",
+      "suppliedFit": "upper (~100 loc)",
+      "website": "https://precisionvendingnw.com",
+      "suppliedContact": "manager@precisionvendingnw.com · 253-229-7047",
+      "candidateEmails": [
+        "manager@precisionvendingnw.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 18,
+      "name": "Vista Vending",
+      "location": "Auburn/Seattle, WA",
+      "suppliedFit": "fits",
+      "website": "https://vistavendingnw.com",
+      "suppliedContact": "service@vistavendingnw.com · 253-592-2843",
+      "candidateEmails": [
+        "service@vistavendingnw.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 19,
+      "name": "Tassi Vending",
+      "location": "Seattle, WA",
+      "suppliedFit": "fits (25+ yrs)",
+      "website": "https://tassivending.com",
+      "suppliedContact": "badr@tassivending.com · 206-240-0755",
+      "candidateEmails": [
+        "badr@tassivending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 20,
+      "name": "Evergreen Refreshments",
+      "location": "Tukwila, WA",
+      "suppliedFit": "upper (4 branches)",
+      "website": "https://evergreenrefreshments.com",
+      "suppliedContact": "SEAsupport@evergreenrefreshments.com · 206-242-5700",
+      "candidateEmails": [
+        "seasupport@evergreenrefreshments.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 21,
+      "name": "Premier Breakroom Solutions",
+      "location": "Auburn WA / Wilsonville OR",
+      "suppliedFit": "fits",
+      "website": "https://premierbreakroomsolutions.com",
+      "suppliedContact": "admin@premierbreakroomsolutions.com · 253-204-4616",
+      "candidateEmails": [
+        "admin@premierbreakroomsolutions.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 22,
+      "name": "Viola Vending",
+      "location": "Lakewood/Denver, CO",
+      "suppliedFit": "fits (small)",
+      "website": "https://violavending.com",
+      "suppliedContact": "jviolavending@gmail.com · 720-432-3448",
+      "candidateEmails": [
+        "jviolavending@gmail.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 23,
+      "name": "Dove Vending",
+      "location": "Denver, CO",
+      "suppliedFit": "fits (est. 1987)",
+      "website": "https://dovevending.com",
+      "suppliedContact": "andrea@dovevending.com · 303-233-3118",
+      "candidateEmails": [
+        "andrea@dovevending.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 24,
+      "name": "AmeriTex Vending",
+      "location": "Dallas–Fort Worth, TX",
+      "suppliedFit": "fits (est. 1987)",
+      "website": "https://ameritexvending.com",
+      "suppliedContact": "info@ameritexvending.com · 972-572-5200",
+      "candidateEmails": [
+        "info@ameritexvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 25,
+      "name": "Vending Source",
+      "location": "DFW + East TX",
+      "suppliedFit": "fits",
+      "website": "https://vendingsource.net",
+      "suppliedContact": "phone 972-287-5856",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 26,
+      "name": "Executive Refreshments",
+      "location": "Farmers Branch, TX",
+      "suppliedFit": "upper (100+ emp)",
+      "website": "https://executiverefreshments.com",
+      "suppliedContact": "customercare@executiverefreshments.com · 214-696-0205",
+      "candidateEmails": [
+        "customercare@executiverefreshments.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 27,
+      "name": "Delio Vending & Coffee",
+      "location": "Carrollton, TX",
+      "suppliedFit": "upper (enterprise)",
+      "website": "https://deliotx.com",
+      "suppliedContact": "contact page · 614-716-9068",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 28,
+      "name": "TGL Vending",
+      "location": "Dallas, TX",
+      "suppliedFit": "fits (smaller)",
+      "website": "https://tglvending.com",
+      "suppliedContact": "jeremy@tglvending.com · 214-477-6195",
+      "candidateEmails": [
+        "jeremy@tglvending.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 29,
+      "name": "Dalworth Vending",
+      "location": "Dallas/FW, TX",
+      "suppliedFit": "fits (est. 1995)",
+      "website": "https://dalworthvending.com",
+      "suppliedContact": "larrytidwell@dalworthvendingservice.com · 214-675-4013",
+      "candidateEmails": [
+        "larrytidwell@dalworthvendingservice.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 30,
+      "name": "Premier Vending & Food",
+      "location": "Tempe/Phoenix, AZ",
+      "suppliedFit": "fits (est. 1982)",
+      "website": "https://premiervendinginc.com",
+      "suppliedContact": "contact page · 480-961-3969",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 31,
+      "name": "Southwest Refreshments",
+      "location": "Phoenix/Scottsdale, AZ",
+      "suppliedFit": "fits",
+      "website": "https://southwestvending.com",
+      "suppliedContact": "contact page · 623-780-3036",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 32,
+      "name": "Larsen Vending",
+      "location": "Glendale/Phoenix, AZ",
+      "suppliedFit": "fits (family)",
+      "website": "https://larsenvending.com",
+      "suppliedContact": "dlarsen@larsenvending.com · 602-257-8727",
+      "candidateEmails": [
+        "dlarsen@larsenvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 33,
+      "name": "Tomdra",
+      "location": "Tucson/Phoenix, AZ",
+      "suppliedFit": "fits, upper-mid",
+      "website": "https://tomdra.com",
+      "suppliedContact": "info@tomdra.com · 520-887-0155",
+      "candidateEmails": [
+        "info@tomdra.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 34,
+      "name": "Prestige Vending",
+      "location": "Tucson, AZ",
+      "suppliedFit": "fits",
+      "website": "https://prestigevendingaz.com",
+      "suppliedContact": "contact page · 520-882-3902",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 35,
+      "name": "Georgia Vending Services",
+      "location": "Alpharetta/Atlanta, GA",
+      "suppliedFit": "upper (3 offices)",
+      "website": "https://georgiavendingservices.com",
+      "suppliedContact": "info@georgiavendingservices.com · 770-442-1186",
+      "candidateEmails": [
+        "info@georgiavendingservices.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 36,
+      "name": "Shields' Vending",
+      "location": "Atlanta/Marietta, GA",
+      "suppliedFit": "small (maybe <5)",
+      "website": "https://shieldsatlantavending.com",
+      "suppliedContact": "shieldsvendingservices@gmail.com · 678-697-3357",
+      "candidateEmails": [
+        "shieldsvendingservices@gmail.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 37,
+      "name": "Cobb County Vending (M&M)",
+      "location": "Marietta, GA",
+      "suppliedFit": "fits",
+      "website": "https://cobbcountyvending.com",
+      "suppliedContact": "support@cobbcountyvending.com · 678-787-9057",
+      "candidateEmails": [
+        "support@cobbcountyvending.com"
+      ],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 38,
+      "name": "VendDaddy",
+      "location": "Marietta GA / AL",
+      "suppliedFit": "fits",
+      "website": "https://venddaddy.com",
+      "suppliedContact": "contact form",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 39,
+      "name": "Vend Force",
+      "location": "Tampa/Orlando, FL",
+      "suppliedFit": "fits (6 yrs)",
+      "website": "https://vendforce.net",
+      "suppliedContact": "service@vendforce.net · 407-922-0666",
+      "candidateEmails": [
+        "service@vendforce.net"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 40,
+      "name": "The Vending Station",
+      "location": "Orlando, FL",
+      "suppliedFit": "upper (est. 1995)",
+      "website": "https://thevendingstation.com",
+      "suppliedContact": "service@thevendingstation.com · 407-891-7632",
+      "candidateEmails": [
+        "service@thevendingstation.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 41,
+      "name": "FreshVendCLT",
+      "location": "Charlotte, NC",
+      "suppliedFit": "small/owner-run",
+      "website": "https://freshvendclt.com",
+      "suppliedContact": "contact page · 704-323-6833",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 42,
+      "name": "Alison Vending",
+      "location": "Winston-Salem, NC",
+      "suppliedFit": "upper (30+ yrs)",
+      "website": "https://alisonvendingservice.com",
+      "suppliedContact": "emilieryce@alisonvendingservice.com · 336-715-1577",
+      "candidateEmails": [
+        "emilieryce@alisonvendingservice.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 43,
+      "name": "Tosti Vending",
+      "location": "Garner/Raleigh, NC",
+      "suppliedFit": "fits (50 yrs)",
+      "website": "https://tostivending.com",
+      "suppliedContact": "info@tostivending.com · 919-772-6674",
+      "candidateEmails": [
+        "info@tostivending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 44,
+      "name": "Colonial Vendors",
+      "location": "Danville, VA",
+      "suppliedFit": "BULLSEYE (5 routes, 7 emp)",
+      "website": null,
+      "suppliedContact": "via VMW profile / phone",
+      "candidateEmails": [],
+      "suppliedConfidence": "thin",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 45,
+      "name": "Surpass Refreshments",
+      "location": "Fort Myers, FL",
+      "suppliedFit": "BULLSEYE (4 routes, 10 emp)",
+      "website": "https://surpassrefreshments.com",
+      "suppliedContact": "info@surpassrefreshments.com · 239-898-0582",
+      "candidateEmails": [
+        "info@surpassrefreshments.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 46,
+      "name": "Metro One Vending",
+      "location": "Atlanta, GA",
+      "suppliedFit": "fits",
+      "website": "https://metroonevending.com",
+      "suppliedContact": "info@metroonevending.com · 404-736-1007",
+      "candidateEmails": [
+        "info@metroonevending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 47,
+      "name": "City Vending Co.",
+      "location": "Fort Worth, TX",
+      "suppliedFit": "fits (3rd-gen, 1961)",
+      "website": "https://cityvending.net",
+      "suppliedContact": "jas@cityvending.net · 817-335-5592",
+      "candidateEmails": [
+        "jas@cityvending.net"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 48,
+      "name": "Assured Vending (AVS)",
+      "location": "Dallas/FW, TX",
+      "suppliedFit": "fits, upper",
+      "website": "https://assuredvending.com",
+      "suppliedContact": "info@assured-vending.com · 817-308-3398",
+      "candidateEmails": [
+        "info@assured-vending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 49,
+      "name": "Mountain & Plains Vending",
+      "location": "Aurora/Denver, CO",
+      "suppliedFit": "fits (family, 1995)",
+      "website": "https://mountainplainsvending.com",
+      "suppliedContact": "contact page · 720-934-7381",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 50,
+      "name": "Global Vending Service",
+      "location": "Lake Worth, FL",
+      "suppliedFit": "fits (2 branches)",
+      "website": "https://globalvendingservice.com",
+      "suppliedContact": "info@globalvendingservice.com · 877-499-8363",
+      "candidateEmails": [
+        "info@globalvendingservice.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 51,
+      "name": "Hometown Vending",
+      "location": "Magnolia, TX",
+      "suppliedFit": "fits (family)",
+      "website": "https://hometownvending.com",
+      "suppliedContact": "phone 281-305-8363",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 52,
+      "name": "Trolley House Refreshments",
+      "location": "Richmond, VA",
+      "suppliedFit": "fits, upper",
+      "website": "https://trolleyhouseva.com",
+      "suppliedContact": "contact@trolleyhouseva.com · 804-355-1550",
+      "candidateEmails": [
+        "contact@trolleyhouseva.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 53,
+      "name": "Riverside Refreshments",
+      "location": "Augusta, GA",
+      "suppliedFit": "fits, upper",
+      "website": "https://riversiderefreshments.com",
+      "suppliedContact": "info@riversiderefreshments.com · 706-793-2723",
+      "candidateEmails": [
+        "info@riversiderefreshments.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 54,
+      "name": "Felco Vending",
+      "location": "Chicago, IL",
+      "suppliedFit": "fits (150+ loc)",
+      "website": "https://felcovending.com",
+      "suppliedContact": "contact form · 630-871-0005",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 55,
+      "name": "Fox Vending",
+      "location": "Chicago, IL",
+      "suppliedFit": "fits (est. 1962)",
+      "website": "https://foxvending.com",
+      "suppliedContact": "contact page · 800-694-2800",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 56,
+      "name": "M&P Vending",
+      "location": "Chicago, IL",
+      "suppliedFit": "fits (est. 1963)",
+      "website": "https://mandpvending.net",
+      "suppliedContact": "contact page · 773-777-7997",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 57,
+      "name": "Pavlic Vending",
+      "location": "Milwaukee, WI",
+      "suppliedFit": "fits (est. 1947)",
+      "website": "https://pavlicvending.com",
+      "suppliedContact": "contact page · phone",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 58,
+      "name": "Cream City Vendors",
+      "location": "Waukesha/Milwaukee, WI",
+      "suppliedFit": "fits (small)",
+      "website": "https://creamcityvendors.com",
+      "suppliedContact": "creamcityvendors@gmail.com · 262-666-4653",
+      "candidateEmails": [
+        "creamcityvendors@gmail.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 59,
+      "name": "Express Snacks",
+      "location": "West Allis, WI",
+      "suppliedFit": "small (est. 2019)",
+      "website": "https://express-snacks.com",
+      "suppliedContact": "contact@express-snacks.com · 414-979-1642",
+      "candidateEmails": [
+        "contact@express-snacks.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 60,
+      "name": "Imperial Vending",
+      "location": "Cleveland, OH",
+      "suppliedFit": "fits",
+      "website": "https://imperialvendingco.com",
+      "suppliedContact": "info@imperialvendingco.com · 440-816-0300",
+      "candidateEmails": [
+        "info@imperialvendingco.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 61,
+      "name": "Cincy Vending",
+      "location": "Cincinnati, OH",
+      "suppliedFit": "fits (est. 1984)",
+      "website": "https://cincyvending.com",
+      "suppliedContact": "cincyvending@cincyvending.com · 513-260-3380",
+      "candidateEmails": [
+        "cincyvending@cincyvending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 62,
+      "name": "Good Vending Company",
+      "location": "Columbus, OH",
+      "suppliedFit": "fits (small)",
+      "website": "https://goodvendingcompany.com",
+      "suppliedContact": "info@goodvendingcompany.com",
+      "candidateEmails": [
+        "info@goodvendingcompany.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 63,
+      "name": "DeLuca Food Service",
+      "location": "Columbus/SE Ohio",
+      "suppliedFit": "fits (regional)",
+      "website": "https://delucavending.com",
+      "suppliedContact": "contact page · 740-856-1327",
+      "candidateEmails": [],
+      "suppliedConfidence": "likely",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 64,
+      "name": "Pro Vending Services",
+      "location": "Baltimore, MD",
+      "suppliedFit": "upper (~490 mach)",
+      "website": "https://provendingservices.com",
+      "suppliedContact": "contact page · 410-607-8363",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 65,
+      "name": "Service 1st Vending",
+      "location": "Baltimore, MD",
+      "suppliedFit": "upper (~500 mach)",
+      "website": "https://service1stvending.com",
+      "suppliedContact": "directory only",
+      "candidateEmails": [],
+      "suppliedConfidence": "thin",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 66,
+      "name": "River Vending",
+      "location": "Newburgh, NY",
+      "suppliedFit": "upper (Pepsi-affil)",
+      "website": "https://rivervending.com",
+      "suppliedContact": "customerservice@river-vending.com · 845-562-5400",
+      "candidateEmails": [
+        "customerservice@river-vending.com"
+      ],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 67,
+      "name": "Balanced Vending",
+      "location": "Brooklyn, NY",
+      "suppliedFit": "fits",
+      "website": "https://balancedvending.com",
+      "suppliedContact": "directory only",
+      "candidateEmails": [],
+      "suppliedConfidence": "thin",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 68,
+      "name": "Sheehan Brothers",
+      "location": "Springfield, OH",
+      "suppliedFit": "upper (tri-state)",
+      "website": "https://sheehanvending.com",
+      "suppliedContact": "phone 937-325-2357",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 69,
+      "name": "Vendco Vending",
+      "location": "Houston, TX",
+      "suppliedFit": "fits (35+ yrs)",
+      "website": "https://vendcovending.com",
+      "suppliedContact": "contact page",
+      "candidateEmails": [],
+      "suppliedConfidence": "thin",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    },
+    {
+      "sourceRow": 70,
+      "name": "Mcliff Coffee + Vending",
+      "location": "Austin, TX",
+      "suppliedFit": "upper (5 offices)",
+      "website": "https://mcliff.com",
+      "suppliedContact": "phone 512-441-8424",
+      "candidateEmails": [],
+      "suppliedConfidence": "verified",
+      "researchStatus": "NOT_RESEARCHED_BY_THIS_BUILD",
+      "recipientSelected": false
+    }
+  ]
+}

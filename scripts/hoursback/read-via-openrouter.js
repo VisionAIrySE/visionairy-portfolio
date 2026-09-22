@@ -129,7 +129,7 @@ if (require.main === module) (async () => {
   }
 
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   const noSite = { AND: [{ website: null }, { websiteManualValue: null }] };
   const REVIEW = process.argv.includes('--review');

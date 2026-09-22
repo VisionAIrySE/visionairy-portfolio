@@ -159,7 +159,7 @@ async function walkTrades({ queues, atOnce, doOne, onBusinessError }) {
 const progress = { done: 0, total: 0 };
 
 async function noticingRun(injected = {}) {
-  const db = injected.db || new PrismaClient();
+  const db = injected.db || require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const look = injected.look ?? LOOK;
   const ids = injected.ids ?? IDS;
   const since = injected.since ?? SINCE;

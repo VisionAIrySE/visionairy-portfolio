@@ -13,7 +13,7 @@ const L = require('../../src/hoursback/crm/lanes.js');
 const { BODY, SUBJECTS } = require('../../src/hoursback/crm/firstContact.js');
 
 async function main() {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   try {
     // The saved copy follows the code. Changing it un-approves it, which is
     // the point: Russ reads the real words before anything goes out.

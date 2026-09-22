@@ -98,7 +98,7 @@ function runOneRound() {
 
 (async () => {
   fs.writeFileSync(LOG, '');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   // WAIT FOR ANYTHING ALREADY READING. Two readers at once overloaded the
   // machine one night and both got slower. Only ever one.

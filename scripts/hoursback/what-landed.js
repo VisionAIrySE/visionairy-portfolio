@@ -25,7 +25,7 @@ const SINCE_HOURS = Number(arg('since', 0));
 
 (async () => {
   const { PrismaClient } = require('@prisma/client');
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
   const noSite = { AND: [{ website: null }, { websiteManualValue: null }] };
   const where = {

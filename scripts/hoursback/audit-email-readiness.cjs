@@ -17,7 +17,7 @@ const isUsable = (message) => usableState.has(message.state) && message.delivery
 const isFirst = (message) => L.isFirstContactMessage(message);
 
 (async () => {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   if (ONLY && DETAILS) {
     const matches = await db.prospect.findMany({
       where: onlyCompany,

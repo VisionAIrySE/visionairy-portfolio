@@ -20,7 +20,7 @@ const NO_SPENDING_LIMIT = process.argv.includes('--no-spending-limit');
 const { spendingChoice } = require('../../src/hoursback/spendingChoice.js');
 const finderCeiling = spendingChoice(process.argv, 'finder-ceiling');
 const evidenceWriterCeiling = spendingChoice(process.argv, 'evidence-writer-ceiling');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const finder = makeOpenRouterPool({
   model: 'google/gemini-3.1-flash-lite', apiKey: process.env.OPENROUTER_API_KEY,
   ceilingUsd: finderCeiling,

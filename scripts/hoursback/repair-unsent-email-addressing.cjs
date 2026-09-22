@@ -13,7 +13,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
 const { PrismaClient, Prisma } = require('@prisma/client');
 const { emailFields } = require('../../src/hoursback/crm/emailText.js');
 const L = require('../../src/hoursback/crm/lanes.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const normalize = (value) => String(value || '').trim().toLowerCase();
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

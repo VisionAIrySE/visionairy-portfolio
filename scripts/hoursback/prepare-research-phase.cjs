@@ -11,7 +11,7 @@ for (const line of fs.readFileSync(path.resolve(__dirname, '../../.env'), 'utf8'
   }
 }
 const { PrismaClient } = require('@prisma/client');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const value = (name, fallback = '') => {
   const found = process.argv.find((arg) => arg.startsWith(`--${name}=`));
   return found ? found.slice(name.length + 3) : fallback;

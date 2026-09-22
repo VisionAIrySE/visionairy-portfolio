@@ -9,7 +9,7 @@
 // and it does not come round again (2026-09-04).
 const { PrismaClient } = require('@prisma/client');
 const R = require('../../src/hoursback/readings.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 
 // The three things our own reader says when it gave us nothing. Kept in step
 // with understand-businesses.js.

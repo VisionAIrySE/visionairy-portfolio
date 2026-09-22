@@ -7,7 +7,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
 }
 const { PrismaClient } = require('@prisma/client');
 const R = require('../../src/hoursback/readings.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const readerFailureNotes = [
   'THE READER IS OUT OF ALLOWANCE — the run stops here; this business was cut off, not read',
   'the run could not get a single answer from the reader in its first tries — stopped as broken, not as thousands of thin websites',

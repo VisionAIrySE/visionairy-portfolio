@@ -69,7 +69,7 @@ async function savePeople(db, prospectId, people, businessTown = null) {
 }
 
 async function main() {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   const started = Date.now();
   let done = 0, withPeople = 0, withPhones = 0, peopleSaved = 0, failed = 0;
   try {

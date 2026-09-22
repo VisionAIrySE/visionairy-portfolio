@@ -14,7 +14,7 @@ const { PrismaClient } = require('@prisma/client');
 const L = require('../../src/hoursback/crm/lanes.js');
 const J = require('../../src/hoursback/crm/judgeTheLetter.js');
 const C = require('../../src/hoursback/crm/campaign.js');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const option = (name, fallback = '') => {
   const found = process.argv.find((arg) => arg.startsWith(`--${name}=`));
   return found ? found.slice(name.length + 3) : fallback;

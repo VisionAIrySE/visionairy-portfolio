@@ -57,7 +57,7 @@ async function run(db, { apply = false } = {}) {
 }
 
 if (require.main === module) {
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   run(db, { apply: process.argv.includes('--do-it') })
     .then((result) => console.log(JSON.stringify(result)))
     .catch((error) => { console.error(error.message); process.exitCode = 1; })

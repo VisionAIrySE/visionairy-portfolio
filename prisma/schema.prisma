@@ -178,6 +178,7 @@ model Prospect {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  productMemberships ProductProspect[]
   fieldEdits     ProspectFieldEdit[]
   duplicatesKept ProspectDuplicate[] @relation("keptProspect")
   callLogs       CallLog[]
@@ -538,4 +539,166 @@ model Finding {
   @@index([prospectId, field, createdAt])
   @@index([readingId])
   @@index([field, status])
+}
+
+/// Product campaigns start disabled. Configuration is explicitly verified before launch.
+model CRMProduct {
+  id String @id
+  name String
+  sendingEnabled Boolean @default(false)
+  senderEmail String?
+  replyToEmail String?
+  senderVerifiedAt DateTime?
+  replyRouteVerifiedAt DateTime?
+  signatureText String?
+  timeZone String?
+  localSendTime String?
+  memberships ProductProspect[]
+  sequences ProductSequence[]
+}
+
+model ProductProspect {
+  id String @id @default(cuid())
+  productId String
+  product CRMProduct @relation(fields: [productId], references: [id])
+  prospectId String
+  prospect Prospect @relation(fields: [prospectId], references: [id])
+  stage String @default("NO_CONTACT")
+  archivedAt DateTime?
+  nextAction String?
+  nextActionDate DateTime?
+  recipients ProductRecipient[]
+  activities ProductActivity[]
+  tasks ProductTask[]
+  @@unique([productId, prospectId])
+  @@unique([id, productId])
+}
+
+/// Recipient choices are per product, never Contact.isPrimary.
+/// key is contact:<id> or inbox. The shared Contact is validated by the service.
+model ProductRecipient {
+  id String @id @default(cuid())
+  productId String
+  membershipId String
+  membership ProductProspect @relation(fields: [membershipId, productId], references: [id, productId])
+  recipientKey String
+  contactId String?
+  email String
+  selected Boolean @default(false)
+  repliedAt DateTime?
+  enrollments ProductEnrollment[]
+  @@unique([membershipId, recipientKey])
+  @@unique([id, productId])
+}
+
+/// Immutable versioned sequence. dayNumbers is calendar or business-day ordinals.
+model ProductSequence {
+  id String @id @default(cuid())
+  productId String
+  product CRMProduct @relation(fields: [productId], references: [id])
+  version Int
+  dayNumbers Int[]
+  businessDaysOnly Boolean
+  approvedAt DateTime?
+  enrollments ProductEnrollment[]
+  @@unique([productId, version])
+  @@unique([id, productId])
+}
+
+model ProductEnrollment {
+  id String @id @default(cuid())
+  productId String
+  recipientId String
+  recipient ProductRecipient @relation(fields: [recipientId, productId], references: [id, productId])
+  sequenceId String
+  sequence ProductSequence @relation(fields: [sequenceId, productId], references: [id, productId])
+  state String @default("DRAFT")
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  releasedAt DateTime?
+  firstLocalDate String?
+  stoppedAt DateTime?
+  stopReason String?
+  messages ProductMessage[]
+  @@unique([id, productId])
+  @@unique([recipientId, sequenceId])
+}
+
+/// Separate draft storage keeps unfinished StockerAI work out of the legacy sender.
+/// Delivery integration and legacy message mapping are a later gated stage.
+model ProductMessage {
+  id String @id @default(cuid())
+  productId String
+  enrollmentId String
+  enrollment ProductEnrollment @relation(fields: [enrollmentId, productId], references: [id, productId])
+  touch Int
+  evidenceFindingIds String[] @default([])
+  deliveryState String @default("DRAFT")
+  deliveryKey String? @unique
+  deliveryPayload Json?
+  attemptedAt DateTime?
+  providerMessageId String? @unique
+  rfcMessageId String? @unique
+  sentAt DateTime?
+  deliveryError String?
+  subject String
+  body String
+  editedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([enrollmentId, touch])
+}
+
+/// Append-only product-specific conversation and work history.
+model ProductActivity {
+  id String @id @default(cuid())
+  productId String
+  membershipId String
+  membership ProductProspect @relation(fields: [membershipId, productId], references: [id, productId])
+  eventKey String
+  kind String
+  contactId String?
+  recipientId String?
+  outcome String?
+  notes String
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([productId, eventKey])
+  @@index([membershipId, occurredAt])
+}
+
+model ProductTask {
+  id String @id @default(cuid())
+  productId String
+  membershipId String
+  membership ProductProspect @relation(fields: [membershipId, productId], references: [id, productId])
+  title String
+  dueDate DateTime @db.Date
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([productId, completedAt, dueDate])
+}
+
+/// Shared address stops. A bounce or opt-out protects both product campaigns.
+model EmailAddressStop {
+  email String @id
+  reason String
+  createdAt DateTime @default(now())
+}
+
+/// Durable, idempotent receipt before product matching; ambiguous replies stay visible.
+model ProductMailEvent {
+  id String @id
+  eventType String
+  providerEmailId String?
+  fromAddress String?
+  toAddresses String[]
+  subject String?
+  textBody String?
+  receivedAt DateTime @default(now())
+  state String @default("PENDING")
+  matchedProductId String?
+  matchedRecipientId String?
+  note String?
+  @@index([state, receivedAt])
 }

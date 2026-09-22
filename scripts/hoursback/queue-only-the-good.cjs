@@ -13,7 +13,7 @@
 //   node scripts/hoursback/queue-only-the-good.cjs           — what would change
 //   node scripts/hoursback/queue-only-the-good.cjs --do-it   — make it so
 const { PrismaClient } = require('@prisma/client');
-const db = new PrismaClient();
+const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
 const DO_IT = process.argv.includes('--do-it');
 
 // ONE JUDGE, NOT A SECOND COPY OF THE RULES (2026-09-08).

@@ -266,7 +266,7 @@ async function main() {
     if (!line) throw new Error('Database address is not configured.');
     process.env.DATABASE_URL = line.slice(13).trim().replace(/^(['"])(.*)\1$/, '$2');
   }
-  const db = new PrismaClient();
+  const db = require('../../src/hoursback/crm/productLegacyScope.js').legacyClient(new PrismaClient(),{enabled:process.env.CRM_PRODUCT_PREVIEW==='1'});
   try {
     const report = await db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
