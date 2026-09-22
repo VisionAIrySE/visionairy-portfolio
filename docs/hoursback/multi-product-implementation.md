@@ -150,3 +150,17 @@ The approved paused-workspace rollout completed on 2026-09-21. GitHub and Render
 Russ then specifically approved importing the supplied 70 operators. Production reconciliation imported 70, left zero unresolved, retained 43 supplied addresses for review, and created 70 source-provenance notes. It created no recipients, selections, campaigns, messages, or website readings. VisionAIry visibility, selections, and message counts remained unchanged. The live StockerAI page reports 70 companies, 43 addresses on file, and 70 needing research.
 
 Prepared but did not run the first research cohort: 50 exact StockerAI IDs (all 43 with supplied addresses plus 7 without). The reader now requires an explicit product-bound cohort of at most 50 and suppresses VisionAIry-only automation scoring, stalled-build, and legacy stage writes during StockerAI research. Shared website pages, findings, company facts and discovered contacts remain shared as approved; recipient selection remains separate. A dedicated wrapper records actual cost and reconciles qualifying saved full-site readings. Website reading still requires Russ's specific cohort approval and spending choice.
+
+## StockerAI website research audit
+
+Russ approved researching all 70 imported operators and set a $5 total OpenRouter ceiling. The work ran as two separately closed and audited cohorts, first 50 and then 19, in accordance with the permanent 50-site maximum. Colonial Vendors had no supplied website, so there was no seventieth site to open.
+
+The final read-only reconciliation accounts for all 70 operators: 61 have valid full-site research with 1,572 saved pages; three supplied URLs belong to a different business; five sites remained unavailable after the browser fallback; and one operator has no website. The wrong-website records are Larsen Vending, VendDaddy and Cream City Vendors. The unavailable records are 2 Kings Vending, 5K Vending, Pavlic Vending, Service 1st Vending and Balanced Vending. Colonial Vendors is the no-website record.
+
+Forty-seven operators now have at least one company or contact email address on file. Website discovery saved 41 contact records, only one of which included a published direct email. No recipient was selected, and no campaign or message was created. The VisionAIry totals remained unchanged at 32,794 visible companies, 36 selected company inboxes, 2,783 selected contacts and 5,462 legacy messages.
+
+OpenRouter's account-level usage counter increased by exactly $0.94068525 across both cohorts, below the user-approved $5 ceiling. This ceiling applied only to this website-reading stage.
+
+The stage audit exposed a progress-counting defect: wrong-site readings retain their pages as evidence of why the URL was rejected, and the product progress query had treated those pages as valid research. Product readiness, progress and reader resume logic now exclude readings whose note begins `not their site`, while continuing to count ordinary readings with no note. This correction requires deployment before the live StockerAI progress number is authoritative.
+
+Research stored shared company facts, pages, evidence and published contact details. StockerAI-specific evidence extraction and the five-message sequence remain separate, unfinished stages. They must not auto-select recipients, invent names or roles, or claim savings unsupported by the approved calculator assumptions.

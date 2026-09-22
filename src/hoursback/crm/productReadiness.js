@@ -8,7 +8,7 @@ const localClock=(now,timeZone)=>{
 };
 const prospectInclude={
   contacts:true,
-  readings:{where:{source:'website',reader:'understand-businesses',outcome:'read',finishedAt:{not:null},pages:{some:{bytes:{gt:0},OR:[{text:{not:null}},{sameAs:{not:null}}]}}},select:{id:true}},
+  readings:{where:{source:'website',reader:'understand-businesses',outcome:'read',finishedAt:{not:null},OR:[{note:null},{NOT:{note:{startsWith:'not their site'}}}],pages:{some:{bytes:{gt:0},OR:[{text:{not:null}},{sameAs:{not:null}}]}}},select:{id:true}},
   findings:{where:{retiredAt:null,status:{in:['observed','confirmed']}},select:{id:true,readingId:true,url:true,quote:true}}
  };
 
