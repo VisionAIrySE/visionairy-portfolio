@@ -394,6 +394,15 @@ function hasContactForm(pages) {
   return pages.some((p) => A_FORM.test(String(p.html || '')));
 }
 
+// A model's identity verdict is allowed to clear a saved website only when
+// the pages carry independent signs of being a real business site. A bot
+// challenge can say little more than "please wait" and has previously been
+// mistaken for another company, erasing two correct StockerAI domains.
+function mayClearAsWrongSite(pages, understood) {
+  return Boolean(understood && understood.notTheirSite && (pages || [])
+    .some((page) => looksLikeARealPage(String((page && page.text) || ''))));
+}
+
 // ---------------------------------------------------------------------------
 // ONE VISIT to one business — the whole flow, exported so it can be tested.
 //
@@ -708,7 +717,13 @@ async function visitOneBusiness(db, r, deps = {}) {
     // The pages turned out to belong to somebody else. The website on file is
     // cleared along with everything read off it — but the reading, its pages
     // and its findings all stay: the visit happened, and the verdict is a fact.
-    if (understood.notTheirSite) {
+    if (understood.notTheirSite && !mayClearAsWrongSite(crawl.pages, understood)) {
+      if (reading) await R.finishReading(db, reading.id, R.FAILED,
+        'site identity remains uncertain: the reader suspected another business, but no full business page was available to support clearing the saved website');
+      visit.outcome = 'ask_russ_whose_site';
+      return visit;
+    }
+    if (mayClearAsWrongSite(crawl.pages, understood)) {
       if (!look) {
         await db.prospect.update({
           where: { id: r.id },
@@ -1763,7 +1778,7 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
 // found, counted, reported, never written down (2026-08-29). One saving
 // function, used by both, is the only way that cannot happen twice.
 module.exports = {
-  writeItDown, hasContactForm, opportunityFromTheRead,
+  writeItDown, hasContactForm, opportunityFromTheRead, mayClearAsWrongSite,
   // the whole-site visit, exported so it can be tested without a run
   visitOneBusiness, askTheReader, closeReaderPool, BATCH_OF_SITES, MODEL, READER_VERSION,
   IS_THIS_THEIRS, WHY_NOTHING_HERE,
