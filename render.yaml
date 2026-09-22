@@ -22,6 +22,8 @@ services:
         sync: false
       - key: CRM_PASSWORD
         sync: false   # the CRM's front-door password - typed in the dashboard
+      - key: CRM_PRODUCT_PREVIEW
+        value: "1"    # product-separated views and data boundaries; does not enable sending
       - key: RESEND_API_KEY
         sync: false   # the sending key - pasted in the dashboard, never in Git
       - key: HOURSBACK_EMAIL_FROM
@@ -54,6 +56,8 @@ services:
         sync: false   # Russ's address on the Resend receiving subdomain
       - key: HOURSBACK_REPLY_MONITOR_ENABLED
         sync: false   # set true only after an end-to-end reply test passes
+      - key: CRM_PRODUCT_PREVIEW
+        value: "1"    # keep the legacy sender scoped to VisionAIry records
       # Customer outreach remains off after deployment. Only after Russ gives
       # separate approval, add HOURSBACK_CUSTOMER_EMAIL_ENABLED=true in Render.
       # Enable only after the existing selected-draft backlog has been reviewed
