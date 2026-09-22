@@ -2719,7 +2719,15 @@ const server = http.createServer(async (req, res) => {
         let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 131072) { res.writeHead(413); return res.end('Form too large'); } }
         const params = new URLSearchParams(raw); const form = {};
         for (const key of new Set(params.keys())) { const values=params.getAll(key); form[key]=values.length>1?values:values[0]; }
-        const result = await A.handleProductPost(productDb, {productId:id, action:url.pathname.split('/')[3], form});
+        const action=url.pathname.split('/')[3];
+        if(action==='test-delivery'){
+          if(id!=='stockerai'||!A.validToken(id,form.csrf)){res.writeHead(403,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'This page has expired. Refresh before running the test.'}));}
+          try{
+            const result=await require('../../src/hoursback/crm/productDeliveryTest.js').sendApprovedTest(productDb,{apiKey:process.env.RESEND_API_KEY,inboundKey:process.env.RESEND_INBOUND_API_KEY});
+            res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({message:'One StockerAI test email was sent only to russ@visionairy.biz. Check its formatting, then reply with “StockerAI reply test.”',result}));
+          }catch(error){res.writeHead(409,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({error:error.message}));}
+        }
+        const result = await A.handleProductPost(productDb, {productId:id, action, form});
         res.writeHead(result.status, {'Content-Type':'application/json', 'Cache-Control':'no-store'}); return res.end(JSON.stringify(result));
       }
       if (req.method !== 'GET') { res.writeHead(405); return res.end('Method not allowed'); }
