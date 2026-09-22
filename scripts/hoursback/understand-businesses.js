@@ -771,7 +771,8 @@ async function visitOneBusiness(db, r, deps = {}) {
       .some((pg) => looksLikeARealPage(String((pg && pg.text) || '')));
     const wordsLanded = anyWords && anythingReal;
     if (!look) {
-      await writeItDown(db, r, understood, reach, ranked, found, opportunity, url, { wordsLanded });
+      await writeItDown(db, r, understood, reach, ranked, found, opportunity, url,
+        { wordsLanded, productId: deps.productId || null });
     }
     // WHY THERE IS NOTHING HERE, ASKED RATHER THAN ASSUMED (Russ, 2026-09-03).
     //
@@ -847,6 +848,11 @@ const progress = { done: 0, total: 0 };
 // injects nothing and behaves exactly as before.
 async function understandPass(injected = {}) {
   const db = injected.db || new (require('@prisma/client').PrismaClient)();
+  const productId = injected.productId ? String(injected.productId) : null;
+  const prospectIds = Array.isArray(injected.prospectIds)
+    ? [...new Set(injected.prospectIds.map(String).filter(Boolean))] : [];
+  if (prospectIds.length > BATCH_OF_SITES) throw new Error(`A website-reading cohort cannot exceed ${BATCH_OF_SITES} companies`);
+  if (productId && !prospectIds.length && !injected.only) throw new Error('Product website research requires an explicit approved company cohort');
   const look = injected.look ?? LOOK;
   const lanesWanted = injected.lanes ?? LANES;
   const only = injected.only ?? ONLY;
@@ -959,17 +965,23 @@ async function understandPass(injected = {}) {
     }],
   };
 
+  const productScope = productId
+    ? { productMemberships: { some: { productId, archivedAt: null } } }
+    : {};
+  const cohortScope = prospectIds.length ? { id: { in: prospectIds } } : {};
   const baseWhere = only
-    ? { id: only }
+    ? { id: only, ...productScope }
     : {
       doNotContact: false,
+      ...productScope,
+      ...cohortScope,
       ...HAS_AN_ADDRESS_TO_READ,
       // One NOT list, not two. Written as two separate NOT keys the second
       // silently replaces the first and the whole scoping disappears.
       NOT: [
         { AND: [{ website: null }, { websiteManualValue: null }] },
         // The set-aside pile is excluded UNLESS we are deliberately reading it.
-        ...(REVIEW_PILE || UNREAD_TRADES || missingFullRead
+        ...(productId || REVIEW_PILE || UNREAD_TRADES || missingFullRead
           ? [] : [{ stage: 'NEEDS_REVIEW' }]),
         ...(allMissingFullRead
           ? [{ stage: { in: ['CUSTOMER', 'EXPANDED_CUSTOMER', 'DORMANT'] } }] : []),
@@ -1171,6 +1183,7 @@ async function understandPass(injected = {}) {
           controller, askTheReader: guard.ask, look,
           model: modelUsed,
           readerVersion: injected.readerVersion || READER_VERSION,
+          productId,
           ...(injected.fetch ? { fetch: injected.fetch } : {}),
         });
 
@@ -1515,6 +1528,7 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
   // Whether their site gave up any words at all. Everything learned is still
   // written; only the READ stamp is withheld, so the next run comes back.
   const wordsLanded = opts.wordsLanded !== false;
+  const writesVisionairyProfile = !opts.productId || opts.productId === 'visionairy';
   // Everything behind the number, in the shape the account card already reads:
   // a list of tells, then one line saying what reaching them costs the score.
   // The evidence already on file is not always a list. An earlier version of
@@ -1624,10 +1638,9 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
         ? { name: understood.realName, selfDescription: `was on file as: ${r.name}` }
         : understood.realName ? { selfDescription: `calls itself: ${understood.realName}` } : {}),
       ...(understood.yearsInBusiness ? { yearsInBusiness: understood.yearsInBusiness } : {}),
-      automationScore: ranked,
-      scoreEvidence: evidence,
+      ...(writesVisionairyProfile ? { automationScore: ranked, scoreEvidence: evidence } : {}),
       siteGaps: understood.cannotTell ? JSON.stringify([understood.cannotTell]) : null,
-      stalledBuild: understood.stalledBuild || null,
+      ...(writesVisionairyProfile ? { stalledBuild: understood.stalledBuild || null } : {}),
       // Null where the reader did not answer, never 1 — the second of the two
       // places that collapse silently made "asked" and "never asked" the same
       // value (2026-09-01, docs/hoursback/evidence-store.md).
@@ -1641,7 +1654,7 @@ async function writeItDown(db, r, understood, reach, ranked, found, opportunity,
       // they were set aside no longer holds and the record belongs on the
       // worked list — otherwise the run finds things and leaves them buried.
       // Only ever in this direction: nothing here puts a business INTO review.
-      ...(r.stage === 'NEEDS_REVIEW'
+      ...(writesVisionairyProfile && r.stage === 'NEEDS_REVIEW'
         && (understood.sharedEmail || understood.mainPhone || found.peopleWithEmail > 0)
         ? { stage: 'NO_CONTACT' } : {}),
     },
