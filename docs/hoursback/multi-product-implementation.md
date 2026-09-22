@@ -7,7 +7,7 @@
 Clean isolated checkout: C:/Users/RussWright/AppData/Local/Temp/visionairy-multiproduct.
 Remote main: 282464ece7b9133819528bdbb6dbca6132607436.
 Original workspace reports 274 status entries, mostly missing tracked files. Left untouched.
-Original workspace has unpublished commit 77acf27; preserve and review separately before release. It is not included in this checkout and must not be silently lost or pushed.
+Original workspace's unpublished commit 77acf27 was recovered, reviewed and preserved as b6b6a86 in this checkout. Its progress-query-count test passed. Original missing working-tree files remain untouched.
 
 ## Executable findings
 
@@ -125,3 +125,20 @@ Prepared source-only import inventory: 70 operator rows, 69 website addresses, 4
 Latest test suite has 20 cases. The full combined run originally exposed a test fixture assertion that counted another concurrent test's temporary product; narrowed the rollback assertion to its own exact fixture IDs, then re-ran successfully. This was test isolation, not a change to production behavior.
 
 Still outstanding: unified existing/new webhook routing and forwarding, live configuration verification, durable run-level send audit and production scheduler integration, filters and full activity history, explicit legacy migration/rollback rehearsal and import application, generation integration with approved StockerAI copy, broader bulk failure tests and scope-flag deployment enforcement. Do not deploy or import based solely on this checkpoint.
+
+## Paused-workspace release checkpoint (2026-09-21)
+
+The following supersedes the earlier outstanding-work list where explicitly resolved:
+
+- Existing verified mail-event endpoint now routes recognized StockerAI events through durable product matching and existing monitored reply forwarding. Unresolved shared-address replies hold both send paths rather than guessing. Provider adapters remain mocked in tests; live routing is not certified.
+- Added durable ProductSendRun before/after audits and an explicitly disabled StockerAI scheduler. Scheduler checks Pacific business days and the approved 10 AM hour, uses selected recipients without a second approval checkbox, and reports selected recipients missing campaigns. No Render job created or enabled.
+- Added setup and source-list import services. Setup associates historical companies with VisionAIry without editing legacy selections, messages or schedules. Database inserts are chunked within one transaction. Import preserves source provenance, never invents people, and leaves research, selection and messages untouched.
+- Read-only production comparison found 32,794 existing companies and no exact normalized-name/domain matches for the 70 supplied operators. This is not proof against fuzzy identity duplicates. The comparison used a verified read-only transaction; no production import occurred.
+- Disposable import rehearsal reconciled all 70 supplied operators (43 with supplied email); repeated import creates none again. Setup test crosses the 500-row statement boundary and checks preserved legacy messages and choices.
+- All 25 product checks passed together serially. A subsequent recipient/content-change guard added a 26th check; the affected delivery suite passed all 10 tests. Earlier existing regression suite passed 336 checks. No real provider sends or paid model calls.
+- Applied the exact additive migration to a separate local schema initialized from the pre-change schema. Schema comparison reported no differences. No production migration ran.
+- Immediately before provider delivery, frozen recipient/content/sender payload must still match current saved values; changes hold delivery for review.
+
+Proposed next approval is ONLY the paused workspace rollout: push the three local commits, deploy code, apply the additive migration, and run setup to associate historical records with VisionAIry and create empty StockerAI configuration. Keep StockerAI sending disabled; no operator import, website reads, generated messages or emails. Verify fresh before/after legacy selection/message/schedule counts, authenticate both product views, and inspect logs before calling this stage complete. Do not enable the feature before tables/setup exist. Coordinate the web and existing sender's product-scope setting; do not import other-product records until all relevant entry points are protected.
+
+Remaining after that bounded stage: separately approved operator import and website reading; StockerAI research/generation integration; approved copy and compatibility facts; live signature/rendering/reply verification with an approved test email; full history/filter/report controls; unresolved-reply review; duplicate-address/concurrent-send stress checks; scheduler deployment and explicit sending approval. The paused workspace is not certification of completed outreach functionality.

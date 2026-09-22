@@ -2651,16 +2651,6 @@ const server = http.createServer(async (req, res) => {
     // Where the sending service tells us what happened. It sits before the
     // password check because it is not Russ knocking — it is the mail service,
     // and it proves who it is by signing every message rather than logging in.
-    if (route === 'product-mail-events' && req.method === 'POST') {
-      if (process.env.CRM_PRODUCT_PREVIEW !== '1') {res.writeHead(404);return res.end('Not available');}
-      let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>1048576){res.writeHead(413);return res.end('Event too large');}}
-      const verify=require('../../src/hoursback/crm/mailEvents.js').signatureIsValid;
-      if(!verify(raw,req.headers,process.env.RESEND_WEBHOOK_SECRET)){res.writeHead(401);return res.end('Invalid signature');}
-      let event;try{event=JSON.parse(raw);}catch{res.writeHead(400);return res.end('Invalid event');}
-      await require('../../src/hoursback/crm/productMailEvents.js').receiveProductEvent(productDb,event,req.headers['svix-id']);
-      res.writeHead(200);return res.end('Recorded');
-    }
-
     if (route === 'mail-events' && req.method === 'POST') {
       const ME = require('../../src/hoursback/crm/mailEvents.js');
       const L = require('../../src/hoursback/crm/lanes.js');
@@ -2672,6 +2662,14 @@ const server = http.createServer(async (req, res) => {
       let event;
       try { event = JSON.parse(raw); } catch { res.writeHead(400); return res.end('not readable'); }
 
+      if(process.env.CRM_PRODUCT_PREVIEW==='1'){
+        const RR=require('../../src/hoursback/crm/resendReplies.js');
+        const result=await require('../../src/hoursback/crm/productMailRouting.js').dispatchProductEvent(productDb,event,req.headers['svix-id']||req.headers['webhook-id'],{
+          getReceived:emailId=>RR.resendJson('https://api.resend.com/emails/receiving/'+encodeURIComponent(emailId),RR.assertConfigured().apiKey),
+          forwardReceived:received=>RR.forwardReceived(received)
+        });
+        if(result.handled){res.writeHead(200);return res.end('Product event recorded: '+result.state);}
+      }
       const { act } = ME.meaning(event);
       const receivedReply = event.type === 'email.received';
       const address = ME.addressFrom(event);

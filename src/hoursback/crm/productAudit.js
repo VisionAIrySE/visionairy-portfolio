@@ -23,12 +23,20 @@ async function auditCohort(db,{productId,enrollmentIds,now=new Date()}){
 async function runCohort(db,{productId,enrollmentIds,send,now=new Date()}){
  if(typeof send!=='function')throw new Error('An explicitly configured sender is required');
  const before=await auditCohort(db,{productId,enrollmentIds,now});
+ const run=await db.productSendRun.create({data:{productId,startedAt:now,enrollmentIds,before}});
  const outcomes=[];
  for(const item of before.filter(x=>x.status==='DUE')){
   try{outcomes.push({id:item.id,...await D.attemptCampaign(db,{productId,enrollmentId:item.id,send,now})});}
   catch{outcomes.push({id:item.id,error:'Processing failed; inspect saved state before retrying'});}
  }
- const after=await auditCohort(db,{productId,enrollmentIds,now});
- return {productId,intended:enrollmentIds.length,before,outcomes,after,unresolved:after.filter(x=>['MISSING','UNCERTAIN','BLOCKED','DUE'].includes(x.status))};
+ try{
+  const after=await auditCohort(db,{productId,enrollmentIds,now});
+  const unresolved=after.filter(x=>['MISSING','UNCERTAIN','BLOCKED','DUE','NOT_RELEASED'].includes(x.status));
+  await db.productSendRun.update({where:{id:run.id},data:{finishedAt:new Date(),state:unresolved.length?'NEEDS_REVIEW':'AUDITED',after,outcomes}});
+  return {runId:run.id,productId,intended:enrollmentIds.length,before,outcomes,after,unresolved};
+ }catch(error){
+  await db.productSendRun.update({where:{id:run.id},data:{state:'AUDIT_FAILED',outcomes,error:'Final state could not be audited; inspect before retrying'}});
+  throw error;
+ }
 }
 module.exports={auditCohort,runCohort};

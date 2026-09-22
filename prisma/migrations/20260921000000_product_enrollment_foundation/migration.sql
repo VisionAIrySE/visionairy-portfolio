@@ -151,6 +151,25 @@ CREATE TABLE "ProductMailEvent" (
     CONSTRAINT "ProductMailEvent_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "ProductSendRun" (
+    "id" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+    "state" TEXT NOT NULL DEFAULT 'RUNNING',
+    "enrollmentIds" TEXT[],
+    "before" JSONB NOT NULL,
+    "after" JSONB,
+    "outcomes" JSONB,
+    "error" TEXT,
+
+    CONSTRAINT "ProductSendRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "ProductProspect_prospectId_idx" ON "ProductProspect"("prospectId");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "ProductProspect_productId_prospectId_key" ON "ProductProspect"("productId", "prospectId");
 
@@ -198,6 +217,9 @@ CREATE INDEX "ProductTask_productId_completedAt_dueDate_idx" ON "ProductTask"("p
 
 -- CreateIndex
 CREATE INDEX "ProductMailEvent_state_receivedAt_idx" ON "ProductMailEvent"("state", "receivedAt");
+
+-- CreateIndex
+CREATE INDEX "ProductSendRun_productId_startedAt_idx" ON "ProductSendRun"("productId", "startedAt");
 
 -- AddForeignKey
 ALTER TABLE "ProductProspect" ADD CONSTRAINT "ProductProspect_productId_fkey" FOREIGN KEY ("productId") REFERENCES "CRMProduct"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

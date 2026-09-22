@@ -75,6 +75,10 @@ async function claim(db, messageId, makePayload, now = new Date()) {
     });
     if (!message) return null;
 
+    if(process.env.CRM_PRODUCT_PREVIEW==='1'){
+      const hold=await require('./productMailRouting.js').sharedAddressHold(tx,message.deliveryTo||message.sentTo);
+      if(hold)return {blocked:hold};
+    }
     const reason = blockedReason(message);
     if (reason) {
       if (message.state === 'SENDING' && message.deliveryState === 'ATTEMPTING') {

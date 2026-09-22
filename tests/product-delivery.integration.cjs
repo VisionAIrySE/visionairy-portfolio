@@ -32,6 +32,23 @@ test('readiness blocks missing evidence and changes; business-day delivery sends
  await tx.productMessage.updateMany({where:{enrollmentId:campaign.id,touch:2},data:{evidenceFindingIds:[]}});
  assert.equal(R.readiness(await R.loadCampaign(tx,'stockerai',campaign.id)).ready,false);
 }));
+test('address changed after claim cannot send the frozen email to an old recipient',()=>scenario(async({tx,scope,campaign,recipient,p})=>{
+ const args={productId:'stockerai',enrollmentId:campaign.id,now:new Date('2026-09-21T17:00:00Z')};
+ await D.releaseCampaign(scope,{...args,firstLocalDate:'2026-09-21'});
+ const changingScope=new Proxy(scope,{get:(target,key)=>key==='$transaction'?async fn=>{
+  const result=await target.$transaction(fn);
+  if(result?.key){
+   await tx.prospect.update({where:{id:p.id},data:{email:'changed@example.test'}});
+   await tx.productRecipient.update({where:{id:recipient.id},data:{email:'changed@example.test'}});
+  }
+  return result;
+ }:target[key]});
+ let sends=0;
+ const result=await D.attemptCampaign(changingScope,{...args,send:async()=>{sends++;return {id:'must-not-send'};}});
+ assert.equal(sends,0);assert.match(result.held.join(' '),/changed while preparing/);
+ assert.equal((await tx.productMessage.findFirst({where:{enrollmentId:campaign.id,touch:1}})).deliveryState,'BLOCKED');
+}));
+
 test('uncertain provider outcome is held rather than retried',()=>scenario(async({scope,campaign})=>{
  const args={productId:'stockerai',enrollmentId:campaign.id,now:new Date('2026-09-21T17:00:00Z')};
  await D.releaseCampaign(scope,{...args,firstLocalDate:'2026-09-21'});let calls=0;
@@ -78,6 +95,7 @@ test('cohort audit accounts for missing, due, sent and uncertain campaigns witho
  await D.releaseCampaign(scope,{productId:'stockerai',enrollmentId:campaign.id,firstLocalDate:'2026-09-21',now:args.now});
  let calls=0;const report=await A.runCohort(scope,{...args,send:async()=>{calls++;return {id:'audit-send'};}});
  assert.equal(calls,1);assert.equal(report.intended,2);assert.equal(report.before[0].status,'DUE');assert.equal(report.after[0].status,'WAITING');assert.equal(report.unresolved.length,1);
+ const savedRun=await scope.productSendRun.findUnique({where:{id:report.runId}});assert.equal(savedRun.state,'NEEDS_REVIEW');assert.deepEqual(savedRun.enrollmentIds,args.enrollmentIds);assert.equal(savedRun.after[0].status,'WAITING');
  const repeat=await A.runCohort(scope,{...args,send:async()=>{calls++;return {id:'wrong'};}});assert.equal(calls,1);assert.equal(repeat.outcomes.length,0);
 }));
 
@@ -87,4 +105,24 @@ test('exact reply thread overrides ambiguous shared sender history',()=>scenario
  await tx.outreachMessage.create({data:{prospectId:p.id,lane:'EMAIL',state:'SENT',body:'Legacy message',sentTo:recipient.email,sentAt:new Date()}});
  const event=await E.receiveProductEvent(scope,{type:'email.received',data:{email_id:'received-test',from:recipient.email,to:['reply@example.test'],subject:'Interested'}},'exact-reply',{getReceived:async()=>({text:'Please show me StockerAI',headers:{'In-Reply-To':'<stock-thread@example.test>'}})});
  assert.equal(event.state,'PROCESSED');assert.equal(event.textBody,'Please show me StockerAI');assert.equal((await tx.prospect.findUnique({where:{id:p.id}})).repliedAt,null);
+}));
+
+test('unified routing forwards matched StockerAI reply and prevents legacy reply mutation',()=>scenario(async({tx,scope,campaign,recipient,p})=>{
+ const routing=require('../src/hoursback/crm/productMailRouting.js');
+ await tx.productEnrollment.update({where:{id:campaign.id},data:{startedAt:new Date()}});
+ let forwards=0;const event={type:'email.received',data:{email_id:'unified-inbound',from:recipient.email,to:['reply@example.test'],subject:'Please call'}};
+ const routed=await routing.dispatchProductEvent(scope,event,'unified-event',{getReceived:async()=>({text:'Call tomorrow'}),forwardReceived:async()=>{forwards++;}});
+ assert.equal(routed.handled,true);assert.equal(routed.state,'PROCESSED');assert.equal(forwards,1);
+ assert.equal((await tx.prospect.findUnique({where:{id:p.id}})).repliedAt,null);
+ assert.equal((await routing.dispatchProductEvent(scope,{...event,data:{...event.data,from:'unknown@example.test'}},'unknown',{})).handled,false);
+ await tx.productMailEvent.create({data:{id:'needs-review',eventType:'email.received',fromAddress:recipient.email,toAddresses:['reply@example.test'],state:'UNMATCHED'}});
+ assert.match(await routing.sharedAddressHold(tx,recipient.email),/needs product review/);
+}));
+
+test('scheduler uses selected recipients without duplicate approval and only the configured local hour',()=>scenario(async({scope,campaign})=>{
+ const {scheduledProductRun}=require('../src/hoursback/crm/productScheduler.js');let calls=0;
+ const args={productId:'stockerai',send:async()=>{calls++;return {id:'scheduled-fake'};},now:new Date('2026-09-21T17:00:00Z')};
+ assert.equal((await scheduledProductRun(scope,args)).paused,true);assert.equal(calls,0);
+ const result=await scheduledProductRun(scope,{...args,enabled:true});assert.equal(calls,1);assert.equal(result.intended,1);assert.equal(result.selectedWithoutCampaign.length,0);
+ assert.equal((await scheduledProductRun(scope,{...args,enabled:true,now:new Date('2026-09-21T18:00:00Z')})).waiting,true);assert.equal(calls,1);
 }));

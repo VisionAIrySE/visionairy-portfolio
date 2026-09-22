@@ -570,8 +570,9 @@ model ProductProspect {
   recipients ProductRecipient[]
   activities ProductActivity[]
   tasks ProductTask[]
-  @@unique([productId, prospectId])
-  @@unique([id, productId])
+    @@unique([productId, prospectId])
+    @@unique([id, productId])
+    @@index([prospectId])
 }
 
 /// Recipient choices are per product, never Contact.isPrimary.
@@ -701,4 +702,19 @@ model ProductMailEvent {
   matchedRecipientId String?
   note String?
   @@index([state, receivedAt])
+}
+
+model ProductSendRun {
+  id String @id @default(cuid())
+  productId String
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  state String @default("RUNNING")
+  enrollmentIds String[]
+  before Json
+  after Json?
+  outcomes Json?
+  error String?
+
+  @@index([productId, startedAt])
 }

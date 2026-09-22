@@ -23,7 +23,7 @@ test('authenticated product routes save choices, reject bad tokens, and preserve
   response=await fetch(target+'/choices',{method:'POST',headers,body:new URLSearchParams({csrf,prospectId:p.id})});assert.equal((await response.json()).selected,0);
   updated=await(await fetch(target,{headers})).text();assert.match(updated,/Recipient is not selected/);
   assert.equal((await fetch(base+'/products/does-not-exist',{headers})).status,404);
-  assert.equal((await fetch(base+'/product-mail-events',{method:'POST',body:'{}'})).status,401);
+  assert.equal((await fetch(base+'/mail-events',{method:'POST',body:'{}'})).status,401);
  }finally{
   if(child&&!child.killed){child.kill();await new Promise(resolve=>child.once('exit',resolve));}
   await db.productMessage.deleteMany({where:{productId:id}});await db.productEnrollment.deleteMany({where:{productId:id}});await db.productRecipient.deleteMany({where:{productId:id}});await db.productProspect.deleteMany({where:{productId:id}});await db.productSequence.deleteMany({where:{productId:id}});await db.cRMProduct.deleteMany({where:{id}});if(p)await db.prospect.delete({where:{id:p.id}});await db.$disconnect();

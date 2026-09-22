@@ -50,6 +50,12 @@ async function attemptCampaign(db,{productId,enrollmentId,send,now=new Date()}) 
  if(claim.held)return claim;
  // Re-read selection/stops/evidence after the durable claim and immediately before provider call.
  const current=await R.loadCampaign(db,productId,enrollmentId);const checked=R.readiness(current);
+ if(checked.ready){
+  const currentMessage=current.messages.find(m=>m.id===claim.message.id);
+  if(!currentMessage||JSON.stringify(payloadFor(current,currentMessage))!==JSON.stringify(claim.payload)){
+   checked.ready=false;checked.reasons.push('Recipient, message or sender changed while preparing delivery; review before sending');
+  }
+ }
  if(!checked.ready){await db.productMessage.update({where:{id:claim.message.id},data:{deliveryState:'BLOCKED',deliveryError:checked.reasons.join('; ')}});return {held:checked.reasons};}
  try {
   const result=await send({...claim.payload,idempotencyKey:claim.key});
