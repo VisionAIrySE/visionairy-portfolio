@@ -64,3 +64,27 @@ services:
       # and released; otherwise old passing drafts will join the next send.
       - key: HOURSBACK_AUTO_LINEUP_SELECTED
         sync: false
+  - type: cron
+    name: stockerai-email-sender
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm install --production=false && npx prisma generate
+    startCommand: node scripts/hoursback/send-stockerai-emails.cjs
+    # Render invokes at both UTC offsets. The application proceeds only at
+    # 10:00 AM Pacific, so daylight saving time cannot shift delivery.
+    schedule: "0 17,18 * * MON-FRI"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_INBOUND_API_KEY
+        sync: false
+      - key: CRM_PRODUCT_PREVIEW
+        value: "1"
+      # Keep false until the complete campaign audit and Russ's specific
+      # approval of the first live StockerAI send cohort.
+      - key: STOCKERAI_CUSTOMER_EMAIL_ENABLED
+        value: "false"

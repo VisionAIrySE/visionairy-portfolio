@@ -28,9 +28,15 @@ test('product choices and enrollments are isolated in the real test database',as
    await assert.rejects(S.addMembership(scope,'unknown',company.id),/Unknown product/);
    const seqA=await tx.productSequence.create({data:{productId:a.id,version:1,dayNumbers:[1,5,9,15],businessDaysOnly:false,approvedAt:new Date()}});
    const seqB=await tx.productSequence.create({data:{productId:b.id,version:1,dayNumbers:[1,4,9,16,25],businessDaysOnly:true,approvedAt:new Date()}});
+   const prepared=await S.prepareRecipientCampaign(scope,{productId:b.id,prospectId:company.id,recipientKey:'inbox',sequenceId:seqB.id});
+   assert.equal(prepared.recipient.selected,false,'preparing a draft must not select its recipient');
+   assert.equal(prepared.enrollment.state,'DRAFT');
+   const preparedAgain=await S.prepareRecipientCampaign(scope,{productId:b.id,prospectId:company.id,recipientKey:'inbox',sequenceId:seqB.id});
+   assert.equal(preparedAgain.enrollment.id,prepared.enrollment.id,'draft preparation must be idempotent');
+   await assert.rejects(S.prepareRecipientCampaign(scope,{productId:b.id,prospectId:company.id,recipientKey:'contact:'+other.contacts[0].id,sequenceId:seqB.id}),/Contact does not belong/);
    const A=require('../src/hoursback/crm/productActions.js');
    const select=await A.handleProductPost(scope,{productId:b.id,action:'choices',form:{csrf:A.formToken(b.id),prospectId:company.id,inbox:'1'}});
-   assert.equal(select.status,200);assert.equal(select.refresh,true);
+   assert.equal(select.status,200);assert.equal(select.refresh,false,'selecting an already prepared campaign must not create a second enrollment');
    const selectedInbox=await tx.productRecipient.findFirst({where:{productId:b.id}});
    assert.equal(await tx.productEnrollment.count({where:{recipientId:selectedInbox.id}}),1);
    const clear=await A.handleProductPost(scope,{productId:b.id,action:'choices',form:{csrf:A.formToken(b.id),prospectId:company.id}});
