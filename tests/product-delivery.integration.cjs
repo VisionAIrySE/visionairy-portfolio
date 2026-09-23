@@ -49,6 +49,15 @@ test('address changed after claim cannot send the frozen email to an old recipie
  assert.equal((await tx.productMessage.findFirst({where:{enrollmentId:campaign.id,touch:1}})).deliveryState,'BLOCKED');
 }));
 
+test('readiness blocks every message that is not addressed to the selected person',()=>scenario(async({tx,campaign,recipient,p})=>{
+ const contact=await tx.contact.create({data:{prospectId:p.id,name:'Stephen',email:'stephen@example.test'}});
+ await tx.productRecipient.update({where:{id:recipient.id},data:{recipientKey:'contact:'+contact.id,contactId:contact.id,email:contact.email}});
+ let check=R.readiness(await R.loadCampaign(tx,'stockerai',campaign.id));
+ assert.equal(check.ready,false);assert.equal(check.reasons.filter(reason=>reason.includes('not addressed to Stephen')).length,5);
+ await tx.productMessage.updateMany({where:{enrollmentId:campaign.id},data:{body:'Hi Stephen,\n\nTry StockerAI for your vending routes: https://www.stocker-ai.com/demo'}});
+ check=R.readiness(await R.loadCampaign(tx,'stockerai',campaign.id));assert.equal(check.ready,true);
+}));
+
 test('uncertain provider outcome is held rather than retried',()=>scenario(async({scope,campaign})=>{
  const args={productId:'stockerai',enrollmentId:campaign.id,now:new Date('2026-09-21T17:00:00Z')};
  await D.releaseCampaign(scope,{...args,firstLocalDate:'2026-09-21'});let calls=0;

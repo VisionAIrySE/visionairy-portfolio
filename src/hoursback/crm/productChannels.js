@@ -1,5 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
+const P=require('./productPersonalization.js');
 
 const clean=value=>String(value||'').trim();
 function validEmail(value){const email=clean(value).toLowerCase();if(!email)return null;if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Enter a valid email address');return email;}
@@ -40,6 +41,7 @@ async function saveContactChannels(db,{productId,prospectId,contactId,name,role,
   if(name!==undefined)data.name=short(name,'Name');if(role!==undefined)data.role=short(role,'Role');if(email!==undefined)data.email=validEmail(email);
   if(name!==undefined&&!data.name)throw new Error('Enter the person’s name');
   await tx.contact.update({where:{id:contactId},data});
+  if(name!==undefined)await P.syncDraftGreetings(tx,{productId,membershipId:m.id,contactIds:[contactId]});
   await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',contactId,notes:'Updated '+(contact.name||'contact')+' phone and LinkedIn details',occurredAt:new Date()}});
   return data;
  });

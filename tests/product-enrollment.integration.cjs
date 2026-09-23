@@ -88,3 +88,21 @@ test('database rejects cross-product enrollment even without the service',async(
   assert.equal(await isolated.cRMProduct.count({where:{id:{in:['a-'+suffix,'b-'+suffix]}}}),0,'this test’s fixtures must roll back independently of concurrent tests');
  } finally {await isolated.$disconnect();}
 });
+
+test('a verified person at the company inbox is selected as the person',async()=>{
+ const suffix='named-inbox-'+Date.now();
+ try{await db.$transaction(async tx=>{
+  const scope=new Proxy(tx,{get:(target,key)=>key==='$transaction'?fn=>fn(tx):target[key]});
+  const product=await tx.cRMProduct.create({data:{id:suffix,name:'StockerAI'}});
+  const prospect=await tx.prospect.create({data:{placeId:suffix,name:'Denver’s Best Vending',email:'stephen@example.test',contacts:{create:{name:'Stephen',email:'stephen@example.test'}}},include:{contacts:true}});
+  const membership=await S.addMembership(scope,product.id,prospect.id);
+  const oldRecipient=await tx.productRecipient.create({data:{productId:product.id,membershipId:membership.id,recipientKey:'inbox',email:prospect.email}});
+  const sequence=await tx.productSequence.create({data:{productId:product.id,version:1,dayNumbers:[1],businessDaysOnly:true,approvedAt:new Date()}});
+  const enrollment=await tx.productEnrollment.create({data:{productId:product.id,recipientId:oldRecipient.id,sequenceId:sequence.id}});
+  await tx.productMessage.create({data:{productId:product.id,enrollmentId:enrollment.id,touch:1,subject:'Route picking',body:'Hi Denver’s Best Vending team,\n\nA practical route-picking idea.'}});
+  const saved=await S.saveRecipientChoices(scope,{productId:product.id,prospectId:prospect.id,chooseInbox:true});assert.equal(saved.selected,1);
+  const recipient=await tx.productRecipient.findFirst({where:{productId:product.id,selected:true}});assert.equal(recipient.id,oldRecipient.id);assert.equal(recipient.recipientKey,'contact:'+prospect.contacts[0].id);assert.equal(recipient.contactId,prospect.contacts[0].id);
+  assert.equal((await tx.productEnrollment.findUnique({where:{id:enrollment.id}})).recipientId,oldRecipient.id);assert.match((await tx.productMessage.findFirst({where:{enrollmentId:enrollment.id}})).body,/^Hi Stephen,/);
+  throw new Error('ROLLBACK_NAMED_INBOX');
+ });}catch(error){if(error.message!=='ROLLBACK_NAMED_INBOX')throw error;}
+});
