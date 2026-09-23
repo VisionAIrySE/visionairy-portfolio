@@ -23,7 +23,7 @@ async function handleProductPost(db,{productId,action,form}) {
   const S=require('./productSales.js');
   const C=require('./productChannels.js');
   const context={productId,prospectId:form.prospectId};
-  if(action==='company-channels') {await C.saveCompanyChannels(db,{...context,name:form.name,address:form.address,website:form.website,email:form.email,phone:form.phone,linkedInUrl:form.linkedInUrl});return {status:200,message:'Company details saved.',refresh:true};}
+  if(action==='company-channels') {await C.saveCompanyChannels(db,{...context,name:form.name,address:form.address,website:form.website,email:form.email,phone:form.phone,linkedInUrl:form.linkedInUrl,companyType:form.companyType});return {status:200,message:'Company details saved.',refresh:true};}
   if(action==='contact-channels') {await C.saveContactChannels(db,{...context,contactId:form.contactId,name:form.name,role:form.role,email:form.email,phone:form.phone,linkedIn:form.linkedIn});return {status:200,message:'Contact details saved.',refresh:true};}
   if(action==='contact-add') {await C.addContact(db,{...context,name:form.name,role:form.role,email:form.email,phone:form.phone,linkedIn:form.linkedIn});return {status:200,message:'Person added to this company.',refresh:true};}
   if(action==='linkedin-sent'||action==='linkedin-reply') {await C.recordLinkedIn(db,{...context,contactId:form.contactId,status:action==='linkedin-reply'?'REPLIED':'SENT',eventKey:form.eventKey});return {status:200,message:action==='linkedin-reply'?'LinkedIn reply saved. This person’s StockerAI email sequence is stopped.':'LinkedIn message marked sent.',eventKey:crypto.randomUUID(),refresh:true};}

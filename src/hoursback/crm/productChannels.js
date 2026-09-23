@@ -20,17 +20,21 @@ function validLinkedIn(value,kind){
  if(!url.pathname.toLowerCase().startsWith(expected))throw new Error(kind==='person'?'Use the person’s LinkedIn profile address':'Use the company’s LinkedIn page address');
  url.protocol='https:';url.search='';url.hash='';return url.toString().replace(/\/$/,'');
 }
+const COMPANY_TYPES=new Set(['OPERATOR','MACHINE_VENDOR','BOTH','NEEDS_REVIEW']);
+function validCompanyType(value){const result=clean(value)||'NEEDS_REVIEW';if(!COMPANY_TYPES.has(result))throw new Error('Choose a valid company type');return result;}
 async function membershipFor(tx,productId,prospectId){
  const membership=await tx.productProspect.findUnique({where:{productId_prospectId:{productId,prospectId}}});
  if(!membership)throw new Error('Company does not belong to this product');return membership;
 }
-async function saveCompanyChannels(db,{productId,prospectId,name,address:street,website,email,phone,linkedInUrl}){
+async function saveCompanyChannels(db,{productId,prospectId,name,address:street,website,email,phone,linkedInUrl,companyType}){
  const company=name===undefined?undefined:short(name,'Company name'),location=street===undefined?undefined:address(street),site=website===undefined?undefined:validWebsite(website),inbox=email===undefined?undefined:validEmail(email),normalizedPhone=validPhone(phone),linkedIn=validLinkedIn(linkedInUrl,'company');
  if(name!==undefined&&!company)throw new Error('Enter the company name');
+ const kind=companyType===undefined?undefined:validCompanyType(companyType);
  return db.$transaction(async tx=>{const m=await membershipFor(tx,productId,prospectId);
+  if(kind!==undefined)await tx.productProspect.update({where:{id:m.id},data:{companyType:kind}});
   await tx.prospect.update({where:{id:prospectId},data:{...(company===undefined?{}:{nameManualValue:company}),...(location===undefined?{}:{addressManualValue:location}),...(site===undefined?{}:{websiteManualValue:site}),...(inbox===undefined?{}:{emailManualValue:inbox}),phoneManualValue:normalizedPhone,linkedInUrl:linkedIn}});
   await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',notes:'Updated company contact details',occurredAt:new Date()}});
-  return {name:company,address:location,website:site,email:inbox,phone:normalizedPhone,linkedInUrl:linkedIn};
+  return {name:company,address:location,website:site,email:inbox,phone:normalizedPhone,linkedInUrl:linkedIn,companyType:kind};
  });
 }
 async function saveContactChannels(db,{productId,prospectId,contactId,name,role,email,phone,linkedIn}){
@@ -75,4 +79,4 @@ async function recordLinkedIn(db,{productId,prospectId,contactId,status,eventKey
   return activity;
  });
 }
-module.exports={validEmail,validWebsite,validPhone,validLinkedIn,saveCompanyChannels,saveContactChannels,addContact,linkedinDrafts,recordLinkedIn};
+module.exports={validEmail,validWebsite,validPhone,validLinkedIn,validCompanyType,saveCompanyChannels,saveContactChannels,addContact,linkedinDrafts,recordLinkedIn};

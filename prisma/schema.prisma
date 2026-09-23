@@ -564,6 +564,9 @@ model ProductProspect {
   prospectId String
   prospect Prospect @relation(fields: [prospectId], references: [id])
   stage String @default("NO_CONTACT")
+  /// Product-specific business classification. StockerAI uses OPERATOR,
+  /// MACHINE_VENDOR, BOTH, and NEEDS_REVIEW.
+  companyType String @default("NEEDS_REVIEW")
   archivedAt DateTime?
   nextAction String?
   nextActionDate DateTime?
