@@ -41,17 +41,21 @@ function prompt(record){
   'Product facts:',
   '- StockerAI reads a route picking report aloud on a smartphone. The picker keeps both hands working and says "next" to advance.',
   '- Parlevel printed prekitting reports are the only report format already proven. Ask about compatibility with every other report or system.',
+  '- The target is 25-35% less picking time. Present that as the outcome the operator can measure, never as a guarantee or a result already achieved by this company.',
+  '- The first 14 days are free with no obligation, so the operator can test StockerAI against the real picking workflow.',
+  '- If another vending system exports a PDF, invite the operator to send the report name or a redacted sample. Promise to confirm compatibility; never promise that every PDF will work or that an integration is automatic.',
   `- The live demo is ${DEMO}. It is the main invitation. A reply is also welcome and no meeting is required.`,
   '- The approved cadence is business days 1, 4, 9, 16, and 25.',
-  '- Touch 1 introduces Russ as the founder, connects one verified company fact to the familiar route-picking task, and invites the live demo.',
-  '- Touch 2 asks what report or vending system drives picking and explains that compatibility can be checked.',
+  '- Touch 1 introduces Russ as the founder, connects one verified company fact to the familiar route-picking task, states the 25-35% target and free 14-day test plainly, and invites the live demo.',
+  '- Touch 2 asks what report or vending system drives picking, explains that a PDF can be checked, and mentions the free test without sounding like a promotion.',
   '- Touch 3 gives this transparent example only: five drivers, one route per driver per workday, 1.5 picking hours per route, $21 per hour, five workdays per week, 35% less picking time, $1,194.38 monthly time value, $100 subscription, and $1,094.38 after subscription.',
-  '- Touch 4 explains that setup begins with a real report and asks what format they use.',
-  '- Touch 5 is a respectful final note with the demo and an easy way to decline.',
+  '- Touch 4 says the easiest evaluation starts with the real report, asks for the format or a redacted PDF, and explains that compatibility is confirmed before they spend anything.',
+  '- Touch 5 is a warm, direct final note: explain the screen-or-paper problem, restate the measurable target and free test, include the demo, and give an easy way to decline.',
   '',
   'Writing rules:',
   '- Make each email useful on its own while advancing the sequence. Do not assume the reader remembers an earlier email.',
-  '- Use concise, natural, credible language from one business owner to another.',
+  '- Use warm, direct, conversational language from one business owner to another. Lead with the practical result, use contractions, and sound like a real note Russ typed rather than polished corporate copy.',
+  '- Avoid sterile phrases such as "support route picking," "make the picking step more consistent," "when a compatibility review is useful," and "I am happy to answer questions directly." Say what improves, what they can try, and exactly what to send Russ.',
   '- Ground company-specific wording only in the evidence above. Do not invent routes, systems, customers, problems, people, roles, employee counts, or results.',
   '- Describe the calculation as illustrative time value, not guaranteed payroll savings and not a claim about this company.',
   '- Do not use em dashes or en dashes. Do not use a person name in any subject line.',
@@ -80,6 +84,10 @@ function validate(sequence,record){
   if(/\bHi\s+[A-Z][a-z]+[,!]/.test(body)&&record.recipient.kind==='company_inbox')failures.push(`message ${index+1} invents a person for the company inbox`);
   if(/Russ Wright|Founder,? StockerAI|503-621-8000|russ@visionairy\.biz|(?:^|\n)\s*(?:Best(?: regards)?|Regards|Sincerely|Thanks|Thank you)[,!]?\s*(?:\n\s*Russ)?\s*$/i.test(body))failures.push(`message ${index+1} duplicates the delivery signature`);
  }
+ const fullCampaign=messages.map(message=>clean(message.body)).join('\n');
+ if(!/(?:first\s+)?14[- ]day|14 days are free/i.test(fullCampaign))failures.push('campaign does not explain the free 14-day test');
+ if(!/(?:25\s*[-–]\s*35%|35% less picking time)/i.test(fullCampaign))failures.push('campaign does not state the measurable picking-time target');
+ if(!/redacted (?:PDF|sample)|exports? (?:a )?PDF/i.test(fullCampaign))failures.push('campaign does not give the PDF compatibility next step');
  return [...new Set(failures)];
 }
 async function modelInfo(model){const response=await fetch('https://openrouter.ai/api/v1/models',{signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('OpenRouter model catalog returned '+response.status);const found=(await response.json()).data.find(x=>x.id===model);if(!found)throw Error('OpenRouter does not currently list '+model);return found;}
