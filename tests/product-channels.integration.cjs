@@ -20,13 +20,17 @@ test('StockerAI phone and LinkedIn work stays scoped and a LinkedIn reply stops 
    records.push({product,member,recipient,enrollment});
   }
   const [vision,stock]=records;const base={productId:stock.product.id,prospectId:prospect.id};
+  await tx.productMessage.createMany({data:[vision,stock].map(row=>({productId:row.product.id,enrollmentId:row.enrollment.id,touch:1,subject:'Route picking',body:'Hi Cascade Vending team,\n\nA practical route-picking idea.'}))});
   await C.saveCompanyChannels(scope,{...base,name:'Cascade Vending & Coffee',address:'10 Main St, Portland, OR',website:'cascadevending.example/routes',phone:'503-555-0100',linkedInUrl:'https://linkedin.com/company/cascade-vending'});
   await C.saveContactChannels(scope,{...base,contactId:contact.id,phone:'503-555-0101',linkedIn:'https://linkedin.com/in/maria-lopez'});
+  await C.saveContactChannels(scope,{...base,contactId:contact.id,name:'Marisol Lopez',role:'Operations Manager',email:'maria@example.test',phone:'503-555-0101',linkedIn:'https://linkedin.com/in/maria-lopez'});
   await C.saveContactChannels(scope,{...base,contactId:other.id,phone:'503-555-0102',linkedIn:'https://linkedin.com/in/alex-reed'});
   const added=await C.addContact(scope,{...base,name:'Taylor Reed',role:'Owner',email:'TAYLOR@example.test',phone:'503-555-0103',linkedIn:'https://linkedin.com/in/taylor-reed'});
   assert.equal(added.email,'taylor@example.test');assert.equal(added.prospectId,prospect.id);
   const savedProspect=await tx.prospect.findUnique({where:{id:prospect.id}});assert.equal(savedProspect.nameManualValue,'Cascade Vending & Coffee');assert.equal(savedProspect.addressManualValue,'10 Main St, Portland, OR');assert.equal(savedProspect.phoneManualValue,'503-555-0100');assert.equal(savedProspect.websiteManualValue,'https://cascadevending.example/routes');
   assert.equal((await tx.contact.findUnique({where:{id:contact.id}})).linkedIn,'https://linkedin.com/in/maria-lopez');
+  assert.match((await tx.productMessage.findFirst({where:{enrollmentId:stock.enrollment.id}})).body,/^Hi Marisol,/);
+  assert.match((await tx.productMessage.findFirst({where:{enrollmentId:vision.enrollment.id}})).body,/^Hi Cascade Vending team,/);
   await assert.rejects(C.saveContactChannels(scope,{...base,contactId:'missing',phone:'',linkedIn:''}),/does not belong/);
   const sent=await C.recordLinkedIn(scope,{...base,contactId:contact.id,status:'SENT',eventKey:'li-sent'});
   assert.equal((await C.recordLinkedIn(scope,{...base,contactId:contact.id,status:'SENT',eventKey:'li-sent'})).id,sent.id);

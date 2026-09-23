@@ -1,6 +1,7 @@
 'use strict';
 // New product services are deliberately not wired into the legacy sender yet.
 const email = value => String(value || '').trim().toLowerCase();
+const P=require('./productPersonalization.js');
 async function requireProduct(tx, productId) {
   if (!productId) throw new Error('Choose a product');
   const product = await tx.cRMProduct.findUnique({where:{id:productId}});
@@ -31,16 +32,21 @@ async function saveRecipientChoices(db, {productId, prospectId, contactIds=[], c
     if (chooseInbox) {
       const inbox = email(prospect.emailManualValue || prospect.email);
       if (!inbox) throw new Error('No company inbox is available');
-      selected.push({recipientKey:'inbox',contactId:null,email:inbox});
+      const namedMatches=prospect.contacts.filter(c=>!c.setAsideAt&&!c.bouncedAt&&c.name&&email(c.email)===inbox);
+      if(namedMatches.length===1){const c=namedMatches[0];if(!selected.some(r=>r.contactId===c.id))selected.push({recipientKey:'contact:'+c.id,contactId:c.id,email:inbox});}
+      else selected.push({recipientKey:'inbox',contactId:null,email:inbox});
     }
     if (new Set(selected.map(r=>r.email)).size !== selected.length) throw new Error('Choose each email address only once');
     // Selection is atomic and scoped. Clearing choices never queues or generates.
     await tx.productRecipient.updateMany({where:{membershipId:membership.id,productId},data:{selected:false}});
     for (const recipient of selected) {
-      const existing = await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:recipient.recipientKey}}});
+      let existing = await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:recipient.recipientKey}}});
+      if(!existing&&recipient.contactId){const inboxRecipient=await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:'inbox'}}});if(inboxRecipient&&inboxRecipient.email===recipient.email)existing=await tx.productRecipient.update({where:{id:inboxRecipient.id},data:{recipientKey:recipient.recipientKey,contactId:recipient.contactId}});}
       if (existing && existing.email !== recipient.email) throw new Error('Recipient email changed; review the existing campaign before replacing its address');
-      await tx.productRecipient.upsert({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:recipient.recipientKey}},create:{membershipId:membership.id,productId,...recipient,selected:true},update:{selected:true}});
+      if(existing)await tx.productRecipient.update({where:{id:existing.id},data:{selected:true}});
+      else await tx.productRecipient.create({data:{membershipId:membership.id,productId,...recipient,selected:true}});
     }
+    await P.syncDraftGreetings(tx,{productId,membershipId:membership.id,contactIds:selected.map(r=>r.contactId)});
     return {productId,prospectId,selected:selected.length};
   });
 }

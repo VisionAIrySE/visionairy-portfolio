@@ -1,4 +1,5 @@
 'use strict';
+const P=require('./productPersonalization.js');
 const norm=v=>String(v||'').trim().toLowerCase();
 const validEmail=v=>/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(String(v||''));
 const localClock=(now,timeZone)=>{
@@ -39,8 +40,11 @@ function readiness(campaign) {
  if(campaign.replyNeedsReview)reasons.push('A received reply needs review before any further sending');
  if(campaign.addressStop)reasons.push('Email address is blocked: '+campaign.addressStop.reason);
  if(!validEmail(r.email))reasons.push('Recipient email is missing or invalid');
- if(r.contactId){const c=p.contacts.find(c=>c.id===r.contactId);if(!c||c.setAsideAt||c.bouncedAt||norm(c.email)!==norm(r.email))reasons.push('Contact address changed or is unavailable');}
+ const selectedContact=r.contactId?p.contacts.find(c=>c.id===r.contactId):null;
+ if(r.contactId){if(!selectedContact||selectedContact.setAsideAt||selectedContact.bouncedAt||norm(selectedContact.email)!==norm(r.email))reasons.push('Contact address changed or is unavailable');}
  else if(p.emailBouncedAt||norm(p.emailManualValue||p.email)!==norm(r.email))reasons.push('Company inbox changed or has bounced');
+ const recipientFirst=r.contactId?P.expectedFirstName(selectedContact):null;
+ if(r.contactId&&!recipientFirst)reasons.push('Selected contact needs a usable first name');
  if(!p.readings.length)reasons.push('Full website research with saved pages is missing');
  const evidence=new Set(p.findings.filter(f=>p.readings.some(x=>x.id===f.readingId)&&f.url&&f.quote).map(f=>f.id));
  if(!sequence.approvedAt)reasons.push('Campaign sequence is not approved');
@@ -49,6 +53,7 @@ function readiness(campaign) {
   const m=messages.find(m=>m.touch===n);if(!m)continue;
   if(!m.subject?.trim()||!m.body?.trim())reasons.push('Message '+n+' is empty');
   if(/[\r\n\u2014]/.test(m.subject)||/\u2014|<\/?[a-z][^>]*>|&lt;|\{\{|\[FIRST_NAME\]/i.test(m.body))reasons.push('Message '+n+' has a formatting or placeholder problem');
+  if(recipientFirst&&!P.addressedTo(m.body,recipientFirst))reasons.push('Message '+n+' is not addressed to '+recipientFirst);
   if(!m.evidenceFindingIds.length||m.evidenceFindingIds.some(id=>!evidence.has(id)))reasons.push('Message '+n+' needs valid company evidence');
  }
  if(!product.sendingEnabled)config.push('Sending has not been enabled for this product');

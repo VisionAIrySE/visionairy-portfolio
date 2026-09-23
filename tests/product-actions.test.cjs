@@ -18,3 +18,7 @@ test('recipient form starts unchecked and escapes company and email content',()=
  assert.match(html,/StockerAI companies/);assert.match(html,/only companies assigned to StockerAI/);
  assert.match(html,/Company inbox/);assert.match(html,/Add a person/);
 });
+test('a named person at the company inbox is shown once as the person',()=>{
+ const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,memberships:[{prospectId:'p',prospect:{name:'Denver’s Best Vending',email:'stephen@example.test',contacts:[{id:'c',name:'Stephen',email:'stephen@example.test'}]},recipients:[{recipientKey:'inbox',selected:true,enrollments:[]}]}]},{csrf:formToken('stockerai')});
+ assert.match(html,/name="contacts" value="c" checked/);assert.doesNotMatch(html,/> Company inbox/);
+});

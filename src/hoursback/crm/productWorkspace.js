@@ -58,8 +58,11 @@ function renderWorkspace(model,{csrf=''}={}) {
     const selected=new Set(m.recipients.filter(r=>r.selected).map(r=>r.recipientKey));
     const inbox=m.prospect.emailManualValue || m.prospect.email;
     const blocked=Boolean(m.archivedAt || m.prospect.doNotContact || m.prospect.emailBouncedAt);
-    const choices=m.prospect.contacts.filter(c=>c.email&&!c.setAsideAt).map(c=>`<label class="recipient"><input type="checkbox" name="contacts" value="${esc(c.id)}" ${selected.has('contact:'+c.id)?'checked':''} ${c.bouncedAt?'disabled':''}> ${esc(c.name || c.email)} ${c.role?'· '+esc(c.role):''}<small>${esc(c.email)}${c.bouncedAt?' · bounced':''}</small></label>`).join('');
-    const picker=forms('choices',`${hidden('prospectId',m.prospectId)}<fieldset ${m.archivedAt?'disabled':''}><legend>Choose recipients</legend>${choices}${inbox?`<label class="recipient"><input type="checkbox" name="inbox" value="1" ${selected.has('inbox')?'checked':''}> Company inbox<small>${esc(inbox)}</small></label>`:''}${!choices&&!inbox?'<p>No email addresses on file.</p>':''}<button type="submit">Save recipient choices</button></fieldset>`);
+    const usableContacts=m.prospect.contacts.filter(c=>c.email&&!c.setAsideAt);
+    const namedInboxMatch=inbox&&usableContacts.filter(c=>c.name&&!c.bouncedAt&&R.norm(c.email)===R.norm(inbox));const showInbox=inbox&&namedInboxMatch.length!==1;
+    if(!showInbox&&selected.has('inbox')){selected.delete('inbox');selected.add('contact:'+namedInboxMatch[0].id);}
+    const choices=usableContacts.map(c=>`<label class="recipient"><input type="checkbox" name="contacts" value="${esc(c.id)}" ${selected.has('contact:'+c.id)?'checked':''} ${c.bouncedAt?'disabled':''}> ${esc(c.name || c.email)} ${c.role?'· '+esc(c.role):''}<small>${esc(c.email)}${c.bouncedAt?' · bounced':''}</small></label>`).join('');
+    const picker=forms('choices',`${hidden('prospectId',m.prospectId)}<fieldset ${m.archivedAt?'disabled':''}><legend>Choose recipients</legend>${choices}${showInbox?`<label class="recipient"><input type="checkbox" name="inbox" value="1" ${selected.has('inbox')?'checked':''}> Company inbox<small>${esc(inbox)}</small></label>`:''}${!choices&&!showInbox?'<p>No email addresses on file.</p>':''}<button type="submit">Save recipient choices</button></fieldset>`);
     const campaigns=m.recipients.map(r=>{
       const person=m.prospect.contacts.find(c=>c.id===r.contactId);
       const label=r.recipientKey==='inbox'?'Company inbox':person?.name||r.email;
