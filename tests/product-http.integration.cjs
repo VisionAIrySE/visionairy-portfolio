@@ -7,7 +7,7 @@ test('authenticated product routes save choices, reject bad tokens, and preserve
  const db=new PrismaClient({datasources:{db:{url}}});const id='route-test-'+Date.now();let child,p,other;
  try{
   await db.cRMProduct.create({data:{id,name:'Route Test'}});
-  p=await db.prospect.create({data:{placeId:id,name:'HTTP Test Company',email:'office@example.test'}});
+  p=await db.prospect.create({data:{placeId:id,name:'HTTP Test Company',website:'https://routepicker.example',email:'office@example.test'}});
   other=await db.prospect.create({data:{placeId:id+'-other',name:'Separate Operator',email:'other@example.test'}});
   await db.productProspect.create({data:{productId:id,prospectId:p.id}});
   await db.productProspect.create({data:{productId:id,prospectId:other.id}});
@@ -19,6 +19,7 @@ test('authenticated product routes save choices, reject bad tokens, and preserve
   const login=await fetch(base+'/login',{method:'POST',body:new URLSearchParams({pw:'local-route-test'}),redirect:'manual'});assert.equal(login.status,303);const cookie=login.headers.get('set-cookie').split(';')[0];
   const headers={cookie};const page=await(await fetch(target,{headers})).text();assert.match(page,/HTTP Test Company/);const csrf=page.match(/name="csrf" value="([a-f0-9]+)"/)[1];
   const searched=await(await fetch(target+'?q=HTTP%20Test',{headers})).text();assert.match(searched,/HTTP Test Company/);assert.doesNotMatch(searched,/Separate Operator/);assert.match(searched,/1 matching companies/);
+  const websiteSearch=await(await fetch(target+'?q=routepicker',{headers})).text();assert.match(websiteSearch,/HTTP Test Company/);assert.doesNotMatch(websiteSearch,/Separate Operator/);
   let response=await fetch(target+'/choices',{method:'POST',headers,body:new URLSearchParams({csrf:'bad',prospectId:p.id,inbox:'1'})});assert.equal(response.status,403);
   response=await fetch(target+'/choices',{method:'POST',headers,body:new URLSearchParams({csrf,prospectId:p.id,inbox:'1'})});assert.equal(response.status,200);assert.equal((await response.json()).selected,1);
   let updated=await(await fetch(target,{headers})).text();assert.match(updated,/Full website research/);assert.match(updated,/Message 5/);

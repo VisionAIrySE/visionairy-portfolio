@@ -3,7 +3,9 @@ const crypto=require('node:crypto');
 
 const clean=value=>String(value||'').trim();
 function validEmail(value){const email=clean(value).toLowerCase();if(!email)return null;if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Enter a valid email address');return email;}
+function validWebsite(value){const raw=clean(value);if(!raw)return null;if(raw.length>2048)throw new Error('Website address is too long');let url;try{url=new URL(/^https?:\/\//i.test(raw)?raw:'https://'+raw);}catch{throw new Error('Enter a valid website address');}if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)throw new Error('Enter a valid public website address');url.hash='';return url.toString().replace(/\/$/,'');}
 function short(value,label){const result=clean(value);if(result.length>200)throw new Error(label+' is too long');return result||null;}
+function address(value){const result=clean(value);if(result.length>500)throw new Error('Address is too long');return result||null;}
 function validPhone(value){
  const phone=clean(value);if(!phone)return null;
  if(phone.length>50||!/^[0-9+(). xext-]+$/i.test(phone))throw new Error('Enter a valid phone number');
@@ -21,12 +23,13 @@ async function membershipFor(tx,productId,prospectId){
  const membership=await tx.productProspect.findUnique({where:{productId_prospectId:{productId,prospectId}}});
  if(!membership)throw new Error('Company does not belong to this product');return membership;
 }
-async function saveCompanyChannels(db,{productId,prospectId,email,phone,linkedInUrl}){
- const inbox=email===undefined?undefined:validEmail(email),normalizedPhone=validPhone(phone),linkedIn=validLinkedIn(linkedInUrl,'company');
+async function saveCompanyChannels(db,{productId,prospectId,name,address:street,website,email,phone,linkedInUrl}){
+ const company=name===undefined?undefined:short(name,'Company name'),location=street===undefined?undefined:address(street),site=website===undefined?undefined:validWebsite(website),inbox=email===undefined?undefined:validEmail(email),normalizedPhone=validPhone(phone),linkedIn=validLinkedIn(linkedInUrl,'company');
+ if(name!==undefined&&!company)throw new Error('Enter the company name');
  return db.$transaction(async tx=>{const m=await membershipFor(tx,productId,prospectId);
-  await tx.prospect.update({where:{id:prospectId},data:{...(inbox===undefined?{}:{emailManualValue:inbox}),phoneManualValue:normalizedPhone,linkedInUrl:linkedIn}});
+  await tx.prospect.update({where:{id:prospectId},data:{...(company===undefined?{}:{nameManualValue:company}),...(location===undefined?{}:{addressManualValue:location}),...(site===undefined?{}:{websiteManualValue:site}),...(inbox===undefined?{}:{emailManualValue:inbox}),phoneManualValue:normalizedPhone,linkedInUrl:linkedIn}});
   await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',notes:'Updated company contact details',occurredAt:new Date()}});
-  return {email:inbox,phone:normalizedPhone,linkedInUrl:linkedIn};
+  return {name:company,address:location,website:site,email:inbox,phone:normalizedPhone,linkedInUrl:linkedIn};
  });
 }
 async function saveContactChannels(db,{productId,prospectId,contactId,name,role,email,phone,linkedIn}){
@@ -70,4 +73,4 @@ async function recordLinkedIn(db,{productId,prospectId,contactId,status,eventKey
   return activity;
  });
 }
-module.exports={validEmail,validPhone,validLinkedIn,saveCompanyChannels,saveContactChannels,addContact,linkedinDrafts,recordLinkedIn};
+module.exports={validEmail,validWebsite,validPhone,validLinkedIn,saveCompanyChannels,saveContactChannels,addContact,linkedinDrafts,recordLinkedIn};
