@@ -1,0 +1,2 @@
+ALTER TABLE "ProductProspect"
+ADD COLUMN "companyType" TEXT NOT NULL DEFAULT 'NEEDS_REVIEW';
