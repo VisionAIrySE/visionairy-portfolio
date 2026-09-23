@@ -12,6 +12,8 @@ test('StockerAI LinkedIn drafts are concise, specific, and free of unsupported c
 });
 
 test('phone and LinkedIn validation accepts useful values and rejects wrong destinations',()=>{
+ assert.equal(C.validEmail(' Maria@Example.Test '),'maria@example.test');
+ assert.throws(()=>C.validEmail('not-an-email'),/valid email/);
  assert.equal(C.validPhone('(503) 555-1212 x4'),'(503) 555-1212 x4');
  assert.equal(C.validPhone(''),null);
  assert.equal(C.validLinkedIn('linkedin.com/in/maria-lopez?trk=test','person'),'https://linkedin.com/in/maria-lopez');
@@ -20,10 +22,11 @@ test('phone and LinkedIn validation accepts useful values and rejects wrong dest
  assert.throws(()=>C.validLinkedIn('https://linkedin.com/company/cascade','person'),/person/);
 });
 
-test('product workspace shows phone and LinkedIn tools for named contacts, including contacts without email',()=>{
+test('product workspace keeps company and contact editing inside the StockerAI company list',()=>{
  const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,memberships:[{prospectId:'p1',stage:'NO_CONTACT',activities:[],tasks:[],prospect:{id:'p1',name:'Cascade Vending',phone:'503-555-0100',contacts:[{id:'c1',name:'Maria Lopez',role:'Operations Manager',email:null,phone:null,linkedIn:null}]},recipients:[]}]},{csrf:'token'});
- assert.match(html,/Phone and LinkedIn outreach/);assert.match(html,/503-555-0100/);
+ assert.match(html,/Company details and contacts/);assert.match(html,/503-555-0100/);
  assert.match(html,/Maria Lopez/);assert.match(html,/No email address on file/);
  assert.match(html,/Find this person on LinkedIn/);assert.match(html,/Mark LinkedIn message sent/);
  assert.match(html,/Record LinkedIn reply and stop email sequence/);
+ assert.match(html,/Add a person/);assert.match(html,/name="email" type="email"/);
 });

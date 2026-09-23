@@ -2,6 +2,8 @@
 const crypto=require('node:crypto');
 
 const clean=value=>String(value||'').trim();
+function validEmail(value){const email=clean(value).toLowerCase();if(!email)return null;if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Enter a valid email address');return email;}
+function short(value,label){const result=clean(value);if(result.length>200)throw new Error(label+' is too long');return result||null;}
 function validPhone(value){
  const phone=clean(value);if(!phone)return null;
  if(phone.length>50||!/^[0-9+(). xext-]+$/i.test(phone))throw new Error('Enter a valid phone number');
@@ -19,21 +21,31 @@ async function membershipFor(tx,productId,prospectId){
  const membership=await tx.productProspect.findUnique({where:{productId_prospectId:{productId,prospectId}}});
  if(!membership)throw new Error('Company does not belong to this product');return membership;
 }
-async function saveCompanyChannels(db,{productId,prospectId,phone,linkedInUrl}){
- const normalizedPhone=validPhone(phone),linkedIn=validLinkedIn(linkedInUrl,'company');
+async function saveCompanyChannels(db,{productId,prospectId,email,phone,linkedInUrl}){
+ const inbox=email===undefined?undefined:validEmail(email),normalizedPhone=validPhone(phone),linkedIn=validLinkedIn(linkedInUrl,'company');
  return db.$transaction(async tx=>{const m=await membershipFor(tx,productId,prospectId);
-  await tx.prospect.update({where:{id:prospectId},data:{phoneManualValue:normalizedPhone,linkedInUrl:linkedIn}});
-  await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',notes:'Updated company phone and LinkedIn details',occurredAt:new Date()}});
-  return {phone:normalizedPhone,linkedInUrl:linkedIn};
+  await tx.prospect.update({where:{id:prospectId},data:{...(inbox===undefined?{}:{emailManualValue:inbox}),phoneManualValue:normalizedPhone,linkedInUrl:linkedIn}});
+  await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',notes:'Updated company contact details',occurredAt:new Date()}});
+  return {email:inbox,phone:normalizedPhone,linkedInUrl:linkedIn};
  });
 }
-async function saveContactChannels(db,{productId,prospectId,contactId,phone,linkedIn}){
+async function saveContactChannels(db,{productId,prospectId,contactId,name,role,email,phone,linkedIn}){
  const normalizedPhone=validPhone(phone),profile=validLinkedIn(linkedIn,'person');
  return db.$transaction(async tx=>{const m=await membershipFor(tx,productId,prospectId);
   const contact=await tx.contact.findFirst({where:{id:contactId,prospectId,setAsideAt:null}});if(!contact)throw new Error('Contact does not belong to this company');
-  await tx.contact.update({where:{id:contactId},data:{phone:normalizedPhone,linkedIn:profile}});
+  const data={phone:normalizedPhone,linkedIn:profile};
+  if(name!==undefined)data.name=short(name,'Name');if(role!==undefined)data.role=short(role,'Role');if(email!==undefined)data.email=validEmail(email);
+  if(name!==undefined&&!data.name)throw new Error('Enter the person’s name');
+  await tx.contact.update({where:{id:contactId},data});
   await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',contactId,notes:'Updated '+(contact.name||'contact')+' phone and LinkedIn details',occurredAt:new Date()}});
-  return {phone:normalizedPhone,linkedIn:profile};
+  return data;
+ });
+}
+async function addContact(db,{productId,prospectId,name,role,email,phone,linkedIn}){
+ const person=short(name,'Name');if(!person)throw new Error('Enter the person’s name');
+ const data={prospectId,name:person,role:short(role,'Role'),email:validEmail(email),phone:validPhone(phone),linkedIn:validLinkedIn(linkedIn,'person'),source:'RUSS'};
+ return db.$transaction(async tx=>{const m=await membershipFor(tx,productId,prospectId);const contact=await tx.contact.create({data});
+  await tx.productActivity.create({data:{productId,membershipId:m.id,eventKey:crypto.randomUUID(),kind:'ACTION',contactId:contact.id,notes:'Added contact '+person,occurredAt:new Date()}});return contact;
  });
 }
 function linkedinDrafts(company,contact){
@@ -58,4 +70,4 @@ async function recordLinkedIn(db,{productId,prospectId,contactId,status,eventKey
   return activity;
  });
 }
-module.exports={validPhone,validLinkedIn,saveCompanyChannels,saveContactChannels,linkedinDrafts,recordLinkedIn};
+module.exports={validEmail,validPhone,validLinkedIn,saveCompanyChannels,saveContactChannels,addContact,linkedinDrafts,recordLinkedIn};

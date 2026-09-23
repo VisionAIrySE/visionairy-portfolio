@@ -15,4 +15,6 @@ test('recipient form starts unchecked and escapes company and email content',()=
  assert.doesNotMatch(html,/checked/);assert.match(html,/Company inbox/);
  assert.match(html,/Save recipient choices/);assert.match(html,/name="csrf"/);
  assert.match(html,/Send one test email to Russ/);assert.match(html,/cannot target a customer or send twice/);
+ assert.match(html,/StockerAI companies/);assert.match(html,/only companies assigned to StockerAI/);
+ assert.match(html,/Company inbox/);assert.match(html,/Add a person/);
 });
