@@ -79,6 +79,8 @@ async function saveRecipientChoices(db, {productId, prospectId, contactIds=[], c
       else await tx.productRecipient.create({data:{membershipId:membership.id,productId,...recipient,selected:true}});
     }
     await P.syncDraftGreetings(tx,{productId,membershipId:membership.id,contactIds:selected.map(r=>r.contactId)});
+    const draftRecipients=await tx.productRecipient.findMany({where:{productId,membershipId:membership.id},select:{id:true}});
+    await P.syncDraftEvidence(tx,{productId,membershipId:membership.id,recipientIds:draftRecipients.map(recipient=>recipient.id)});
     return {productId,prospectId,selected:selected.length};
   });
 }
