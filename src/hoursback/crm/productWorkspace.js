@@ -32,7 +32,7 @@ async function productWorkspace(db, productId, {page=1,q=''}={}) {
 }
 function renderReadiness(result){
  if(!result)return '<p>Readiness has not been checked.</p>';
- return result.ready?'<p>All preparation checks pass. Sending still requires release.</p>':'<p>Not ready to send:</p><ul>'+result.reasons.map(reason=>'<li>'+esc(reason)+'</li>').join('')+'</ul>';
+ return result.ready?'<p>All preparation checks pass. The next message can be sent manually.</p>':'<p>Not ready to send:</p><ul>'+result.reasons.map(reason=>'<li>'+esc(reason)+'</li>').join('')+'</ul>';
 }
 const hidden=(name,value)=>`<input type="hidden" name="${name}" value="${esc(value)}">`;
 const linkedInSearch=(type,keywords)=>`https://www.linkedin.com/search/results/${type}/?keywords=${encodeURIComponent(keywords)}`;
@@ -71,17 +71,26 @@ function renderWorkspace(model,{csrf=''}={}) {
       const label=r.recipientKey==='inbox'?'Company inbox':person?.name||r.email;
       return `<details class="campaign" data-recipient-key="${esc(r.recipientKey)}"><summary>${esc(label)} · ${esc(r.email)} · <span class="recipient-status">${r.selected?'Selected':'Not selected'}</span></summary>${r.enrollments.map(e=>{
         const editable=e.state==='DRAFT'&&!e.startedAt&&!e.stoppedAt;
+        const next=e.messages.find(msg=>!(msg.deliveryState==='SENT'&&msg.providerMessageId&&msg.sentAt));
         return `<section data-enrollment="${esc(e.id)}"><h3>Sequence ${e.sequence.version}</h3><p><span class="saved-count">${e.messages.length}</span> of ${e.sequence.dayNumbers.length} messages saved. </p><div class="readiness" role="status">${renderReadiness(e.readiness)}</div>${e.sequence.dayNumbers.map((day,i)=>{
           const msg=e.messages.find(x=>x.touch===i+1);
-          const body=`${hidden('enrollmentId',e.id)}${hidden('touch',i+1)}<h4>Message ${i+1} · ${e.sequence.businessDaysOnly?'Business day':'Day'} ${day}</h4><label>Subject<input name="subject" required value="${esc(msg?.subject||'')}" ${editable?'':'disabled'}></label><label>Message<textarea name="body" required rows="9" ${editable?'':'disabled'}>${esc(msg?.body||'')}</textarea></label>${editable?'<button type="submit">Save message</button>':'<p>This campaign has started or stopped; its messages are locked.</p>'}`;
-          return forms('draft',body);
+          const sent=msg?.deliveryState==='SENT'&&msg.providerMessageId&&msg.sentAt;
+          const uncertain=msg&&['ATTEMPTING','UNCONFIRMED','BLOCKED'].includes(msg.deliveryState);
+          const status=sent?`<p class="delivery-status sent">Sent <time data-timestamp="${esc(msg.sentAt.toISOString())}">${esc(msg.sentAt.toISOString())}</time> · Resend ID ${esc(msg.providerMessageId)}</p>`:uncertain?`<p class="delivery-status notice">Delivery status: ${esc(msg.deliveryState)}${msg.deliveryError?' · '+esc(msg.deliveryError):''}</p>`:'<p class="delivery-status">Not sent.</p>';
+          const body=`${hidden('enrollmentId',e.id)}${hidden('touch',i+1)}<h4>Message ${i+1} · ${e.sequence.businessDaysOnly?'Business day':'Day'} ${day}</h4><label>Subject<input name="subject" required value="${esc(msg?.subject||'')}" ${editable?'':'disabled'}></label><label>Message<textarea name="body" required rows="9" ${editable?'':'disabled'}>${esc(msg?.body||'')}</textarea></label>${editable?'<button type="submit">Save message</button>':'<p>This campaign has started or stopped; its messages are locked.</p>'}${status}`;
+          const editor=forms('draft',body);
+          if(!msg||sent||uncertain)return editor;
+          const canSend=Boolean(e.readiness?.ready&&next?.id===msg.id);
+          const reason=!e.readiness?.ready?'Complete the readiness checks before sending.':next?.id!==msg.id?'Send the earlier message first.':'';
+          const manual=forms('manual-send',`${hidden('enrollmentId',e.id)}${hidden('touch',i+1)}<button type="submit" ${canSend?'':'disabled'}>Send this message now</button>${reason?`<small>${esc(reason)}</small>`:''}`).replace('<form ','<form data-manual-send="1" data-recipient="'+esc(r.email)+'" data-touch="'+(i+1)+'" ');
+          return editor+manual;
         }).join('')}</section>`;
       }).join('')||'<p>No campaign prepared yet. Save recipient choices to prepare a draft sequence when an approved sequence is configured.</p>'}</details>`;
     }).join('');
     const typeLabel=product.id==='stockerai'?' · '+esc(COMPANY_TYPE_LABELS[m.companyType]||COMPANY_TYPE_LABELS.NEEDS_REVIEW):'';
     return `<details class="company" data-company="${esc(m.prospectId)}"><summary>${esc(m.prospect.nameManualValue||m.prospect.name)}${typeLabel} · <span class="selected-count">${selected.size}</span> selected</summary>${blocked?'<p class="notice">Sending is blocked for this company. No messages will be sent.</p>':''}${renderOutreachChannels(m,forms,product.id)}${require('./productSalesView.js').renderSales(m,forms)}${picker}${campaigns}</details>`;
   }).join('');
-  const sendState=product.sendingEnabled?'Sending is enabled. Selected campaigns that pass every check begin at 10:00 AM Pacific on a scheduled business day.':'Sending is paused. You can review and select recipients, but no StockerAI email can leave until launch is explicitly enabled.';
+  const sendState=product.sendingEnabled?'Sending is enabled. Use “Send this message now” to send one ready message at a time; the CRM records its time and provider ID.':'Sending is paused. You can review and select recipients, but no StockerAI email can leave until launch is explicitly enabled.';
   const deliveryTest=product.id==='stockerai'?`<section class="delivery-test" aria-label="Controlled delivery test"><h2>Delivery and reply test</h2><p>This sends exactly one clearly labeled test email to russ@visionairy.biz. It cannot target a customer or send twice.</p>${forms('test-delivery','<button type="submit">Send one test email to Russ</button>')}</section>`:'';
   const query=q?'&q='+encodeURIComponent(q):'';
   return `<main><h1>${esc(product.name)} companies</h1><p class="notice">This list contains only companies assigned to ${esc(product.name)}. VisionAIry has its own company list.</p><form method="get" action="${base}" class="company-search"><label>Search ${esc(product.name)} companies<input name="q" value="${esc(q)}" placeholder="Company, website, contact or email"></label><button type="submit">Search</button>${q?` <a href="${base}">Clear</a>`:''}</form><p class="notice">${sendState}</p>${deliveryTest}<p>${count} ${q?'matching ':''}companies in this product</p>${preparation?`<section aria-label="Whole product research progress"><h2>Preparation overview</h2><p>${preparation.researched} of ${preparation.total} active companies fully researched · ${preparation.unresearched} still need research.</p><p>${preparation.withEmail} have an email address on file; ${preparation.researchedWithEmail} of those are researched. Addresses still require review. ${preparation.archived} companies are archived.</p></section>`:''}<aside class="bulk-save"><button type="button" id="save-recipient-choices">Save all recipient choices</button><p id="bulk-status" role="status">Only changed recipient choices on this page are saved.</p></aside>${companies||`<p>No ${esc(product.name)} companies match this search.</p>`}${page>1?`<a href="${base}?page=${page-1}${query}">Previous</a>`:''} ${page*25<count?`<a href="${base}?page=${page+1}${query}">Next</a>`:''}</main>`;
@@ -95,7 +104,13 @@ document.querySelectorAll('[data-due-date]').forEach(t=>{if(t.dataset.dueDate<lo
 function wireForm(form){
  form.addEventListener('input',()=>{dirty.add(form);form.editVersion=(form.editVersion||0)+1;});
  form.saveChanges=async event=>{
-  event.preventDefault(); if(form.saving)return;form.saving=true;const version=form.editVersion||0; const button=form.querySelector('button'); const status=form.querySelector('[role=status]');
+  event.preventDefault(); if(form.saving)return;const status=form.querySelector('[role=status]');
+  if(form.matches('[data-manual-send]')){
+   const enrollment=form.closest('[data-enrollment]');
+   if([...dirty].some(changed=>changed!==form&&enrollment.contains(changed))){status.textContent='Save all message edits in this sequence before sending.';return;}
+   if(!window.confirm('Send message '+form.dataset.touch+' now to '+form.dataset.recipient+'? This sends a real email.'))return;
+  }
+  form.saving=true;const version=form.editVersion||0; const button=form.querySelector('button');
   button.disabled=true; status.textContent='Saving…';
   try {
    const values=new URLSearchParams(new FormData(form));
@@ -125,7 +140,7 @@ function wireForm(form){
     for(const [id,check] of Object.entries(result.readiness)){
      const panel=[...company.querySelectorAll('[data-enrollment]')].find(e=>e.dataset.enrollment===id)?.querySelector('.readiness');
      if(!panel)continue;panel.replaceChildren();
-     const title=document.createElement('p');title.textContent=check.ready?'All preparation checks pass. Sending still requires release.':'Not ready to send:';panel.append(title);
+     const title=document.createElement('p');title.textContent=check.ready?'All preparation checks pass. The next message can be sent manually.':'Not ready to send:';panel.append(title);
      if(!check.ready){const list=document.createElement('ul');for(const reason of check.reasons){const item=document.createElement('li');item.textContent=reason;list.append(item);}panel.append(list);}
     }
    }

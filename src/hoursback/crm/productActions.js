@@ -17,7 +17,7 @@ function validToken(productId,value) {
  if(typeof value!=='string'||!/^[a-f0-9]{64}$/.test(value)) return false;
  return crypto.timingSafeEqual(Buffer.from(value,'hex'),Buffer.from(formToken(productId),'hex'));
 }
-async function handleProductPost(db,{productId,action,form}) {
+async function handleProductPost(db,{productId,action,form,send}) {
  if(!validToken(productId,form.csrf)) return {status:403,error:'This page has expired. Refresh before saving.'};
  try {
   const S=require('./productSales.js');
@@ -39,6 +39,12 @@ async function handleProductPost(db,{productId,action,form}) {
     const savedCount=await db.productMessage.count({where:{productId,enrollmentId:form.enrollmentId}});
     return {status:200,message:'Message saved.',savedCount,enrollmentId:form.enrollmentId,readiness:await checks(db,productId,[form.enrollmentId])};
    }catch{return {status:200,message:'Message saved. Reload to refresh its status.',refresh:true};}
+  }
+  if(action==='manual-send') {
+   const result=await require('./productDelivery.js').manualSendMessage(db,{productId,enrollmentId:form.enrollmentId,touch:Number(form.touch),send});
+   if(result.sent)return {status:200,message:'Message '+result.touch+' sent and tracked.',sentAt:result.sentAt,providerMessageId:result.providerMessageId,refresh:true};
+   if(result.unconfirmed)return {status:409,error:'The provider outcome is uncertain. Do not send this message again until its status is reconciled.',refresh:true};
+   return {status:409,error:(result.held||['Message was not sent']).join('; '),refresh:true};
   }
   if(action!=='choices') return {status:404,error:'Unknown action'};
   const saved=await E.saveRecipientChoices(db,{productId,prospectId:form.prospectId,contactIds:[].concat(form.contacts||[]),chooseInbox:form.inbox==='1'});

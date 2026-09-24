@@ -28,3 +28,18 @@ test('vending company classification stays out of the VisionAIry workspace',()=>
  const html=renderWorkspace({product:{id:'visionairy',name:'VisionAIry'},count:1,page:1,memberships:[{prospectId:'p',companyType:'OPERATOR',prospect:{name:'Example Co',contacts:[]},recipients:[]}]},{csrf:formToken('visionairy')});
  assert.doesNotMatch(html,/Company type|Vending operator|Machine sales or leasing vendor/);
 });
+test('workspace exposes one guarded manual send at a time and shows delivery evidence',()=>{
+ const now=new Date('2026-09-23T18:00:00Z');
+ const messages=[
+  {id:'m1',touch:1,subject:'First',body:'Hi Pat',deliveryState:'SENT',providerMessageId:'re_123',sentAt:now},
+  {id:'m2',touch:2,subject:'Second',body:'Hi Pat',deliveryState:'DRAFT',providerMessageId:null,sentAt:null},
+  {id:'m3',touch:3,subject:'Third',body:'Hi Pat',deliveryState:'DRAFT',providerMessageId:null,sentAt:null},
+ ];
+ const enrollment={id:'e1',state:'RELEASED',startedAt:now,stoppedAt:null,sequence:{version:1,dayNumbers:[1,4,9],businessDaysOnly:true},messages,readiness:{ready:true,reasons:[]}};
+ const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI',sendingEnabled:true},count:1,page:1,memberships:[{prospectId:'p',prospect:{name:'Operator',email:'pat@example.test',contacts:[]},recipients:[{recipientKey:'inbox',email:'pat@example.test',selected:true,enrollments:[enrollment]}]}]},{csrf:formToken('stockerai')});
+ assert.match(html,/Sent <time data-timestamp="2026-09-23T18:00:00.000Z"/);assert.match(html,/Resend ID re_123/);
+ assert.equal((html.match(/action="\/products\/stockerai\/manual-send"/g)||[]).length,2);
+ assert.match(html,/data-touch="2"[^>]*method="post" action="\/products\/stockerai\/manual-send"/);
+ assert.match(html,/data-touch="3"[^>]*method="post" action="\/products\/stockerai\/manual-send"[\s\S]*?<button type="submit" disabled>/);
+ assert.match(script,/This sends a real email/);assert.match(script,/Save all message edits in this sequence before sending/);
+});

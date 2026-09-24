@@ -65,6 +65,28 @@ test('uncertain provider outcome is held rather than retried',()=>scenario(async
  assert.ok((await D.attemptCampaign(scope,{...args,send})).unconfirmed);
  await D.attemptCampaign(scope,{...args,send,now:new Date('2026-09-22T17:00:00Z')});assert.equal(calls,1);
 }));
+test('manual send is immediate, ordered, idempotent and records provider evidence',()=>scenario(async({tx,scope,campaign})=>{
+ const args={productId:'stockerai',enrollmentId:campaign.id};let calls=0;
+ const send=async payload=>{calls++;assert.equal(payload.idempotencyKey,'product-email:'+(await tx.productMessage.findFirst({where:{enrollmentId:campaign.id,touch:calls}})).id);return {id:'manual-'+calls,message_id:'<manual-'+calls+'@example.test>'};};
+ const firstAt=new Date('2026-09-26T15:00:00Z');
+ const first=await D.manualSendMessage(scope,{...args,touch:1,send,now:firstAt});
+ assert.equal(first.touch,1);assert.equal(first.manual,true);assert.equal(calls,1);
+ let saved=await tx.productMessage.findUnique({where:{enrollmentId_touch:{enrollmentId:campaign.id,touch:1}}});
+ assert.equal(saved.deliveryState,'SENT');assert.equal(saved.providerMessageId,'manual-1');assert.equal(saved.rfcMessageId,'<manual-1@example.test>');assert.equal(saved.sentAt.toISOString(),firstAt.toISOString());
+ const enrollment=await tx.productEnrollment.findUnique({where:{id:campaign.id}});assert.equal(enrollment.state,'RELEASED');assert.ok(enrollment.startedAt);assert.ok(enrollment.releasedAt);
+ assert.ok((await D.manualSendMessage(scope,{...args,touch:1,send})).held);assert.equal(calls,1);
+ const outOfOrder=await D.manualSendMessage(scope,{...args,touch:3,send});assert.match(outOfOrder.held.join(' '),/Message 2 is next/);assert.equal(calls,1);
+ const secondAt=new Date('2026-09-26T15:05:00Z');const second=await D.manualSendMessage(scope,{...args,touch:2,send,now:secondAt});
+ assert.equal(second.touch,2);assert.equal(calls,2);
+ saved=await tx.productMessage.findUnique({where:{enrollmentId_touch:{enrollmentId:campaign.id,touch:2}}});assert.equal(saved.providerMessageId,'manual-2');assert.equal(saved.sentAt.toISOString(),secondAt.toISOString());
+}));
+
+test('manual send never calls the provider when readiness is blocked',()=>scenario(async({tx,scope,campaign,recipient})=>{
+ await tx.productRecipient.update({where:{id:recipient.id},data:{selected:false}});let calls=0;
+ const result=await D.manualSendMessage(scope,{productId:'stockerai',enrollmentId:campaign.id,touch:1,send:async()=>{calls++;return {id:'wrong'};}});
+ assert.match(result.held.join(' '),/not selected/);assert.equal(calls,0);
+ assert.equal((await tx.productMessage.findUnique({where:{enrollmentId_touch:{enrollmentId:campaign.id,touch:1}}})).deliveryState,'DRAFT');
+}));
 test('reply event is idempotent, records history and stops only matched campaign',()=>scenario(async({tx,scope,campaign,p})=>{
  await tx.productEnrollment.update({where:{id:campaign.id},data:{startedAt:new Date()}});
  const event={type:'email.received',data:{email_id:'inbound-1',from:'Operator <office@example.test>',to:['reply@example.test'],subject:'Interested',text:'Please show me the demo'}};

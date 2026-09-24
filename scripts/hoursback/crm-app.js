@@ -2727,7 +2727,9 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({message:'One StockerAI test email was sent only to russ@visionairy.biz. Check its formatting, then reply with “StockerAI reply test.”',result}));
           }catch(error){res.writeHead(409,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({error:error.message}));}
         }
-        const result = await A.handleProductPost(productDb, {productId:id, action, form});
+        let send;
+        if(action==='manual-send')send=require('../../src/hoursback/crm/productResend.js').resendProvider({apiKey:process.env.RESEND_API_KEY,inboundKey:process.env.RESEND_INBOUND_API_KEY}).send;
+        const result = await A.handleProductPost(productDb, {productId:id, action, form, send});
         res.writeHead(result.status, {'Content-Type':'application/json', 'Cache-Control':'no-store'}); return res.end(JSON.stringify(result));
       }
       if (req.method !== 'GET') { res.writeHead(405); return res.end('Method not allowed'); }
