@@ -106,3 +106,51 @@ test('a verified person at the company inbox is selected as the person',async()=
   throw new Error('ROLLBACK_NAMED_INBOX');
  });}catch(error){if(error.message!=='ROLLBACK_NAMED_INBOX')throw error;}
 });
+
+test('a new named recipient inherits the complete same-company sequence and its own greeting',async()=>{
+ const suffix='clone-recipient-'+Date.now();
+ try{await db.$transaction(async tx=>{
+  const scope=new Proxy(tx,{get:(target,key)=>key==='$transaction'?fn=>fn(tx):target[key]});
+  const product=await tx.cRMProduct.create({data:{id:suffix,name:'StockerAI'}});
+  const prospect=await tx.prospect.create({data:{placeId:suffix,name:'Fixture Vending',contacts:{create:[{name:'Alice Owner',email:'alice@example.test'},{name:'Bob Driver',email:'bob@example.test'}]}},include:{contacts:true}});
+  const membership=await S.addMembership(scope,product.id,prospect.id);
+  const sequence=await tx.productSequence.create({data:{productId:product.id,version:1,dayNumbers:[1,4],businessDaysOnly:true,approvedAt:new Date()}});
+  const alice=prospect.contacts.find(contact=>contact.name.startsWith('Alice'));
+  const bob=prospect.contacts.find(contact=>contact.name.startsWith('Bob'));
+  const sourceRecipient=await tx.productRecipient.create({data:{productId:product.id,membershipId:membership.id,recipientKey:'contact:'+alice.id,contactId:alice.id,email:alice.email,selected:true}});
+  const source=await tx.productEnrollment.create({data:{productId:product.id,recipientId:sourceRecipient.id,sequenceId:sequence.id}});
+  await tx.productMessage.createMany({data:[
+   {productId:product.id,enrollmentId:source.id,touch:1,subject:'First',body:'Hi Alice,\n\nA company-specific first message.',evidenceFindingIds:['finding-1']},
+   {productId:product.id,enrollmentId:source.id,touch:2,subject:'Second',body:'Hi Alice,\n\nA company-specific follow-up.',evidenceFindingIds:['finding-1']},
+  ]});
+  await S.saveRecipientChoices(scope,{productId:product.id,prospectId:prospect.id,contactIds:[alice.id,bob.id]});
+  const bobRecipient=await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:'contact:'+bob.id}}});
+  const cloned=await S.enrollRecipient(scope,{productId:product.id,recipientId:bobRecipient.id,sequenceId:sequence.id});
+  const messages=await tx.productMessage.findMany({where:{enrollmentId:cloned.id},orderBy:{touch:'asc'}});
+  assert.equal(messages.length,2);assert.deepEqual(messages.map(message=>message.subject),['First','Second']);
+  assert.ok(messages.every(message=>message.body.startsWith('Hi Bob,')));assert.deepEqual(messages[0].evidenceFindingIds,['finding-1']);
+  throw new Error('ROLLBACK_CLONE_RECIPIENT');
+ });}catch(error){if(error.message!=='ROLLBACK_CLONE_RECIPIENT')throw error;}
+});
+
+test('an unstarted draft follows a corrected contact email but delivery history prevents retargeting',async()=>{
+ const suffix='retarget-recipient-'+Date.now();
+ try{await db.$transaction(async tx=>{
+  const scope=new Proxy(tx,{get:(target,key)=>key==='$transaction'?fn=>fn(tx):target[key]});
+  const product=await tx.cRMProduct.create({data:{id:suffix,name:'StockerAI'}});
+  const prospect=await tx.prospect.create({data:{placeId:suffix,name:'Fixture Vending',contacts:{create:{name:'William Hogue',email:'william@wrong.example'}}},include:{contacts:true}});
+  const contact=prospect.contacts[0];const membership=await S.addMembership(scope,product.id,prospect.id);
+  const sequence=await tx.productSequence.create({data:{productId:product.id,version:1,dayNumbers:[1],businessDaysOnly:true,approvedAt:new Date()}});
+  const recipient=await tx.productRecipient.create({data:{productId:product.id,membershipId:membership.id,recipientKey:'contact:'+contact.id,contactId:contact.id,email:contact.email,selected:true}});
+  const enrollment=await tx.productEnrollment.create({data:{productId:product.id,recipientId:recipient.id,sequenceId:sequence.id}});
+  await tx.productMessage.create({data:{productId:product.id,enrollmentId:enrollment.id,touch:1,subject:'Route picking',body:'Hi William,\n\nA saved draft.'}});
+  await tx.contact.update({where:{id:contact.id},data:{email:'william@right.example'}});
+  await S.saveRecipientChoices(scope,{productId:product.id,prospectId:prospect.id,contactIds:[contact.id]});
+  assert.equal((await tx.productRecipient.findUnique({where:{id:recipient.id}})).email,'william@right.example');
+  assert.equal(await tx.productMessage.count({where:{enrollmentId:enrollment.id}}),1,'the corrected address must preserve the prepared draft');
+  await tx.productEnrollment.update({where:{id:enrollment.id},data:{state:'STARTED',startedAt:new Date()}});
+  await tx.contact.update({where:{id:contact.id},data:{email:'william@another.example'}});
+  await assert.rejects(S.saveRecipientChoices(scope,{productId:product.id,prospectId:prospect.id,contactIds:[contact.id]}),/activity or delivery history/);
+  throw new Error('ROLLBACK_RETARGET_RECIPIENT');
+ });}catch(error){if(error.message!=='ROLLBACK_RETARGET_RECIPIENT')throw error;}
+});

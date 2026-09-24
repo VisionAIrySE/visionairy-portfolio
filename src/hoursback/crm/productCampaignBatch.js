@@ -1,4 +1,5 @@
 'use strict';
+const Q=require('./productMessageQuality.js');
 const DAYS=[1,4,9,16,25],DEMO='https://www.stocker-ai.com/demo';
 function validateRow(row){
  if(!Array.isArray(row.evidenceFindingIds)||!row.evidenceFindingIds.length)throw Error(row.company?.name+' has no supporting website evidence');
@@ -12,6 +13,7 @@ function validateRow(row){
   if(/[‐‑‒–—−]/.test(subject+body)||/[\r\n]/.test(subject))throw Error(`${row.company?.name} message ${index+1} contains prohibited formatting`);
   if(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\[company email removed\]/i.test(body))throw Error(`${row.company?.name} message ${index+1} contains an email address or review placeholder`);
   if(/Russ Wright|Founder,? StockerAI|503-621-8000|russ@visionairy\.biz/i.test(body))throw Error(`${row.company?.name} message ${index+1} duplicates the delivery signature`);
+  const duplicate=Q.duplicateContentIssue(body);if(duplicate)throw Error(`${row.company?.name} message ${index+1} ${duplicate}`);
  }
 }
 function validateBatch(batch){

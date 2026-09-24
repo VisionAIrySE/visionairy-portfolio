@@ -2,6 +2,7 @@
 'use strict';
 const fs=require('node:fs');const path=require('node:path');
 const P=require('../../src/hoursback/crm/productPersonalization.js');
+const Q=require('../../src/hoursback/crm/productMessageQuality.js');
 process.chdir(path.resolve(__dirname,'../..'));
 const DAYS=[1,4,9,16,25];const DEMO='https://www.stocker-ai.com/demo';
 const arg=(name,fallback='')=>{const p='--'+name+'=';const hit=process.argv.slice(2).find(x=>x.startsWith(p));return hit?hit.slice(p.length):fallback;};
@@ -85,6 +86,7 @@ function validate(sequence,record){
   if(/\bHi\s+[A-Z][a-z]+[,!]/.test(body)&&record.recipient.kind==='company_inbox')failures.push(`message ${index+1} invents a person for the company inbox`);
   if(record.recipient.kind==='named_contact'&&!P.addressedTo(body,firstName))failures.push(`message ${index+1} is not addressed to ${firstName}`);
   if(/Russ Wright|Founder,? StockerAI|503-621-8000|russ@visionairy\.biz|(?:^|\n)\s*(?:Best(?: regards)?|Regards|Sincerely|Thanks|Thank you)[,!]?\s*(?:\n\s*Russ)?\s*$/i.test(body))failures.push(`message ${index+1} duplicates the delivery signature`);
+  const duplicate=Q.duplicateContentIssue(body);if(duplicate)failures.push(`message ${index+1} ${duplicate}`);
  }
  const fullCampaign=messages.map(message=>clean(message.body)).join('\n');
  if(!/(?:first\s+)?14[- ]day|14 days are free/i.test(fullCampaign))failures.push('campaign does not explain the free 14-day test');

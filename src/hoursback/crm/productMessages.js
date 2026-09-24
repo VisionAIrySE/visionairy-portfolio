@@ -1,8 +1,10 @@
 'use strict';
+const Q=require('./productMessageQuality.js');
 function validateDraft({subject,body}) {
   if (typeof subject!=='string' || !subject.trim() || typeof body!=='string' || !body.trim()) throw new Error('Subject and message are required');
   if (/[\r\n]/.test(subject)) throw new Error('Subject must be a single line');
   if (/\u2014/.test(subject+body)) throw new Error('Remove em dashes before saving');
+  const duplicate=Q.duplicateContentIssue(body);if(duplicate)throw new Error('Message '+duplicate);
 }
 async function saveProductDraft(db,{productId,enrollmentId,touch,subject,body,manual=false,evidenceFindingIds}) {
   validateDraft({subject,body});

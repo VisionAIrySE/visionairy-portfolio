@@ -1,5 +1,6 @@
 'use strict';
 const P=require('./productPersonalization.js');
+const Q=require('./productMessageQuality.js');
 const norm=v=>String(v||'').trim().toLowerCase();
 const validEmail=v=>/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(String(v||''));
 const localClock=(now,timeZone)=>{
@@ -53,6 +54,7 @@ function readiness(campaign) {
   const m=messages.find(m=>m.touch===n);if(!m)continue;
   if(!m.subject?.trim()||!m.body?.trim())reasons.push('Message '+n+' is empty');
   if(/[\r\n\u2014]/.test(m.subject)||/\u2014|<\/?[a-z][^>]*>|&lt;|\{\{|\[FIRST_NAME\]/i.test(m.body))reasons.push('Message '+n+' has a formatting or placeholder problem');
+  const duplicate=Q.duplicateContentIssue(m.body);if(duplicate)reasons.push('Message '+n+' '+duplicate);
   if(recipientFirst&&!P.addressedTo(m.body,recipientFirst))reasons.push('Message '+n+' is not addressed to '+recipientFirst);
   if(!m.evidenceFindingIds.length||m.evidenceFindingIds.some(id=>!evidence.has(id)))reasons.push('Message '+n+' needs valid company evidence');
  }

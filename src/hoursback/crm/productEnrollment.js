@@ -14,6 +14,38 @@ async function addMembership(db, productId, prospectId) {
     return tx.productProspect.upsert({where:{productId_prospectId:{productId,prospectId}},create:{productId,prospectId},update:{}});
   });
 }
+async function syncUnstartedRecipientEmail(tx,recipient,address) {
+  if (!recipient || recipient.email===address) return recipient;
+  const [enrollments,activityCount]=await Promise.all([
+    tx.productEnrollment.findMany({where:{recipientId:recipient.id},include:{messages:true}}),
+    tx.productActivity.count({where:{recipientId:recipient.id}}),
+  ]);
+  const hasDeliveryHistory=enrollments.some(enrollment=>
+    enrollment.state!=='DRAFT'||enrollment.startedAt||enrollment.releasedAt||enrollment.stoppedAt||
+    enrollment.messages.some(message=>message.deliveryState!=='DRAFT'||message.attemptedAt||message.providerMessageId||message.sentAt)
+  );
+  if(recipient.repliedAt||activityCount||hasDeliveryHistory)throw new Error('Recipient email changed; the existing campaign has activity or delivery history and cannot be retargeted');
+  return tx.productRecipient.update({where:{id:recipient.id},data:{email:address}});
+}
+async function cloneCompleteSiblingMessages(tx,{productId,membershipId,enrollment,recipient,sequence}) {
+  if(!recipient.contactId)return 0;
+  const existingCount=await tx.productMessage.count({where:{productId,enrollmentId:enrollment.id}});
+  if(existingCount)return 0;
+  const siblings=await tx.productEnrollment.findMany({
+    where:{productId,sequenceId:sequence.id,recipient:{membershipId},NOT:{id:enrollment.id}},
+    include:{messages:{orderBy:{touch:'asc'}}},orderBy:{createdAt:'asc'},
+  });
+  const source=siblings.find(item=>item.messages.length===sequence.dayNumbers.length&&item.messages.every((message,index)=>message.touch===index+1&&message.subject?.trim()&&message.body?.trim()));
+  if(!source)return 0;
+  const contact=await tx.contact.findFirst({where:{id:recipient.contactId,prospectId:recipient.membership.prospectId,setAsideAt:null,bouncedAt:null}});
+  const first=P.expectedFirstName(contact);
+  if(!first)return 0;
+  await tx.productMessage.createMany({data:source.messages.map(message=>({
+    productId,enrollmentId:enrollment.id,touch:message.touch,subject:message.subject,
+    body:P.personalizeBody(message.body,first),evidenceFindingIds:message.evidenceFindingIds,
+  }))});
+  return source.messages.length;
+}
 async function saveRecipientChoices(db, {productId, prospectId, contactIds=[], chooseInbox=false}) {
   if (!Array.isArray(contactIds) || typeof chooseInbox !== 'boolean') throw new Error('Invalid recipient choices');
   return db.$transaction(async tx => {
@@ -42,7 +74,7 @@ async function saveRecipientChoices(db, {productId, prospectId, contactIds=[], c
     for (const recipient of selected) {
       let existing = await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:recipient.recipientKey}}});
       if(!existing&&recipient.contactId){const inboxRecipient=await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey:'inbox'}}});if(inboxRecipient&&inboxRecipient.email===recipient.email)existing=await tx.productRecipient.update({where:{id:inboxRecipient.id},data:{recipientKey:recipient.recipientKey,contactId:recipient.contactId}});}
-      if (existing && existing.email !== recipient.email) throw new Error('Recipient email changed; review the existing campaign before replacing its address');
+      if(existing&&existing.email!==recipient.email)existing=await syncUnstartedRecipientEmail(tx,existing,recipient.email);
       if(existing)await tx.productRecipient.update({where:{id:existing.id},data:{selected:true}});
       else await tx.productRecipient.create({data:{membershipId:membership.id,productId,...recipient,selected:true}});
     }
@@ -61,7 +93,9 @@ async function enrollRecipient(db,{productId,recipientId,sequenceId}) {
       const contact = await tx.contact.findFirst({where:{id:recipient.contactId,prospectId:recipient.membership.prospectId,setAsideAt:null,bouncedAt:null}});
       if (!contact || email(contact.email)!==recipient.email) throw new Error('Contact details changed; review before enrollment');
     } else if (email(recipient.membership.prospect.emailManualValue || recipient.membership.prospect.email)!==recipient.email) throw new Error('Inbox changed; review before enrollment');
-    return tx.productEnrollment.upsert({where:{recipientId_sequenceId:{recipientId,sequenceId}},create:{productId,recipientId,sequenceId},update:{}});
+    const enrollment=await tx.productEnrollment.upsert({where:{recipientId_sequenceId:{recipientId,sequenceId}},create:{productId,recipientId,sequenceId},update:{}});
+    await cloneCompleteSiblingMessages(tx,{productId,membershipId:recipient.membershipId,enrollment,recipient,sequence});
+    return enrollment;
   });
 }
 async function prepareRecipientCampaign(db,{productId,prospectId,recipientKey,sequenceId}) {
@@ -85,9 +119,10 @@ async function prepareRecipientCampaign(db,{productId,prospectId,recipientKey,se
     } else throw new Error('Unknown recipient choice');
     if(!address)throw new Error('No recipient email is available');
     const existing=await tx.productRecipient.findUnique({where:{membershipId_recipientKey:{membershipId:membership.id,recipientKey}}});
-    if(existing&&existing.email!==address)throw new Error('Recipient email changed; review before preparing its campaign');
-    const recipient=existing||await tx.productRecipient.create({data:{membershipId:membership.id,productId,recipientKey,contactId,email:address,selected:false}});
+    const current=existing&&existing.email!==address?await syncUnstartedRecipientEmail(tx,existing,address):existing;
+    const recipient=current||await tx.productRecipient.create({data:{membershipId:membership.id,productId,recipientKey,contactId,email:address,selected:false}});
     const enrollment=await tx.productEnrollment.upsert({where:{recipientId_sequenceId:{recipientId:recipient.id,sequenceId}},create:{productId,recipientId:recipient.id,sequenceId},update:{}});
+    await cloneCompleteSiblingMessages(tx,{productId,membershipId:membership.id,enrollment,recipient:{...recipient,membership:{prospectId}},sequence});
     return {recipient,enrollment};
   });
 }
