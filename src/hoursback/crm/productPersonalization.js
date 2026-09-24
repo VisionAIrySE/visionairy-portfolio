@@ -34,15 +34,16 @@ async function syncDraftEvidence(tx,{productId,membershipId,recipientIds}){
  const findings=await tx.finding.findMany({where:{prospectId:membership.prospectId,readingId:{in:readings.map(item=>item.id)},retiredAt:null,status:{in:['observed','confirmed']},url:{not:null},quote:{not:null}},select:{id:true}});
  const valid=new Set(findings.map(item=>item.id));if(!valid.size)return 0;
  const recipients=await tx.productRecipient.findMany({where:{productId,membershipId},include:{enrollments:{where:{state:'DRAFT',startedAt:null,stoppedAt:null},include:{messages:{orderBy:{touch:'asc'}}}}}});
- const targets=new Set(ids);let updated=0;
+ const targets=new Set(ids),pending=new Map();
  for(const recipient of recipients){if(!targets.has(recipient.id))continue;for(const enrollment of recipient.enrollments){
   const siblings=recipients.flatMap(item=>item.enrollments).filter(item=>item.id!==enrollment.id&&item.sequenceId===enrollment.sequenceId);
   for(const message of enrollment.messages){if(message.evidenceFindingIds.some(id=>valid.has(id)))continue;
    const sibling=siblings.flatMap(item=>item.messages).find(item=>item.touch===message.touch&&item.evidenceFindingIds.some(id=>valid.has(id)));
    const evidence=sibling?[...new Set(sibling.evidenceFindingIds.filter(id=>valid.has(id)))]:[...valid];
-   if(!evidence.length)continue;await tx.productMessage.update({where:{id:message.id},data:{evidenceFindingIds:evidence}});updated++;
+   if(!evidence.length)continue;const key=JSON.stringify(evidence);const group=pending.get(key)||{evidence,ids:[]};group.ids.push(message.id);pending.set(key,group);
   }
  }}
+ let updated=0;for(const group of pending.values())updated+=(await tx.productMessage.updateMany({where:{id:{in:group.ids}},data:{evidenceFindingIds:group.evidence}})).count;
  return updated;
 }
 module.exports={expectedFirstName,openingLine,addressedTo,personalizeBody,syncDraftGreetings,syncDraftEvidence};
