@@ -7,7 +7,7 @@
 //
 // A REPLY is read from his own inbox. It arrives at russ@visionairy.biz
 // (his choice, 2026-08-27) and is matched to a business by the address it came
-// from. A reply stops every remaining message on every channel, which is the
+// from. A reply stops the remaining messages to that recipient, which is the
 // rule the lanes already enforce — this only has to notice.
 //
 // A BOUNCE is different. It is not a refusal, it is a wrong address, and the
@@ -65,7 +65,7 @@ function addressThatFailed(body) {
 }
 
 // Everything a message could be, decided once.
-//   reply    — a person answered. Stop everything, everywhere.
+//   reply    — a person answered. Stop that recipient's remaining email.
 //   bounce   — the address is wrong. Stop email, keep the phone, queue it.
 //   auto     — a holiday responder. Change nothing.
 //   unknown  — not ours, or not matchable.

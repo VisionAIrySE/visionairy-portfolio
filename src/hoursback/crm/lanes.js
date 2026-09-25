@@ -6,8 +6,8 @@
 //   LINKEDIN  — Russ sends by hand, one at a time. The engine may never mark a
 //               LinkedIn message sent; a person's name has to be on it.
 //
-// The rule that matters most: a reply on ANY lane stops every message still
-// waiting on EVERY lane. Nobody who has answered gets chased.
+// The rule that matters most: a reply stops the remaining messages to that
+// recipient. A company may have several real people and each is independent.
 
 const { draftFirstContact, draftLinkedIn, BODY } = require('./firstContact.js');
 const { emailFields } = require('./emailText.js');
@@ -273,7 +273,7 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
         select: {
           id: true, prospectId: true, lane: true, state: true, openedWith: true,
           sentTo: true, sentAt: true, queuedAt: true, deliveryState: true,
-          editedAt: true, body: true,
+          editedAt: true, subject: true, body: true,
         },
       },
     },
@@ -312,6 +312,7 @@ async function syncSelectedEmailCampaigns(db, prospectId, options = {}) {
       continue;
     }
     const chosen = address && selected.has(address);
+    if (chosen) await materializeLegacyFollowUps(db, prospect, first, address);
     const complete = chosen && prospect.readings.length
       && campaignHasCompleteSequence({ ...first, sentTo: address, prospect });
     const contentCheck = complete ? contentCheckForRecipient(
@@ -546,6 +547,39 @@ function campaignHasCompleteSequence(message) {
     candidate.openedWith === `touch_${touch}`
       && (normalize(candidate.sentTo) === recipient
         || (blankIsUnambiguous && !normalize(candidate.sentTo)))));
+}
+
+// Earlier VisionAIry campaigns stored one unsent follow-up chain against the
+// business, before a campaign could have more than one chosen recipient. A
+// shared draft must never be treated as belonging to every person. When an
+// unstarted first email is assigned to a selected address, make that address
+// its own DRAFT copies of still-unsent legacy follow-ups. The historical rows
+// remain intact, and the operation is idempotent.
+async function materializeLegacyFollowUps(db, prospect, first, recipient) {
+  const address = String(recipient || '').trim().toLowerCase();
+  if (!address || first.sentAt || first.deliveryState) return [];
+  const created = [];
+  for (const touch of [2, 3, 4]) {
+    const openedWith = `touch_${touch}`;
+    const alreadySpecific = prospect.messages.some((message) =>
+      message.lane === 'EMAIL' && message.openedWith === openedWith
+        && String(message.sentTo || '').trim().toLowerCase() === address);
+    if (alreadySpecific) continue;
+    const legacy = prospect.messages.find((message) =>
+      message.lane === 'EMAIL' && message.openedWith === openedWith
+        && !String(message.sentTo || '').trim()
+        && !message.sentAt && !message.deliveryState
+        && ['DRAFT', 'QUEUED'].includes(message.state));
+    if (!legacy) continue;
+    const row = await db.outreachMessage.create({ data: {
+      prospectId: prospect.id, lane: 'EMAIL', state: 'DRAFT',
+      subject: legacy.subject, body: legacy.body, openedWith, sentTo: address,
+      editedAt: legacy.editedAt || null,
+    } });
+    prospect.messages.push(row);
+    created.push(row);
+  }
+  return created;
 }
 
 // A name is safe only when Russ selected that exact person and the message is
@@ -870,8 +904,32 @@ async function linkedInQueue(db, limit = 20) {
 // ---------------------------------------------------------------------------
 // stopping
 
-// A reply anywhere ends the chase everywhere.
-async function markReplied(db, prospectId, lane = 'EMAIL', now = new Date()) {
+// A reply ends only that recipient's campaign. One company can have several
+// real contacts, so a reply from one must not silence the others.
+//
+// The optional recipient preserves the old explicit company-wide manual
+// action. Incoming events must supply the sender address; when it cannot be
+// matched to a sent recipient, this deliberately changes nothing rather than
+// stopping a company on a domain-level guess.
+async function markReplied(db, prospectId, lane = 'EMAIL', now = new Date(), recipient = null) {
+  const address = String(recipient || '').trim().toLowerCase();
+  if (address) {
+    const recipientWhere = { sentTo: { equals: address, mode: 'insensitive' } };
+    const sent = await db.outreachMessage.findFirst({
+      where: { prospectId, lane, state: { in: ['SENT', 'REPLIED'] }, ...recipientWhere },
+      orderBy: { sentAt: 'desc' },
+    });
+    if (!sent) return db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+    await db.outreachMessage.updateMany({
+      where: { prospectId, lane, state: { in: ['DRAFT', 'QUEUED'] }, ...recipientWhere },
+      data: { state: 'SUPPRESSED', suppressedReason: `they replied on ${lane}` },
+    });
+    await db.outreachMessage.updateMany({
+      where: { prospectId, lane, state: 'SENT', ...recipientWhere },
+      data: { state: 'REPLIED', repliedAt: now },
+    });
+    return db.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+  }
   await db.prospect.update({ where: { id: prospectId }, data: { repliedAt: now } });
   await db.outreachMessage.updateMany({
     where: { prospectId, state: { in: ['DRAFT', 'QUEUED'] } },
@@ -1389,6 +1447,6 @@ module.exports = {
   sendQueuedEmails, defaultSender, senderAddressIsValid,
   draftFollowUp, queueFollowUp, pendingBatch, approveBatch,
   dailyEmailCap, upsertTemplate, approveTemplate, templateIsApproved, wordingFingerprint,
-  signalsOf, draftFor, ensureSelectedFirstDrafts, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, savedNoticingJobReadingWhere, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, nextUnwrittenPerson,
+  signalsOf, draftFor, ensureSelectedFirstDrafts, whoTheLetterGoesTo, queueEmail, emailsLeftToday, markEmailSent, addressFor, emailReachableWhere, personFor, everyoneMarked, saveContactSelections, excludeEmailCampaigns, syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns, savedNoticingJobReadingWhere, isFirstContactMessage, canonicalFirstMessages, activeUnsentMessages, campaignHasCompleteSequence, materializeLegacyFollowUps, nextUnwrittenPerson,
   markLinkedInSent, linkedInQueue, noteForOnePerson, markReplied, markBounced, reachableOn,
 };

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { syncSelectedEmailCampaigns, selectedDraftGap, reconcileSelectedEmailCampaigns,
-  canonicalFirstMessages } = require('../../src/hoursback/crm/lanes.js');
+  canonicalFirstMessages, markReplied } = require('../../src/hoursback/crm/lanes.js');
 
 function fixture(selected) {
   const address = 'person@example.test';
@@ -175,4 +175,54 @@ test('reconciliation lines up eligible selected campaigns and holds campaigns th
     { judgeStored: () => ({ ok: false, why: 'revision needed' }) });
   assert.equal(held.contentBlocked, 1);
   assert.equal(messages[0].state, 'DRAFT');
+});
+
+test('legacy shared follow-up drafts are copied into separate complete campaigns for each selected recipient', async () => {
+  const { db, prospect, messages } = fixture(true);
+  const second = 'second@example.test';
+  prospect.contacts.push({ email: second });
+  messages[0].sentTo = 'person@example.test';
+  messages.push({ id: 'second-first', prospectId: 'business-1', lane: 'EMAIL',
+    state: 'DRAFT', openedWith: 'tailored_first', sentTo: second, sentAt: null,
+    queuedAt: null, deliveryState: null, subject: 'First', body: 'First' });
+  for (const touch of [2, 3, 4]) messages.push({
+    id: `legacy-${touch}`, prospectId: 'business-1', lane: 'EMAIL', state: 'DRAFT',
+    openedWith: `touch_${touch}`, sentTo: null, sentAt: null, queuedAt: null,
+    deliveryState: null, subject: `Follow ${touch}`, body: `Follow ${touch}`,
+  });
+  let created = 0;
+  db.outreachMessage.create = async ({ data }) => ({ id: `copy-${++created}`, ...data,
+    sentAt: null, queuedAt: null, deliveryState: null });
+
+  const result = await syncSelectedEmailCampaigns(db, 'business-1',
+    { judgeStored: () => ({ ok: true }) });
+  assert.equal(result.ready, 2);
+  for (const address of ['person@example.test', second]) {
+    for (const touch of [2, 3, 4]) {
+      assert.ok(messages.some((message) => message.openedWith === `touch_${touch}`
+        && message.sentTo === address), `${address} receives touch ${touch}`);
+    }
+  }
+  assert.equal(messages.filter((message) => !message.sentTo && /^touch_/.test(message.openedWith)).length, 3,
+    'legacy source drafts remain as history and are never retargeted');
+});
+
+test('a reply suppresses only the replying recipient and never sets a company-wide reply stop', async () => {
+  const calls = [];
+  const db = {
+    prospect: {
+      update: async () => { throw new Error('a recipient reply must not stop the business'); },
+      findUniqueOrThrow: async () => ({ id: 'business-1' }),
+    },
+    outreachMessage: {
+      findFirst: async () => ({ id: 'sent-a' }),
+      updateMany: async (query) => { calls.push(query); return { count: 1 }; },
+    },
+  };
+  await markReplied(db, 'business-1', 'EMAIL', new Date('2026-09-25T00:00:00Z'), 'a@example.test');
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.where.sentTo.equals, 'a@example.test');
+    assert.equal(call.where.prospectId, 'business-1');
+  }
 });

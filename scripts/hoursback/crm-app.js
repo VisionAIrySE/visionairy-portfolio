@@ -1359,7 +1359,7 @@ async function emailScreen(params) {
         <form method="POST" action="/email/skip/${m.id}"
           onsubmit="return confirm('Skip this message? Nothing will be sent, and the company stays in the CRM.')">
           <button title="remove this message without archiving the company">Skip this message</button></form>
-        <form method="POST" action="/email/replied/${m.prospectId}"><button title="use this only if the automatic reply tracking missed it">Mark replied</button></form>
+        <form method="POST" action="/email/replied/${m.prospectId}"><input type="hidden" name="recipient" value="${esc(m.sentTo || '')}"><button title="use this only if the automatic reply tracking missed it">Mark replied</button></form>
         <form method="POST" action="/email/bounced/${m.prospectId}"><button title="use this only if the automatic delivery tracking missed it">Mark bounced</button></form>
       </div>
     </div>
@@ -2679,7 +2679,7 @@ const server = http.createServer(async (req, res) => {
       const prospectId = await I.businessFor(db, address);
       if (!prospectId) { res.writeHead(200); return res.end('not one of ours'); }
 
-      if (act === 'replied') await L.markReplied(db, prospectId, 'EMAIL');
+      if (act === 'replied') await L.markReplied(db, prospectId, 'EMAIL', new Date(), address);
       if (receivedReply) {
         // Human and automatic replies both belong in Russ's ordinary inbox.
         // Only a human reply stops the sequence; an out-of-office message is
@@ -2943,7 +2943,7 @@ const server = http.createServer(async (req, res) => {
           return returnToMessage(said);
         }
         if (what === 'sent' && arg) await L.markEmailSent(db, arg);
-        if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL');
+        if (what === 'replied' && arg) await L.markReplied(db, arg, 'EMAIL', new Date(), form.recipient);
         if (what === 'bounced' && arg) await L.markBounced(db, arg);
         // Tick the ones to go out, save once. Lining a message up is NOT
         // sending it — the ramp, the daily cap, the approved wording and the
