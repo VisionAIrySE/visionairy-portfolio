@@ -787,14 +787,32 @@ async function draftFor(db, prospectId, lane, options = {}) {
 // incomplete campaign, or touch a sibling recipient's sent or edited mail.
 async function ensureSelectedFirstDrafts(db, prospectId) {
   const [prospect, marked, messages] = await Promise.all([
-    db.prospect.findUnique({ where: { id: prospectId } }),
+    db.prospect.findUnique({ where: { id: prospectId }, select: {
+      id: true, email: true, emailManualValue: true, emailInboxSelected: true,
+      readings: {
+        where: {
+          source: 'website', reader: 'understand-businesses', outcome: 'read',
+          finishedAt: { not: null },
+          pages: { some: { AND: [
+            { bytes: { gt: 0 } },
+            { OR: [{ text: { not: null } }, { sameAs: { not: null } }] },
+          ] } },
+        },
+        select: { id: true }, take: 1,
+      },
+    } }),
     everyoneMarked(db, prospectId),
     db.outreachMessage.findMany({
       where: { prospectId, lane: 'EMAIL' },
       select: { lane: true, openedWith: true, sentTo: true },
     }),
   ]);
-  if (!prospect) return [];
+  // Recipient selection is allowed before research, but it must not create a
+  // generic Day 0 that looks like a campaign. The full-sequence writer owns
+  // message creation once saved website evidence exists; it writes all four
+  // messages together. This also keeps an unknown role from being mistaken
+  // for permission to prepare an unsupported generic sequence.
+  if (!prospect || !prospect.readings.length) return [];
   const addresses = marked
     .map((person) => String(person.email || '').trim())
     .filter(Boolean);

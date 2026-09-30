@@ -23,7 +23,8 @@ test('saving existing recipient choices does not rebuild every first email', asy
     prospect: {
       findUnique: async () => {
         calls.prospect += 1;
-        return { id: 'business-1', emailInboxSelected: false };
+        return { id: 'business-1', emailInboxSelected: false,
+          readings: [{ id: 'full-reading' }] };
       },
       findUniqueOrThrow: async () => { throw new Error('an existing campaign was rebuilt'); },
     },
@@ -39,4 +40,25 @@ test('saving existing recipient choices does not rebuild every first email', asy
   const made = await L.ensureSelectedFirstDrafts(db, 'business-1');
   assert.deepEqual(made, []);
   assert.deepEqual(calls, { prospect: 1, contacts: 1, messages: 1, creates: 0 });
+});
+
+test('selecting a recipient before full research does not create a misleading first-only campaign', async () => {
+  let created = 0;
+  const db = {
+    prospect: { findUnique: async (query) => {
+      assert.equal(query.select.readings.where.reader, 'understand-businesses');
+      return { id: 'business-1', emailInboxSelected: false, readings: [] };
+    } },
+    contact: { findMany: async () => [{
+      id: 'contact-1', name: 'Alvin', email: 'alvin@example.test', isPrimary: true,
+      bouncedAt: null, setAsideAt: null,
+    }] },
+    outreachMessage: {
+      findMany: async () => [],
+      create: async () => { created += 1; },
+    },
+  };
+
+  assert.deepEqual(await L.ensureSelectedFirstDrafts(db, 'business-1'), []);
+  assert.equal(created, 0);
 });
