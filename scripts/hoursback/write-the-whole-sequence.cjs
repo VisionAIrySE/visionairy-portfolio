@@ -87,7 +87,10 @@ function expandRecipientCampaigns(p, allContacts = ALL_CONTACTS) {
     : usable.filter((recipient) => recipient.name).slice(0, 1);
   const recipients = allContacts ? usable : normalRecipients;
   const expanded = recipients.map((recipient) => ({ ...p, _recipient: recipient }));
-  if (allContacts && !normalRecipients.length) {
+  // A deliberately selected shared inbox is a recipient even when the company
+  // also has named contacts. Exact repair cohorts must be able to target that
+  // inbox without creating or rewriting campaigns for the other contacts.
+  if (allContacts && (p.emailInboxSelected || !normalRecipients.length)) {
     const inbox = String(p.emailManualValue || p.email || '').trim().toLowerCase();
     const alreadyIncluded = usable.some((recipient) => String(recipient.email || '').trim().toLowerCase() === inbox);
     if (inbox && !alreadyIncluded) expanded.push({ ...p, _recipient: null });
@@ -471,7 +474,7 @@ if (require.main === module) (async () => {
         ],
       },
       select: {
-        id: true, name: true, trade: true, contactName: true, ownerName: true, contactRole: true, email: true, emailManualValue: true, automationScore: true,
+        id: true, name: true, trade: true, contactName: true, ownerName: true, contactRole: true, email: true, emailManualValue: true, emailInboxSelected: true, automationScore: true,
         contacts: {
           where: { setAsideAt: null },
           select: { name: true, role: true, email: true, bouncedAt: true, isPrimary: true },

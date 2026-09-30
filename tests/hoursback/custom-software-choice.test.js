@@ -9,6 +9,18 @@ const passage = 'If coverage checks wait until a claim is submitted, money can a
 const greeting = 'Hi Pat,';
 const seed = 'Wellness Billing LLC';
 
+test('an exact repair can include a selected company inbox alongside named contacts', () => {
+  const campaigns = W.expandRecipientCampaigns({
+    id: 'business-1', email: 'office@example.test', emailManualValue: null,
+    emailInboxSelected: true,
+    contacts: [{ name: 'Pat', email: 'pat@example.test', bouncedAt: null, isPrimary: false }],
+  }, true);
+  assert.deepEqual(campaigns.map((campaign) => campaign._recipient?.email || campaign.email),
+    ['pat@example.test', 'office@example.test']);
+  assert.equal(W.selectTargetCampaigns(campaigns,
+    new Set(['business-1|office@example.test'])).length, 1);
+});
+
 test('new day-eight letters include the build option and still pass the campaign judge', () => {
   const body = W.buildLetter(3, { greeting, passage, seed });
   assert.match(body, /focused software platform/);
