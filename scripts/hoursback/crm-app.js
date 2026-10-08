@@ -2735,7 +2735,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'GET') { res.writeHead(405); return res.end('Method not allowed'); }
       const requestedPage=Number(url.searchParams.get('page') || 1);
       if (!Number.isSafeInteger(requestedPage) || requestedPage < 1) {res.writeHead(400);return res.end('Invalid page');}
-      const view = await W.productWorkspace(productDb, id, {page:requestedPage,q:url.searchParams.get('q')||''});
+      const view = await W.productWorkspace(productDb, id, {page:requestedPage,q:url.searchParams.get('q')||'',filter:url.searchParams.get('filter')||''});
       if (!view) { res.writeHead(404); return res.end('Product has not been configured'); }
       return html(res, '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Product preparation</title><style>' + W.styles + '</style></head><body><nav aria-label="Products"><a href="/list">VisionAIry companies</a> | <a href="/products/stockerai">StockerAI companies</a></nav>' + W.renderWorkspace(view,{csrf:A.formToken(id)}) + W.script + '</body></html>');
     }

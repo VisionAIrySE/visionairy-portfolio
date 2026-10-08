@@ -1,7 +1,13 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {formToken,validToken,handleProductPost}=require('../src/hoursback/crm/productActions.js');
-const {renderWorkspace,script}=require('../src/hoursback/crm/productWorkspace.js');
+const {renderWorkspace,script,normalizedFilter,filterClause}=require('../src/hoursback/crm/productWorkspace.js');
+test('StockerAI opens on prepared campaigns and offers workflow filters',()=>{
+ assert.equal(normalizedFilter('stockerai',''),'campaigns');assert.equal(normalizedFilter('visionairy',''),'all');
+ assert.deepEqual(filterClause('campaigns'),{recipients:{some:{enrollments:{some:{messages:{some:{}}}}}}});
+ const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,filter:'campaigns',filterCounts:{campaigns:59,active:74,not_started:5,needs_setup:100,stopped:13,all:159},memberships:[{prospectId:'p',prospect:{name:'Operator',contacts:[]},recipients:[]}]});
+ assert.match(html,/Prepared campaigns <strong>59<\/strong>/);assert.match(html,/Needs preparation <strong>100<\/strong>/);assert.match(html,/class="filter current"/);assert.match(html,/No campaign prepared/);
+});
 test('form token cannot authorize another product or a stale page',async()=>{
  assert.equal(validToken('stockerai',formToken('visionairy')),false);
  assert.equal(validToken('stockerai',''),false);
@@ -17,7 +23,7 @@ test('recipient form starts unchecked and escapes company and email content',()=
  assert.match(html,/Send one test email to Russ/);assert.match(html,/cannot target a customer or send twice/);
  assert.match(html,/StockerAI companies/);assert.match(html,/only companies assigned to StockerAI/);
  assert.match(html,/Company inbox/);assert.match(html,/Add a person/);
- assert.match(html,/Company type/);assert.match(html,/Vending operator/);assert.match(html,/Machine sales or leasing vendor/);assert.match(html,/Needs review · <span class="selected-count">0/);
+ assert.match(html,/Company type/);assert.match(html,/Vending operator/);assert.match(html,/Machine sales or leasing vendor/);assert.match(html,/Needs review<\/span><small class="company-progress">0 recipients · <span class="selected-count">0/);
  assert.match(script,/if\(!dirty\.size\)\{location\.reload\(\);return;\}/);
 });
 test('a named person at the company inbox is shown once as the person',()=>{

@@ -4,22 +4,41 @@ const R=require('./productReadiness.js');
 const C=require('./productChannels.js');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COMPANY_TYPE_LABELS={NEEDS_REVIEW:'Needs review',OPERATOR:'Vending operator',MACHINE_VENDOR:'Machine vendor',BOTH:'Operator and machine vendor'};
-async function productWorkspace(db, productId, {page=1,q=''}={}) {
+const FILTER_LABELS={campaigns:'Prepared campaigns',active:'Follow-ups active',not_started:'Selected, not started',needs_setup:'Needs preparation',stopped:'Stopped',all:'All companies'};
+const filterClause=filter=>({
+ campaigns:{recipients:{some:{enrollments:{some:{messages:{some:{}}}}}}},
+ active:{recipients:{some:{selected:true,enrollments:{some:{startedAt:{not:null},stoppedAt:null}}}}},
+ not_started:{recipients:{some:{selected:true,enrollments:{some:{startedAt:null,stoppedAt:null}}}}},
+ needs_setup:{OR:[{recipients:{none:{enrollments:{some:{}}}}},{recipients:{some:{enrollments:{some:{messages:{none:{}}}}}}}]},
+ stopped:{recipients:{some:{enrollments:{some:{stoppedAt:{not:null}}}}}},
+ all:{},
+}[filter]);
+const normalizedFilter=(productId,filter)=>{
+ const value=String(filter||'').trim();
+ if(value&&Object.hasOwn(FILTER_LABELS,value))return value;
+ return productId==='stockerai'?'campaigns':'all';
+};
+async function productWorkspace(db, productId, {page=1,q='',filter=''}={}) {
   if(!Number.isSafeInteger(page)||page<1) throw new Error('Invalid page');
   q=String(q||'').trim();if(q.length>120)throw new Error('Search is too long');
+  filter=normalizedFilter(productId,filter);
   const product=await db.cRMProduct.findUnique({where:{id:productId}});
   if(!product) return null;
-  const where={productId,...(q?{prospect:{OR:[
+  const search=q?{prospect:{OR:[
    {name:{contains:q,mode:'insensitive'}},{nameManualValue:{contains:q,mode:'insensitive'}},{address:{contains:q,mode:'insensitive'}},{addressManualValue:{contains:q,mode:'insensitive'}},
    {website:{contains:q,mode:'insensitive'}},{websiteManualValue:{contains:q,mode:'insensitive'}},
    {email:{contains:q,mode:'insensitive'}},{emailManualValue:{contains:q,mode:'insensitive'}},
    {contacts:{some:{OR:[{name:{contains:q,mode:'insensitive'}},{email:{contains:q,mode:'insensitive'}}]}}},
-  ]}}:{})};
-  const [count,memberships,preparation]=await Promise.all([
+  ]}}:{};
+  const where={productId,archivedAt:null,...filterClause(filter),...search};
+  const countWhere=value=>({productId,archivedAt:null,...filterClause(value)});
+  const [count,memberships,preparation,...filterTotals]=await Promise.all([
     db.productProspect.count({where}),
-    db.productProspect.findMany({where,orderBy:{id:'asc'},skip:(page-1)*25,take:25,include:{activities:{orderBy:[{occurredAt:'desc'},{id:'desc'}],take:50},tasks:{where:{completedAt:null},orderBy:[{dueDate:'asc'},{id:'asc'}]},_count:{select:{activities:true,tasks:{where:{completedAt:null}}}},prospect:{include:R.prospectInclude},recipients:{include:{enrollments:{include:{sequence:true,messages:{orderBy:{touch:'asc'}}}}}}}}),
+    db.productProspect.findMany({where,orderBy:{prospect:{name:'asc'}},skip:(page-1)*25,take:25,include:{activities:{orderBy:[{occurredAt:'desc'},{id:'desc'}],take:50},tasks:{where:{completedAt:null},orderBy:[{dueDate:'asc'},{id:'asc'}]},_count:{select:{activities:true,tasks:{where:{completedAt:null}}}},prospect:{include:R.prospectInclude},recipients:{include:{enrollments:{include:{sequence:true,messages:{orderBy:{touch:'asc'}}}}}}}}),
     require('./productProgress.js').productPreparationSummary(db,productId),
+    ...Object.keys(FILTER_LABELS).map(value=>db.productProspect.count({where:countWhere(value)})),
   ]);
+  const filterCounts=Object.fromEntries(Object.keys(FILTER_LABELS).map((value,index)=>[value,filterTotals[index]]));
   const emails=[...new Set(memberships.flatMap(m=>m.recipients.map(r=>R.norm(r.email))))];
   const stops=await db.emailAddressStop.findMany({where:{email:{in:emails}}});
   const stopped=new Map(stops.map(s=>[s.email,s]));
@@ -28,7 +47,7 @@ async function productWorkspace(db, productId, {page=1,q=''}={}) {
   for(const m of memberships)for(const r of m.recipients)for(const e of r.enrollments){
     e.readiness=R.readiness({...e,sequence:{...e.sequence,product},recipient:{...r,membership:m},addressStop:stopped.get(R.norm(r.email)),replyNeedsReview:replyHolds.has(R.norm(r.email))});
   }
-  return {product,count,memberships,page,q,preparation};
+  return {product,count,memberships,page,q,filter,filterCounts,preparation};
 }
 function renderReadiness(result){
  if(!result)return '<p>Readiness has not been checked.</p>';
@@ -54,7 +73,7 @@ function renderOutreachChannels(m,forms,productId){
  return `<details class="outreach"><summary>Company details and contacts</summary><p>This record is opened from this product’s company list. Contact facts may be reused if the same real company belongs to both products; campaigns, selections, activity and sales status remain separate.</p><p>${companyPhone?`Company phone: <a href="tel:${esc(companyPhone.replace(/[^0-9+]/g,''))}">${esc(companyPhone)}</a>`:'No company phone is saved.'} · ${companyLink}</p>${companyForm}<h3>Named contacts</h3>${contacts||'<p>No named contacts are on file yet. Company inboxes are not treated as people.</p>'}${add}</details>`;
 }
 function renderWorkspace(model,{csrf=''}={}) {
-  const {product,memberships,count,page,q='',preparation}=model;
+  const {product,memberships,count,page,q='',filter=normalizedFilter(product.id,''),filterCounts={},preparation}=model;
   const base='/products/'+encodeURIComponent(product.id);
   const forms=(action,body)=>`<form method="post" action="${base}/${action}">${hidden('csrf',csrf)}${body}<span role="status" class="save-status"></span></form>`;
   const companies=memberships.map(m=>{
@@ -88,14 +107,17 @@ function renderWorkspace(model,{csrf=''}={}) {
       }).join('')||'<p>No campaign prepared yet. Save recipient choices to prepare a draft sequence when an approved sequence is configured.</p>'}</details>`;
     }).join('');
     const typeLabel=product.id==='stockerai'?' · '+esc(COMPANY_TYPE_LABELS[m.companyType]||COMPANY_TYPE_LABELS.NEEDS_REVIEW):'';
-    return `<details class="company" data-company="${esc(m.prospectId)}"><summary>${esc(m.prospect.nameManualValue||m.prospect.name)}${typeLabel} · <span class="selected-count">${selected.size}</span> selected</summary>${blocked?'<p class="notice">Sending is blocked for this company. No messages will be sent.</p>':''}${renderOutreachChannels(m,forms,product.id)}${require('./productSalesView.js').renderSales(m,forms)}${picker}${campaigns}</details>`;
+    const enrollments=m.recipients.flatMap(r=>r.enrollments);const messages=enrollments.flatMap(e=>e.messages);const sent=messages.filter(msg=>msg.deliveryState==='SENT'&&msg.providerMessageId&&msg.sentAt).length;
+    const campaignSummary=enrollments.length?`${enrollments.length} campaign${enrollments.length===1?'':'s'} · ${messages.length} messages${sent?' · '+sent+' sent':''}`:'No campaign prepared';
+    return `<details class="company" data-company="${esc(m.prospectId)}"><summary><span class="company-name">${esc(m.prospect.nameManualValue||m.prospect.name)}${typeLabel}</span><small class="company-progress">${m.recipients.length} recipient${m.recipients.length===1?'':'s'} · <span class="selected-count">${selected.size}</span> selected · ${campaignSummary}</small></summary>${blocked?'<p class="notice">Sending is blocked for this company. No messages will be sent.</p>':''}${renderOutreachChannels(m,forms,product.id)}${require('./productSalesView.js').renderSales(m,forms)}${picker}${campaigns}</details>`;
   }).join('');
   const sendState=product.sendingEnabled?'Sending is enabled. Use “Send this message now” to send one ready message at a time; the CRM records its time and provider ID.':'Sending is paused. You can review and select recipients, but no StockerAI email can leave until launch is explicitly enabled.';
   const deliveryTest=product.id==='stockerai'?`<section class="delivery-test" aria-label="Controlled delivery test"><h2>Delivery and reply test</h2><p>This sends exactly one clearly labeled test email to russ@visionairy.biz. It cannot target a customer or send twice.</p>${forms('test-delivery','<button type="submit">Send one test email to Russ</button>')}</section>`:'';
-  const query=q?'&q='+encodeURIComponent(q):'';
-  return `<main><h1>${esc(product.name)} companies</h1><p class="notice">This list contains only companies assigned to ${esc(product.name)}. VisionAIry has its own company list.</p><form method="get" action="${base}" class="company-search"><label>Search ${esc(product.name)} companies<input name="q" value="${esc(q)}" placeholder="Company, website, contact or email"></label><button type="submit">Search</button>${q?` <a href="${base}">Clear</a>`:''}</form><p class="notice">${sendState}</p>${deliveryTest}<p>${count} ${q?'matching ':''}companies in this product</p>${preparation?`<section aria-label="Whole product research progress"><h2>Preparation overview</h2><p>${preparation.researched} of ${preparation.total} active companies fully researched · ${preparation.unresearched} still need research.</p><p>${preparation.withEmail} have an email address on file; ${preparation.researchedWithEmail} of those are researched. Addresses still require review. ${preparation.archived} companies are archived.</p></section>`:''}<aside class="bulk-save"><button type="button" id="save-recipient-choices">Save all recipient choices</button><p id="bulk-status" role="status">Only changed recipient choices on this page are saved.</p></aside>${companies||`<p>No ${esc(product.name)} companies match this search.</p>`}${page>1?`<a href="${base}?page=${page-1}${query}">Previous</a>`:''} ${page*25<count?`<a href="${base}?page=${page+1}${query}">Next</a>`:''}</main>`;
+  const params=new URLSearchParams();if(q)params.set('q',q);params.set('filter',filter);const query=params.toString();
+  const filters=Object.entries(FILTER_LABELS).map(([value,label])=>`<a class="filter ${filter===value?'current':''}" href="${base}?filter=${encodeURIComponent(value)}${q?'&q='+encodeURIComponent(q):''}">${esc(label)} <strong>${Number(filterCounts[value]||0)}</strong></a>`).join('');
+  return `<main><h1>${esc(product.name)} companies</h1><p class="notice">This list contains only companies assigned to ${esc(product.name)}. VisionAIry has its own company list.</p><nav class="workflow-filters" aria-label="Campaign filters">${filters}</nav><form method="get" action="${base}" class="company-search"><input type="hidden" name="filter" value="${esc(filter)}"><label>Search ${esc(product.name)} companies<input name="q" value="${esc(q)}" placeholder="Company, website, contact or email"></label><button type="submit">Search</button>${q?` <a href="${base}?filter=${encodeURIComponent(filter)}">Clear search</a>`:''}</form><p class="notice">${sendState}</p>${deliveryTest}<p><strong>${count}</strong> ${q?'matching ':''}${esc(FILTER_LABELS[filter].toLowerCase())}</p>${preparation?`<section aria-label="Whole product research progress"><h2>Preparation overview</h2><p>${preparation.researched} of ${preparation.total} active companies fully researched · ${preparation.unresearched} still need research.</p><p>${preparation.withEmail} have an email address on file; ${preparation.researchedWithEmail} of those are researched. Addresses still require review. ${preparation.archived} companies are archived.</p></section>`:''}<aside class="bulk-save"><button type="button" id="save-recipient-choices">Save all recipient choices</button><p id="bulk-status" role="status">Only changed recipient choices on this page are saved.</p></aside>${companies||`<p>No ${esc(product.name)} companies match this view.</p>`}${page>1?`<a href="${base}?page=${page-1}&${query}">Previous</a>`:''} ${page*25<count?`<a href="${base}?page=${page+1}&${query}">Next</a>`:''}</main>`;
 }
-const styles=`.delivery-test{background:#fff8e6;border:1px solid #d9a514;border-radius:10px;padding:16px;margin:14px 0}.delivery-test form{margin-bottom:0}.bulk-save{position:sticky;top:12px;float:right;max-width:240px;background:#fff;padding:12px;border:1px solid #d2dbe3;border-radius:8px;z-index:2}.bulk-save p{font-size:13px} @media(max-width:700px){.bulk-save{float:none;max-width:none;top:0}}body{font:16px system-ui,sans-serif;background:#f5f7fa;color:#172b3a;margin:0}nav,main{max-width:1000px;margin:auto;padding:20px}nav a{display:inline-block;padding:12px;background:white;border-radius:8px;margin-right:12px}h1{margin-top:0}.notice{background:#e9eff7;padding:12px;border-radius:8px}.company,.campaign,.outreach{background:white;border:1px solid #d2dbe3;border-radius:10px;padding:16px;margin:14px 0}.contact-card{border-top:1px solid #d2dbe3;padding-top:10px;margin-top:16px}.channel-actions{display:flex;gap:10px;flex-wrap:wrap}.channel-actions form{margin:0}summary{cursor:pointer;font-weight:600}fieldset{border:0;padding:12px 0}label{display:block;margin:12px 0}small{display:block;margin-left:24px;color:#536575}input:not([type=checkbox]):not([type=hidden]),textarea,select{display:block;box-sizing:border-box;width:100%;padding:10px;margin-top:6px;border:1px solid #aab7c3;border-radius:6px;font:inherit;background:white}button{padding:10px 16px;border:0;border-radius:6px;background:#174e70;color:white;cursor:pointer}button:disabled{opacity:.6}.save-status{display:block;margin:10px 0}form{margin-bottom:24px}a{color:#174e70}`;
+const styles=`.delivery-test{background:#fff8e6;border:1px solid #d9a514;border-radius:10px;padding:16px;margin:14px 0}.delivery-test form{margin-bottom:0}.workflow-filters{display:flex;gap:8px;flex-wrap:wrap;padding:0;margin:18px 0}.workflow-filters .filter{background:white;border:1px solid #c2cfda;padding:10px 12px;margin:0;text-decoration:none}.workflow-filters .filter.current{background:#174e70;color:white;border-color:#174e70}.workflow-filters strong{display:inline-block;min-width:1.5em;text-align:center}.company-progress{display:block;margin:5px 0 0;color:#536575;font-weight:400}.bulk-save{position:sticky;top:12px;float:right;max-width:240px;background:#fff;padding:12px;border:1px solid #d2dbe3;border-radius:8px;z-index:2}.bulk-save p{font-size:13px} @media(max-width:700px){.bulk-save{float:none;max-width:none;top:0}}body{font:16px system-ui,sans-serif;background:#f5f7fa;color:#172b3a;margin:0}nav,main{max-width:1000px;margin:auto;padding:20px}nav a{display:inline-block;padding:12px;background:white;border-radius:8px;margin-right:12px}h1{margin-top:0}.notice{background:#e9eff7;padding:12px;border-radius:8px}.company,.campaign,.outreach{background:white;border:1px solid #d2dbe3;border-radius:10px;padding:16px;margin:14px 0}.contact-card{border-top:1px solid #d2dbe3;padding-top:10px;margin-top:16px}.channel-actions{display:flex;gap:10px;flex-wrap:wrap}.channel-actions form{margin:0}summary{cursor:pointer;font-weight:600}fieldset{border:0;padding:12px 0}label{display:block;margin:12px 0}small{display:block;margin-left:24px;color:#536575}input:not([type=checkbox]):not([type=hidden]),textarea,select{display:block;box-sizing:border-box;width:100%;padding:10px;margin-top:6px;border:1px solid #aab7c3;border-radius:6px;font:inherit;background:white}button{padding:10px 16px;border:0;border-radius:6px;background:#174e70;color:white;cursor:pointer}button:disabled{opacity:.6}.save-status{display:block;margin:10px 0}form{margin-bottom:24px}a{color:#174e70}`;
 const script=`<script>
 const dirty=new Set();
 const today=new Date();const localDay=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
@@ -169,4 +191,4 @@ document.querySelector('#save-recipient-choices')?.addEventListener('click',asyn
 });
 window.addEventListener('beforeunload',event=>{if(dirty.size){event.preventDefault();event.returnValue='';}});
 </script>`;
-module.exports={productWorkspace,renderWorkspace,styles,script};
+module.exports={productWorkspace,renderWorkspace,styles,script,filterClause,normalizedFilter,FILTER_LABELS};

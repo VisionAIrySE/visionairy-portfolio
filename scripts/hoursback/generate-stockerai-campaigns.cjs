@@ -3,6 +3,7 @@
 const fs=require('node:fs');const path=require('node:path');
 const P=require('../../src/hoursback/crm/productPersonalization.js');
 const Q=require('../../src/hoursback/crm/productMessageQuality.js');
+const ROI=require('../../src/hoursback/crm/stockerRoiEmail.js');
 process.chdir(path.resolve(__dirname,'../..'));
 const DAYS=[1,4,9,16,25];const DEMO='https://www.stocker-ai.com/demo';
 const arg=(name,fallback='')=>{const p='--'+name+'=';const hit=process.argv.slice(2).find(x=>x.startsWith(p));return hit?hit.slice(p.length):fallback;};
@@ -49,8 +50,8 @@ function prompt(record){
   `- The live demo is ${DEMO}. It is the main invitation. A reply is also welcome and no meeting is required.`,
   '- The approved cadence is business days 1, 4, 9, 16, and 25.',
   '- Touch 1 introduces Russ as the founder, connects one verified company fact to the familiar route-picking task, states the 25-35% target and free 14-day test plainly, and invites the live demo.',
-  '- Touch 2 asks what report or vending system drives picking, explains that a PDF can be checked, and mentions the free test without sounding like a promotion.',
-  '- Touch 3 gives this transparent example only: five drivers, one route per driver per workday, 1.5 picking hours per route, $21 per hour, five workdays per week, 35% less picking time, $1,194.38 monthly time value, $100 subscription, and $1,094.38 after subscription.',
+  '- Touch 2 is replaced after generation by the approved per-route ROI explanation: 1.5 hours per daily route, $21 per hour, 260 workdays, 35% less picking time, $2,867 annual labor-time value, $240 annual subscription, $2,627 net annual value, and about 1,094% net ROI.',
+  '- Touch 3 is replaced after generation by the approved voice-workflow explanation: it explains the stop-and-look problem, says StockerAI does not replace the vending system, identifies Parlevel printed pre-kitting as the only proven format, and asks for the report name or a redacted PDF so compatibility can be checked.',
   '- Touch 4 says the easiest evaluation starts with the real report, asks for the format or a redacted PDF, and explains that compatibility is confirmed before they spend anything.',
   '- Touch 5 is a warm, direct final note: explain the screen-or-paper problem, restate the measurable target and free test, include the demo, and give an easy way to decline.',
   '',
@@ -115,7 +116,7 @@ async function main(){
  async function worker(){while(cursor<remaining.length){const record=remaining[cursor++],reserve=worstCase(record,catalog);if(spent+reserved+reserve>maxSpend)throw Error('The approved spending ceiling cannot reserve the next call');reserved+=reserve;
    let payload;try{const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:modelName,messages:[{role:'system',content:'You are an expert B2B email strategist. Follow every factual, structural, and formatting rule. Return JSON only.'},{role:'user',content:prompt(record)}],reasoning:{effort:'minimal'},max_tokens:3000,response_format:{type:'json_object'},usage:{include:true}}),signal:AbortSignal.timeout(240000)});if(!response.ok){const detail=(await response.text()).slice(0,500);throw Error(`${modelName} returned ${response.status} while writing ${record.company.name}: ${detail}`);}payload=await response.json();}finally{reserved-=reserve;}
    spent+=Number(payload.usage?.cost||0);if(spent>maxSpend)throw Error('OpenRouter reported spending above the approved ceiling; generation stopped');let sequence;const raw=payload.choices?.[0]?.message?.content||'';try{sequence=JSON.parse(raw||'{}');}catch{sequence={};}
-   sequence=normalizeSequence(sequence);
+   sequence=ROI.insertRoiEmail(normalizeSequence(sequence),record);
    const row={prospectId:record.prospectId,membershipId:record.membershipId,sequenceId:record.sequenceId,company:record.company,recipient:record.recipient,evidenceFindingIds:record.evidence.map(x=>x.id),messages:sequence.messages||[],failures:validate(sequence,record),costUsd:Number(payload.usage?.cost||0),finishReason:payload.choices?.[0]?.finish_reason||null,usage:payload.usage||null};results.push(row);finished++;save();console.log(`${finished}/${cohort.records.length} ${record.company.name}: ${row.failures.length?'needs review':'passed checks'}`);
   }}
  await Promise.all(Array.from({length:Math.min(3,remaining.length)},()=>worker()));
@@ -123,4 +124,4 @@ async function main(){
  const failed=results.filter(x=>x.failures.length);console.log(JSON.stringify({outputFile,intended:cohort.records.length,completed:results.length,passed:results.length-failed.length,needsReview:failed.map(x=>({company:x.company.name,reasons:x.failures})),spentUsd:Number(spent.toFixed(6)),approvedCeilingUsd:maxSpend},null,2));if(failed.length)process.exitCode=2;
 }
 if(require.main===module)main().catch(error=>{console.error(error.message);process.exitCode=1;});
-module.exports={prompt,validate,worstCase,normalizeMessage,normalizeSequence};
+module.exports={prompt,validate,worstCase,normalizeMessage,normalizeSequence,insertRoiEmail:ROI.insertRoiEmail};
