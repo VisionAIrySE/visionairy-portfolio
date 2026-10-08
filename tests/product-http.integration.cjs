@@ -18,7 +18,7 @@ test('authenticated product routes save choices, reject bad tokens, and preserve
   const anonymous=await (await fetch(target)).text();assert.match(anonymous,/action="\/login"/);assert.doesNotMatch(anonymous,/HTTP Test Company/);
   const login=await fetch(base+'/login',{method:'POST',body:new URLSearchParams({pw:'local-route-test'}),redirect:'manual'});assert.equal(login.status,303);const cookie=login.headers.get('set-cookie').split(';')[0];
   const headers={cookie};const page=await(await fetch(target,{headers})).text();assert.match(page,/HTTP Test Company/);const csrf=page.match(/name="csrf" value="([a-f0-9]+)"/)[1];
-  const searched=await(await fetch(target+'?q=HTTP%20Test',{headers})).text();assert.match(searched,/HTTP Test Company/);assert.doesNotMatch(searched,/Separate Operator/);assert.match(searched,/1 matching companies/);
+  const searched=await(await fetch(target+'?q=HTTP%20Test',{headers})).text();assert.match(searched,/HTTP Test Company/);assert.doesNotMatch(searched,/Separate Operator/);assert.match(searched,/<strong>1<\/strong> matching companies/);
   const websiteSearch=await(await fetch(target+'?q=routepicker',{headers})).text();assert.match(websiteSearch,/HTTP Test Company/);assert.doesNotMatch(websiteSearch,/Separate Operator/);
   let response=await fetch(target+'/choices',{method:'POST',headers,body:new URLSearchParams({csrf:'bad',prospectId:p.id,inbox:'1'})});assert.equal(response.status,403);
   response=await fetch(target+'/choices',{method:'POST',headers,body:new URLSearchParams({csrf,prospectId:p.id,inbox:'1'})});assert.equal(response.status,200);assert.equal((await response.json()).selected,1);

@@ -5,8 +5,8 @@ const {renderWorkspace,script,normalizedFilter,filterClause}=require('../src/hou
 test('StockerAI opens on prepared campaigns and offers workflow filters',()=>{
  assert.equal(normalizedFilter('stockerai',''),'campaigns');assert.equal(normalizedFilter('visionairy',''),'all');
  assert.deepEqual(filterClause('campaigns'),{recipients:{some:{enrollments:{some:{messages:{some:{}}}}}}});
- const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,filter:'campaigns',filterCounts:{campaigns:59,active:74,not_started:5,needs_setup:100,stopped:13,all:159},memberships:[{prospectId:'p',prospect:{name:'Operator',contacts:[]},recipients:[]}]});
- assert.match(html,/Prepared campaigns <strong>59<\/strong>/);assert.match(html,/Needs preparation <strong>100<\/strong>/);assert.match(html,/class="filter current"/);assert.match(html,/No campaign prepared/);
+ const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,filter:'campaigns',filterCounts:{campaigns:59,active:74,not_started:5,activity:2,needs_setup:100,stopped:13,all:159},memberships:[{prospectId:'p',prospect:{name:'Operator',contacts:[]},recipients:[]}]});
+ assert.match(html,/Ready and prepared <strong>59<\/strong>/);assert.match(html,/Calls and follow-up <strong>2<\/strong>/);assert.match(html,/Needs preparation <strong>100<\/strong>/);assert.match(html,/class="filter current"/);assert.match(html,/No campaign prepared/);
 });
 test('form token cannot authorize another product or a stale page',async()=>{
  assert.equal(validToken('stockerai',formToken('visionairy')),false);
@@ -21,10 +21,20 @@ test('recipient form starts unchecked and escapes company and email content',()=
  assert.doesNotMatch(html,/checked/);assert.match(html,/Company inbox/);
  assert.match(html,/Save recipient choices/);assert.match(html,/name="csrf"/);
  assert.match(html,/Send one test email to Russ/);assert.match(html,/cannot target a customer or send twice/);
- assert.match(html,/StockerAI companies/);assert.match(html,/only companies assigned to StockerAI/);
+ assert.match(html,/StockerAI outreach/);assert.match(html,/Choose recipients, review their messages/);
  assert.match(html,/Company inbox/);assert.match(html,/Add a person/);
  assert.match(html,/Company type/);assert.match(html,/Vending operator/);assert.match(html,/Machine sales or leasing vendor/);assert.match(html,/Needs review<\/span><small class="company-progress">0 recipients · <span class="selected-count">0/);
  assert.match(script,/if\(!dirty\.size\)\{location\.reload\(\);return;\}/);
+});
+test('activity view opens the logging tools before email campaigns',()=>{
+ const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,filter:'activity',filterCounts:{activity:1},memberships:[{prospectId:'p',nextAction:'Call Pat',nextActionDate:new Date('2026-10-09'),stage:'ACTIVE',activities:[],tasks:[],_count:{activities:0,tasks:0},prospect:{name:'Operator',contacts:[]},recipients:[]}]});
+ assert.match(html,/^<main><h1>Calls and follow-up<\/h1>/);
+ assert.match(html,/data-company="p" open/);
+ assert.ok(html.indexOf('Calls, replies &amp; next actions')<html.indexOf('Email campaigns'));
+});
+test('today filter selects only due next actions or tasks',()=>{
+ const now=new Date('2026-10-08T18:00:00Z');
+ assert.deepEqual(filterClause('today',now),{OR:[{nextActionDate:{lte:new Date('2026-10-08T00:00:00.000Z')}},{tasks:{some:{completedAt:null,dueDate:{lte:new Date('2026-10-08T00:00:00.000Z')}}}}]});
 });
 test('a named person at the company inbox is shown once as the person',()=>{
  const html=renderWorkspace({product:{id:'stockerai',name:'StockerAI'},count:1,page:1,memberships:[{prospectId:'p',prospect:{name:'Denver’s Best Vending',email:'stephen@example.test',contacts:[{id:'c',name:'Stephen',email:'stephen@example.test'}]},recipients:[{recipientKey:'inbox',selected:true,enrollments:[]}]}]},{csrf:formToken('stockerai')});
